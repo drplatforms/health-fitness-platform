@@ -1,7 +1,5 @@
 from dotenv import load_dotenv
 
-load_dotenv()
-
 from crewai import Agent, Task, Crew, LLM
 
 from services.recovery_service import get_recent_recovery_metrics
@@ -10,9 +8,10 @@ from services.workout_service import get_recent_workouts
 from services.user_service import get_user_profile
 from services.report_service import save_health_report
 
+load_dotenv()
+
 
 def generate_health_report(user_id):
-
     user_profile = get_user_profile(user_id)
 
     recovery_data = get_recent_recovery_metrics()
@@ -40,11 +39,8 @@ def generate_health_report(user_id):
     nutrition_summary = ""
 
     for nutrient_name, nutrient_data in nutrition_data.items():
-
         nutrition_summary += (
-            f"{nutrient_name}: "
-            f"{nutrient_data['amount']} "
-            f"{nutrient_data['unit']}\n"
+            f"{nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}\n"
         )
 
     # -----------------------------
@@ -54,7 +50,6 @@ def generate_health_report(user_id):
     workout_summary = ""
 
     for workout in workouts:
-
         session = workout["session"]
 
         workout_summary += (
@@ -64,7 +59,6 @@ def generate_health_report(user_id):
         )
 
         for set_data in workout["sets"]:
-
             workout_summary += (
                 f"- {set_data['name']} | "
                 f"{set_data['reps']} reps x "
@@ -106,14 +100,14 @@ def generate_health_report(user_id):
         Analyze the following user profile and recovery data.
 
         User Profile:
-        Name: {user_profile['name']}
-        Goal: {user_profile['primary_goal']}
+        Name: {user_profile["name"]}
+        Goal: {user_profile["primary_goal"]}
 
         Recovery Metrics:
-        Average sleep: {recovery_data['avg_sleep']}
-        Average energy: {recovery_data['avg_energy']}
-        Average soreness: {recovery_data['avg_soreness']}
-        Weight change: {recovery_data['weight_change']}
+        Average sleep: {recovery_data["avg_sleep"]}
+        Average energy: {recovery_data["avg_energy"]}
+        Average soreness: {recovery_data["avg_soreness"]}
+        Weight change: {recovery_data["weight_change"]}
 
         Provide:
         1. Recovery assessment
@@ -268,7 +262,6 @@ def generate_health_report(user_id):
     print("Starting coordinator crew...")
 
     try:
-
         result = crew.kickoff()
 
         report_text = result.raw
@@ -282,8 +275,6 @@ def generate_health_report(user_id):
         return report_text
 
     except Exception as e:
-
-        print("CrewAI Error:")
         print(e)
 
-    return str(e)
+        return str(e)

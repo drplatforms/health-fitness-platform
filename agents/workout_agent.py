@@ -1,7 +1,5 @@
 from dotenv import load_dotenv
 
-load_dotenv()
-
 from crewai import Agent, Task, Crew, LLM
 
 from services.workout_service import get_recent_workouts
@@ -9,6 +7,7 @@ from services.user_service import get_user_profile
 
 from models.workout_models import WorkoutAssessment
 
+load_dotenv()
 # -----------------------------
 # Select User
 # -----------------------------
@@ -36,7 +35,6 @@ if not workouts:
 workout_summary = ""
 
 for workout in workouts:
-
     session = workout["session"]
 
     workout_summary += (
@@ -46,11 +44,8 @@ for workout in workouts:
     )
 
     for set_data in workout["sets"]:
-
         workout_summary += (
-            f"- {set_data['name']} | "
-            f"{set_data['reps']} reps x "
-            f"{set_data['weight']} lbs"
+            f"- {set_data['name']} | {set_data['reps']} reps x {set_data['weight']} lbs"
         )
 
         if set_data["rir"] is not None:
@@ -62,6 +57,8 @@ for workout in workouts:
 # -----------------------------
 # Local LLM
 # -----------------------------
+
+fast_llm = LLM(model="ollama/qwen3:8b", base_url="http://localhost:11434")
 
 llm = fast_llm
 
@@ -100,14 +97,14 @@ workout_task = Task(
     and workout history.
 
     User Profile:
-    Name: {user_profile['name']}
-    Gender: {user_profile['gender']}
-    Age: {user_profile['age']}
-    Height: {user_profile['height_cm']} cm
-    Starting Weight: {user_profile['starting_weight']}
-    Goal Weight: {user_profile['goal_weight']}
-    Primary Goal: {user_profile['primary_goal']}
-    Activity Level: {user_profile['activity_level']}
+    Name: {user_profile["name"]}
+    Gender: {user_profile["gender"]}
+    Age: {user_profile["age"]}
+    Height: {user_profile["height_cm"]} cm
+    Starting Weight: {user_profile["starting_weight"]}
+    Goal Weight: {user_profile["goal_weight"]}
+    Primary Goal: {user_profile["primary_goal"]}
+    Activity Level: {user_profile["activity_level"]}
 
     Workout History:
     {workout_summary}

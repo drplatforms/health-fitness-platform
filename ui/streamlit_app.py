@@ -17,7 +17,6 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 from services.user_service import get_all_users
 
 from services.workout_service import (
-    get_recent_workouts,
     get_exercises,
     create_workout_session,
     add_workout_set,
@@ -50,6 +49,12 @@ if "health_report" not in st.session_state:
 if "health_report_timestamp" not in st.session_state:
     st.session_state.health_report_timestamp = None
 
+if "report_job_id" not in st.session_state:
+    st.session_state.report_job_id = None
+
+if "report_job_status" not in st.session_state:
+    st.session_state.report_job_status = None
+
 
 # -----------------------------
 # User Selection
@@ -69,13 +74,11 @@ user_id = user_map[selected_user]
 # -----------------------------
 
 if st.session_state.health_report is None:
-
     response = requests.get(f"http://127.0.0.1:8000/reports/latest/{user_id}")
 
     data = response.json()
 
     if data["success"]:
-
         latest_report = data["report"]
 
         st.session_state.health_report = latest_report["report_text"]
@@ -88,20 +91,17 @@ if st.session_state.health_report is None:
 # -----------------------------
 
 if st.sidebar.button("Refresh AI Report", key="refresh_ai_report"):
-
     st.session_state.health_report = None
 
     st.rerun()
 
 
 if st.sidebar.button("Load Latest Saved Report", key="load_latest_report"):
-
     response = requests.get(f"http://127.0.0.1:8000/reports/latest/{user_id}")
 
     data = response.json()
 
     if data["success"]:
-
         latest_report = data["report"]
 
         st.session_state.health_report = latest_report["report_text"]
@@ -111,7 +111,6 @@ if st.sidebar.button("Load Latest Saved Report", key="load_latest_report"):
         st.success("Latest saved report loaded.")
 
     else:
-
         st.warning("No saved reports found.")
 
 
@@ -128,7 +127,6 @@ data = response.json()
 recovery_reports = data["reports"]
 
 if recovery_reports:
-
     latest = recovery_reports[0]
 
     col1, col2, col3, col4 = st.columns(4)
@@ -146,7 +144,6 @@ if recovery_reports:
     st.info(latest["recommendation"])
 
 else:
-
     st.warning("No recovery reports found.")
 
 
@@ -157,7 +154,6 @@ else:
 recovery_df = pd.DataFrame(recovery_reports)
 
 if not recovery_df.empty:
-
     recovery_df = recovery_df.copy()
 
     recovery_df["report_number"] = range(1, len(recovery_df) + 1)
@@ -173,7 +169,6 @@ if not recovery_df.empty:
     st.plotly_chart(fig, width="stretch")
 
 else:
-
     st.warning("No recovery report data available.")
 
 
@@ -192,11 +187,9 @@ data = response.json()
 nutrition = data.get("nutrition") or {}
 
 if nutrition:
-
     nutrition_rows = []
 
     for nutrient_name, nutrient_data in nutrition.items():
-
         nutrition_rows.append(
             {
                 "Nutrient": nutrient_name,
@@ -208,7 +201,6 @@ if nutrition:
     st.dataframe(nutrition_rows, width="stretch")
 
 else:
-
     st.warning("No nutrition data found.")
 
 
@@ -244,7 +236,6 @@ rir = st.number_input("RIR", min_value=0, max_value=5, value=2)
 # -----------------------------
 
 if st.button("Add Set", key="add_set_button"):
-
     st.session_state.current_sets.append(
         {
             "exercise_id": (exercise_map[selected_exercise]),
@@ -264,11 +255,9 @@ if st.button("Add Set", key="add_set_button"):
 # -----------------------------
 
 if st.session_state.current_sets:
-
     st.write("### Current Workout")
 
     for set_data in st.session_state.current_sets:
-
         st.write(
             f"{set_data['exercise_name']} | "
             f"Set {set_data['set_number']} | "
@@ -283,7 +272,6 @@ if st.session_state.current_sets:
 # -----------------------------
 
 if st.button("Save Workout", key="save_workout_button"):
-
     session_id = create_workout_session(
         user_id=user_id,
         workout_name=workout_name,
@@ -292,7 +280,6 @@ if st.button("Save Workout", key="save_workout_button"):
     )
 
     for set_data in st.session_state.current_sets:
-
         add_workout_set(
             workout_session_id=session_id,
             exercise_id=(set_data["exercise_id"]),
@@ -320,19 +307,15 @@ data = response.json()
 workouts = data["workouts"]
 
 if workouts:
-
     for workout in workouts:
-
         session = workout["session"]
 
-        with st.expander(f"{session['workout_name']} - " f"{session['workout_date']}"):
+        with st.expander(f"{session['workout_name']} - {session['workout_date']}"):
+            st.write(f"Duration: {session['duration_minutes']}")
 
-            st.write(f"Duration: " f"{session['duration_minutes']}")
-
-            st.write(f"Notes: " f"{session['notes']}")
+            st.write(f"Notes: {session['notes']}")
 
             for set_data in workout["sets"]:
-
                 text = (
                     f"{set_data['name']} | "
                     f"{set_data['reps']} reps x "
@@ -340,13 +323,11 @@ if workouts:
                 )
 
                 if set_data["rir"] is not None:
-
-                    text += f" | RIR " f"{set_data['rir']}"
+                    text += f" | RIR {set_data['rir']}"
 
                 st.write(text)
 
 else:
-
     st.warning("No workouts found.")
 
 
@@ -357,40 +338,64 @@ else:
 st.header("🧠 AI Health Insights")
 
 if st.session_state.health_report_timestamp:
-
-    st.caption(f"Last Generated: " f"{st.session_state.health_report_timestamp}")
+    st.caption(f"Last Generated: {st.session_state.health_report_timestamp}")
 
 
 if st.button("Generate AI Health Report", key="generate_ai_report_button"):
+    response = requests.post(f"http://127.0.0.1:8000/reports/generate/{user_id}")
 
-    with st.spinner("Running multi-agent " "health coordinator..."):
+    data = response.json()
 
-        response = requests.post(f"http://127.0.0.1:8000/reports/generate/{user_id}")
+    if data["success"]:
+        st.session_state.report_job_id = data["job_id"]
+        st.session_state.report_job_status = data["status"]
 
-        data = response.json()
+        st.info("AI report generation started.")
 
-        if data["success"]:
+    else:
+        st.error("Failed to start AI report generation.")
 
+
+if st.session_state.report_job_id:
+    response = requests.get(
+        f"http://127.0.0.1:8000/reports/status/{st.session_state.report_job_id}"
+    )
+
+    data = response.json()
+
+    if data["success"]:
+        st.session_state.report_job_status = data["status"]
+
+        if data["status"] == "running":
+            st.info("AI report is still generating...")
+
+            if st.button("Check Report Status", key="check_report_status_button"):
+                st.rerun()
+
+        elif data["status"] == "completed":
             st.session_state.health_report = data["report"]
 
             st.session_state.health_report_timestamp = datetime.now().strftime(
                 "%Y-%m-%d %I:%M %p"
             )
 
-            st.success("AI report generated.")
+            st.session_state.report_job_id = None
+            st.session_state.report_job_status = None
 
-        else:
+            st.success("AI report completed.")
 
-            st.error("Failed to generate report.")
+        elif data["status"] == "failed":
+            st.error(f"AI report failed: {data['report']}")
+
+            st.session_state.report_job_id = None
+            st.session_state.report_job_status = None
 
 
 if st.session_state.health_report:
-
     st.write(st.session_state.health_report)
 
 else:
-
-    st.info("Click the button to " "generate a new AI health report.")
+    st.info("Click the button to generate a new AI health report.")
 
 
 # -----------------------------
@@ -406,13 +411,9 @@ data = response.json()
 report_history = data["reports"]
 
 if report_history:
-
     for report in report_history:
-
-        with st.expander(f"Report - " f"{report['created_at']}"):
-
+        with st.expander(f"Report - {report['created_at']}"):
             st.write(report["report_text"])
 
 else:
-
     st.info("No report history found.")
