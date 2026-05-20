@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from crewai import Agent, Task, Crew, LLM
@@ -7,7 +8,6 @@ from services.workout_service import get_recent_workouts
 from services.user_service import get_user_profile
 
 from models.workout_models import WorkoutAssessment
-
 
 # -----------------------------
 # Select User
@@ -54,9 +54,7 @@ for workout in workouts:
         )
 
         if set_data["rir"] is not None:
-            workout_summary += (
-                f" | RIR {set_data['rir']}"
-            )
+            workout_summary += f" | RIR {set_data['rir']}"
 
         workout_summary += "\n"
 
@@ -74,26 +72,21 @@ llm = fast_llm
 
 workout_agent = Agent(
     role="Strength and Conditioning Coach",
-
     goal="""
     Analyze workout performance,
     recovery demand,
     progression,
     and training balance.
     """,
-
     backstory="""
     You specialize in resistance training,
     progression analysis,
     fatigue management,
     and performance optimization.
     """,
-
     llm=llm,
-
     verbose=True,
-
-    response_format=WorkoutAssessment
+    response_format=WorkoutAssessment,
 )
 
 
@@ -136,12 +129,10 @@ workout_task = Task(
         "recommendation": "concise recommendation"
     }}
     """,
-
     expected_output="""
     Structured workout assessment.
     """,
-
-    agent=workout_agent
+    agent=workout_agent,
 )
 
 
@@ -149,13 +140,7 @@ workout_task = Task(
 # Build Crew
 # -----------------------------
 
-crew = Crew(
-    agents=[workout_agent],
-
-    tasks=[workout_task],
-
-    verbose=True
-)
+crew = Crew(agents=[workout_agent], tasks=[workout_task], verbose=True)
 
 
 # -----------------------------

@@ -6,12 +6,15 @@ def get_recent_recovery_metrics(limit=7):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT *
     FROM daily_checkins
     ORDER BY created_at DESC
     LIMIT ?
-    """, (limit,))
+    """,
+        (limit,),
+    )
 
     rows = cursor.fetchall()
     conn.close()
@@ -33,9 +36,7 @@ def get_recent_recovery_metrics(limit=7):
         "avg_soreness": round(avg_soreness, 1),
         "latest_weight": latest_weight,
         "weight_change": round(latest_weight - oldest_weight, 1),
-        "recent_notes": [
-            row["notes"] for row in rows if row["notes"]
-        ]
+        "recent_notes": [row["notes"] for row in rows if row["notes"]],
     }
 
 
@@ -43,7 +44,8 @@ def save_recovery_report(metrics, recommendation):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO recovery_reports (
         report_date,
         entries_analyzed,
@@ -54,29 +56,35 @@ def save_recovery_report(metrics, recommendation):
         recommendation
     )
     VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datetime.now().strftime("%Y-%m-%d"),
-        metrics["entries_analyzed"],
-        metrics["avg_sleep"],
-        metrics["avg_energy"],
-        metrics["avg_soreness"],
-        metrics["weight_change"],
-        recommendation
-    ))
+    """,
+        (
+            datetime.now().strftime("%Y-%m-%d"),
+            metrics["entries_analyzed"],
+            metrics["avg_sleep"],
+            metrics["avg_energy"],
+            metrics["avg_soreness"],
+            metrics["weight_change"],
+            recommendation,
+        ),
+    )
 
     conn.commit()
     conn.close()
-    
+
+
 def get_recent_recovery_reports(limit=5):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT *
     FROM recovery_reports
     ORDER BY created_at DESC
     LIMIT ?
-    """, (limit,))
+    """,
+        (limit,),
+    )
 
     rows = cursor.fetchall()
     conn.close()

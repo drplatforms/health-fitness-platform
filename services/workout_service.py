@@ -1,32 +1,14 @@
+# =====================================
+# Imports
+# =====================================
+
 from database import get_connection
+from datetime import datetime
 
-
-# -----------------------------
-# Exercise Search
-# -----------------------------
-
-def search_exercises(search_term):
-
-    conn = get_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    SELECT *
-    FROM exercises
-    WHERE name LIKE ?
-    ORDER BY name
-    """, (f"%{search_term}%",))
-
-    rows = cursor.fetchall()
-
-    conn.close()
-
-    return rows
-
-
-# -----------------------------
+# =====================================
 # Get All Exercises
-# -----------------------------
+# =====================================
+
 
 def get_exercises():
 
@@ -46,34 +28,61 @@ def get_exercises():
     return rows
 
 
-# -----------------------------
-# Create Workout Session
-# -----------------------------
+# =====================================
+# Search Exercises
+# =====================================
 
-def create_workout_session(
-    user_id,
-    workout_name,
-    duration_minutes,
-    notes=None
-):
+
+def search_exercises(search_term, limit=10):
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
-    INSERT INTO workout_sessions (
-        user_id,
-        workout_name,
-        duration_minutes,
-        notes
+    cursor.execute(
+        """
+    SELECT *
+    FROM exercises
+    WHERE name LIKE ?
+    ORDER BY name
+    LIMIT ?
+    """,
+        (f"%{search_term}%", limit),
     )
-    VALUES (?, ?, ?, ?)
-    """, (
+
+    rows = cursor.fetchall()
+
+    conn.close()
+
+    return rows
+
+
+# =====================================
+# Create Workout Session
+# =====================================
+
+
+def create_workout_session(user_id, workout_name, duration_minutes=None, notes=None):
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    workout_date = datetime.now().strftime("%Y-%m-%d")
+
+    cursor.execute(
+        """
+    INSERT INTO workout_sessions (
+
         user_id,
+        workout_date,
         workout_name,
         duration_minutes,
         notes
-    ))
+
+    )
+    VALUES (?, ?, ?, ?, ?)
+    """,
+        (user_id, workout_date, workout_name, duration_minutes, notes),
+    )
 
     session_id = cursor.lastrowid
 
@@ -83,67 +92,59 @@ def create_workout_session(
     return session_id
 
 
-# -----------------------------
+# =====================================
 # Add Workout Set
-# -----------------------------
+# =====================================
+
 
 def add_workout_set(
-    workout_session_id,
-    exercise_id,
-    set_number,
-    reps,
-    weight,
-    rir=None
+    workout_session_id, exercise_id, set_number, reps, weight, rir=None
 ):
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO workout_sets (
+
         workout_session_id,
         exercise_id,
         set_number,
         reps,
         weight,
         rir
+
     )
     VALUES (?, ?, ?, ?, ?, ?)
-    """, (
-        workout_session_id,
-        exercise_id,
-        set_number,
-        reps,
-        weight,
-        rir
-    ))
+    """,
+        (workout_session_id, exercise_id, set_number, reps, weight, rir),
+    )
 
     conn.commit()
     conn.close()
 
 
-# -----------------------------
+# =====================================
 # Get Recent Workouts
-# -----------------------------
+# =====================================
 
-def get_recent_workouts(
-    user_id,
-    limit=5
-):
+
+def get_recent_workouts(user_id, limit=5):
 
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT *
     FROM workout_sessions
     WHERE user_id = ?
-    ORDER BY workout_date DESC
+    ORDER BY workout_date DESC, id DESC
     LIMIT ?
-    """, (
-        user_id,
-        limit
-    ))
+    """,
+        (user_id, limit),
+    )
 
     sessions = cursor.fetchall()
 
@@ -151,23 +152,37 @@ def get_recent_workouts(
 
     for session in sessions:
 
-        cursor.execute("""
+        cursor.execute(
+            """
         SELECT
-            ws.*,
-            e.name
-        FROM workout_sets ws
-        JOIN exercises e
-            ON ws.exercise_id = e.id
-        WHERE ws.workout_session_id = ?
-        ORDER BY ws.set_number
-        """, (session["id"],))
+
+            workout_sets.id,
+            workout_sets.workout_session_id,
+            workout_sets.exercise_id,
+            workout_sets.set_number,
+            workout_sets.reps,
+            workout_sets.weight,
+            workout_sets.rir,
+
+            exercises.name
+
+        FROM workout_sets
+
+        JOIN exercises
+            ON workout_sets.exercise_id = exercises.id
+
+        WHERE workout_sets.workout_session_id = ?
+
+        ORDER BY workout_sets.set_number
+        """,
+            (session["id"],),
+        )
 
         sets = cursor.fetchall()
 
-        workouts.append({
-            "session": session,
-            "sets": sets
-        })
+        workouts.append(
+            {"session": dict(session), "sets": [dict(set_row) for set_row in sets]}
+        )
 
     conn.close()
 

@@ -2,14 +2,14 @@ from services.nutrition_service import (
     get_foods,
     add_food_entry,
     get_daily_nutrition,
-    search_foods
+    search_foods,
 )
 
 from services.workout_service import (
     search_exercises,
     create_workout_session,
     add_workout_set,
-    get_recent_workouts
+    get_recent_workouts,
 )
 
 
@@ -24,7 +24,7 @@ def add_daily_checkin():
     cursor = conn.cursor()
 
     print("\n=== Daily Fitness Check-In ===\n")
-    
+
     user_id = int(input("User ID: "))
     body_weight = float(input("Body weight: "))
     sleep_hours = float(input("Hours slept: "))
@@ -33,7 +33,8 @@ def add_daily_checkin():
     mood = input("Mood: ")
     notes = input("Notes: ")
 
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO daily_checkins (
         user_id,
         checkin_date,
@@ -45,16 +46,18 @@ def add_daily_checkin():
         notes
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        datetime.now().strftime("%Y-%m-%d"),
-        body_weight,
-        sleep_hours,
-        energy_level,
-        soreness_level,
-        mood,
-        notes
-    ))
+    """,
+        (
+            user_id,
+            datetime.now().strftime("%Y-%m-%d"),
+            body_weight,
+            sleep_hours,
+            energy_level,
+            soreness_level,
+            mood,
+            notes,
+        ),
+    )
 
     conn.commit()
     conn.close()
@@ -90,6 +93,7 @@ Notes: {row['notes']}
 
     conn.close()
 
+
 def analyze_recent_checkins():
     conn = get_connection()
     cursor = conn.cursor()
@@ -103,7 +107,7 @@ def analyze_recent_checkins():
 
     rows = cursor.fetchall()
     conn.close()
-    
+
     avg_sleep = sum(row["sleep_hours"] for row in rows) / len(rows)
     avg_energy = sum(row["energy_level"] for row in rows) / len(rows)
     avg_soreness = sum(row["soreness_level"] for row in rows) / len(rows)
@@ -113,7 +117,8 @@ def analyze_recent_checkins():
     weight_change = latest_weight - oldest_weight
 
     print("\n=== Recent Check-In Analysis ===\n")
-    
+
+
 def show_recovery_reports():
     rows = get_recent_recovery_reports()
 
@@ -137,6 +142,7 @@ Recommendation:
 ---------------------------
 """)
 
+
 def show_foods():
     foods = get_foods()
 
@@ -158,6 +164,7 @@ def show_foods():
             )
 
         print("\n---------------------------\n")
+
 
 def search_for_food():
     search_term = input("Search food: ")
@@ -187,6 +194,7 @@ def search_for_food():
 
         print("\n---------------------------\n")
 
+
 def show_daily_nutrition():
     user_id = int(input("User ID: "))
     entry_date = input("Date (YYYY-MM-DD): ")
@@ -208,6 +216,7 @@ def show_daily_nutrition():
         )
 
     print()
+
 
 def log_food():
     user_id = int(input("User ID: "))
@@ -246,7 +255,8 @@ def log_food():
     add_food_entry(user_id, food_id, grams)
 
     print("\nFood logged successfully.\n")
-    
+
+
 def log_workout():
     user_id = int(input("User ID: "))
     workout_name = input("Workout name: ")
@@ -260,7 +270,7 @@ def log_workout():
         user_id=user_id,
         workout_name=workout_name,
         duration_minutes=duration_minutes,
-        notes=notes
+        notes=notes,
     )
 
     print(f"\nWorkout session created. Session ID: {session_id}\n")
@@ -303,13 +313,14 @@ Equipment: {exercise['equipment']}
             set_number=set_number,
             reps=reps,
             weight=weight,
-            rir=rir
+            rir=rir,
         )
 
         print("\nSet logged.\n")
 
     print("\nWorkout complete.\n")
-    
+
+
 def show_recent_workouts():
     user_id = int(input("User ID: "))
 
@@ -336,11 +347,7 @@ Notes: {session['notes']}
                 f"- {set_data['name']} | "
                 f"Set {set_data['set_number']}: "
                 f"{set_data['reps']} reps x {set_data['weight']} lbs"
-                + (
-                    f" | RIR {set_data['rir']}"
-                    if set_data["rir"] is not None
-                    else ""
-                )
+                + (f" | RIR {set_data['rir']}" if set_data["rir"] is not None else "")
             )
 
         print("\n---------------------------\n")
@@ -377,7 +384,7 @@ while True:
 
     elif choice == "4":
         show_recovery_reports()
-        
+
     elif choice == "5":
         show_foods()
 
@@ -389,7 +396,7 @@ while True:
 
     elif choice == "8":
         search_for_food()
-        
+
     elif choice == "9":
         log_workout()
 
@@ -399,7 +406,6 @@ while True:
     elif choice == "11":
         print("Goodbye.")
         break
-      
 
     else:
         print("Invalid option.")

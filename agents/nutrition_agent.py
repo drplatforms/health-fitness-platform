@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from crewai import Agent, Task, Crew, LLM
@@ -7,7 +8,6 @@ from services.nutrition_service import get_nutrition_analysis
 from services.user_service import get_user_profile
 
 from models.nutrition_models import NutritionAssessment
-
 
 # -----------------------------
 # Select User
@@ -24,33 +24,36 @@ nutrition_data = get_nutrition_analysis(user_id)
 # Validate Data
 # -----------------------------
 
-if not nutrition_data:
-    print("No nutrition data found.")
-    exit()
-
-
-# -----------------------------
-# Build Dynamic Nutrition Summary
-# -----------------------------
-
 nutrition_summary = ""
 
-for nutrient_name, nutrient_data in nutrition_data.items():
+if not nutrition_data:
 
-    nutrition_summary += (
-        f"{nutrient_name}: "
-        f"{nutrient_data['amount']} "
-        f"{nutrient_data['unit']}\n"
-    )
+    nutrition_summary = "No nutrition data logged today."
+
+else:
+
+    # -----------------------------
+    # Build Dynamic Nutrition Summary
+    # -----------------------------
+
+    for nutrient_name, nutrient_data in nutrition_data.items():
+
+        nutrition_summary += (
+            f"{nutrient_name}: "
+            f"{nutrient_data['amount']} "
+            f"{nutrient_data['unit']}\n"
+        )
 
 
 # -----------------------------
 # Local LLM
 # -----------------------------
 
-llm=fast_llm
-)
+fast_llm = LLM(model="ollama/qwen2.5:3b", base_url="http://localhost:11434")
 
+smart_llm = LLM(model="ollama/qwen3:8b", base_url="http://localhost:11434")
+
+llm = fast_llm
 
 # -----------------------------
 # Nutrition Agent
@@ -58,11 +61,9 @@ llm=fast_llm
 
 nutrition_agent = Agent(
     role="Nutrition Coach",
-
     goal="""
     Analyze nutrition intake and recovery support.
     """,
-
     backstory="""
     You specialize in performance nutrition,
     body composition,
@@ -70,12 +71,9 @@ nutrition_agent = Agent(
     recovery nutrition,
     and performance optimization.
     """,
-
     llm=llm,
-
     verbose=True,
-
-    response_format=NutritionAssessment
+    response_format=NutritionAssessment,
 )
 
 
@@ -121,12 +119,10 @@ nutrition_task = Task(
         "recommendation": "concise recommendation"
     }}
     """,
-
     expected_output="""
     Structured nutrition assessment.
     """,
-
-    agent=nutrition_agent
+    agent=nutrition_agent,
 )
 
 
@@ -134,13 +130,7 @@ nutrition_task = Task(
 # Build Crew
 # -----------------------------
 
-crew = Crew(
-    agents=[nutrition_agent],
-
-    tasks=[nutrition_task],
-
-    verbose=True
-)
+crew = Crew(agents=[nutrition_agent], tasks=[nutrition_task], verbose=True)
 
 
 # -----------------------------

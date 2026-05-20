@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+
 load_dotenv()
 
 from crewai import Agent, Task, Crew, LLM
@@ -8,6 +9,7 @@ from services.nutrition_service import get_nutrition_analysis
 from services.workout_service import get_recent_workouts
 from services.user_service import get_user_profile
 from services.report_service import save_health_report
+
 
 def generate_health_report(user_id):
 
@@ -31,7 +33,6 @@ def generate_health_report(user_id):
     if not workouts:
         return "No workout data found."
 
-
     # -----------------------------
     # Nutrition Summary
     # -----------------------------
@@ -45,7 +46,6 @@ def generate_health_report(user_id):
             f"{nutrient_data['amount']} "
             f"{nutrient_data['unit']}\n"
         )
-
 
     # -----------------------------
     # Workout Summary
@@ -72,26 +72,16 @@ def generate_health_report(user_id):
             )
 
             if set_data["rir"] is not None:
-                workout_summary += (
-                    f" | RIR {set_data['rir']}"
-                )
+                workout_summary += f" | RIR {set_data['rir']}"
 
             workout_summary += "\n"
-
 
     # -----------------------------
     # Local LLM
     # -----------------------------
 
-    fast_llm = LLM(
-        model="ollama/qwen3:8b",
-        base_url="http://localhost:11434"
-    )
-    smart_llm = LLM(
-        model="ollama/qwen3:8b",
-        base_url="http://localhost:11434"
-    )
-
+    fast_llm = LLM(model="ollama/qwen3:8b", base_url="http://localhost:11434")
+    smart_llm = LLM(model="ollama/qwen3:8b", base_url="http://localhost:11434")
 
     # -----------------------------
     # Recovery Agent
@@ -99,22 +89,17 @@ def generate_health_report(user_id):
 
     recovery_agent = Agent(
         role="Recovery Coach",
-
         goal="""
         Analyze recovery trends and training readiness.
         """,
-
         backstory="""
         You specialize in recovery management,
         fatigue analysis,
         and training readiness.
         """,
-
         llm=fast_llm,
-
-        verbose=True
+        verbose=True,
     )
-
 
     recovery_task = Task(
         description=f"""
@@ -135,14 +120,11 @@ def generate_health_report(user_id):
         2. Training readiness
         3. Recovery recommendations
         """,
-
         expected_output="""
         Concise recovery analysis.
         """,
-
-        agent=recovery_agent
+        agent=recovery_agent,
     )
-
 
     # -----------------------------
     # Nutrition Agent
@@ -150,22 +132,17 @@ def generate_health_report(user_id):
 
     nutrition_agent = Agent(
         role="Nutrition Coach",
-
         goal="""
         Analyze nutrition intake and recovery support.
         """,
-
         backstory="""
         You specialize in performance nutrition,
         body composition,
         and recovery nutrition.
         """,
-
         llm=fast_llm,
-
-        verbose=True
+        verbose=True,
     )
-
 
     nutrition_task = Task(
         description=f"""
@@ -182,14 +159,11 @@ def generate_health_report(user_id):
         2. Recovery implications
         3. Nutrition recommendations
         """,
-
         expected_output="""
         Concise nutrition analysis.
         """,
-
-        agent=nutrition_agent
+        agent=nutrition_agent,
     )
-
 
     # -----------------------------
     # Workout Agent
@@ -197,22 +171,17 @@ def generate_health_report(user_id):
 
     workout_agent = Agent(
         role="Strength Coach",
-
         goal="""
         Analyze workout quality and training balance.
         """,
-
         backstory="""
         You specialize in resistance training,
         recovery management,
         and performance progression.
         """,
-
         llm=fast_llm,
-
-        verbose=True
+        verbose=True,
     )
-
 
     workout_task = Task(
         description=f"""
@@ -226,14 +195,11 @@ def generate_health_report(user_id):
         2. Recovery implications
         3. Training recommendations
         """,
-
         expected_output="""
         Concise workout analysis.
         """,
-
-        agent=workout_agent
+        agent=workout_agent,
     )
-
 
     # -----------------------------
     # Coordinator Agent
@@ -241,14 +207,12 @@ def generate_health_report(user_id):
 
     coordinator_agent = Agent(
         role="Health Performance Coordinator",
-
         goal="""
         Combine recovery,
         nutrition,
         and workout insights
         into unified coaching recommendations.
         """,
-
         backstory="""
         You synthesize recovery,
         nutrition,
@@ -256,12 +220,9 @@ def generate_health_report(user_id):
         into practical,
         actionable health guidance.
         """,
-
         llm=smart_llm,
-
-        verbose=True
+        verbose=True,
     )
-
 
     coordinator_task = Task(
         description="""
@@ -278,43 +239,22 @@ def generate_health_report(user_id):
 
         Keep response concise and actionable.
         """,
-
         expected_output="""
         Unified health report.
         """,
-
         agent=coordinator_agent,
-
-        context=[
-            recovery_task,
-            nutrition_task,
-            workout_task
-        ]
+        context=[recovery_task, nutrition_task, workout_task],
     )
-
 
     # -----------------------------
     # Build Crew
     # -----------------------------
 
     crew = Crew(
-        agents=[
-            recovery_agent,
-            nutrition_agent,
-            workout_agent,
-            coordinator_agent
-        ],
-
-        tasks=[
-            recovery_task,
-            nutrition_task,
-            workout_task,
-            coordinator_task
-        ],
-
-        verbose=True
+        agents=[recovery_agent, nutrition_agent, workout_agent, coordinator_agent],
+        tasks=[recovery_task, nutrition_task, workout_task, coordinator_task],
+        verbose=True,
     )
-
 
     # -----------------------------
     # Execute Crew
@@ -336,11 +276,11 @@ def generate_health_report(user_id):
         save_health_report(
             user_id=user_id,
             report_text=report_text,
-            model_summary="8B specialists + 8B coordinator"
+            model_summary="8B specialists + 8B coordinator",
         )
 
-        return report_text    
-        
+        return report_text
+
     except Exception as e:
 
         print("CrewAI Error:")

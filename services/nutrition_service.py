@@ -1,10 +1,10 @@
 from database import get_connection
 from datetime import datetime
 
-
 # -----------------------------
 # Get All Foods
 # -----------------------------
+
 
 def get_foods():
     conn = get_connection()
@@ -22,7 +22,8 @@ def get_foods():
 
     for food in foods:
 
-        cursor.execute("""
+        cursor.execute(
+            """
         SELECT
             nutrients.name,
             nutrients.unit,
@@ -34,7 +35,9 @@ def get_foods():
             ON food_nutrients.nutrient_id = nutrients.id
 
         WHERE food_nutrients.food_id = ?
-        """, (food["id"],))
+        """,
+            (food["id"],),
+        )
 
         nutrients_data = cursor.fetchall()
 
@@ -43,14 +46,12 @@ def get_foods():
         for nutrient in nutrients_data:
             nutrient_map[nutrient["name"]] = {
                 "amount": nutrient["amount_per_100g"],
-                "unit": nutrient["unit"]
+                "unit": nutrient["unit"],
             }
 
-        results.append({
-            "id": food["id"],
-            "name": food["name"],
-            "nutrients": nutrient_map
-        })
+        results.append(
+            {"id": food["id"], "name": food["name"], "nutrients": nutrient_map}
+        )
 
     conn.close()
 
@@ -61,17 +62,21 @@ def get_foods():
 # Search Foods
 # -----------------------------
 
+
 def search_foods(search_term, limit=10):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT *
     FROM foods
     WHERE name LIKE ?
     ORDER BY name
     LIMIT ?
-    """, (f"%{search_term}%", limit))
+    """,
+        (f"%{search_term}%", limit),
+    )
 
     foods = cursor.fetchall()
 
@@ -79,7 +84,8 @@ def search_foods(search_term, limit=10):
 
     for food in foods:
 
-        cursor.execute("""
+        cursor.execute(
+            """
         SELECT
             nutrients.name,
             nutrients.unit,
@@ -91,7 +97,9 @@ def search_foods(search_term, limit=10):
             ON food_nutrients.nutrient_id = nutrients.id
 
         WHERE food_nutrients.food_id = ?
-        """, (food["id"],))
+        """,
+            (food["id"],),
+        )
 
         nutrients_data = cursor.fetchall()
 
@@ -100,14 +108,12 @@ def search_foods(search_term, limit=10):
         for nutrient in nutrients_data:
             nutrient_map[nutrient["name"]] = {
                 "amount": nutrient["amount_per_100g"],
-                "unit": nutrient["unit"]
+                "unit": nutrient["unit"],
             }
 
-        results.append({
-            "id": food["id"],
-            "name": food["name"],
-            "nutrients": nutrient_map
-        })
+        results.append(
+            {"id": food["id"], "name": food["name"], "nutrients": nutrient_map}
+        )
 
     conn.close()
 
@@ -118,13 +124,15 @@ def search_foods(search_term, limit=10):
 # Add Food Entry
 # -----------------------------
 
+
 def add_food_entry(user_id, food_id, grams):
     conn = get_connection()
     cursor = conn.cursor()
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    cursor.execute("""
+    cursor.execute(
+        """
     INSERT INTO food_entries (
         user_id,
         food_id,
@@ -132,12 +140,9 @@ def add_food_entry(user_id, food_id, grams):
         entry_date
     )
     VALUES (?, ?, ?, ?)
-    """, (
-        user_id,
-        food_id,
-        grams,
-        today
-    ))
+    """,
+        (user_id, food_id, grams, today),
+    )
 
     conn.commit()
     conn.close()
@@ -147,11 +152,13 @@ def add_food_entry(user_id, food_id, grams):
 # Daily Nutrition Aggregation
 # -----------------------------
 
+
 def get_daily_nutrition(user_id, entry_date):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT
         nutrients.name,
         nutrients.unit,
@@ -176,7 +183,9 @@ def get_daily_nutrition(user_id, entry_date):
     GROUP BY nutrients.id
 
     ORDER BY nutrients.name
-    """, (user_id, entry_date))
+    """,
+        (user_id, entry_date),
+    )
 
     rows = cursor.fetchall()
 
@@ -187,7 +196,7 @@ def get_daily_nutrition(user_id, entry_date):
     for row in rows:
         nutrition_totals[row["name"]] = {
             "amount": round(row["total_amount"], 1),
-            "unit": row["unit"]
+            "unit": row["unit"],
         }
 
     return nutrition_totals
@@ -196,6 +205,7 @@ def get_daily_nutrition(user_id, entry_date):
 # -----------------------------
 # Nutrition Analysis
 # -----------------------------
+
 
 def get_nutrition_analysis(user_id):
 

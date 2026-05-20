@@ -5,18 +5,22 @@ def get_user_profile(user_id):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    cursor.execute(
+        """
     SELECT *
     FROM users
     WHERE id = ?
-    """, (user_id,))
+    """,
+        (user_id,),
+    )
 
     row = cursor.fetchone()
 
     conn.close()
 
     return row
-    
+
+
 def get_all_users():
     conn = get_connection()
     cursor = conn.cursor()

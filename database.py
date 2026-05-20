@@ -1,7 +1,6 @@
 import sqlite3
 from pathlib import Path
 
-
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "fitness_ai.db"
 
@@ -232,7 +231,7 @@ def initialize_database():
         ('Vitamin B12', 'mcg'),
         ('Zinc', 'mg')
     """)
-    
+
     # -----------------------------
     # Exercises
     # -----------------------------
@@ -250,7 +249,7 @@ def initialize_database():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
     """)
-    
+
     # -----------------------------
     # Workout Sessions
     # -----------------------------
@@ -274,7 +273,7 @@ def initialize_database():
         FOREIGN KEY (user_id) REFERENCES users(id)
     )
     """)
-    
+
     # -----------------------------
     # Workout Sets
     # -----------------------------
@@ -303,7 +302,7 @@ def initialize_database():
             REFERENCES exercises(id)
     )
     """)
-    
+
     # -----------------------------
     # Seed Exercises
     # -----------------------------
@@ -425,8 +424,7 @@ def initialize_database():
     ('Good Morning', 'Posterior Chain', 'Compound', 'Barbell'),
     ('Walking Farmer Carry', 'Conditioning', 'Compound', 'Dumbbell')
     """)
-    
-    
+
     # -----------------------------
     # Health Reports
     # -----------------------------
