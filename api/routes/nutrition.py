@@ -20,11 +20,9 @@ router = APIRouter()
 
 @router.get("/nutrition/{user_id}/{date}")
 def daily_nutrition(user_id: int, date: str):
-
     nutrition = get_daily_nutrition(user_id, date)
 
     if not nutrition:
-
         nutrition = {}
 
     return {"success": True, "nutrition": nutrition}

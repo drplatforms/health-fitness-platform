@@ -1,17 +1,10 @@
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parent.parent))
-
+from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
 
-load_dotenv()
-
-from crewai import Agent, Task, Crew, LLM
-
 from models.recovery_models import RecoveryAssessment
-
 from services.recovery_service import get_recent_recovery_metrics, save_recovery_report
+
+load_dotenv()
 
 # -----------------------------
 # Load Recovery Metrics
@@ -20,7 +13,6 @@ from services.recovery_service import get_recent_recovery_metrics, save_recovery
 metrics = get_recent_recovery_metrics()
 
 if not metrics:
-
     print("No recovery data found.")
     exit()
 
@@ -75,22 +67,22 @@ task = Task(
     Analyze the following recovery metrics:
 
     Entries analyzed:
-    {metrics['entries_analyzed']}
+    {metrics["entries_analyzed"]}
 
     Average sleep:
-    {metrics['avg_sleep']} hours
+    {metrics["avg_sleep"]} hours
 
     Average energy:
-    {metrics['avg_energy']}/10
+    {metrics["avg_energy"]}/10
 
     Average soreness:
-    {metrics['avg_soreness']}/10
+    {metrics["avg_soreness"]}/10
 
     Weight change:
-    {metrics['weight_change']} lbs
+    {metrics["weight_change"]} lbs
 
     Recent notes:
-    {metrics['recent_notes']}
+    {metrics["recent_notes"]}
 
     Provide:
 

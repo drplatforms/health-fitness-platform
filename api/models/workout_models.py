@@ -2,10 +2,8 @@
 # Imports
 # =====================================
 
-from pydantic import BaseModel
 
-from typing import List
-from typing import Optional
+from pydantic import BaseModel
 
 # =====================================
 # Workout Set Request Model
@@ -13,7 +11,6 @@ from typing import Optional
 
 
 class WorkoutSetRequest(BaseModel):
-
     exercise_id: int
 
     set_number: int
@@ -22,7 +19,7 @@ class WorkoutSetRequest(BaseModel):
 
     weight: float
 
-    rir: Optional[int] = None
+    rir: int | None = None
 
 
 # =====================================
@@ -31,13 +28,12 @@ class WorkoutSetRequest(BaseModel):
 
 
 class WorkoutRequest(BaseModel):
-
     user_id: int
 
     workout_name: str
 
     duration_minutes: int
 
-    notes: Optional[str] = None
+    notes: str | None = None
 
-    sets: List[WorkoutSetRequest]
+    sets: list[WorkoutSetRequest]

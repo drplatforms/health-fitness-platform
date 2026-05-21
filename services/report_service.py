@@ -6,7 +6,6 @@ from database import get_connection
 
 
 def save_health_report(user_id, report_text, model_summary=None):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -32,7 +31,6 @@ def save_health_report(user_id, report_text, model_summary=None):
 
 
 def get_latest_health_report(user_id):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -60,7 +58,6 @@ def get_latest_health_report(user_id):
 
 
 def get_health_report_history(user_id, limit=10):
-
     conn = get_connection()
     cursor = conn.cursor()
 

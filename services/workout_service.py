@@ -2,8 +2,9 @@
 # Imports
 # =====================================
 
-from database import get_connection
 from datetime import datetime
+
+from database import get_connection
 
 # =====================================
 # Get All Exercises
@@ -11,7 +12,6 @@ from datetime import datetime
 
 
 def get_exercises():
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -34,7 +34,6 @@ def get_exercises():
 
 
 def search_exercises(search_term, limit=10):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -62,7 +61,6 @@ def search_exercises(search_term, limit=10):
 
 
 def create_workout_session(user_id, workout_name, duration_minutes=None, notes=None):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -100,7 +98,6 @@ def create_workout_session(user_id, workout_name, duration_minutes=None, notes=N
 def add_workout_set(
     workout_session_id, exercise_id, set_number, reps, weight, rir=None
 ):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -131,7 +128,6 @@ def add_workout_set(
 
 
 def get_recent_workouts(user_id, limit=5):
-
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -151,7 +147,6 @@ def get_recent_workouts(user_id, limit=5):
     workouts = []
 
     for session in sessions:
-
         cursor.execute(
             """
         SELECT

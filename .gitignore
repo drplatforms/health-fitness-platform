@@ -1,18 +1,68 @@
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+.Python
 
+# Virtual environments
 .venv/
 venv/
+env/
+ENV/
 
+# Environment variables
 .env
+.env.*
+!.env.example
 
-.vscode/
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
+# OS files
+.DS_Store
+Thumbs.db
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.coverage.*
+.cache/
+
+# Ruff / mypy
+.ruff_cache/
+.mypy_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Logs
+*.log
+logs/
+
+# SQLite / local databases
 *.db
+*.sqlite
 *.sqlite3
 
-*.log
+# Data exports / temporary data
+exports/
+tmp/
+temp/
 
-.streamlit/secrets.toml
+# Jupyter
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Docker
+*.pid
+
+# Local files
+local_settings.py

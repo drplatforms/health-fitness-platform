@@ -1,13 +1,11 @@
+from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
 
-load_dotenv()
-
-from crewai import Agent, Task, Crew, LLM
-
+from models.nutrition_models import NutritionAssessment
 from services.nutrition_service import get_nutrition_analysis
 from services.user_service import get_user_profile
 
-from models.nutrition_models import NutritionAssessment
+load_dotenv()
 
 # -----------------------------
 # Select User
@@ -27,21 +25,16 @@ nutrition_data = get_nutrition_analysis(user_id)
 nutrition_summary = ""
 
 if not nutrition_data:
-
     nutrition_summary = "No nutrition data logged today."
 
 else:
-
     # -----------------------------
     # Build Dynamic Nutrition Summary
     # -----------------------------
 
     for nutrient_name, nutrient_data in nutrition_data.items():
-
         nutrition_summary += (
-            f"{nutrient_name}: "
-            f"{nutrient_data['amount']} "
-            f"{nutrient_data['unit']}\n"
+            f"{nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}\n"
         )
 
 
@@ -90,14 +83,14 @@ nutrition_task = Task(
     and potential deficiencies.
 
     User Profile:
-    Name: {user_profile['name']}
-    Gender: {user_profile['gender']}
-    Age: {user_profile['age']}
-    Height: {user_profile['height_cm']} cm
-    Starting Weight: {user_profile['starting_weight']}
-    Goal Weight: {user_profile['goal_weight']}
-    Primary Goal: {user_profile['primary_goal']}
-    Activity Level: {user_profile['activity_level']}
+    Name: {user_profile["name"]}
+    Gender: {user_profile["gender"]}
+    Age: {user_profile["age"]}
+    Height: {user_profile["height_cm"]} cm
+    Starting Weight: {user_profile["starting_weight"]}
+    Goal Weight: {user_profile["goal_weight"]}
+    Primary Goal: {user_profile["primary_goal"]}
+    Activity Level: {user_profile["activity_level"]}
 
     Nutrition Data:
     {nutrition_summary}

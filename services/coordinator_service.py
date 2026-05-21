@@ -1,10 +1,9 @@
 from datetime import datetime
 
+from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
-from crewai import Agent, Crew, LLM, Task
 
 from services.report_service import save_health_report
-
 from services.user_state_service import (
     build_user_health_state,
 )
@@ -70,14 +69,14 @@ def generate_health_report(user_id):
         health_state.recovery_state.avg_energy
         health_state.recovery_state.avg_soreness
         health_state.recovery_state.weight_change
-        
+
         Recovery Interpretation:
         Recovery score: {health_state.recovery_state.recovery_score}
-        
+
         Fatigue risk: {health_state.recovery_state.fatigue_risk}
-        
+
         Readiness level: {health_state.recovery_state.readiness_level}
-        
+
         Sleep trend: {health_state.recovery_state.sleep_trend}
 
         Provide:
@@ -143,12 +142,12 @@ def generate_health_report(user_id):
     workout_task = Task(
         description=f"""
         Analyze the following workout history.
-        
+
         Training Adherence:
         Workout count: {health_state.training_state.workout_count}
-        
+
         Adherence level: {health_state.training_state.adherence_level}
-        
+
         Training trend: {health_state.training_state.training_trend}
 
         Workout Data:
@@ -185,16 +184,16 @@ def generate_health_report(user_id):
         description=f"""
         Combine the recovery, nutrition, and workout analyses
         into a unified health recommendation.
-    
+
         System Stress Interpretation:
         System stress level: {health_state.system_stress_level}
-    
+
         Identify:
         1. Biggest issue
         2. Likely cause
         3. Highest priority action
         4. Best recommendation
-    
+
         Keep response concise and actionable.
         """,
         expected_output="Unified health report.",
