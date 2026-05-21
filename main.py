@@ -1,22 +1,19 @@
-from services.nutrition_service import (
-    get_foods,
-    add_food_entry,
-    get_daily_nutrition,
-    search_foods,
-)
-
-from services.workout_service import (
-    search_exercises,
-    create_workout_session,
-    add_workout_set,
-    get_recent_workouts,
-)
-
-
 from datetime import datetime
 
 from database import get_connection, initialize_database
+from services.nutrition_service import (
+    add_food_entry,
+    get_daily_nutrition,
+    get_foods,
+    search_foods,
+)
 from services.recovery_service import get_recent_recovery_reports
+from services.workout_service import (
+    add_workout_set,
+    create_workout_session,
+    get_recent_workouts,
+    search_exercises,
+)
 
 
 def add_daily_checkin():
@@ -81,13 +78,13 @@ def show_checkins():
 
     for row in rows:
         print(f"""
-Date: {row['checkin_date']}
-Weight: {row['body_weight']}
-Sleep: {row['sleep_hours']}
-Energy: {row['energy_level']}
-Soreness: {row['soreness_level']}
-Mood: {row['mood']}
-Notes: {row['notes']}
+Date: {row["checkin_date"]}
+Weight: {row["body_weight"]}
+Sleep: {row["sleep_hours"]}
+Energy: {row["energy_level"]}
+Soreness: {row["soreness_level"]}
+Mood: {row["mood"]}
+Notes: {row["notes"]}
 ---------------------------
 """)
 
@@ -108,6 +105,10 @@ def analyze_recent_checkins():
     rows = cursor.fetchall()
     conn.close()
 
+    if not rows:
+        print("\nNo recent check-ins found.\n")
+        return
+
     avg_sleep = sum(row["sleep_hours"] for row in rows) / len(rows)
     avg_energy = sum(row["energy_level"] for row in rows) / len(rows)
     avg_soreness = sum(row["soreness_level"] for row in rows) / len(rows)
@@ -117,6 +118,11 @@ def analyze_recent_checkins():
     weight_change = latest_weight - oldest_weight
 
     print("\n=== Recent Check-In Analysis ===\n")
+    print(f"Entries analyzed: {len(rows)}")
+    print(f"Average sleep: {avg_sleep:.1f} hours")
+    print(f"Average energy: {avg_energy:.1f}/10")
+    print(f"Average soreness: {avg_soreness:.1f}/10")
+    print(f"Weight change: {weight_change:.1f} lbs\n")
 
 
 def show_recovery_reports():
@@ -130,15 +136,15 @@ def show_recovery_reports():
 
     for row in rows:
         print(f"""
-Date: {row['report_date']}
-Entries analyzed: {row['entries_analyzed']}
-Avg sleep: {row['avg_sleep']}
-Avg energy: {row['avg_energy']}
-Avg soreness: {row['avg_soreness']}
-Weight change: {row['weight_change']} lbs
+Date: {row["report_date"]}
+Entries analyzed: {row["entries_analyzed"]}
+Avg sleep: {row["avg_sleep"]}
+Avg energy: {row["avg_energy"]}
+Avg soreness: {row["avg_soreness"]}
+Weight change: {row["weight_change"]} lbs
 
 Recommendation:
-{row['recommendation']}
+{row["recommendation"]}
 ---------------------------
 """)
 
@@ -149,18 +155,14 @@ def show_foods():
     print("\n=== Available Foods ===\n")
 
     for food in foods:
-
         print(f"ID: {food['id']}")
         print(f"Name: {food['name']}")
 
         print("\nNutrients:")
 
         for nutrient_name, nutrient_data in food["nutrients"].items():
-
             print(
-                f"- {nutrient_name}: "
-                f"{nutrient_data['amount']} "
-                f"{nutrient_data['unit']}"
+                f"- {nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}"
             )
 
         print("\n---------------------------\n")
@@ -178,18 +180,14 @@ def search_for_food():
     print("\n=== Search Results ===\n")
 
     for food in results:
-
         print(f"ID: {food['id']}")
         print(f"Name: {food['name']}")
 
         print("\nNutrients:")
 
         for nutrient_name, nutrient_data in food["nutrients"].items():
-
             print(
-                f"- {nutrient_name}: "
-                f"{nutrient_data['amount']} "
-                f"{nutrient_data['unit']}"
+                f"- {nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}"
             )
 
         print("\n---------------------------\n")
@@ -208,12 +206,7 @@ def show_daily_nutrition():
     print("\n=== Daily Nutrition Totals ===\n")
 
     for nutrient_name, nutrient_data in nutrition.items():
-
-        print(
-            f"{nutrient_name}: "
-            f"{nutrient_data['amount']} "
-            f"{nutrient_data['unit']}"
-        )
+        print(f"{nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}")
 
     print()
 
@@ -232,18 +225,14 @@ def log_food():
     print("\n=== Search Results ===\n")
 
     for food in results:
-
         print(f"ID: {food['id']}")
         print(f"Name: {food['name']}")
 
         print("\nNutrients:")
 
         for nutrient_name, nutrient_data in food["nutrients"].items():
-
             print(
-                f"- {nutrient_name}: "
-                f"{nutrient_data['amount']} "
-                f"{nutrient_data['unit']}"
+                f"- {nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}"
             )
 
         print("\n---------------------------\n")
@@ -291,11 +280,11 @@ def log_workout():
 
         for exercise in results:
             print(f"""
-ID: {exercise['id']}
-Name: {exercise['name']}
-Muscle Group: {exercise['muscle_group']}
-Movement Type: {exercise['movement_type']}
-Equipment: {exercise['equipment']}
+ID: {exercise["id"]}
+Name: {exercise["name"]}
+Muscle Group: {exercise["muscle_group"]}
+Movement Type: {exercise["movement_type"]}
+Equipment: {exercise["equipment"]}
 ---------------------------
 """)
 
@@ -336,10 +325,10 @@ def show_recent_workouts():
         session = workout["session"]
 
         print(f"""
-Workout: {session['workout_name']}
-Date: {session['workout_date']}
-Duration: {session['duration_minutes']}
-Notes: {session['notes']}
+Workout: {session["workout_name"]}
+Date: {session["workout_date"]}
+Duration: {session["duration_minutes"]}
+Notes: {session["notes"]}
 """)
 
         for set_data in workout["sets"]:
@@ -356,56 +345,56 @@ Notes: {session['notes']}
 if __name__ == "__main__":
     initialize_database()
 
-while True:
-    print("""
-    1. Add Daily Check-In
-    2. View Check-Ins
-    3. Analyze Recent Check-Ins
-    4. View Recovery Reports
-    5. View Foods
-    6. Log Food
-    7. View Daily Nutrition
-    8. Search Foods
-    9. Log Workout
-    10. View Recent Workouts
-    11. Exit
-    """)
+    while True:
+        print("""
+        1. Add Daily Check-In
+        2. View Check-Ins
+        3. Analyze Recent Check-Ins
+        4. View Recovery Reports
+        5. View Foods
+        6. Log Food
+        7. View Daily Nutrition
+        8. Search Foods
+        9. Log Workout
+        10. View Recent Workouts
+        11. Exit
+        """)
 
-    choice = input("Choose an option: ")
+        choice = input("Choose an option: ")
 
-    if choice == "1":
-        add_daily_checkin()
+        if choice == "1":
+            add_daily_checkin()
 
-    elif choice == "2":
-        show_checkins()
+        elif choice == "2":
+            show_checkins()
 
-    elif choice == "3":
-        analyze_recent_checkins()
+        elif choice == "3":
+            analyze_recent_checkins()
 
-    elif choice == "4":
-        show_recovery_reports()
+        elif choice == "4":
+            show_recovery_reports()
 
-    elif choice == "5":
-        show_foods()
+        elif choice == "5":
+            show_foods()
 
-    elif choice == "6":
-        log_food()
+        elif choice == "6":
+            log_food()
 
-    elif choice == "7":
-        show_daily_nutrition()
+        elif choice == "7":
+            show_daily_nutrition()
 
-    elif choice == "8":
-        search_for_food()
+        elif choice == "8":
+            search_for_food()
 
-    elif choice == "9":
-        log_workout()
+        elif choice == "9":
+            log_workout()
 
-    elif choice == "10":
-        show_recent_workouts()
+        elif choice == "10":
+            show_recent_workouts()
 
-    elif choice == "11":
-        print("Goodbye.")
-        break
+        elif choice == "11":
+            print("Goodbye.")
+            break
 
-    else:
-        print("Invalid option.")
+        else:
+            print("Invalid option.")

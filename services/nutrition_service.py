@@ -1,5 +1,6 @@
-from database import get_connection
 from datetime import datetime
+
+from database import get_connection
 
 # -----------------------------
 # Get All Foods
@@ -21,7 +22,6 @@ def get_foods():
     results = []
 
     for food in foods:
-
         cursor.execute(
             """
         SELECT
@@ -83,7 +83,6 @@ def search_foods(search_term, limit=10):
     results = []
 
     for food in foods:
-
         cursor.execute(
             """
         SELECT
@@ -208,7 +207,6 @@ def get_daily_nutrition(user_id, entry_date):
 
 
 def get_nutrition_analysis(user_id):
-
     today = datetime.now().strftime("%Y-%m-%d")
 
     nutrition = get_daily_nutrition(user_id, today)

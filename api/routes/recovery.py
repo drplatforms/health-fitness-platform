@@ -5,8 +5,8 @@
 from fastapi import APIRouter
 
 from services.recovery_service import (
-    get_recent_recovery_reports,
     get_recent_recovery_metrics,
+    get_recent_recovery_reports,
 )
 
 # =====================================
@@ -23,7 +23,6 @@ router = APIRouter()
 
 @router.get("/recovery/reports")
 def recovery_reports():
-
     reports = get_recent_recovery_reports()
 
     return {"success": True, "reports": reports}
@@ -36,7 +35,6 @@ def recovery_reports():
 
 @router.get("/recovery/metrics")
 def recovery_metrics():
-
     metrics = get_recent_recovery_metrics()
 
     return {"success": True, "metrics": metrics}

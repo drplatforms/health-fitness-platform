@@ -1,11 +1,9 @@
+from crewai import LLM, Agent, Crew, Task
 from dotenv import load_dotenv
 
-from crewai import Agent, Task, Crew, LLM
-
-from services.workout_service import get_recent_workouts
-from services.user_service import get_user_profile
-
 from models.workout_models import WorkoutAssessment
+from services.user_service import get_user_profile
+from services.workout_service import get_recent_workouts
 
 load_dotenv()
 # -----------------------------

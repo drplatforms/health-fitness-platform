@@ -4,13 +4,10 @@
 
 from fastapi import FastAPI
 
-from api.routes.reports import router as report_router
-
-from api.routes.workouts import router as workout_router
-
-from api.routes.recovery import router as recovery_router
-
 from api.routes.nutrition import router as nutrition_router
+from api.routes.recovery import router as recovery_router
+from api.routes.reports import router as report_router
+from api.routes.workouts import router as workout_router
 
 # =====================================
 # App Initialization
@@ -30,7 +27,6 @@ app.include_router(nutrition_router)
 
 @app.get("/")
 def root():
-
     return {"message": "Fitness AI API is running"}
 
 
@@ -41,5 +37,4 @@ def root():
 
 @app.get("/health")
 def health_check():
-
     return {"status": "healthy"}

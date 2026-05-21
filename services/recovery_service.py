@@ -1,5 +1,6 @@
-from database import get_connection
 from datetime import datetime
+
+from database import get_connection
 
 
 def get_recent_recovery_metrics(limit=7):
