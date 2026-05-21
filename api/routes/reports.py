@@ -109,6 +109,8 @@ def generate_report(user_id: int):
         )
 
     job_id = str(uuid.uuid4())
+    print(f"\n=== CREATED JOB {job_id} FOR USER {user_id} ===\n")
+    print(f"\n=== RUNNING JOB {job_id} ===\n")
 
     active_jobs[user_id] = job_id
 

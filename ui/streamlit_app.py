@@ -25,6 +25,8 @@ if "report_job_id" not in st.session_state:
 if "report_job_status" not in st.session_state:
     st.session_state.report_job_status = None
 
+if "last_completed_job_id" not in st.session_state:
+    st.session_state.last_completed_job_id = None
 
 # =====================================
 # App Configuration
@@ -79,6 +81,16 @@ if st.button(
 # =====================================
 
 st.header("🧠 AI Health Insights")
+
+st.write(
+    "Current Job ID:",
+    st.session_state.report_job_id,
+)
+
+st.write(
+    "Last Completed Job:",
+    st.session_state.last_completed_job_id,
+)
 
 if st.session_state.health_report_timestamp:
     st.caption(f"Last Generated: {st.session_state.health_report_timestamp}")
@@ -139,6 +151,8 @@ if st.session_state.report_job_id:
             st.session_state.health_report_timestamp = datetime.now().strftime(
                 "%Y-%m-%d %I:%M %p"
             )
+
+            st.session_state.last_completed_job_id = st.session_state.report_job_id
 
             st.session_state.report_job_id = None
 

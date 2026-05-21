@@ -3,96 +3,41 @@ from datetime import datetime
 from dotenv import load_dotenv
 from crewai import Agent, Crew, LLM, Task
 
-from services.nutrition_service import get_nutrition_analysis
-from services.recovery_service import get_recent_recovery_metrics
 from services.report_service import save_health_report
-from services.user_service import get_user_profile
-from services.workout_service import get_recent_workouts
+
+from services.user_state_service import (
+    build_user_health_state,
+)
 
 load_dotenv()
 
 
 def generate_health_report(user_id):
-    user_profile = get_user_profile(user_id)
-
-    recovery_data = get_recent_recovery_metrics()
-    nutrition_data = get_nutrition_analysis(user_id)
-    workouts = get_recent_workouts(user_id)
-
-    if not user_profile:
-        return "No user profile found."
-
-    if not recovery_data:
-        recovery_data = {
-            "avg_sleep": "No data",
-            "avg_energy": "No data",
-            "avg_soreness": "No data",
-            "weight_change": "No data",
-        }
-
-    if not nutrition_data:
-        nutrition_data = {}
-
-    if not workouts:
-        workouts = []
+    health_state = build_user_health_state(user_id)
 
     # -----------------------------
     # Nutrition Summary
     # -----------------------------
 
-    nutrition_summary = ""
-
-    if not nutrition_data:
-        nutrition_summary = "No nutrition data logged."
-
-    else:
-        for nutrient_name, nutrient_data in nutrition_data.items():
-            nutrition_summary += (
-                f"{nutrient_name}: {nutrient_data['amount']} {nutrient_data['unit']}\n"
-            )
+    nutrition_summary = health_state.nutrition_state.nutrition_summary
 
     # -----------------------------
     # Workout Summary
     # -----------------------------
 
-    workout_summary = ""
-
-    if not workouts:
-        workout_summary = "No workout data available."
-
-    else:
-        for workout in workouts:
-            session = workout["session"]
-
-            workout_summary += (
-                f"\nWorkout: {session['workout_name']}\n"
-                f"Date: {session['workout_date']}\n"
-                f"Duration: {session['duration_minutes']} minutes\n"
-            )
-
-            for set_data in workout["sets"]:
-                workout_summary += (
-                    f"- {set_data['name']} | "
-                    f"{set_data['reps']} reps x "
-                    f"{set_data['weight']} lbs"
-                )
-
-                if set_data["rir"] is not None:
-                    workout_summary += f" | RIR {set_data['rir']}"
-
-                workout_summary += "\n"
+    workout_summary = health_state.training_state.workout_summary
 
     # -----------------------------
     # Local LLMs
     # -----------------------------
 
     fast_llm = LLM(
-        model="ollama/qwen2.5:3b",
+        model="ollama/qwen3:8b",
         base_url="http://localhost:11434",
     )
 
     smart_llm = LLM(
-        model="ollama/qwen2.5:3b",
+        model="ollama/qwen3:8b",
         base_url="http://localhost:11434",
     )
 
@@ -117,14 +62,23 @@ def generate_health_report(user_id):
         Analyze the following user profile and recovery data.
 
         User Profile:
-        Name: {user_profile["name"]}
-        Goal: {user_profile["primary_goal"]}
+        Name: {health_state.user_name}
+        Goal: {health_state.primary_goal}
 
         Recovery Metrics:
-        Average sleep: {recovery_data["avg_sleep"]}
-        Average energy: {recovery_data["avg_energy"]}
-        Average soreness: {recovery_data["avg_soreness"]}
-        Weight change: {recovery_data["weight_change"]}
+        health_state.recovery_state.avg_sleep
+        health_state.recovery_state.avg_energy
+        health_state.recovery_state.avg_soreness
+        health_state.recovery_state.weight_change
+        
+        Recovery Interpretation:
+        Recovery score: {health_state.recovery_state.recovery_score}
+        
+        Fatigue risk: {health_state.recovery_state.fatigue_risk}
+        
+        Readiness level: {health_state.recovery_state.readiness_level}
+        
+        Sleep trend: {health_state.recovery_state.sleep_trend}
 
         Provide:
         1. Recovery assessment
@@ -189,6 +143,11 @@ def generate_health_report(user_id):
     workout_task = Task(
         description=f"""
         Analyze the following workout history.
+        
+        Training Adherence:
+        Workout count: {health_state.training_state.workout_count}
+        
+        Adherence level: {health_state.training_state.adherence_level}
 
         Workout Data:
         {workout_summary}
