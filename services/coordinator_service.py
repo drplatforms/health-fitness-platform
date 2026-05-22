@@ -65,19 +65,17 @@ def generate_health_report(user_id):
         Goal: {health_state.primary_goal}
 
         Recovery Metrics:
-        health_state.recovery_state.avg_sleep
-        health_state.recovery_state.avg_energy
-        health_state.recovery_state.avg_soreness
-        health_state.recovery_state.weight_change
+        Average sleep: {health_state.recovery_state.avg_sleep}
+        Average energy: {health_state.recovery_state.avg_energy}
+        Average soreness: {health_state.recovery_state.avg_soreness}
+        Weight change: {health_state.recovery_state.weight_change}
 
         Recovery Interpretation:
         Recovery score: {health_state.recovery_state.recovery_score}
-
         Fatigue risk: {health_state.recovery_state.fatigue_risk}
-
         Readiness level: {health_state.recovery_state.readiness_level}
-
         Sleep trend: {health_state.recovery_state.sleep_trend}
+        Weight trend: {health_state.recovery_state.weight_trend}
 
         Provide:
         1. Recovery assessment
@@ -250,7 +248,7 @@ def generate_health_report(user_id):
         save_health_report(
             user_id=user_id,
             report_text=final_report,
-            model_summary="qwen2.5:3b test run",
+            model_summary="ollama/qwen3:8b",
         )
 
         return final_report

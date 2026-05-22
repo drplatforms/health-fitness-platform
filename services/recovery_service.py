@@ -7,7 +7,7 @@ from database import get_connection
 # =====================================
 
 
-def get_recent_recovery_metrics(limit=7):
+def get_recent_recovery_metrics(user_id: int, limit: int = 7):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -15,10 +15,11 @@ def get_recent_recovery_metrics(limit=7):
         """
     SELECT *
     FROM daily_checkins
+    WHERE user_id = ?
     ORDER BY created_at DESC
     LIMIT ?
     """,
-        (limit,),
+        (user_id, limit),
     )
 
     rows = cursor.fetchall()
@@ -50,13 +51,14 @@ def get_recent_recovery_metrics(limit=7):
 # =====================================
 
 
-def save_recovery_report(metrics, recommendation):
+def save_recovery_report(user_id: int, metrics, recommendation):
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
     INSERT INTO recovery_reports (
+        user_id,
         report_date,
         entries_analyzed,
         avg_sleep,
@@ -65,9 +67,10 @@ def save_recovery_report(metrics, recommendation):
         weight_change,
         recommendation
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
         (
+            user_id,
             datetime.now().strftime("%Y-%m-%d"),
             metrics["entries_analyzed"],
             metrics["avg_sleep"],

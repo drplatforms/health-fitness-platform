@@ -18,9 +18,13 @@ from services.workout_service import (
 )
 
 
-def build_user_health_state(user_id):
+def build_user_health_state(user_id: int) -> UserHealthState:
     user_profile = get_user_profile(user_id)
-    recovery_data = get_recent_recovery_metrics()
+
+    if not user_profile:
+        raise ValueError(f"User with id {user_id} was not found.")
+
+    recovery_data = get_recent_recovery_metrics(user_id=user_id)
     nutrition_data = get_nutrition_analysis(user_id)
     workouts = get_recent_workouts(user_id)
 
@@ -99,16 +103,12 @@ def build_user_health_state(user_id):
 
         if weight_change >= 3:
             weight_trend = "Rapid Increase"
-
         elif weight_change >= 1:
             weight_trend = "Increasing"
-
         elif weight_change <= -3:
             weight_trend = "Rapid Decrease"
-
         elif weight_change <= -1:
             weight_trend = "Decreasing"
-
         else:
             weight_trend = "Stable"
 
@@ -129,7 +129,7 @@ def build_user_health_state(user_id):
             avg_sleep=avg_sleep,
             avg_energy=avg_energy,
             avg_soreness=avg_soreness,
-            weight_change=recovery_data["weight_change"],
+            weight_change=weight_change,
             recovery_score=recovery_score,
             fatigue_risk=fatigue_risk,
             readiness_level=readiness_level,
@@ -137,134 +137,120 @@ def build_user_health_state(user_id):
             weight_trend=weight_trend,
         )
 
-        # ---------------------------------
-        # Training Adherence
-        # ---------------------------------
+    # ---------------------------------
+    # Training Adherence
+    # ---------------------------------
 
-        workout_count = len(workouts)
+    workout_count = len(workouts)
 
-        if workout_count >= 5:
-            adherence_level = "High"
+    if workout_count >= 5:
+        adherence_level = "High"
+    elif workout_count >= 3:
+        adherence_level = "Moderate"
+    elif workout_count >= 1:
+        adherence_level = "Low"
+    else:
+        adherence_level = "Inactive"
 
-        elif workout_count >= 3:
-            adherence_level = "Moderate"
+    # ---------------------------------
+    # Training Trend
+    # ---------------------------------
 
-        elif workout_count >= 1:
-            adherence_level = "Low"
+    if adherence_level == "High":
+        training_trend = "Progressing"
+    elif adherence_level == "Moderate":
+        training_trend = "Stable"
+    elif adherence_level == "Low":
+        training_trend = "Inconsistent"
+    else:
+        training_trend = "Inactive"
 
-        else:
-            adherence_level = "Inactive"
+    # ---------------------------------
+    # Nutrition Summary
+    # ---------------------------------
 
-        # ---------------------------------
-        # Training Trend
-        # ---------------------------------
-
-        if adherence_level == "High":
-            training_trend = "Progressing"
-
-        elif adherence_level == "Moderate":
-            training_trend = "Stable"
-
-        elif adherence_level == "Low":
-            training_trend = "Inconsistent"
-
-        else:
-            training_trend = "Inactive"
-
-        # ---------------------------------
-        # Nutrition Summary
-        # ---------------------------------
-
+    if nutrition_data:
         nutrition_summary = ""
 
-        if nutrition_data:
-            for nutrient_name, nutrient_data in nutrition_data.items():
-                nutrition_summary += (
-                    f"{nutrient_name}: "
-                    f"{nutrient_data['amount']} "
-                    f"{nutrient_data['unit']}\n"
-                )
+        for nutrient_name, nutrient_data in nutrition_data.items():
+            nutrition_summary += (
+                f"{nutrient_name}: "
+                f"{nutrient_data['amount']} "
+                f"{nutrient_data['unit']}\n"
+            )
+    else:
+        nutrition_summary = "No nutrition data logged."
 
-        else:
-            nutrition_summary = "No nutrition data logged."
+    nutrition_state = UserNutritionState(
+        nutrition_summary=nutrition_summary,
+        has_nutrition_data=bool(nutrition_data),
+    )
 
-        nutrition_state = UserNutritionState(
-            nutrition_summary=nutrition_summary,
-            has_nutrition_data=bool(nutrition_data),
-        )
+    # ---------------------------------
+    # Workout Summary
+    # ---------------------------------
 
-        # ---------------------------------
-        # Workout Summary
-        # ---------------------------------
-
+    if workouts:
         workout_summary = ""
 
-        if workouts:
-            for workout in workouts:
-                session = workout["session"]
+        for workout in workouts:
+            session = workout["session"]
 
+            workout_summary += (
+                f"\nWorkout: {session['workout_name']}\n"
+                f"Date: {session['workout_date']}\n"
+                f"Duration: {session['duration_minutes']} minutes\n"
+            )
+
+            for set_data in workout["sets"]:
                 workout_summary += (
-                    f"\nWorkout: {session['workout_name']}\n"
-                    f"Date: {session['workout_date']}\n"
-                    f"Duration: {session['duration_minutes']} minutes\n"
+                    f"- {set_data['name']} | "
+                    f"{set_data['reps']} reps x "
+                    f"{set_data['weight']} lbs"
                 )
 
-                for set_data in workout["sets"]:
-                    workout_summary += (
-                        f"- {set_data['name']} | "
-                        f"{set_data['reps']} reps x "
-                        f"{set_data['weight']} lbs"
-                    )
+                if set_data["rir"] is not None:
+                    workout_summary += f" | RIR {set_data['rir']}"
 
-                    if set_data["rir"] is not None:
-                        workout_summary += f" | RIR {set_data['rir']}"
+                workout_summary += "\n"
+    else:
+        workout_summary = "No workout data available."
 
-                    workout_summary += "\n"
+    training_state = UserTrainingState(
+        workout_summary=workout_summary,
+        has_workout_data=bool(workouts),
+        workout_count=workout_count,
+        adherence_level=adherence_level,
+        training_trend=training_trend,
+    )
 
-        else:
-            workout_summary = "No workout data available."
+    # ---------------------------------
+    # System Stress Interpretation
+    # ---------------------------------
 
-        training_state = UserTrainingState(
-            workout_summary=workout_summary,
-            has_workout_data=bool(workouts),
-            workout_count=workout_count,
-            adherence_level=adherence_level,
-            training_trend=training_trend,
-        )
+    if (
+        recovery_state.fatigue_risk == "High"
+        and training_state.adherence_level == "High"
+    ):
+        system_stress_level = "Elevated"
+    elif (
+        recovery_state.fatigue_risk == "Moderate"
+        and training_state.adherence_level in ["High", "Moderate"]
+    ):
+        system_stress_level = "Moderate"
+    else:
+        system_stress_level = "Managed"
 
-        # ---------------------------------
-        # System Stress Interpretation
-        # ---------------------------------
+    # ---------------------------------
+    # Unified Health State
+    # ---------------------------------
 
-        if (
-            recovery_state.fatigue_risk == "High"
-            and training_state.adherence_level == "High"
-        ):
-            system_stress_level = "Elevated"
-
-        elif (
-            recovery_state.fatigue_risk == "Moderate"
-            and training_state.adherence_level
-            in [
-                "High",
-                "Moderate",
-            ]
-        ):
-            system_stress_level = "Moderate"
-
-        else:
-            system_stress_level = "Managed"
-
-        # ---------------------------------
-        # Unified Health State
-        # ---------------------------------
-
-        return UserHealthState(
-            user_id=user_id,
-            user_name=user_profile["name"],
-            primary_goal=user_profile["primary_goal"],
-            recovery_state=recovery_state,
-            nutrition_state=nutrition_state,
-            training_state=training_state,
-            system_stress_level=system_stress_level,
-        )
+    return UserHealthState(
+        user_id=user_id,
+        user_name=user_profile["name"],
+        primary_goal=user_profile["primary_goal"],
+        recovery_state=recovery_state,
+        nutrition_state=nutrition_state,
+        training_state=training_state,
+        system_stress_level=system_stress_level,
+    )

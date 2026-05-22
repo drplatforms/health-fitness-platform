@@ -20,7 +20,6 @@ active_jobs = {}
 # =====================================
 
 router = APIRouter()
-report_jobs = {}
 
 # =====================================
 # User Health State Endpoint
@@ -53,10 +52,6 @@ def run_report_job(job_id, user_id):
             "%Y-%m-%d %I:%M:%S %p"
         )
 
-        report_jobs[job_id]["completed_at"] = datetime.now().strftime(
-            "%Y-%m-%d %I:%M:%S %p"
-        )
-
         print("\n=== CALLING COORDINATOR SERVICE ===\n")
 
         report = generate_health_report(user_id)
@@ -64,7 +59,9 @@ def run_report_job(job_id, user_id):
         print("\n=== COORDINATOR SERVICE COMPLETED ===\n")
 
         report_jobs[job_id]["status"] = "completed"
-
+        report_jobs[job_id]["completed_at"] = datetime.now().strftime(
+            "%Y-%m-%d %I:%M:%S %p"
+        )
         report_jobs[job_id]["report"] = report
 
     except Exception as e:
@@ -136,7 +133,9 @@ def generate_report(user_id: int):
         "completed_at": None,
     }
 
-    thread = threading.Thread(target=run_report_job, args=(job_id, user_id))
+    thread = threading.Thread(
+        target=run_report_job, args=(job_id, user_id), daemon=True
+    )
 
     thread.start()
 

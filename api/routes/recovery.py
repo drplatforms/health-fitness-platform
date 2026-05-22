@@ -50,9 +50,9 @@ def recovery_reports():
 # =====================================
 
 
-@router.get("/recovery/metrics")
-def recovery_metrics():
-    metrics = get_recent_recovery_metrics()
+@router.get("/recovery/metrics/{user_id}")
+def recovery_metrics(user_id: int):
+    metrics = get_recent_recovery_metrics(user_id=user_id)
 
     return {"success": True, "metrics": metrics}
 
