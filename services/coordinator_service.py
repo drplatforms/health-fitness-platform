@@ -66,7 +66,7 @@ def generate_health_report(user_id):
         Goal: {health_state.primary_goal}
 
         Recovery Metrics:
-        Average sleep: {health_state.recovery_state.avg_sleep}
+        Average sleep hours/night: {health_state.recovery_state.avg_sleep}
         Average energy: {health_state.recovery_state.avg_energy}
         Average soreness: {health_state.recovery_state.avg_soreness}
         Weight change: {health_state.recovery_state.weight_change}
@@ -172,9 +172,11 @@ def generate_health_report(user_id):
         RIR guardrail:
         - RIR means reps in reserve.
         - RIR 0-1 means low RIR, high effort, close to failure.
-        - RIR 2-3 means moderate effort.
+        - RIR 2-3 means moderate effort with more reps left in reserve than RIR 0-1.
         - RIR 4+ means high RIR, lower effort, farther from failure.
         - Never describe RIR 0-1 as high RIR.
+        - Never say "lower RIR to 2-3" when current RIR is 0-1.
+        - Moving from RIR 0-1 to RIR 2-3 means raising RIR, reducing effort, and leaving more reps in reserve.
 
         Workout Data:
         {workout_summary}
@@ -216,13 +218,61 @@ def generate_health_report(user_id):
         Nutrition/training alignment: {health_state.nutrition_training_alignment}
         Coordinator focus: {health_state.coordinator_focus}
 
-        Global report guardrails:
+        Critical final report guardrails:
         - Missing nutrition fields are unknown, not zero intake.
         - Do not say 0 kcal, 0 g protein, 0 g carbs, or 0 g fat unless those values were explicitly logged as 0.
         - If nutrition data is incomplete, describe it as incomplete rather than as severe restriction.
-        - RIR 0-1 means low RIR / high effort / close to failure, not high RIR.
-        - Treat suspicious micronutrient values cautiously; do not assume supplementation, over-supplementation, or true intake without confirmation.
+        - Average sleep is measured in hours/night, not on a 10-point scale.
+        - If average sleep is 5.3, say approximately 5.3 hours/night. Do not say 5.3/10.
+        - RIR means reps in reserve.
+        - RIR 0-1 means low RIR / high effort / close to failure.
+        - RIR 2-3 means more reps left in reserve than RIR 0-1.
+        - Moving from RIR 0-1 to RIR 2-3 means raising RIR, reducing effort, and leaving more reps in reserve.
+        - Never describe RIR 0-1 as high RIR.
+        - Never say "lower RIR to 2-3" when current RIR is 0-1.
+        - Treat suspicious micronutrient values cautiously.
+        - Do not assume supplementation, over-supplementation, or true intake without confirmation.
+        - Do not recommend reducing supplements or fortified foods unless supplementation or fortified-food intake is confirmed.
+        - Avoid fixed carbohydrate targets such as 20-40g or 40-60g unless supported by body weight, training volume, and user goal context.
+        - For carbohydrate guidance, use contextual wording based on training load, recovery status, body weight, and goals.
         - Avoid absolute protein targets unless current body weight is available.
+
+        Forbidden final report wording:
+        - Any phrase that combines "high RIR" or "high-RIR" with "0", "1", or "0-1"
+        - "high-RIR lifts (0-1)"
+        - "high-RIR session" when referring to RIR 0-1
+        - "high RIR (near-failure efforts)"
+        - "high RIR risks overtraining"
+        - "Replace high-RIR (0-1)"
+        - "sleep deprivation (5.3/10)"
+        - "likely from supplements"
+        - "reduce supplements" unless supplement use is confirmed
+        - "20-40g carbs" or "40-60g carbs" as a fixed recommendation without context
+
+        RIR wording requirements:
+        - For RIR 0-1, the ONLY acceptable labels are:
+          "low RIR", "high effort", "near failure", "close to failure", or "low-RIR/high-effort work".
+        - Never pair the phrase "high RIR" with values 0, 1, or 0-1.
+        - The phrase "high RIR" may only be used for RIR 4+.
+        - If discussing RIR 0-1, always say "low RIR" instead of "high RIR".
+        - If recommending RIR 2-3 from current RIR 0-1, say "raise RIR to 2-3" or "move toward RIR 2-3", never "lower RIR."
+
+        Micronutrient wording requirements:
+        - Do not use "likely" when explaining suspicious micronutrient values.
+        - Use "may reflect" instead.
+        - Do not recommend reducing supplements, fortified foods, sodium, calcium, potassium, magnesium, or zinc unless the source is confirmed.
+        - Recommend verification first.
+
+        Macro recommendation requirements:
+        - Do not give fixed calorie, protein, carbohydrate, sodium, calcium, potassium, magnesium, or zinc targets unless required context is available.
+        - Prefer qualitative guidance: "evaluate relative to body weight, training load, recovery status, goals, and logged intake completeness."
+
+        Required replacement language:
+        - Say "low-RIR/high-effort work at RIR 0-1."
+        - Say "move from RIR 0-1 toward RIR 2-3 temporarily to reduce effort and leave more reps in reserve."
+        - Say "approximately 5.3 hours/night," not "5.3/10."
+        - Say "some micronutrient values appear unusually high and may reflect logging, database, unit, or supplementation artifacts; verify before acting."
+        - For carbohydrates, say "carbohydrate intake should be evaluated relative to training load, recovery, body weight, and goals" instead of giving fixed low gram targets.
 
         Identify:
         1. Biggest issue

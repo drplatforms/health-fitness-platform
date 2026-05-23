@@ -82,7 +82,6 @@ def run_report_job(job_id, user_id):
             report_jobs[job_id]
         )
         report_jobs[job_id]["report"] = report
-        report_jobs[job_id]["report"] = report
 
     except Exception as e:
         print("\n=== REPORT JOB FAILED ===\n")
