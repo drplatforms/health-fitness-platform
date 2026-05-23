@@ -1,13 +1,230 @@
+import re
 from datetime import datetime
 
 from dotenv import load_dotenv
 
+from models.coordinator_models import UnifiedHealthReport
 from services.report_service import save_health_report
 from services.user_state_service import (
     build_user_health_state,
 )
 
 load_dotenv()
+
+_FORBIDDEN_REPORT_PATTERNS = [
+    (
+        re.compile(
+            r"high[-\s]?rir[^\n]*(?:0\s*[-–]\s*1|near[-\s]?failure)",
+            re.IGNORECASE,
+        ),
+        "Do not describe RIR 0-1 or near-failure work as high RIR.",
+    ),
+    (
+        re.compile(r"high[-\s]?rir\s+risks\s+overtraining", re.IGNORECASE),
+        "Use low-RIR/high-effort language for near-failure overtraining risk.",
+    ),
+    (
+        re.compile(r"lower\s+rir\s+(?:to|toward)\s+2\s*[-–]\s*3", re.IGNORECASE),
+        "Moving from RIR 0-1 to RIR 2-3 means raising RIR, not lowering it.",
+    ),
+    (
+        re.compile(r"\b\d+(?:\.\d+)?\s*/\s*10\b"),
+        "Do not describe sleep hours as a score out of 10.",
+    ),
+    (
+        re.compile(
+            r"\blikely\s+(?:from|reflect|due to|because of|caused by)[^\n]*(?:supplement|over[-\s]?supplement)",
+            re.IGNORECASE,
+        ),
+        "Do not confidently attribute suspicious micronutrients to supplementation.",
+    ),
+    (
+        re.compile(
+            r"reduce\s+(?:your\s+)?(?:supplements|fortified foods)", re.IGNORECASE
+        ),
+        "Do not recommend reducing supplements or fortified foods unless confirmed.",
+    ),
+    (
+        re.compile(
+            r"\b(?:20\s*[-–]\s*40|40\s*[-–]\s*60)\s*g\s*carbs?\b", re.IGNORECASE
+        ),
+        "Do not give fixed low carbohydrate targets without context.",
+    ),
+]
+
+
+def validate_report_language(report_text: str) -> list[str]:
+    """Return deterministic language-guardrail violations before saving a report."""
+    violations = []
+
+    for pattern, message in _FORBIDDEN_REPORT_PATTERNS:
+        if pattern.search(report_text):
+            violations.append(message)
+
+    return violations
+
+
+def _format_sleep(avg_sleep: float | str) -> str:
+    if isinstance(avg_sleep, int | float):
+        return f"approximately {avg_sleep:g} hours/night"
+    return "sleep data unavailable"
+
+
+def _format_training_effort(avg_rir: float | str) -> str:
+    if not isinstance(avg_rir, int | float):
+        return "training effort data unavailable"
+    if avg_rir <= 1:
+        return "low-RIR/high-effort work at RIR 0-1"
+    if avg_rir <= 3:
+        return f"moderate-effort work around RIR {avg_rir:g}"
+    return f"higher-RIR/lower-effort work around RIR {avg_rir:g}"
+
+
+def _nutrition_context(health_state) -> str:
+    nutrition_state = health_state.nutrition_state
+    incomplete_fields = []
+
+    if nutrition_state.calorie_status == "Unknown":
+        incomplete_fields.append("calories")
+    if nutrition_state.protein_status == "Unknown":
+        incomplete_fields.append("protein")
+    if nutrition_state.carbohydrate_grams == "Unknown":
+        incomplete_fields.append("carbohydrates")
+    if nutrition_state.fat_grams == "Unknown":
+        incomplete_fields.append("fat")
+
+    if incomplete_fields:
+        fields = ", ".join(incomplete_fields)
+        return f"nutrition logging is incomplete for {fields}"
+
+    return "nutrition logging is available and should be interpreted in context"
+
+
+def _micronutrient_context(health_state) -> str:
+    nutrition_summary = health_state.nutrition_state.nutrition_summary
+
+    if "Unusually high micronutrient values" in nutrition_summary:
+        return (
+            "Some micronutrient values appear unusually high and may reflect "
+            "logging, database, unit, or supplementation artifacts; verify before acting."
+        )
+
+    return "No suspicious micronutrient pattern requires action from this report alone."
+
+
+def _build_fallback_unified_report(health_state) -> UnifiedHealthReport:
+    sleep_phrase = _format_sleep(health_state.recovery_state.avg_sleep)
+    effort_phrase = _format_training_effort(health_state.training_state.avg_rir)
+    nutrition_context = _nutrition_context(health_state)
+    micronutrient_context = _micronutrient_context(health_state)
+
+    score_by_stress = {
+        "High": 55,
+        "Moderate": 70,
+        "Low": 85,
+    }
+    overall_score = score_by_stress.get(health_state.system_stress_level, 65)
+
+    return UnifiedHealthReport(
+        overall_score=overall_score,
+        biggest_issue=(
+            f"Recovery capacity appears limited by {sleep_phrase}, "
+            f"{nutrition_context}, and {effort_phrase}."
+        ),
+        likely_cause=(
+            "The current pattern suggests a recovery mismatch: training demand is "
+            "outpacing confirmed sleep and nutrition support. "
+            f"{micronutrient_context}"
+        ),
+        priority_action=(
+            "Temporarily reduce low-RIR/high-effort work and move from RIR 0-1 "
+            "toward RIR 2-3 to reduce effort and leave more reps in reserve while "
+            "improving sleep consistency and nutrition logging completeness."
+        ),
+        recommendation=(
+            "Prioritize recovery for the next 1-2 weeks: improve sleep opportunity, "
+            "verify incomplete nutrition and any unusual micronutrient entries, and "
+            "evaluate carbohydrate and protein intake relative to body weight, training "
+            "load, recovery status, goals, and logged intake completeness."
+        ),
+    )
+
+
+def _extract_structured_field(raw_text: str, field_name: str) -> str | None:
+    label = field_name.replace("_", r"[_\s]")
+    next_labels = (
+        r"overall[_\s]score|biggest[_\s]issue|likely[_\s]cause|"
+        r"priority[_\s]action|recommendation"
+    )
+    pattern = re.compile(
+        rf"(?:^|\n)\s*\*{{0,2}}{label}\*{{0,2}}\s*:\s*(.*?)"
+        rf"(?=\n\s*\*{{0,2}}(?:{next_labels})\*{{0,2}}\s*:|\Z)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    match = pattern.search(raw_text)
+    if not match:
+        return None
+    return match.group(1).strip()
+
+
+def _parse_unified_report(raw_text: str) -> UnifiedHealthReport | None:
+    score_text = _extract_structured_field(raw_text, "overall_score")
+    biggest_issue = _extract_structured_field(raw_text, "biggest_issue")
+    likely_cause = _extract_structured_field(raw_text, "likely_cause")
+    priority_action = _extract_structured_field(raw_text, "priority_action")
+    recommendation = _extract_structured_field(raw_text, "recommendation")
+
+    if not all(
+        [score_text, biggest_issue, likely_cause, priority_action, recommendation]
+    ):
+        return None
+
+    score_match = re.search(r"\d{1,3}", score_text or "")
+    if not score_match:
+        return None
+
+    candidate = UnifiedHealthReport(
+        overall_score=int(score_match.group()),
+        biggest_issue=biggest_issue or "",
+        likely_cause=likely_cause or "",
+        priority_action=priority_action or "",
+        recommendation=recommendation or "",
+    )
+
+    rendered_candidate = render_unified_health_report(candidate)
+    if validate_report_language(rendered_candidate):
+        return None
+
+    return candidate
+
+
+def build_final_report_from_coordinator_output(
+    raw_text: str,
+    health_state,
+) -> UnifiedHealthReport:
+    """Use valid structured coordinator output, otherwise fall back deterministically."""
+    parsed_report = _parse_unified_report(raw_text)
+    if parsed_report is not None:
+        return parsed_report
+
+    return _build_fallback_unified_report(health_state)
+
+
+def render_unified_health_report(
+    report: UnifiedHealthReport,
+    timestamp: str | None = None,
+) -> str:
+    generated_line = f"Generated: {timestamp}\n\n" if timestamp else ""
+
+    return (
+        f"{generated_line}"
+        "**Unified Health Report**\n\n"
+        f"**Overall Score:** {report.overall_score}/100\n\n"
+        f"**1. Biggest Issue:** {report.biggest_issue}\n\n"
+        f"**2. Likely Cause:** {report.likely_cause}\n\n"
+        f"**3. Highest Priority Action:** {report.priority_action}\n\n"
+        f"**4. Best Recommendation:** {report.recommendation}"
+    )
 
 
 def generate_health_report(user_id):
@@ -128,6 +345,7 @@ def generate_health_report(user_id):
         - If Calories is Unknown, say calorie intake is unavailable or incomplete.
         - Do not infer supplementation, over-supplementation, or true excess micronutrient intake from suspicious values without confirmation.
         - Avoid absolute protein gram targets unless current body weight is available. Use qualitative protein guidance instead.
+        - Do not give fixed calorie, carbohydrate, sodium, calcium, potassium, magnesium, or zinc targets without required context.
 
         Provide:
         1. Nutrition assessment
@@ -274,15 +492,14 @@ def generate_health_report(user_id):
         - Say "some micronutrient values appear unusually high and may reflect logging, database, unit, or supplementation artifacts; verify before acting."
         - For carbohydrates, say "carbohydrate intake should be evaluated relative to training load, recovery, body weight, and goals" instead of giving fixed low gram targets.
 
-        Identify:
-        1. Biggest issue
-        2. Likely cause
-        3. Highest priority action
-        4. Best recommendation
-
-        Keep response concise and actionable.
+        Output exactly these structured fields and no extra sections:
+        overall_score: integer from 0 to 100
+        biggest_issue: one concise sentence
+        likely_cause: one concise sentence
+        priority_action: one concise sentence
+        recommendation: one concise paragraph
         """,
-        expected_output="Unified health report.",
+        expected_output="Structured UnifiedHealthReport fields only.",
         agent=coordinator_agent,
         context=[
             recovery_task,
@@ -330,8 +547,21 @@ def generate_health_report(user_id):
         print("\ncrew.kickoff() completed.\n")
 
         timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+        structured_report = build_final_report_from_coordinator_output(
+            raw_text=result.raw,
+            health_state=health_state,
+        )
+        final_report = render_unified_health_report(
+            report=structured_report,
+            timestamp=timestamp,
+        )
 
-        final_report = f"Generated: {timestamp}\n\n{result.raw}"
+        language_violations = validate_report_language(final_report)
+        if language_violations:
+            raise ValueError(
+                "Final report failed language validation: "
+                + "; ".join(language_violations)
+            )
 
         save_health_report(
             user_id=user_id,
