@@ -115,3 +115,38 @@ def test_bad_coordinator_output_falls_back_to_deterministic_report():
         "may reflect logging, database, unit, or supplementation artifacts" in rendered
     )
     assert validate_report_language(rendered) == []
+
+    def test_report_language_validator_flags_new_qa_regressions():
+        bad_report = """
+        Severe caloric deficit and micronutrient imbalances threaten recovery.
+        Over-supplementation likely drive extreme micronutrient values.
+        Prioritize 300-400 kcal/day for recovery.
+        Use carbs 4-6 g/kg relative to training load.
+        """
+
+        violations = validate_report_language(bad_report)
+
+        assert len(violations) >= 4
+
+    def test_context_aware_validator_rejects_numeric_targets_when_calories_unknown():
+        bad_report = """
+        The user has inadequate energy availability.
+        Prioritize 300-400 kcal/day for recovery.
+        Use carbohydrates 4-6 g/kg relative to training load.
+        """
+
+        violations = validate_report_language(
+            bad_report,
+            health_state=_health_state(),
+        )
+
+        assert any(
+            "inadequate energy availability" in violation for violation in violations
+        )
+        assert any(
+            "numeric calorie prescriptions" in violation for violation in violations
+        )
+        assert any(
+            "gram-per-kilogram macro prescriptions" in violation
+            for violation in violations
+        )

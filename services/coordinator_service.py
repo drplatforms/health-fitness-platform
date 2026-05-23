@@ -50,14 +50,88 @@ _FORBIDDEN_REPORT_PATTERNS = [
         ),
         "Do not give fixed low carbohydrate targets without context.",
     ),
+    (
+        re.compile(r"\b(?:severe|critical)\s+caloric\s+deficit\b", re.IGNORECASE),
+        "Do not assert severe or critical caloric deficit when nutrition logging may be incomplete.",
+    ),
+    (
+        re.compile(r"\binadequate\s+energy\s+availability\b", re.IGNORECASE),
+        "Do not assert inadequate energy availability without confirmed calorie context.",
+    ),
+    (
+        re.compile(
+            r"\b(?:over[-\s]?supplementation\s+likely|likely\s+over[-\s]?supplementation|supplements?\s+likely)\b",
+            re.IGNORECASE,
+        ),
+        "Do not frame suspicious micronutrients as likely over-supplementation.",
+    ),
+    (
+        re.compile(r"\b\d+\s*[-–]\s*\d+\s*kcal\s*/\s*day\b", re.IGNORECASE),
+        "Do not give hard calorie prescriptions without sufficient context.",
+    ),
+    (
+        re.compile(
+            r"\b\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*g\s*/\s*kg\b",
+            re.IGNORECASE,
+        ),
+        "Do not give hard macro gram-per-kilogram prescriptions without sufficient context.",
+    ),
 ]
 
 
-def validate_report_language(report_text: str) -> list[str]:
+def validate_report_language(report_text: str, health_state=None) -> list[str]:
     """Return deterministic language-guardrail violations before saving a report."""
     violations = []
 
     for pattern, message in _FORBIDDEN_REPORT_PATTERNS:
+        if pattern.search(report_text):
+            violations.append(message)
+
+    if health_state is None:
+        return violations
+
+    nutrition_state = health_state.nutrition_state
+    nutrition_summary = nutrition_state.nutrition_summary.lower()
+    recovery_nutrition_status = nutrition_state.recovery_nutrition_status.lower()
+
+    calories_unknown = nutrition_state.calories == "Unknown"
+    incomplete_nutrition = (
+        calories_unknown
+        or "incomplete" in recovery_nutrition_status
+        or "missing" in recovery_nutrition_status
+        or "unavailable" in nutrition_summary
+        or "unknown" in nutrition_summary
+    )
+
+    if not incomplete_nutrition:
+        return violations
+
+    incomplete_context_patterns = [
+        (
+            re.compile(
+                r"\b(?:severe|critical)\s+caloric\s+deficit\b",
+                re.IGNORECASE,
+            ),
+            "Incomplete nutrition data cannot support severe or critical caloric deficit language.",
+        ),
+        (
+            re.compile(r"\binadequate\s+energy\s+availability\b", re.IGNORECASE),
+            "Incomplete calorie data cannot support inadequate energy availability language.",
+        ),
+        (
+            re.compile(r"\b\d+\s*[-–]\s*\d+\s*kcal\s*/\s*day\b", re.IGNORECASE),
+            "Incomplete nutrition data cannot support numeric calorie prescriptions.",
+        ),
+        (
+            re.compile(
+                r"\b\d+(?:\.\d+)?\s*[-–]\s*\d+(?:\.\d+)?\s*g\s*/\s*kg\b",
+                re.IGNORECASE,
+            ),
+            "Incomplete nutrition data cannot support numeric gram-per-kilogram macro prescriptions.",
+        ),
+    ]
+
+    for pattern, message in incomplete_context_patterns:
         if pattern.search(report_text):
             violations.append(message)
 
@@ -556,7 +630,10 @@ def generate_health_report(user_id):
             timestamp=timestamp,
         )
 
-        language_violations = validate_report_language(final_report)
+        language_violations = validate_report_language(
+            final_report,
+            health_state=health_state,
+        )
         if language_violations:
             raise ValueError(
                 "Final report failed language validation: "
@@ -568,8 +645,6 @@ def generate_health_report(user_id):
             report_text=final_report,
             model_summary="ollama/qwen3:8b",
         )
-
-        return final_report
 
     except Exception as e:
         print("\n=== CREWAI ERROR ===\n")
