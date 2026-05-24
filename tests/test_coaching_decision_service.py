@@ -200,3 +200,157 @@ def test_validate_report_language_rejects_aligned_managed_over_intervention():
 
     violations = validate_report_language(report, coaching_decision=decision)
     assert any("Aligned/managed" in violation for violation in violations)
+
+
+def _data_quality_limited_health_state():
+    return _health_state(
+        calories="Unknown",
+        calorie_status="Unknown",
+        carbs="Unknown",
+        fat="Unknown",
+        nutrition_status="Incomplete - Calories Missing",
+        nutrition_summary=(
+            "Unusually high micronutrient values detected; these may reflect "
+            "database, unit, or logging issues."
+        ),
+        nutrition_alignment="Aligned",
+        fatigue_risk="Low",
+        readiness_level="High",
+        avg_sleep=6.5,
+        avg_soreness=3.0,
+        avg_rir=2.5,
+        training_load="Moderate",
+    )
+
+
+def test_data_quality_limited_validator_rejects_overconfident_causal_claims():
+    health_state = _data_quality_limited_health_state()
+    decision = build_coaching_decision(health_state)
+    bad_report = render_unified_health_report(
+        UnifiedHealthReport(
+            overall_score=60,
+            biggest_issue=(
+                "Incomplete nutrition data and unusually high micronutrient values "
+                "compromise recovery and fat-loss progress."
+            ),
+            likely_cause=(
+                "Suboptimal sleep and inconsistent RIR management likely contribute "
+                "to overtraining and stalled weight loss."
+            ),
+            priority_action="Address insufficient caloric intake.",
+            recommendation="Resolve the caloric deficit before training hard again.",
+        ),
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+
+    violations = validate_report_language(
+        bad_report,
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+
+    assert decision.scenario == "data_quality_limited"
+    assert any("overtraining" in violation for violation in violations)
+    assert any("stalled" in violation for violation in violations)
+    assert any(
+        "compromised" in violation or "compromise" in violation
+        for violation in violations
+    )
+    assert any("intake adequacy" in violation for violation in violations)
+    assert any("caloric deficit" in violation for violation in violations)
+
+
+def test_bad_data_quality_limited_coordinator_output_falls_back_to_deterministic_report():
+    health_state = _data_quality_limited_health_state()
+    decision = build_coaching_decision(health_state)
+    raw_text = """
+    overall_score: 60
+    biggest_issue: Incomplete nutrition data and unusually high micronutrient values compromise recovery and fat-loss progress.
+    likely_cause: Suboptimal sleep and inconsistent RIR management likely contribute to overtraining and stalled weight loss.
+    priority_action: Address insufficient caloric intake.
+    recommendation: Fix the caloric deficit before training hard again.
+    """
+
+    structured_report = build_final_report_from_coordinator_output(
+        raw_text=raw_text,
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+    rendered = render_unified_health_report(
+        structured_report,
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+    rendered_lower = rendered.lower()
+
+    assert decision.scenario == "data_quality_limited"
+    assert "Data quality limits confidence" in rendered
+    assert "Nutrition Target Display" in rendered
+    assert "Nutrition targets are limited until logging is more complete" in rendered
+    assert "overtraining" not in rendered_lower
+    assert "stalled weight loss" not in rendered_lower
+    assert "stalled fat loss" not in rendered_lower
+    assert "compromise recovery" not in rendered_lower
+    assert "caloric deficit" not in rendered_lower
+    assert validate_report_language(rendered, health_state, decision) == []
+
+
+def test_seeded_user_105_final_report_uses_limited_confidence_language(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+    health_state = build_user_health_state(105)
+    decision = build_coaching_decision(health_state)
+
+    report = build_final_report_from_coordinator_output(
+        raw_text="not structured enough to parse",
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+    rendered = render_unified_health_report(
+        report,
+        health_state=health_state,
+        coaching_decision=decision,
+    )
+    rendered_lower = rendered.lower()
+
+    assert decision.scenario == "data_quality_limited"
+    assert "Grounded Recommendation" in rendered
+    assert "Nutrition Target Display" in rendered
+    assert "Nutrition targets are limited until logging is more complete" in rendered
+    assert "overtraining" not in rendered_lower
+    assert "stalled weight loss" not in rendered_lower
+    assert "stalled fat loss" not in rendered_lower
+    assert "likely contribute" not in rendered_lower
+    assert "hard calorie" not in rendered_lower
+    assert validate_report_language(rendered, health_state, decision) == []
+
+
+def test_seeded_full_reports_include_grounded_recommendation_section(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    for user_id in QA_USER_IDS:
+        health_state = build_user_health_state(user_id)
+        decision = build_coaching_decision(health_state)
+        report = build_final_report_from_coordinator_output(
+            raw_text="not structured enough to parse",
+            health_state=health_state,
+            coaching_decision=decision,
+        )
+        rendered = render_unified_health_report(
+            report,
+            health_state=health_state,
+            coaching_decision=decision,
+        )
+
+        assert "Grounded Recommendation" in rendered
+        assert "Daily Coaching Recommendation" in rendered
+        assert "Workout Recommendation" in rendered
+        assert "Nutrition Action" in rendered
+        assert "Nutrition Target Display" in rendered
+        assert validate_report_language(rendered, health_state, decision) == []

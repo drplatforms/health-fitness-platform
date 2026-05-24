@@ -6,6 +6,14 @@ from dotenv import load_dotenv
 from models.coaching_decision_models import CoachingDecision
 from models.coordinator_models import UnifiedHealthReport
 from services.coaching_decision_service import build_coaching_decision
+from services.nutrition_target_service import (
+    build_nutrition_targets,
+    nutrition_targets_to_user_dict,
+)
+from services.recommendation_engine_service import (
+    build_approved_action_plan,
+    render_approved_action_plan,
+)
 from services.report_service import save_health_report
 from services.user_state_service import (
     build_user_health_state,
@@ -83,6 +91,40 @@ _FORBIDDEN_REPORT_PATTERNS = [
 ]
 
 
+_DATA_QUALITY_LIMITED_FORBIDDEN_PATTERNS = [
+    (
+        re.compile(r"\bovertraining\b", re.IGNORECASE),
+        "Data-quality-limited reports must not assert overtraining.",
+    ),
+    (
+        re.compile(r"\bstalled\s+(?:weight|fat)\s*[-\s]?loss\b", re.IGNORECASE),
+        "Data-quality-limited reports must not assert stalled weight-loss or fat-loss progress.",
+    ),
+    (
+        re.compile(r"\bcompromise\s+recovery\b", re.IGNORECASE),
+        "Data-quality-limited reports must not claim recovery is compromised.",
+    ),
+    (
+        re.compile(r"\bcompromise\s+fat[-\s]?loss\s+progress\b", re.IGNORECASE),
+        "Data-quality-limited reports must not claim fat-loss progress is compromised.",
+    ),
+    (
+        re.compile(r"\blikely\s+(?:contribute|caused|causing)\b", re.IGNORECASE),
+        "Data-quality-limited reports must not use strong likely-causal language.",
+    ),
+    (
+        re.compile(
+            r"\b(?:insufficient|inadequate)\s+caloric\s+intake\b", re.IGNORECASE
+        ),
+        "Data-quality-limited reports must not assert intake adequacy from incomplete data.",
+    ),
+    (
+        re.compile(r"\b(?:severe\s+deficit|caloric\s+deficit)\b", re.IGNORECASE),
+        "Data-quality-limited reports must not assert a caloric deficit from incomplete data.",
+    ),
+]
+
+
 def _validate_report_against_coaching_decision(
     report_text: str,
     coaching_decision: CoachingDecision | None,
@@ -145,6 +187,10 @@ def _validate_report_against_coaching_decision(
             violations.append(
                 "Data-quality-limited reports must not assume supplement causes."
             )
+
+        for pattern, message in _DATA_QUALITY_LIMITED_FORBIDDEN_PATTERNS:
+            if pattern.search(report_text):
+                violations.append(message)
 
     elif scenario == "improving_after_deload":
         if "progress" not in report_lower and "progression" not in report_lower:
@@ -463,15 +509,21 @@ def _build_fallback_unified_report(
         return UnifiedHealthReport(
             overall_score=overall_score,
             biggest_issue=(
-                "Data quality limits confidence in the current assessment; the priority "
-                "is improving logging completeness before making stronger nutrition or "
-                "training conclusions."
+                "Data quality limits confidence in nutrition and training conclusions."
             ),
-            likely_cause=(f"{nutrition_context} {micronutrient_context}"),
-            priority_action=coaching_decision.nutrition_action,
+            likely_cause=(
+                f"{nutrition_context} {micronutrient_context} Missing fields should "
+                "be treated as unknown rather than low or zero intake."
+            ),
+            priority_action=(
+                "Verify food entries and improve logging completeness before making "
+                "stronger nutrition or training changes."
+            ),
             recommendation=(
-                f"{coaching_decision.training_action} {coaching_decision.sleep_action} "
-                f"{coaching_decision.monitoring_action}"
+                "Keep training manageable while logging quality improves. Continue "
+                "tracking sleep, soreness, effort, calories, protein, carbohydrates, "
+                "and fats consistently. Once the data is more complete, nutrition and "
+                "training targets can be adjusted with more confidence."
             ),
         )
 
@@ -560,11 +612,87 @@ def build_final_report_from_coordinator_output(
     return _build_fallback_unified_report(health_state, coaching_decision)
 
 
+def _format_target_range(minimum, maximum, unit: str) -> str | None:
+    if minimum is None or maximum is None:
+        return None
+    return f"{minimum}-{maximum} {unit}"
+
+
+def _render_nutrition_target_display(health_state) -> str:
+    targets = build_nutrition_targets(health_state)
+    display_payload = nutrition_targets_to_user_dict(targets)
+
+    if display_payload["confidence"] == "Limited":
+        return (
+            "**Nutrition Target Display:** "
+            f"{display_payload['nutrition_display_message']}"
+        )
+
+    target_lines = []
+    if display_payload["allow_calorie_targets"]:
+        target_range = _format_target_range(
+            display_payload["calorie_target_min"],
+            display_payload["calorie_target_max"],
+            "calories/day",
+        )
+        if target_range:
+            target_lines.append(f"- Calories: {target_range}")
+
+    if display_payload["allow_protein_targets"]:
+        target_range = _format_target_range(
+            display_payload["protein_grams_min"],
+            display_payload["protein_grams_max"],
+            "g/day",
+        )
+        if target_range:
+            target_lines.append(f"- Protein: {target_range}")
+
+    if display_payload["allow_carbohydrate_targets"]:
+        target_range = _format_target_range(
+            display_payload["carbohydrate_grams_min"],
+            display_payload["carbohydrate_grams_max"],
+            "g/day",
+        )
+        if target_range:
+            target_lines.append(f"- Carbohydrates: {target_range}")
+
+    if display_payload["allow_fat_targets"]:
+        target_range = _format_target_range(
+            display_payload["fat_grams_min"],
+            display_payload["fat_grams_max"],
+            "g/day",
+        )
+        if target_range:
+            target_lines.append(f"- Fat: {target_range}")
+
+    if not target_lines:
+        return (
+            "**Nutrition Target Display:** "
+            f"{display_payload['nutrition_display_message']}"
+        )
+
+    return "**Nutrition Target Display:**\n" + "\n".join(target_lines)
+
+
+def _render_grounded_recommendation_section(
+    health_state, approved_action_plan=None
+) -> str:
+    if approved_action_plan is None:
+        approved_action_plan = build_approved_action_plan(health_state)
+
+    return (
+        render_approved_action_plan(approved_action_plan)
+        + "\n\n"
+        + _render_nutrition_target_display(health_state)
+    )
+
+
 def render_unified_health_report(
     report: UnifiedHealthReport,
     timestamp: str | None = None,
     health_state=None,
     coaching_decision: CoachingDecision | None = None,
+    approved_action_plan=None,
 ) -> str:
     generated_line = f"Generated: {timestamp}\n\n" if timestamp else ""
 
@@ -572,17 +700,23 @@ def render_unified_health_report(
         coaching_decision = build_coaching_decision(health_state)
 
     profile_context = ""
+    grounded_recommendation = ""
     if health_state is not None:
         profile_context = (
             "\n\n**Profile Context:** "
             f"{_format_profile_context(health_state, coaching_decision)}"
+        )
+        grounded_recommendation = "\n\n" + _render_grounded_recommendation_section(
+            health_state,
+            approved_action_plan=approved_action_plan,
         )
 
     return (
         f"{generated_line}"
         "**Unified Health Report**\n\n"
         f"**Overall Score:** {report.overall_score}/100"
-        f"{profile_context}\n\n"
+        f"{profile_context}"
+        f"{grounded_recommendation}\n\n"
         f"**1. Biggest Issue:** {report.biggest_issue}\n\n"
         f"**2. Likely Cause:** {report.likely_cause}\n\n"
         f"**3. Highest Priority Action:** {report.priority_action}\n\n"
@@ -595,6 +729,7 @@ def generate_health_report(user_id):
 
     health_state = build_user_health_state(user_id)
     coaching_decision = build_coaching_decision(health_state)
+    approved_action_plan = build_approved_action_plan(health_state)
 
     # -----------------------------
     # Nutrition Summary
@@ -948,6 +1083,7 @@ def generate_health_report(user_id):
             timestamp=timestamp,
             health_state=health_state,
             coaching_decision=coaching_decision,
+            approved_action_plan=approved_action_plan,
         )
 
         language_violations = validate_report_language(
