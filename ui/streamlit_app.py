@@ -173,6 +173,72 @@ def display_training_constraints(training_constraints: dict) -> None:
         st.write(f"**Recovery constraint:** {recovery_constraint}")
 
 
+def display_workout_plan_preview(workout_plan: dict) -> None:
+    title = workout_plan.get("title", "Workout Plan Preview")
+    session_focus = workout_plan.get("session_focus", "No focus available.")
+    duration_minutes = workout_plan.get("duration_minutes", "Unknown")
+    warmup = workout_plan.get("warmup")
+    cooldown = workout_plan.get("cooldown")
+    progression_guidance = workout_plan.get("progression_guidance")
+    rationale = workout_plan.get("rationale")
+    confidence = workout_plan.get("confidence", "Unknown")
+    exercises = workout_plan.get("exercises") or []
+
+    st.subheader(title)
+
+    col1, col2 = st.columns(2)
+    col1.metric("Duration", f"{duration_minutes} min")
+    col2.metric("Confidence", confidence)
+
+    st.write(f"**Focus:** {session_focus}")
+
+    if warmup:
+        st.write(f"**Warmup:** {warmup}")
+
+    exercise_rows = []
+    for exercise in exercises:
+        rir_min = exercise.get("rir_min")
+        rir_max = exercise.get("rir_max")
+        reps_min = exercise.get("reps_min")
+        reps_max = exercise.get("reps_max")
+
+        exercise_rows.append(
+            {
+                "Exercise": exercise.get("name", "Unknown"),
+                "Sets": exercise.get("sets", "Unknown"),
+                "Reps": (
+                    f"{reps_min}-{reps_max}"
+                    if reps_min is not None and reps_max is not None
+                    else "Unknown"
+                ),
+                "RIR": (
+                    f"{rir_min}-{rir_max}"
+                    if rir_min is not None and rir_max is not None
+                    else "Unknown"
+                ),
+                "Notes": exercise.get("notes", ""),
+            }
+        )
+
+    if exercise_rows:
+        st.dataframe(
+            pd.DataFrame(exercise_rows),
+            width="stretch",
+            hide_index=True,
+        )
+    else:
+        st.warning("No exercises are available for this workout preview.")
+
+    if progression_guidance:
+        st.write(f"**Progression guidance:** {progression_guidance}")
+
+    if cooldown:
+        st.write(f"**Cooldown:** {cooldown}")
+
+    if rationale:
+        st.write(f"**Why:** {rationale}")
+
+
 # =====================================
 # Session State Initialization
 # =====================================
@@ -415,6 +481,48 @@ try:
 
 except requests.RequestException as exc:
     st.error(f"Failed to load daily recommendation: {exc}")
+
+
+# =====================================
+# Workout Plan Preview
+# =====================================
+
+st.header("🏋️ Workout Plan Preview")
+
+try:
+    workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
+
+    if workout_plan_data.get("success"):
+        scenario = workout_plan_data.get("scenario")
+        confidence = workout_plan_data.get("confidence", "Unknown")
+        approved_workout_plan = workout_plan_data.get("approved_workout_plan", {})
+        training_constraints = workout_plan_data.get("training_constraints", {})
+
+        col1, col2 = st.columns(2)
+
+        col1.metric(
+            "Plan Context",
+            scenario_display_name(scenario),
+        )
+
+        col2.metric(
+            "Confidence",
+            confidence,
+        )
+
+        display_workout_plan_preview(approved_workout_plan)
+
+        with st.expander("Developer details"):
+            st.subheader("Training Constraints")
+            st.json(training_constraints)
+            st.subheader("Raw Workout Plan Response")
+            st.json(workout_plan_data)
+
+    else:
+        st.warning("No workout plan preview is available for this user yet.")
+
+except requests.RequestException as exc:
+    st.error(f"Failed to load workout plan preview: {exc}")
 
 
 # =====================================
