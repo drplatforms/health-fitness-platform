@@ -47,6 +47,17 @@ FALLBACK_REASON_SCHEMA_MISMATCH = "schema_mismatch"
 FALLBACK_REASON_INVALID_CONFIDENCE = "invalid_confidence"
 FALLBACK_REASON_VALIDATION_FAILURE = "validation_failure"
 
+CANDIDATE_PARSE_STATUS_SUCCESS = "success"
+CANDIDATE_PARSE_STATUS_FAILED = "failed"
+CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED = "not_attempted"
+CANDIDATE_VALIDATION_STATUS_SUCCESS = "success"
+CANDIDATE_VALIDATION_STATUS_FAILED = "failed"
+CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED = "not_attempted"
+FINAL_PLAN_SOURCE_DETERMINISTIC = "deterministic"
+FINAL_PLAN_SOURCE_CREWAI_APPROVED = "crewai_approved"
+FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
+RAW_OUTPUT_PREVIEW_LIMIT = 240
+
 _CONFIDENCE_RANK = {"Low": 1, "Moderate": 2, "High": 3}
 
 _INTERNAL_DEBUG_TERMS = [
@@ -189,51 +200,49 @@ def recommendation_context_to_llm_json(context: RecommendationContext) -> str:
 
 
 def build_crewai_candidate_action_plan_prompt(context: RecommendationContext) -> str:
-    """Return the CrewAI task prompt for CandidateActionPlan JSON generation."""
-    contract = candidate_action_plan_json_contract()
+    """Return the CrewAI task prompt for candidate recommendation JSON."""
     return f"""
-You are a coach-copy JSON generator for AI Health Coach.
+You write concise coaching copy inside a required JSON object.
 
-The backend has already selected the strategy, constraints, nutrition display
-approvals, and safety boundaries. Your job is to write concise user-facing copy
-inside the exact CandidateActionPlan JSON contract. Do not decide a new strategy.
+The approved context below already contains the user's scenario, target-display
+permissions, training constraints, and safety boundaries. Follow that context.
+Do not choose a different strategy.
 
-Return raw JSON only. The first character of your response must be {{ and the
-last character must be }}. Do not return markdown, code fences, headings, bullet
-lists, commentary, explanations outside JSON, or extra fields.
-
-RecommendationContext JSON:
+Approved context:
 {recommendation_context_to_llm_json(context)}
 
-CandidateActionPlan JSON contract:
-{json.dumps(contract, indent=2)}
+Return raw JSON only.
+- The first character must be {{.
+- The last character must be }}.
+- Do not use markdown, code fences, headings, bullets, commentary, or extra fields.
+- Use exactly these fields:
+  - daily_coaching_recommendation
+  - workout_recommendation
+  - nutrition_action
+  - rationale
+  - confidence
 
-Required output, with exactly these fields and no others:
+Required JSON object:
 {{
   "daily_coaching_recommendation": "one user-facing sentence",
   "workout_recommendation": "one user-facing sentence",
   "nutrition_action": "one user-facing sentence",
-  "rationale": "one user-facing sentence explaining tradeoffs",
+  "rationale": "one user-facing sentence explaining the tradeoff",
   "confidence": "Low | Moderate | High"
 }}
 
 Rules:
-- Use only the RecommendationContext JSON as source context.
-- Do not change or contradict the scenario.
+- Use only the approved context.
 - Do not invent calorie, protein, carbohydrate, fat, mineral, or vitamin targets.
-- Do not mention calorie, carbohydrate, or fat ranges unless the corresponding
-  allow_* flag is true in nutrition_targets.
-- Do not mention protein ranges unless allow_protein_targets is true.
-- If nutrition_targets.confidence is Limited, use the nutrition_display_message
-  idea instead of hard macro or calorie targets.
-- Do not contradict TrainingConstraints RIR/progression/recovery guidance.
-- Treat missing nutrition fields as unknown, never zero intake.
-- Do not infer supplement use or over-supplementation from unusual nutrients.
+- Do not mention hidden target ranges.
+- Mention protein ranges only when protein targets are approved.
+- If nutrition target confidence is Limited, emphasize logging and verification.
+- Follow the RIR, progression, and recovery guidance from the approved context.
+- Treat missing nutrition as unknown, never zero.
+- Do not infer supplement use from unusual nutrients.
 - Do not make unsupported causal claims.
-- Do not include internal validation, guardrail, fallback, schema, backend,
-  source-of-truth, reason-code, debug, model, scenario label, or dataclass names
-  in user-facing fields.
-- Candidate confidence must not exceed the RecommendationContext confidence.
+- Do not include internal system, validation, fallback, debug, model, or data-label terms.
+- Confidence must not exceed the approved context confidence.
 """.strip()
 
 
@@ -432,7 +441,6 @@ def candidate_action_plan_json_contract() -> dict[str, Any]:
             "rationale": "string",
             "confidence": "Low | Moderate | High",
         },
-        "invalid_output_behavior": "deterministic_fallback",
     }
 
 
@@ -738,6 +746,33 @@ def _fallback_reason_for_parse_error(error: ValueError) -> str:
     return FALLBACK_REASON_SCHEMA_MISMATCH
 
 
+def _markdown_wrapper_detected(raw_output: str) -> bool:
+    stripped = raw_output.strip().lower()
+    return stripped.startswith("```") or "```json" in stripped or "```" in stripped
+
+
+def _truncate_raw_output_preview(raw_output: str) -> str:
+    compact = " ".join(raw_output.split())
+    if len(compact) <= RAW_OUTPUT_PREVIEW_LIMIT:
+        return compact
+    return compact[:RAW_OUTPUT_PREVIEW_LIMIT] + "..."
+
+
+def _raw_output_diagnostics(raw_output: str | None) -> dict[str, Any]:
+    if raw_output is None:
+        return {
+            "raw_output_length": None,
+            "raw_output_preview_truncated": None,
+            "markdown_wrapper_detected": False,
+        }
+
+    return {
+        "raw_output_length": len(raw_output),
+        "raw_output_preview_truncated": _truncate_raw_output_preview(raw_output),
+        "markdown_wrapper_detected": _markdown_wrapper_detected(raw_output),
+    }
+
+
 def _deterministic_result(
     context: RecommendationContext,
     metadata: RecommendationRuntimeMetadata,
@@ -764,11 +799,15 @@ def _log_recommendation_runtime(
             "context_confidence": context.confidence,
             "nutrition_confidence": context.nutrition_targets.confidence,
             "crewai_attempted": metadata.crewai_attempted,
-            "parse_status": "valid" if metadata.candidate_valid else "invalid",
-            "validation_status": "valid" if metadata.candidate_valid else "invalid",
+            "candidate_parse_status": metadata.candidate_parse_status,
+            "candidate_validation_status": metadata.candidate_validation_status,
+            "final_plan_source": metadata.final_plan_source,
             "fallback_used": metadata.fallback_used,
             "fallback_reason": metadata.fallback_reason,
             "validation_violations": metadata.validation_errors,
+            "raw_output_length": metadata.raw_output_length,
+            "raw_output_preview_truncated": metadata.raw_output_preview_truncated,
+            "markdown_wrapper_detected": metadata.markdown_wrapper_detected,
             "elapsed_ms": elapsed_ms,
         },
     )
@@ -788,6 +827,7 @@ def approve_candidate_json_or_fallback_with_metadata(
     remains the renderable user-facing recommendation contract.
     """
     start_time = time.perf_counter()
+    raw_diagnostics = _raw_output_diagnostics(raw_json)
     try:
         candidate = parse_candidate_action_plan(raw_json)
         violations = validate_candidate_action_plan(candidate, context)
@@ -800,6 +840,10 @@ def approve_candidate_json_or_fallback_with_metadata(
                 fallback_reason=FALLBACK_REASON_VALIDATION_FAILURE,
                 candidate_valid=False,
                 validation_errors=violations,
+                candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+                candidate_validation_status=CANDIDATE_VALIDATION_STATUS_FAILED,
+                final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK,
+                **raw_diagnostics,
             )
             result = _deterministic_result(context, metadata)
         else:
@@ -811,6 +855,14 @@ def approve_candidate_json_or_fallback_with_metadata(
                 fallback_reason=None,
                 candidate_valid=True,
                 validation_errors=[],
+                candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+                candidate_validation_status=CANDIDATE_VALIDATION_STATUS_SUCCESS,
+                final_plan_source=(
+                    FINAL_PLAN_SOURCE_CREWAI_APPROVED
+                    if crewai_attempted
+                    else FINAL_PLAN_SOURCE_DETERMINISTIC
+                ),
+                **raw_diagnostics,
             )
             result = ApprovedActionPlanResult(
                 approved_action_plan=approve_candidate_action_plan(candidate, context),
@@ -825,6 +877,10 @@ def approve_candidate_json_or_fallback_with_metadata(
             fallback_reason=_fallback_reason_for_parse_error(exc),
             candidate_valid=False,
             validation_errors=[str(exc)],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_FAILED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK,
+            **raw_diagnostics,
         )
         result = _deterministic_result(context, metadata)
 
@@ -867,6 +923,9 @@ def approve_candidate_provider_or_fallback_with_metadata(
             fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
             candidate_valid=False,
             validation_errors=[type(exc).__name__],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK,
         )
         result = _deterministic_result(context, metadata)
         _log_recommendation_runtime(
@@ -887,6 +946,9 @@ def approve_candidate_provider_or_fallback_with_metadata(
             validation_errors=[
                 "CandidateActionPlan provider returned non-string output."
             ],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK,
         )
         result = _deterministic_result(context, metadata)
         _log_recommendation_runtime(
@@ -965,6 +1027,9 @@ def build_configured_approved_action_plan_with_metadata(
             fallback_reason=FALLBACK_REASON_DETERMINISTIC_SELECTED,
             candidate_valid=True,
             validation_errors=[],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC,
         )
         result = _deterministic_result(context, metadata)
         _log_recommendation_runtime(context, result.runtime_metadata, elapsed_ms=0)
@@ -986,6 +1051,9 @@ def build_configured_approved_action_plan_with_metadata(
         fallback_reason=FALLBACK_REASON_INVALID_PROVIDER,
         candidate_valid=True,
         validation_errors=[f"Unsupported provider: {provider}"],
+        candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+        candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+        final_plan_source=FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK,
     )
     result = _deterministic_result(context, metadata)
     _log_recommendation_runtime(context, result.runtime_metadata, elapsed_ms=0)

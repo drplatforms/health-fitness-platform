@@ -49,6 +49,12 @@ class RecommendationRuntimeMetadata:
     fallback_reason: str | None
     candidate_valid: bool
     validation_errors: list[str] = field(default_factory=list)
+    candidate_parse_status: str = "not_attempted"
+    candidate_validation_status: str = "not_attempted"
+    final_plan_source: str = "deterministic"
+    raw_output_length: int | None = None
+    raw_output_preview_truncated: str | None = None
+    markdown_wrapper_detected: bool = False
 
 
 @dataclass

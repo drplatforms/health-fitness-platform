@@ -408,7 +408,7 @@ def test_candidate_action_plan_json_contract_is_explicit():
     contract = candidate_action_plan_json_contract()
 
     assert contract["type"] == "object"
-    assert contract["invalid_output_behavior"] == "deterministic_fallback"
+    assert "invalid_output_behavior" not in contract
     assert contract["required_fields"] == [
         "confidence",
         "daily_coaching_recommendation",
@@ -564,9 +564,11 @@ def test_crewai_candidate_prompt_requires_raw_json_only(tmp_path, monkeypatch):
 
     prompt = build_crewai_candidate_action_plan_prompt(context)
 
-    assert "RecommendationContext JSON" in prompt
+    assert "Approved context:" in prompt
+    assert "Required JSON object:" in prompt
     assert "Return raw JSON only" in prompt
-    assert "Do not return markdown" in prompt
+    assert "Do not use markdown" in prompt
+    assert "invalid_output_behavior" not in prompt
     assert "daily_coaching_recommendation" in prompt
     assert "workout_recommendation" in prompt
     assert "nutrition_action" in prompt
@@ -918,12 +920,13 @@ def test_crewai_prompt_frames_model_as_json_copy_generator(tmp_path, monkeypatch
 
     prompt = build_crewai_candidate_action_plan_prompt(context)
 
-    assert "coach-copy JSON generator" in prompt
-    assert "first character of your response must be {" in prompt
+    assert "approved context" in prompt.lower()
+    assert "required JSON object" in prompt
+    assert "first character must be {" in prompt
     assert "last character must be }" in prompt
-    assert "Do not decide a new strategy" in prompt
-    assert "Do not return markdown" in prompt
-    assert "exactly these fields and no others" in prompt
+    assert "Do not use markdown" in prompt
+    assert "invalid_output_behavior" not in prompt
+    assert "CandidateActionPlan" not in prompt
 
 
 def test_candidate_validator_rejects_confidence_above_context(tmp_path, monkeypatch):
@@ -980,6 +983,9 @@ def test_runtime_metadata_deterministic_mode(tmp_path, monkeypatch):
     assert result.runtime_metadata.fallback_reason == "deterministic_selected"
     assert result.runtime_metadata.candidate_valid is True
     assert result.runtime_metadata.validation_errors == []
+    assert result.runtime_metadata.candidate_parse_status == "not_attempted"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert result.runtime_metadata.final_plan_source == "deterministic"
 
 
 def test_runtime_metadata_invalid_provider_falls_back(tmp_path, monkeypatch):
@@ -996,6 +1002,9 @@ def test_runtime_metadata_invalid_provider_falls_back(tmp_path, monkeypatch):
     assert result.runtime_metadata.crewai_attempted is False
     assert result.runtime_metadata.fallback_used is True
     assert result.runtime_metadata.fallback_reason == "invalid_provider"
+    assert result.runtime_metadata.candidate_parse_status == "not_attempted"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert result.runtime_metadata.final_plan_source == "deterministic_fallback"
 
 
 def test_runtime_metadata_crewai_success(tmp_path, monkeypatch):
@@ -1028,6 +1037,11 @@ def test_runtime_metadata_crewai_success(tmp_path, monkeypatch):
     assert result.runtime_metadata.fallback_used is False
     assert result.runtime_metadata.fallback_reason is None
     assert result.runtime_metadata.candidate_valid is True
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "success"
+    assert result.runtime_metadata.final_plan_source == "crewai_approved"
+    assert result.runtime_metadata.raw_output_length == len(raw_json)
+    assert result.runtime_metadata.markdown_wrapper_detected is False
 
 
 def test_runtime_metadata_provider_exception_falls_back(tmp_path, monkeypatch):
@@ -1140,3 +1154,247 @@ def test_runtime_metadata_logging_is_structured(tmp_path, monkeypatch, caplog):
     assert record.fallback_reason == "malformed_json"
     assert record.nutrition_confidence == "Limited"
     assert isinstance(record.elapsed_ms, int)
+
+
+def test_debug_endpoint_returns_runtime_metadata_deterministic(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "deterministic")
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/105/debug")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert set(payload) == {
+        "success",
+        "user_id",
+        "scenario",
+        "confidence",
+        "approved_action_plan",
+        "rendered_recommendation",
+        "runtime_metadata",
+    }
+    metadata = payload["runtime_metadata"]
+    assert metadata["configured_provider"] == "deterministic"
+    assert metadata["selected_provider"] == "deterministic"
+    assert metadata["crewai_attempted"] is False
+    assert metadata["fallback_used"] is False
+    assert metadata["candidate_parse_status"] == "not_attempted"
+    assert metadata["candidate_validation_status"] == "not_attempted"
+    assert metadata["final_plan_source"] == "deterministic"
+
+
+def test_debug_endpoint_crewai_success_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "crewai")
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Maintain the current direction and progress gradually.",
+      "workout_recommendation": "Continue manageable training progression.",
+      "nutrition_action": "Keep nutrition logging consistent and review protein support.",
+      "rationale": "Recovery and training are aligned enough to favor consistency.",
+      "confidence": "High"
+    }
+    """
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/102/debug")
+
+    assert response.status_code == 200
+    metadata = response.json()["runtime_metadata"]
+    assert metadata["configured_provider"] == "crewai"
+    assert metadata["selected_provider"] == "crewai"
+    assert metadata["crewai_attempted"] is True
+    assert metadata["fallback_used"] is False
+    assert metadata["fallback_reason"] is None
+    assert metadata["candidate_parse_status"] == "success"
+    assert metadata["candidate_validation_status"] == "success"
+    assert metadata["final_plan_source"] == "crewai_approved"
+    assert metadata["raw_output_length"] == len(raw_json)
+    assert metadata["markdown_wrapper_detected"] is False
+
+
+def test_debug_endpoint_crewai_markdown_malformed_fallback_metadata(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "crewai")
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    raw_output = """```json
+    {
+      "daily_coaching_recommendation": "Maintain the current direction.",
+      "workout_recommendation": "Continue manageable training progression.",
+      "nutrition_action": "Keep nutrition logging consistent.",
+      "rationale": "Recovery and training are aligned.",
+      "confidence": "High"
+    }
+    ```"""
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_output,
+    )
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/102/debug")
+
+    assert response.status_code == 200
+    metadata = response.json()["runtime_metadata"]
+    assert metadata["fallback_used"] is True
+    assert metadata["fallback_reason"] == "malformed_json"
+    assert metadata["candidate_parse_status"] == "failed"
+    assert metadata["candidate_validation_status"] == "not_attempted"
+    assert metadata["final_plan_source"] == "deterministic_fallback"
+    assert metadata["raw_output_length"] == len(raw_output)
+    assert metadata["markdown_wrapper_detected"] is True
+    assert metadata["raw_output_preview_truncated"].startswith("```json")
+
+
+def test_debug_endpoint_invalid_provider_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "not-a-provider")
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/102/debug")
+
+    assert response.status_code == 200
+    metadata = response.json()["runtime_metadata"]
+    assert metadata["configured_provider"] == "not-a-provider"
+    assert metadata["selected_provider"] == "deterministic"
+    assert metadata["crewai_attempted"] is False
+    assert metadata["fallback_used"] is True
+    assert metadata["fallback_reason"] == "invalid_provider"
+    assert metadata["candidate_parse_status"] == "not_attempted"
+    assert metadata["candidate_validation_status"] == "not_attempted"
+    assert metadata["final_plan_source"] == "deterministic_fallback"
+
+
+def test_runtime_metadata_validation_failure_has_split_statuses(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "crewai")
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Deload this week despite stable recovery.",
+      "workout_recommendation": "Reduce intensity across all work sets.",
+      "nutrition_action": "Keep nutrition consistent.",
+      "rationale": "Intervention is needed.",
+      "confidence": "High"
+    }
+    """
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    result = recommendation_engine_service.build_configured_approved_action_plan_with_metadata(
+        health_states[102]
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "validation_failure"
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "failed"
+    assert result.runtime_metadata.final_plan_source == "deterministic_fallback"
+    assert result.runtime_metadata.raw_output_length == len(raw_json)
+
+
+def test_runtime_metadata_raw_output_preview_is_truncated(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "crewai")
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_output = "not json " + ("x" * 500)
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_output,
+    )
+
+    result = recommendation_engine_service.build_configured_approved_action_plan_with_metadata(
+        health_states[102]
+    )
+
+    assert result.runtime_metadata.fallback_reason == "malformed_json"
+    assert result.runtime_metadata.raw_output_length == len(raw_output)
+    assert result.runtime_metadata.raw_output_preview_truncated.endswith("...")
+    assert len(result.runtime_metadata.raw_output_preview_truncated) <= 243
+
+
+def test_runtime_logging_includes_split_statuses_and_final_source(
+    tmp_path, monkeypatch, caplog
+):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "crewai")
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: "not json",
+    )
+
+    with caplog.at_level("INFO", logger="services.recommendation_engine_service"):
+        recommendation_engine_service.build_configured_approved_action_plan_with_metadata(
+            health_states[105]
+        )
+
+    record = [
+        record
+        for record in caplog.records
+        if record.message == "recommendation_candidate_provider_result"
+    ][-1]
+    assert record.candidate_parse_status == "failed"
+    assert record.candidate_validation_status == "not_attempted"
+    assert record.final_plan_source == "deterministic_fallback"
+    assert record.raw_output_length == len("not json")
+    assert record.markdown_wrapper_detected is False
+
+
+def test_stable_daily_endpoint_does_not_expose_runtime_metadata(tmp_path, monkeypatch):
+    monkeypatch.setenv("RECOMMENDATION_CANDIDATE_PROVIDER", "deterministic")
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/105")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "runtime_metadata" not in payload
+    assert set(payload) == {
+        "success",
+        "user_id",
+        "scenario",
+        "confidence",
+        "nutrition_targets",
+        "training_constraints",
+        "approved_action_plan",
+        "rendered_recommendation",
+    }
