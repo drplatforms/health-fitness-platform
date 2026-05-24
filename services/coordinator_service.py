@@ -251,38 +251,65 @@ def _format_goal(goal: str | None) -> str:
     return goal.replace("_and_", "/").replace("_", " ")
 
 
-def _format_profile_context(health_state) -> str:
+def _format_profile_context(
+    health_state,
+    coaching_decision: CoachingDecision | None = None,
+) -> str:
     latest_weight = _format_weight(getattr(health_state, "latest_body_weight", None))
     starting_weight = _format_weight(getattr(health_state, "starting_weight", None))
     goal_weight = _format_weight(getattr(health_state, "goal_weight", None))
     goal = _format_goal(getattr(health_state, "primary_goal", None))
     activity_level = getattr(health_state, "activity_level", None) or "unspecified"
-
     weight_phrase = latest_weight or starting_weight
 
-    if not weight_phrase:
-        return (
-            f"With a {goal} goal and {activity_level} activity level, guidance should "
-            "use available profile context while avoiding hard numeric prescriptions "
-            "until target rules are defined."
-        )
+    context_parts = []
+    if weight_phrase:
+        context_parts.append(f"At roughly {weight_phrase}")
+    else:
+        context_parts.append("With the available profile data")
 
-    extra_context = []
     if starting_weight and starting_weight != weight_phrase:
-        extra_context.append(f"starting weight {starting_weight}")
+        context_parts.append(f"starting from {starting_weight}")
     if goal_weight:
-        extra_context.append(f"goal weight {goal_weight}")
+        context_parts.append(f"goal weight {goal_weight}")
 
-    extra_phrase = ""
-    if extra_context:
-        extra_phrase = f" ({', '.join(extra_context)})"
-
-    return (
-        f"At roughly {weight_phrase}{extra_phrase}, with a {goal} goal and "
-        f"{activity_level} activity level, nutrition and training guidance should "
-        "use this available context while avoiding hard numeric prescriptions until "
-        "target rules are defined."
+    base_context = (
+        f"{context_parts[0]}"
+        + (f" ({', '.join(context_parts[1:])})" if len(context_parts) > 1 else "")
+        + f", with a {goal} goal and {activity_level} activity level"
     )
+
+    scenario = coaching_decision.scenario if coaching_decision else None
+
+    if scenario == "improving_after_deload":
+        focus = (
+            "the current focus should be controlled progression rather than "
+            "aggressive increases in training stress."
+        )
+    elif scenario == "aligned_managed":
+        focus = (
+            "the current focus should be maintaining consistency and progressing "
+            "gradually."
+        )
+    elif scenario == "recovery_limited":
+        focus = (
+            "the current focus should be recovery support before adding more "
+            "training stress."
+        )
+    elif scenario == "nutrition_training_mismatch":
+        focus = (
+            "the current focus should be matching nutrition support to training "
+            "demand."
+        )
+    elif scenario == "data_quality_limited":
+        focus = (
+            "the current focus should be improving logging confidence before making "
+            "stronger coaching conclusions."
+        )
+    else:
+        focus = "the current focus should be steady progress with recovery awareness."
+
+    return f"{base_context}, {focus}"
 
 
 def _join_items(items: list[str]) -> str:
@@ -336,7 +363,6 @@ def _build_fallback_unified_report(
 ) -> UnifiedHealthReport:
     sleep_phrase = _format_sleep(health_state.recovery_state.avg_sleep)
     effort_phrase = _format_training_effort(health_state.training_state.avg_rir)
-    profile_context = _format_profile_context(health_state)
     nutrition_context = _nutrition_context(health_state)
     nutrition_context_lower = nutrition_context.removesuffix(".").lower()
     micronutrient_context = _micronutrient_context(health_state)
@@ -358,14 +384,15 @@ def _build_fallback_unified_report(
                 "priority is maintaining consistency while progressing gradually."
             ),
             likely_cause=(
-                f"Recovery, training load, and nutrition appear broadly aligned. "
-                f"{profile_context}"
+                "Sleep, soreness, training load, and nutrition indicators do not "
+                "show a major recovery bottleneck right now."
             ),
             priority_action=coaching_decision.training_action,
             recommendation=(
-                f"{coaching_decision.primary_focus} {coaching_decision.sleep_action} "
-                f"{coaching_decision.nutrition_action} "
-                f"{coaching_decision.monitoring_action}"
+                "Continue gradual progression over the next 1-2 weeks. Keep sleep "
+                "and nutrition logging consistent, monitor energy, soreness, body "
+                "weight trend, and performance, and only increase training volume or "
+                "load when those markers stay stable."
             ),
         )
 
@@ -377,8 +404,8 @@ def _build_fallback_unified_report(
                 f"{nutrition_context_lower}, and recent training includes {effort_phrase}."
             ),
             likely_cause=(
-                "Training demand may be outpacing confirmed recovery support. "
-                f"{profile_context} {micronutrient_context}"
+                "Sleep, soreness, and training effort suggest recovery capacity may "
+                f"not yet be matching current training demand. {micronutrient_context}"
             ),
             priority_action=(
                 f"{coaching_decision.sleep_action} {coaching_decision.training_action}"
@@ -396,13 +423,15 @@ def _build_fallback_unified_report(
                 "Nutrition support may not be well matched to current training demand."
             ),
             likely_cause=(
-                f"{nutrition_context} {profile_context} {micronutrient_context}"
+                f"{nutrition_context} Current training demand needs clearer nutrition "
+                f"support before stronger conclusions are useful. {micronutrient_context}"
             ),
             priority_action=coaching_decision.nutrition_action,
             recommendation=(
-                f"{coaching_decision.training_action} {coaching_decision.sleep_action} "
-                f"{coaching_decision.monitoring_action} Avoid numeric calorie or macro "
-                "prescriptions until target rules are explicitly defined."
+                "Keep training progression controlled while nutrition support is clarified. "
+                "Log complete nutrition entries on training days, review protein and "
+                "carbohydrate support against body weight, goal, activity level, and "
+                "training load, and monitor performance, soreness, and energy."
             ),
         )
 
@@ -410,18 +439,23 @@ def _build_fallback_unified_report(
         return UnifiedHealthReport(
             overall_score=overall_score,
             biggest_issue=(
-                "Recovery markers appear improved; the priority is controlled progression "
-                "instead of reacting strongly to older high-stress data."
+                "Recovery is improving, but the main risk is ramping intensity back up "
+                "too quickly after the recent deload or reduced-stress period."
             ),
             likely_cause=(
-                "Recent recovery and training patterns suggest the deload or reduced-stress "
-                f"period is helping. {profile_context}"
+                "Sleep, soreness, and training stress appear to be moving in a better "
+                "direction, suggesting the reduced-stress period is helping."
             ),
-            priority_action=coaching_decision.training_action,
+            priority_action=(
+                "Keep most working sets around RIR 2-3 for now and avoid frequent "
+                "RIR 0-1 work until recovery stays stable."
+            ),
             recommendation=(
-                f"{coaching_decision.primary_focus} {coaching_decision.sleep_action} "
-                f"{coaching_decision.nutrition_action} "
-                f"{coaching_decision.monitoring_action}"
+                "Continue controlled progression for the next 1-2 weeks. Maintain the "
+                "improved sleep pattern, keep nutrition logging consistent on training "
+                "days, and monitor energy, soreness, and performance. If those markers "
+                "stay stable, gradually increase training volume or load rather than "
+                "jumping straight back to high-effort sessions."
             ),
         )
 
@@ -433,9 +467,7 @@ def _build_fallback_unified_report(
                 "is improving logging completeness before making stronger nutrition or "
                 "training conclusions."
             ),
-            likely_cause=(
-                f"{nutrition_context} {profile_context} {micronutrient_context}"
-            ),
+            likely_cause=(f"{nutrition_context} {micronutrient_context}"),
             priority_action=coaching_decision.nutrition_action,
             recommendation=(
                 f"{coaching_decision.training_action} {coaching_decision.sleep_action} "
@@ -446,7 +478,7 @@ def _build_fallback_unified_report(
     return UnifiedHealthReport(
         overall_score=overall_score,
         biggest_issue=coaching_decision.primary_focus,
-        likely_cause=f"{profile_context} {micronutrient_context}",
+        likely_cause=micronutrient_context,
         priority_action=coaching_decision.training_action,
         recommendation=(
             f"{coaching_decision.nutrition_action} {coaching_decision.sleep_action} "
@@ -532,13 +564,18 @@ def render_unified_health_report(
     report: UnifiedHealthReport,
     timestamp: str | None = None,
     health_state=None,
+    coaching_decision: CoachingDecision | None = None,
 ) -> str:
     generated_line = f"Generated: {timestamp}\n\n" if timestamp else ""
+
+    if coaching_decision is None and health_state is not None:
+        coaching_decision = build_coaching_decision(health_state)
 
     profile_context = ""
     if health_state is not None:
         profile_context = (
-            f"\n\n**Profile Context:** {_format_profile_context(health_state)}"
+            "\n\n**Profile Context:** "
+            f"{_format_profile_context(health_state, coaching_decision)}"
         )
 
     return (
@@ -910,6 +947,7 @@ def generate_health_report(user_id):
             report=structured_report,
             timestamp=timestamp,
             health_state=health_state,
+            coaching_decision=coaching_decision,
         )
 
         language_violations = validate_report_language(
