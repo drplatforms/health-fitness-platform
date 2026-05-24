@@ -38,6 +38,17 @@ def test_report_status_returns_timing_metadata_with_mocked_report(monkeypatch):
     monkeypatch.setattr(
         reports_route, "generate_health_report", fake_generate_health_report
     )
+    monkeypatch.setattr(
+        reports_route,
+        "get_latest_report_runtime_metadata",
+        lambda user_id: {
+            "report_provider": "deterministic",
+            "crewai_report_attempted": False,
+            "report_fallback_used": False,
+            "report_fallback_reason": "deterministic_selected",
+            "elapsed_seconds": 0.01,
+        },
+    )
 
     client = TestClient(app)
 
@@ -55,6 +66,8 @@ def test_report_status_returns_timing_metadata_with_mocked_report(monkeypatch):
     assert completed_data["completed_at"] is not None
     assert completed_data["elapsed_seconds"] is not None
     assert completed_data["elapsed_seconds"] >= 0
+    assert completed_data["runtime_metadata"]["report_provider"] == "deterministic"
+    assert completed_data["runtime_metadata"]["crewai_report_attempted"] is False
 
 
 def test_duplicate_report_generation_while_running_returns_409(monkeypatch):

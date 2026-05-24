@@ -1,3 +1,4 @@
+import concurrent.futures
 import json
 import logging
 import os
@@ -33,6 +34,9 @@ CANDIDATE_ACTION_PLAN_ALLOWED_FIELDS = CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS
 CANDIDATE_ACTION_PLAN_CONFIDENCE_VALUES = {"Low", "Moderate", "High"}
 CandidateActionPlanProvider = Callable[[RecommendationContext], str]
 RECOMMENDATION_CANDIDATE_PROVIDER_ENV = "RECOMMENDATION_CANDIDATE_PROVIDER"
+RECOMMENDATION_CANDIDATE_TIMEOUT_SECONDS_ENV = (
+    "RECOMMENDATION_CANDIDATE_TIMEOUT_SECONDS"
+)
 RECOMMENDATION_PROVIDER_DETERMINISTIC = "deterministic"
 RECOMMENDATION_PROVIDER_CREWAI = "crewai"
 
@@ -42,10 +46,52 @@ FALLBACK_REASON_DETERMINISTIC_SELECTED = "deterministic_selected"
 FALLBACK_REASON_INVALID_PROVIDER = "invalid_provider"
 FALLBACK_REASON_PROVIDER_EXCEPTION = "provider_exception"
 FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT = "provider_non_string_output"
+FALLBACK_REASON_PROVIDER_TIMEOUT = "provider_timeout"
 FALLBACK_REASON_MALFORMED_JSON = "malformed_json"
 FALLBACK_REASON_SCHEMA_MISMATCH = "schema_mismatch"
 FALLBACK_REASON_INVALID_CONFIDENCE = "invalid_confidence"
 FALLBACK_REASON_VALIDATION_FAILURE = "validation_failure"
+
+
+class RecommendationCandidateTimeoutError(TimeoutError):
+    """Raised when CrewAI candidate generation exceeds the configured timeout."""
+
+
+def _env_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        logger.warning(
+            "Invalid integer env var %s=%r; using default %s",
+            name,
+            raw_value,
+            default,
+        )
+        return default
+
+    return parsed if parsed > 0 else default
+
+
+def _run_with_timeout(callback: Callable[[], str], timeout_seconds: int) -> str:
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(callback)
+
+    try:
+        result = future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError as exc:
+        future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise RecommendationCandidateTimeoutError(
+            f"CrewAI candidate generation exceeded {timeout_seconds} seconds."
+        ) from exc
+
+    executor.shutdown(wait=False, cancel_futures=True)
+    return result
+
 
 CANDIDATE_PARSE_STATUS_SUCCESS = "success"
 CANDIDATE_PARSE_STATUS_FAILED = "failed"
@@ -253,13 +299,7 @@ def _crew_result_to_raw_json(result: Any) -> str:
     return str(result)
 
 
-def generate_crewai_candidate_action_plan_json(context: RecommendationContext) -> str:
-    """Run the CrewAI CandidateActionPlan task and return its raw JSON output.
-
-    The returned string is intentionally not trusted. Callers must pass it through
-    parse_candidate_action_plan(), validate_candidate_action_plan(), and approval
-    before it can become user-facing content.
-    """
+def _generate_crewai_candidate_action_plan_json(context: RecommendationContext) -> str:
     from crewai import LLM, Agent, Crew, Task
 
     llm = LLM(
@@ -292,6 +332,21 @@ def generate_crewai_candidate_action_plan_json(context: RecommendationContext) -
 
     result = crew.kickoff()
     return _crew_result_to_raw_json(result)
+
+
+def generate_crewai_candidate_action_plan_json(context: RecommendationContext) -> str:
+    """Run the CrewAI CandidateActionPlan task with a hard request timeout.
+
+    The returned string is intentionally not trusted. Callers must pass it through
+    parse_candidate_action_plan(), validate_candidate_action_plan(), and approval
+    before it can become user-facing content.
+    """
+
+    timeout_seconds = _env_int(RECOMMENDATION_CANDIDATE_TIMEOUT_SECONDS_ENV, 45)
+    return _run_with_timeout(
+        lambda: _generate_crewai_candidate_action_plan_json(context),
+        timeout_seconds,
+    )
 
 
 def _protein_target_phrase(context: RecommendationContext) -> str:
@@ -915,12 +970,16 @@ def approve_candidate_provider_or_fallback_with_metadata(
     try:
         raw_json = candidate_provider(context)
     except Exception as exc:
+        fallback_reason = FALLBACK_REASON_PROVIDER_EXCEPTION
+        if isinstance(exc, RecommendationCandidateTimeoutError):
+            fallback_reason = FALLBACK_REASON_PROVIDER_TIMEOUT
+
         metadata = RecommendationRuntimeMetadata(
             configured_provider=configured_provider,
             selected_provider=selected_provider,
             crewai_attempted=True,
             fallback_used=True,
-            fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
+            fallback_reason=fallback_reason,
             candidate_valid=False,
             validation_errors=[type(exc).__name__],
             candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,

@@ -1,4 +1,7 @@
+import concurrent.futures
+import os
 import re
+import time
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -21,6 +24,90 @@ from services.user_state_service import (
 )
 
 load_dotenv()
+
+HEALTH_REPORT_PROVIDER_ENV = "HEALTH_REPORT_PROVIDER"
+HEALTH_REPORT_TIMEOUT_SECONDS_ENV = "HEALTH_REPORT_TIMEOUT_SECONDS"
+HEALTH_REPORT_PROVIDER_DETERMINISTIC = "deterministic"
+HEALTH_REPORT_PROVIDER_CREWAI = "crewai"
+REPORT_FALLBACK_REASON_DETERMINISTIC_SELECTED = "deterministic_selected"
+REPORT_FALLBACK_REASON_INVALID_PROVIDER = "invalid_provider"
+REPORT_FALLBACK_REASON_CREWAI_TIMEOUT = "crewai_timeout"
+REPORT_FALLBACK_REASON_CREWAI_ERROR = "crewai_error"
+REPORT_FALLBACK_REASON_VALIDATION_FAILURE = "validation_failure"
+
+_LAST_REPORT_RUNTIME_METADATA_BY_USER: dict[int, dict] = {}
+
+
+class HealthReportTimeoutError(TimeoutError):
+    """Raised when CrewAI full-report synthesis exceeds the configured timeout."""
+
+
+def _env_int(name: str, default: int) -> int:
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+
+    try:
+        parsed = int(raw_value)
+    except ValueError:
+        return default
+
+    return parsed if parsed > 0 else default
+
+
+def _configured_health_report_provider() -> str:
+    return (
+        os.getenv(
+            HEALTH_REPORT_PROVIDER_ENV,
+            HEALTH_REPORT_PROVIDER_DETERMINISTIC,
+        )
+        .strip()
+        .lower()
+    )
+
+
+def _record_report_runtime_metadata(user_id: int, metadata: dict) -> None:
+    _LAST_REPORT_RUNTIME_METADATA_BY_USER[user_id] = dict(metadata)
+
+
+def get_latest_report_runtime_metadata(user_id: int) -> dict | None:
+    metadata = _LAST_REPORT_RUNTIME_METADATA_BY_USER.get(user_id)
+    return dict(metadata) if metadata is not None else None
+
+
+def _run_report_with_timeout(callback, timeout_seconds: int):
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(callback)
+
+    try:
+        result = future.result(timeout=timeout_seconds)
+    except concurrent.futures.TimeoutError as exc:
+        future.cancel()
+        executor.shutdown(wait=False, cancel_futures=True)
+        raise HealthReportTimeoutError(
+            f"CrewAI report synthesis exceeded {timeout_seconds} seconds."
+        ) from exc
+
+    executor.shutdown(wait=False, cancel_futures=True)
+    return result
+
+
+def _build_report_runtime_metadata(
+    *,
+    report_provider: str,
+    crewai_report_attempted: bool,
+    report_fallback_used: bool,
+    report_fallback_reason: str | None,
+    elapsed_seconds: float,
+) -> dict:
+    return {
+        "report_provider": report_provider,
+        "crewai_report_attempted": crewai_report_attempted,
+        "report_fallback_used": report_fallback_used,
+        "report_fallback_reason": report_fallback_reason,
+        "elapsed_seconds": round(elapsed_seconds, 2),
+    }
+
 
 _FORBIDDEN_REPORT_PATTERNS = [
     (
@@ -724,12 +811,103 @@ def render_unified_health_report(
     )
 
 
-def generate_health_report(user_id):
-    from crewai import LLM, Agent, Crew, Task
+def _render_validate_save_report(
+    *,
+    user_id: int,
+    structured_report: UnifiedHealthReport,
+    timestamp: str,
+    health_state,
+    coaching_decision: CoachingDecision,
+    approved_action_plan,
+    model_summary: str,
+) -> str:
+    final_report = render_unified_health_report(
+        report=structured_report,
+        timestamp=timestamp,
+        health_state=health_state,
+        coaching_decision=coaching_decision,
+        approved_action_plan=approved_action_plan,
+    )
 
+    language_violations = validate_report_language(
+        final_report,
+        health_state=health_state,
+        coaching_decision=coaching_decision,
+    )
+    if language_violations:
+        raise ValueError(
+            "Final report failed language validation: " + "; ".join(language_violations)
+        )
+
+    save_health_report(
+        user_id=user_id,
+        report_text=final_report,
+        model_summary=model_summary,
+    )
+
+    return final_report
+
+
+def _build_deterministic_report_text(
+    *,
+    user_id: int,
+    health_state,
+    coaching_decision: CoachingDecision,
+    approved_action_plan,
+    timestamp: str,
+    model_summary: str = "deterministic",
+) -> str:
+    structured_report = _build_fallback_unified_report(
+        health_state,
+        coaching_decision,
+    )
+    return _render_validate_save_report(
+        user_id=user_id,
+        structured_report=structured_report,
+        timestamp=timestamp,
+        health_state=health_state,
+        coaching_decision=coaching_decision,
+        approved_action_plan=approved_action_plan,
+        model_summary=model_summary,
+    )
+
+
+def generate_health_report(user_id):
+    start_time = time.perf_counter()
     health_state = build_user_health_state(user_id)
     coaching_decision = build_coaching_decision(health_state)
     approved_action_plan = build_configured_approved_action_plan(health_state)
+    configured_provider = _configured_health_report_provider()
+    timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+
+    if configured_provider != HEALTH_REPORT_PROVIDER_CREWAI:
+        fallback_reason = REPORT_FALLBACK_REASON_DETERMINISTIC_SELECTED
+        if configured_provider != HEALTH_REPORT_PROVIDER_DETERMINISTIC:
+            fallback_reason = REPORT_FALLBACK_REASON_INVALID_PROVIDER
+
+        final_report = _build_deterministic_report_text(
+            user_id=user_id,
+            health_state=health_state,
+            coaching_decision=coaching_decision,
+            approved_action_plan=approved_action_plan,
+            timestamp=timestamp,
+            model_summary="deterministic",
+        )
+        _record_report_runtime_metadata(
+            user_id,
+            _build_report_runtime_metadata(
+                report_provider=HEALTH_REPORT_PROVIDER_DETERMINISTIC,
+                crewai_report_attempted=False,
+                report_fallback_used=(
+                    fallback_reason != REPORT_FALLBACK_REASON_DETERMINISTIC_SELECTED
+                ),
+                report_fallback_reason=fallback_reason,
+                elapsed_seconds=time.perf_counter() - start_time,
+            ),
+        )
+        return final_report
+
+    from crewai import LLM, Agent, Crew, Task
 
     # -----------------------------
     # Nutrition Summary
@@ -1068,45 +1246,39 @@ def generate_health_report(user_id):
         print("\nCalling crew.kickoff()...\n")
         print("DEBUG MARKER")
 
-        result = crew.kickoff()
+        timeout_seconds = _env_int(HEALTH_REPORT_TIMEOUT_SECONDS_ENV, 120)
+        result = _run_report_with_timeout(crew.kickoff, timeout_seconds)
 
         print("\ncrew.kickoff() completed.\n")
 
-        timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
         structured_report = build_final_report_from_coordinator_output(
             raw_text=result.raw,
             health_state=health_state,
             coaching_decision=coaching_decision,
         )
-        final_report = render_unified_health_report(
-            report=structured_report,
+        final_report = _render_validate_save_report(
+            user_id=user_id,
+            structured_report=structured_report,
             timestamp=timestamp,
             health_state=health_state,
             coaching_decision=coaching_decision,
             approved_action_plan=approved_action_plan,
+            model_summary=os.getenv("HEALTH_REPORT_MODEL_SUMMARY", "ollama/qwen3:8b"),
         )
-
-        language_violations = validate_report_language(
-            final_report,
-            health_state=health_state,
-            coaching_decision=coaching_decision,
+        _record_report_runtime_metadata(
+            user_id,
+            _build_report_runtime_metadata(
+                report_provider=HEALTH_REPORT_PROVIDER_CREWAI,
+                crewai_report_attempted=True,
+                report_fallback_used=False,
+                report_fallback_reason=None,
+                elapsed_seconds=time.perf_counter() - start_time,
+            ),
         )
-        if language_violations:
-            raise ValueError(
-                "Final report failed language validation: "
-                + "; ".join(language_violations)
-            )
-
-        save_health_report(
-            user_id=user_id,
-            report_text=final_report,
-            model_summary="ollama/qwen3:8b",
-        )
-
         return final_report
 
     except Exception as e:
-        print("\n=== CREWAI ERROR ===\n")
+        print("\n=== CREWAI REPORT FALLBACK ===\n")
         print(type(e))
         print(e)
 
@@ -1114,7 +1286,31 @@ def generate_health_report(user_id):
 
         traceback.print_exc()
 
-        return str(e)
+        fallback_reason = REPORT_FALLBACK_REASON_CREWAI_ERROR
+        if isinstance(e, HealthReportTimeoutError):
+            fallback_reason = REPORT_FALLBACK_REASON_CREWAI_TIMEOUT
+        elif isinstance(e, ValueError):
+            fallback_reason = REPORT_FALLBACK_REASON_VALIDATION_FAILURE
+
+        final_report = _build_deterministic_report_text(
+            user_id=user_id,
+            health_state=health_state,
+            coaching_decision=coaching_decision,
+            approved_action_plan=approved_action_plan,
+            timestamp=timestamp,
+            model_summary="deterministic_fallback",
+        )
+        _record_report_runtime_metadata(
+            user_id,
+            _build_report_runtime_metadata(
+                report_provider=HEALTH_REPORT_PROVIDER_CREWAI,
+                crewai_report_attempted=True,
+                report_fallback_used=True,
+                report_fallback_reason=fallback_reason,
+                elapsed_seconds=time.perf_counter() - start_time,
+            ),
+        )
+        return final_report
 
 
 if __name__ == "__main__":
