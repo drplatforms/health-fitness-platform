@@ -12,6 +12,7 @@ from services.nutrition_target_service import (
 )
 from services.recommendation_engine_service import (
     build_approved_action_plan,
+    build_crewai_approved_action_plan,
     render_approved_action_plan,
 )
 from services.report_service import save_health_report
@@ -344,8 +345,7 @@ def _format_profile_context(
         )
     elif scenario == "nutrition_training_mismatch":
         focus = (
-            "the current focus should be matching nutrition support to training "
-            "demand."
+            "the current focus should be matching nutrition support to training demand."
         )
     elif scenario == "data_quality_limited":
         focus = (
@@ -729,7 +729,7 @@ def generate_health_report(user_id):
 
     health_state = build_user_health_state(user_id)
     coaching_decision = build_coaching_decision(health_state)
-    approved_action_plan = build_approved_action_plan(health_state)
+    approved_action_plan = build_crewai_approved_action_plan(health_state)
 
     # -----------------------------
     # Nutrition Summary
@@ -943,7 +943,7 @@ def generate_health_report(user_id):
         Sleep action: {coaching_decision.sleep_action}
         Monitoring action: {coaching_decision.monitoring_action}
         Confidence: {coaching_decision.confidence}
-        Reason codes: {', '.join(coaching_decision.reason_codes)}
+        Reason codes: {", ".join(coaching_decision.reason_codes)}
 
         Follow the Approved Coaching Decision Contract. Do not change the scenario,
         primary focus, or safety posture. Explain it naturally and concisely.

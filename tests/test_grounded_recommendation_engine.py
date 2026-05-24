@@ -202,6 +202,45 @@ def test_daily_approved_recommendation_endpoint_smoke(tmp_path, monkeypatch):
     assert payload["rendered_recommendation"]
 
 
+def test_daily_endpoint_uses_crewai_candidate_provider_when_valid(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Use the CrewAI candidate while maintaining steady progress.",
+      "workout_recommendation": "Continue manageable training progression.",
+      "nutrition_action": "Keep nutrition logging consistent and review protein support.",
+      "rationale": "The fake CrewAI provider returned valid bounded JSON.",
+      "confidence": "High"
+    }
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    response = client.get("/recommendations/daily/102")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["scenario"] == "aligned_managed"
+    assert (
+        payload["approved_action_plan"]["daily_coaching_recommendation"]
+        == "Use the CrewAI candidate while maintaining steady progress."
+    )
+    assert "fake CrewAI provider" in payload["approved_action_plan"]["rationale"]
+
+
 def test_limited_confidence_nutrition_does_not_expose_hard_calorie_targets(
     tmp_path, monkeypatch
 ):
