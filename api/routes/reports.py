@@ -10,10 +10,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 
-from services.coordinator_service import (
-    generate_health_report,
-    get_latest_report_runtime_metadata,
-)
+from services.coordinator_service import generate_health_report
 from services.report_service import get_health_report_history, get_latest_health_report
 from services.user_state_service import build_user_health_state
 
@@ -85,9 +82,6 @@ def run_report_job(job_id, user_id):
             report_jobs[job_id]
         )
         report_jobs[job_id]["report"] = report
-        report_jobs[job_id]["runtime_metadata"] = get_latest_report_runtime_metadata(
-            user_id
-        )
 
     except Exception as e:
         print("\n=== REPORT JOB FAILED ===\n")
@@ -135,7 +129,6 @@ def report_status(job_id: str):
         "started_at": job.get("started_at"),
         "completed_at": job.get("completed_at"),
         "elapsed_seconds": elapsed_seconds,
-        "runtime_metadata": job.get("runtime_metadata"),
     }
 
 
