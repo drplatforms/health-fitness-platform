@@ -1,13 +1,17 @@
 import pytest
 
 import database
+import services.recommendation_engine_service as recommendation_engine_service
 from scripts.seed_qa_scenarios import QA_USER_IDS, seed_qa_scenarios
 from services.coaching_decision_service import build_coaching_decision
 from services.nutrition_target_service import build_nutrition_targets
 from services.recommendation_engine_service import (
     approve_candidate_action_plan,
     approve_candidate_json_or_fallback,
+    approve_candidate_provider_or_fallback,
     build_approved_action_plan,
+    build_crewai_approved_action_plan,
+    build_crewai_candidate_action_plan_prompt,
     build_recommendation_context,
     candidate_action_plan_json_contract,
     generate_candidate_action_plan_json,
@@ -511,3 +515,195 @@ def test_fallback_approved_action_plan_still_renders_safely(tmp_path, monkeypatc
     assert "overtraining" not in rendered
     assert "stalled weight loss" not in rendered
     assert "caloric deficit" not in rendered
+
+
+def test_crewai_candidate_prompt_requires_raw_json_only(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+
+    prompt = build_crewai_candidate_action_plan_prompt(context)
+
+    assert "RecommendationContext JSON" in prompt
+    assert "Return raw JSON only" in prompt
+    assert "Do not return markdown" in prompt
+    assert "daily_coaching_recommendation" in prompt
+    assert "workout_recommendation" in prompt
+    assert "nutrition_action" in prompt
+    assert "rationale" in prompt
+    assert "confidence" in prompt
+
+
+def test_crewai_provider_valid_candidate_json_approves(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Maintain the current direction and progress gradually.",
+      "workout_recommendation": "Continue manageable training progression.",
+      "nutrition_action": "Keep nutrition logging consistent and review protein support.",
+      "rationale": "Recovery and training are aligned enough to favor consistency.",
+      "confidence": "High"
+    }
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[102])
+
+    assert approved.scenario == "aligned_managed"
+    assert approved.daily_coaching_recommendation.startswith("Maintain")
+    assert approved.confidence == "High"
+
+
+def test_crewai_provider_exception_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+
+    def failing_provider(context):
+        raise RuntimeError("CrewAI unavailable")
+
+    approved = build_approved_action_plan(
+        health_states[102],
+        candidate_provider=failing_provider,
+    )
+
+    assert approved.scenario == "aligned_managed"
+    assert "Maintain the current direction" in approved.daily_coaching_recommendation
+
+
+def test_crewai_malformed_output_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: "not valid json",
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[102])
+
+    assert approved.scenario == "aligned_managed"
+    assert "Maintain the current direction" in approved.daily_coaching_recommendation
+
+
+def test_crewai_markdown_wrapped_output_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    ```json
+    {
+      "daily_coaching_recommendation": "Maintain direction.",
+      "workout_recommendation": "Continue training.",
+      "nutrition_action": "Keep logging.",
+      "rationale": "CrewAI wrapped this in markdown.",
+      "confidence": "High"
+    }
+    ```
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[102])
+
+    assert approved.scenario == "aligned_managed"
+    assert "CrewAI wrapped" not in approved.rationale
+    assert "Maintain the current direction" in approved.daily_coaching_recommendation
+
+
+def test_crewai_extra_fields_fall_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Maintain direction.",
+      "workout_recommendation": "Continue training.",
+      "nutrition_action": "Keep logging.",
+      "rationale": "This includes an extra field.",
+      "confidence": "High",
+      "markdown_report": "Do not render me."
+    }
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[102])
+
+    assert approved.scenario == "aligned_managed"
+    assert "extra field" not in approved.rationale
+    assert "Do not render me" not in render_approved_action_plan(approved)
+
+
+def test_crewai_unsafe_data_quality_limited_candidate_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Overtraining is causing stalled fat loss.",
+      "workout_recommendation": "Push harder after correcting the deficit.",
+      "nutrition_action": "Use 1800-2000 calories/day to fix the caloric deficit.",
+      "rationale": "Incomplete logging likely caused the issue.",
+      "confidence": "Low"
+    }
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[105])
+    rendered = render_approved_action_plan(approved).lower()
+
+    assert approved.scenario == "data_quality_limited"
+    assert "overtraining" not in rendered
+    assert "stalled fat loss" not in rendered
+    assert "caloric deficit" not in rendered
+    assert "verify" in rendered or "logging" in rendered
+
+
+def test_crewai_aligned_managed_deload_candidate_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Deload this week despite stable recovery.",
+      "workout_recommendation": "Reduce intensity across all training sessions.",
+      "nutrition_action": "Keep nutrition consistent.",
+      "rationale": "An intervention is needed despite aligned markers.",
+      "confidence": "High"
+    }
+    """
+
+    monkeypatch.setattr(
+        recommendation_engine_service,
+        "generate_crewai_candidate_action_plan_json",
+        lambda context: raw_json,
+    )
+
+    approved = build_crewai_approved_action_plan(health_states[102])
+    rendered = render_approved_action_plan(approved).lower()
+
+    assert approved.scenario == "aligned_managed"
+    assert "deload" not in rendered
+    assert "reduce intensity" not in rendered
+    assert "maintain" in rendered
+
+
+def test_candidate_provider_non_string_output_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+
+    approved = approve_candidate_provider_or_fallback(
+        lambda received_context: {"not": "a string"},
+        context,
+    )
+
+    assert approved.scenario == "aligned_managed"
+    assert "Maintain the current direction" in approved.daily_coaching_recommendation

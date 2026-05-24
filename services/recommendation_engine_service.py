@@ -1,5 +1,6 @@
 import json
 import re
+from collections.abc import Callable
 from dataclasses import asdict
 from typing import Any
 
@@ -22,6 +23,7 @@ CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS = {
 }
 CANDIDATE_ACTION_PLAN_ALLOWED_FIELDS = CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS
 CANDIDATE_ACTION_PLAN_CONFIDENCE_VALUES = {"Low", "Moderate", "High"}
+CandidateActionPlanProvider = Callable[[RecommendationContext], str]
 
 _FORBIDDEN_RECOMMENDATION_PHRASES = [
     "high-rir (0-1)",
@@ -102,6 +104,95 @@ def build_recommendation_context(
 
 def recommendation_context_to_json(context: RecommendationContext) -> str:
     return json.dumps(asdict(context), indent=2)
+
+
+def build_crewai_candidate_action_plan_prompt(context: RecommendationContext) -> str:
+    """Return the CrewAI task prompt for CandidateActionPlan JSON generation."""
+    contract = candidate_action_plan_json_contract()
+    return f"""
+You are generating a candidate coaching recommendation for AI Health Coach.
+
+Return raw JSON only. Do not return markdown, headings, bullet lists, code fences,
+commentary, explanations outside JSON, or extra fields.
+
+The backend will reject malformed JSON, unsupported fields, unsafe claims, and any
+recommendation that contradicts the approved context. ApprovedActionPlan remains
+the only renderable recommendation contract.
+
+RecommendationContext JSON:
+{recommendation_context_to_json(context)}
+
+CandidateActionPlan JSON contract:
+{json.dumps(contract, indent=2)}
+
+Required output:
+{{
+  "daily_coaching_recommendation": "one user-facing sentence",
+  "workout_recommendation": "one user-facing sentence",
+  "nutrition_action": "one user-facing sentence",
+  "rationale": "one user-facing sentence explaining tradeoffs",
+  "confidence": "Low | Moderate | High"
+}}
+
+Rules:
+- Use only the RecommendationContext JSON as source context.
+- Do not change or contradict the scenario.
+- Do not invent calorie, protein, carbohydrate, fat, mineral, or vitamin targets.
+- Do not contradict NutritionTargets approval flags or display confidence.
+- Do not contradict TrainingConstraints RIR/progression/recovery guidance.
+- Treat missing nutrition fields as unknown, never zero intake.
+- Do not infer supplement use or over-supplementation from unusual nutrients.
+- Do not make unsupported causal claims.
+- Do not include internal validation, guardrail, fallback, or debug language.
+""".strip()
+
+
+def _crew_result_to_raw_json(result: Any) -> str:
+    raw = getattr(result, "raw", None)
+    if raw is not None:
+        return str(raw)
+    return str(result)
+
+
+def generate_crewai_candidate_action_plan_json(context: RecommendationContext) -> str:
+    """Run the CrewAI CandidateActionPlan task and return its raw JSON output.
+
+    The returned string is intentionally not trusted. Callers must pass it through
+    parse_candidate_action_plan(), validate_candidate_action_plan(), and approval
+    before it can become user-facing content.
+    """
+    from crewai import LLM, Agent, Crew, Task
+
+    llm = LLM(
+        model="ollama/qwen3:8b",
+        base_url="http://localhost:11434",
+    )
+
+    recommendation_agent = Agent(
+        role="Grounded Recommendation Generator",
+        goal="Generate safe CandidateActionPlan JSON from approved context only.",
+        backstory=(
+            "You create candidate coaching actions from structured health, "
+            "nutrition, training, and scenario constraints."
+        ),
+        llm=llm,
+        verbose=False,
+    )
+
+    recommendation_task = Task(
+        description=build_crewai_candidate_action_plan_prompt(context),
+        expected_output="Raw CandidateActionPlan JSON object only. No markdown.",
+        agent=recommendation_agent,
+    )
+
+    crew = Crew(
+        agents=[recommendation_agent],
+        tasks=[recommendation_task],
+        verbose=False,
+    )
+
+    result = crew.kickoff()
+    return _crew_result_to_raw_json(result)
 
 
 def _protein_target_phrase(context: RecommendationContext) -> str:
@@ -542,8 +633,8 @@ def approve_candidate_json_or_fallback(
 ) -> ApprovedActionPlan:
     """Approve a CandidateActionPlan JSON payload or use deterministic fallback.
 
-    This is the backend safety boundary for future CrewAI output:
-    malformed JSON, schema mismatch, or validation failure never becomes
+    This is the backend safety boundary for CrewAI output: malformed JSON,
+    markdown-wrapped JSON, schema mismatch, or validation failure never becomes
     user-facing approved recommendation content.
     """
     try:
@@ -553,11 +644,53 @@ def approve_candidate_json_or_fallback(
         return build_deterministic_approved_action_plan(context)
 
 
+def approve_candidate_provider_or_fallback(
+    candidate_provider: CandidateActionPlanProvider,
+    context: RecommendationContext,
+) -> ApprovedActionPlan:
+    """Run a CandidateActionPlan provider behind the backend safety boundary.
+
+    The provider may be CrewAI or a fake provider in tests. Provider exceptions,
+    non-string output, malformed JSON, schema mismatch, and validation failures
+    all fall back to deterministic approved recommendations.
+    """
+    try:
+        raw_json = candidate_provider(context)
+    except Exception:
+        return build_deterministic_approved_action_plan(context)
+
+    if not isinstance(raw_json, str):
+        return build_deterministic_approved_action_plan(context)
+
+    return approve_candidate_json_or_fallback(raw_json, context)
+
+
+def build_crewai_approved_action_plan(
+    health_state: UserHealthState,
+) -> ApprovedActionPlan:
+    """Build an ApprovedActionPlan through the CrewAI CandidateActionPlan path.
+
+    CrewAI output is never trusted directly. It must pass the same parse, schema,
+    scenario, target, and safety validation as any other candidate JSON.
+    """
+    context = build_recommendation_context(health_state)
+    return approve_candidate_provider_or_fallback(
+        generate_crewai_candidate_action_plan_json,
+        context,
+    )
+
+
 def build_approved_action_plan(
     health_state: UserHealthState,
     candidate_json: str | None = None,
+    candidate_provider: CandidateActionPlanProvider | None = None,
 ) -> ApprovedActionPlan:
     context = build_recommendation_context(health_state)
-    if candidate_json is None:
-        return build_deterministic_approved_action_plan(context)
-    return approve_candidate_json_or_fallback(candidate_json, context)
+
+    if candidate_json is not None:
+        return approve_candidate_json_or_fallback(candidate_json, context)
+
+    if candidate_provider is not None:
+        return approve_candidate_provider_or_fallback(candidate_provider, context)
+
+    return build_deterministic_approved_action_plan(context)
