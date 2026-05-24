@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import asdict
+from typing import Any
 
 from models.recommendation_models import (
     ApprovedActionPlan,
@@ -11,6 +12,16 @@ from models.user_state_models import UserHealthState
 from services.coaching_decision_service import build_coaching_decision
 from services.nutrition_target_service import build_nutrition_targets
 from services.training_constraint_service import build_training_constraints
+
+CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS = {
+    "daily_coaching_recommendation",
+    "workout_recommendation",
+    "nutrition_action",
+    "rationale",
+    "confidence",
+}
+CANDIDATE_ACTION_PLAN_ALLOWED_FIELDS = CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS
+CANDIDATE_ACTION_PLAN_CONFIDENCE_VALUES = {"Low", "Moderate", "High"}
 
 _FORBIDDEN_RECOMMENDATION_PHRASES = [
     "high-rir (0-1)",
@@ -222,24 +233,65 @@ def generate_candidate_action_plan_json(context: RecommendationContext) -> str:
     return json.dumps(asdict(plan))
 
 
+def candidate_action_plan_json_contract() -> dict[str, Any]:
+    """Return the JSON contract the future CrewAI task must satisfy.
+
+    CrewAI may reason internally, but the backend only accepts this exact
+    structured CandidateActionPlan object. Invalid output falls back to the
+    deterministic candidate generator.
+    """
+    return {
+        "type": "object",
+        "required_fields": sorted(CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS),
+        "allowed_fields": sorted(CANDIDATE_ACTION_PLAN_ALLOWED_FIELDS),
+        "field_types": {
+            "daily_coaching_recommendation": "string",
+            "workout_recommendation": "string",
+            "nutrition_action": "string",
+            "rationale": "string",
+            "confidence": "Low | Moderate | High",
+        },
+        "invalid_output_behavior": "deterministic_fallback",
+    }
+
+
 def parse_candidate_action_plan(raw_json: str) -> CandidateActionPlan:
     try:
         payload = json.loads(raw_json)
     except json.JSONDecodeError as exc:
         raise ValueError("CandidateActionPlan must be valid JSON.") from exc
 
-    required_fields = {
-        "daily_coaching_recommendation",
-        "workout_recommendation",
-        "nutrition_action",
-        "rationale",
-        "confidence",
-    }
-    missing = required_fields - payload.keys()
+    if not isinstance(payload, dict):
+        raise ValueError("CandidateActionPlan JSON must be an object.")
+
+    payload_fields = set(payload)
+    missing = CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS - payload_fields
     if missing:
         raise ValueError(f"CandidateActionPlan missing fields: {sorted(missing)}")
 
-    return CandidateActionPlan(**{field: payload[field] for field in required_fields})
+    extra = payload_fields - CANDIDATE_ACTION_PLAN_ALLOWED_FIELDS
+    if extra:
+        raise ValueError(f"CandidateActionPlan has unsupported fields: {sorted(extra)}")
+
+    for field in CANDIDATE_ACTION_PLAN_REQUIRED_FIELDS:
+        if not isinstance(payload[field], str) or not payload[field].strip():
+            raise ValueError(
+                f"CandidateActionPlan field must be a non-empty string: {field}"
+            )
+
+    if payload["confidence"] not in CANDIDATE_ACTION_PLAN_CONFIDENCE_VALUES:
+        raise ValueError(
+            "CandidateActionPlan confidence must be one of: "
+            f"{sorted(CANDIDATE_ACTION_PLAN_CONFIDENCE_VALUES)}"
+        )
+
+    return CandidateActionPlan(
+        daily_coaching_recommendation=payload["daily_coaching_recommendation"],
+        workout_recommendation=payload["workout_recommendation"],
+        nutrition_action=payload["nutrition_action"],
+        rationale=payload["rationale"],
+        confidence=payload["confidence"],
+    )
 
 
 def _all_range_values_within(
@@ -424,6 +476,25 @@ def validate_candidate_action_plan(
                 "Data-quality-limited recommendations must emphasize verification or logging."
             )
 
+        strong_claims = [
+            "overtraining",
+            "stalled weight loss",
+            "stalled fat loss",
+            "compromise recovery",
+            "compromise fat-loss progress",
+            "likely contribute",
+            "likely caused",
+            "likely causing",
+            "insufficient caloric intake",
+            "inadequate caloric intake",
+            "severe deficit",
+            "caloric deficit",
+        ]
+        if any(claim in text for claim in strong_claims):
+            violations.append(
+                "Data-quality-limited recommendations must not make strong causal, progress, or intake-adequacy claims."
+            )
+
     return violations
 
 
@@ -457,8 +528,36 @@ def render_approved_action_plan(plan: ApprovedActionPlan) -> str:
     )
 
 
-def build_approved_action_plan(health_state: UserHealthState) -> ApprovedActionPlan:
-    context = build_recommendation_context(health_state)
+def build_deterministic_approved_action_plan(
+    context: RecommendationContext,
+) -> ApprovedActionPlan:
     raw_json = generate_candidate_action_plan_json(context)
     candidate = parse_candidate_action_plan(raw_json)
     return approve_candidate_action_plan(candidate, context)
+
+
+def approve_candidate_json_or_fallback(
+    raw_json: str,
+    context: RecommendationContext,
+) -> ApprovedActionPlan:
+    """Approve a CandidateActionPlan JSON payload or use deterministic fallback.
+
+    This is the backend safety boundary for future CrewAI output:
+    malformed JSON, schema mismatch, or validation failure never becomes
+    user-facing approved recommendation content.
+    """
+    try:
+        candidate = parse_candidate_action_plan(raw_json)
+        return approve_candidate_action_plan(candidate, context)
+    except ValueError:
+        return build_deterministic_approved_action_plan(context)
+
+
+def build_approved_action_plan(
+    health_state: UserHealthState,
+    candidate_json: str | None = None,
+) -> ApprovedActionPlan:
+    context = build_recommendation_context(health_state)
+    if candidate_json is None:
+        return build_deterministic_approved_action_plan(context)
+    return approve_candidate_json_or_fallback(candidate_json, context)

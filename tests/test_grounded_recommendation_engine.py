@@ -6,8 +6,10 @@ from services.coaching_decision_service import build_coaching_decision
 from services.nutrition_target_service import build_nutrition_targets
 from services.recommendation_engine_service import (
     approve_candidate_action_plan,
+    approve_candidate_json_or_fallback,
     build_approved_action_plan,
     build_recommendation_context,
+    candidate_action_plan_json_contract,
     generate_candidate_action_plan_json,
     parse_candidate_action_plan,
     render_approved_action_plan,
@@ -355,3 +357,157 @@ def test_candidate_validator_rejects_disallowed_numeric_carbohydrate_and_fat_tar
         "Numeric fat recommendations are not allowed" in violation
         for violation in violations
     )
+
+
+def test_candidate_action_plan_json_contract_is_explicit():
+    contract = candidate_action_plan_json_contract()
+
+    assert contract["type"] == "object"
+    assert contract["invalid_output_behavior"] == "deterministic_fallback"
+    assert contract["required_fields"] == [
+        "confidence",
+        "daily_coaching_recommendation",
+        "nutrition_action",
+        "rationale",
+        "workout_recommendation",
+    ]
+    assert contract["allowed_fields"] == contract["required_fields"]
+
+
+def test_valid_candidate_action_plan_json_parses(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Maintain the current direction and progress gradually.",
+      "workout_recommendation": "Continue manageable training progression.",
+      "nutrition_action": "Keep nutrition logging consistent and review protein support.",
+      "rationale": "Recovery and training are aligned enough to favor consistency.",
+      "confidence": "High"
+    }
+    """
+
+    candidate = parse_candidate_action_plan(raw_json)
+    approved = approve_candidate_action_plan(candidate, context)
+
+    assert approved.scenario == "aligned_managed"
+    assert approved.daily_coaching_recommendation.startswith("Maintain")
+
+
+def test_malformed_candidate_json_falls_back_to_deterministic_plan(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+
+    approved = approve_candidate_json_or_fallback("not json", context)
+
+    assert approved.scenario == "aligned_managed"
+    assert "Maintain the current direction" in approved.daily_coaching_recommendation
+    assert (
+        validate_candidate_action_plan(
+            parse_candidate_action_plan(generate_candidate_action_plan_json(context)),
+            context,
+        )
+        == []
+    )
+
+
+def test_schema_mismatch_candidate_json_falls_back_to_deterministic_plan(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Maintain direction.",
+      "workout_recommendation": "Continue training.",
+      "nutrition_action": "Keep logging.",
+      "confidence": "High",
+      "unexpected_field": "CrewAI extra text"
+    }
+    """
+
+    approved = approve_candidate_json_or_fallback(raw_json, context)
+
+    assert approved.scenario == "aligned_managed"
+    assert approved.rationale
+    assert "CrewAI extra text" not in approved.rationale
+
+
+def test_unsafe_candidate_validation_failure_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[105])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Use 1800-2000 calories/day to fix the caloric deficit.",
+      "workout_recommendation": "Push harder once calories are fixed.",
+      "nutrition_action": "Treat missing intake as 0 kcal and increase from there.",
+      "rationale": "This likely caused stalled weight loss.",
+      "confidence": "Low"
+    }
+    """
+
+    approved = approve_candidate_json_or_fallback(raw_json, context)
+    rendered = render_approved_action_plan(approved).lower()
+
+    assert approved.scenario == "data_quality_limited"
+    assert "caloric deficit" not in rendered
+    assert "stalled weight loss" not in rendered
+    assert "0 kcal" not in rendered
+    assert "verify" in rendered or "logging" in rendered
+
+
+def test_data_quality_limited_candidate_cannot_make_strong_causal_claims(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[105])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Verify logging, but overtraining is the problem.",
+      "workout_recommendation": "Maintain manageable training.",
+      "nutrition_action": "Verify food entries before changing targets.",
+      "rationale": "Incomplete logging likely contribute to stalled fat loss.",
+      "confidence": "Low"
+    }
+    """
+
+    candidate = parse_candidate_action_plan(raw_json)
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("strong causal" in violation for violation in violations)
+
+
+def test_aligned_managed_candidate_cannot_recommend_deload_or_reduce_intensity(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Deload this week despite stable recovery.",
+      "workout_recommendation": "Reduce intensity across all work sets.",
+      "nutrition_action": "Keep nutrition consistent.",
+      "rationale": "Intervention is needed.",
+      "confidence": "High"
+    }
+    """
+
+    candidate = parse_candidate_action_plan(raw_json)
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("unnecessary intervention" in violation for violation in violations)
+
+
+def test_fallback_approved_action_plan_still_renders_safely(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[105])
+    approved = approve_candidate_json_or_fallback("{bad json", context)
+    rendered = render_approved_action_plan(approved).lower()
+
+    assert "Grounded Recommendation" in render_approved_action_plan(approved)
+    assert "verify" in rendered or "logging" in rendered
+    assert "overtraining" not in rendered
+    assert "stalled weight loss" not in rendered
+    assert "caloric deficit" not in rendered
