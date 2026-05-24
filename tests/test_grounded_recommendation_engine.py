@@ -162,6 +162,36 @@ def test_daily_approved_recommendation_endpoint_smoke(tmp_path, monkeypatch):
     assert payload["success"] is True
     assert payload["user_id"] == 102
     assert payload["scenario"] == "aligned_managed"
+    assert set(payload) == {
+        "success",
+        "user_id",
+        "scenario",
+        "confidence",
+        "nutrition_targets",
+        "training_constraints",
+        "approved_action_plan",
+        "rendered_recommendation",
+    }
+
+    nutrition_targets = payload["nutrition_targets"]
+    assert {
+        "body_weight_lb",
+        "calorie_target_min",
+        "calorie_target_max",
+        "protein_grams_min",
+        "protein_grams_max",
+        "carbohydrate_grams_min",
+        "carbohydrate_grams_max",
+        "fat_grams_min",
+        "fat_grams_max",
+        "confidence",
+        "allow_calorie_targets",
+        "allow_protein_targets",
+        "allow_carbohydrate_targets",
+        "allow_fat_targets",
+        "nutrition_display_message",
+        "reason_codes",
+    } <= set(nutrition_targets)
     assert payload["approved_action_plan"]["daily_coaching_recommendation"]
     assert payload["rendered_recommendation"]
 
@@ -196,8 +226,20 @@ def test_daily_endpoint_hides_limited_confidence_calorie_targets(tmp_path, monke
     assert payload["scenario"] == "data_quality_limited"
     assert payload["nutrition_targets"]["confidence"] == "Limited"
     assert payload["nutrition_targets"]["allow_calorie_targets"] is False
+    assert payload["nutrition_targets"]["allow_protein_targets"] is True
+    assert payload["nutrition_targets"]["allow_carbohydrate_targets"] is False
+    assert payload["nutrition_targets"]["allow_fat_targets"] is False
     assert payload["nutrition_targets"]["calorie_target_min"] is None
     assert payload["nutrition_targets"]["calorie_target_max"] is None
+    assert payload["nutrition_targets"]["carbohydrate_grams_min"] is None
+    assert payload["nutrition_targets"]["carbohydrate_grams_max"] is None
+    assert payload["nutrition_targets"]["fat_grams_min"] is None
+    assert payload["nutrition_targets"]["fat_grams_max"] is None
+    assert (
+        payload["nutrition_targets"]["nutrition_display_message"]
+        == "Nutrition targets are limited until logging is more complete. Focus on "
+        "verifying entries and improving consistency first."
+    )
 
 
 def test_candidate_validator_rejects_disallowed_numeric_calorie_recommendations(
@@ -256,3 +298,60 @@ def test_missing_nutrition_fields_remain_unknown_not_zero(tmp_path, monkeypatch)
     assert "0 kcal" not in rendered
     assert "0 calories" not in rendered
     assert "0 g protein" not in rendered
+
+
+def test_limited_confidence_hides_unapproved_macro_targets_in_user_payload(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+
+    client = TestClient(app)
+    payload = client.get("/recommendations/daily/105").json()
+    targets = payload["nutrition_targets"]
+
+    assert targets["confidence"] == "Limited"
+    assert targets["allow_calorie_targets"] is False
+    assert targets["allow_carbohydrate_targets"] is False
+    assert targets["allow_fat_targets"] is False
+    assert targets["calorie_target_min"] is None
+    assert targets["calorie_target_max"] is None
+    assert targets["carbohydrate_grams_min"] is None
+    assert targets["carbohydrate_grams_max"] is None
+    assert targets["fat_grams_min"] is None
+    assert targets["fat_grams_max"] is None
+    assert (
+        "limited until logging is more complete" in targets["nutrition_display_message"]
+    )
+
+
+def test_candidate_validator_rejects_disallowed_numeric_carbohydrate_and_fat_targets(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[105])
+    raw_json = """
+    {
+      "daily_coaching_recommendation": "Improve logging quality first.",
+      "workout_recommendation": "Maintain manageable training.",
+      "nutrition_action": "Use carbohydrates 200-300 g/day and fat 60-80 g/day.",
+      "rationale": "Logging is incomplete, so verify entries.",
+      "confidence": "Low"
+    }
+    """
+
+    candidate = parse_candidate_action_plan(raw_json)
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any(
+        "Numeric carbohydrate recommendations are not allowed" in violation
+        for violation in violations
+    )
+    assert any(
+        "Numeric fat recommendations are not allowed" in violation
+        for violation in violations
+    )

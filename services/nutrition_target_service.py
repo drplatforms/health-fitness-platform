@@ -7,6 +7,14 @@ UNKNOWN = "Unknown"
 LIMITED_CONFIDENCE = "Limited"
 MODERATE_CONFIDENCE = "Moderate"
 HIGH_CONFIDENCE = "High"
+LIMITED_NUTRITION_DISPLAY_MESSAGE = (
+    "Nutrition targets are limited until logging is more complete. Focus on "
+    "verifying entries and improving consistency first."
+)
+APPROVED_NUTRITION_DISPLAY_MESSAGE = (
+    "Nutrition targets are available as approved planning ranges based on current "
+    "body weight, goal, activity level, and training context."
+)
 
 
 def _as_float(value) -> float | None:
@@ -118,6 +126,9 @@ def build_nutrition_targets(health_state: UserHealthState) -> NutritionTargets:
             confidence=LIMITED_CONFIDENCE,
             allow_calorie_targets=False,
             allow_protein_targets=False,
+            allow_carbohydrate_targets=False,
+            allow_fat_targets=False,
+            nutrition_display_message=LIMITED_NUTRITION_DISPLAY_MESSAGE,
             reason_codes=["missing_body_weight"],
         )
 
@@ -139,6 +150,12 @@ def build_nutrition_targets(health_state: UserHealthState) -> NutritionTargets:
 
     confidence, confidence_reasons = _target_confidence(health_state, body_weight)
     allow_calorie_targets = confidence in {MODERATE_CONFIDENCE, HIGH_CONFIDENCE}
+    allow_macro_targets = confidence in {MODERATE_CONFIDENCE, HIGH_CONFIDENCE}
+    nutrition_display_message = (
+        APPROVED_NUTRITION_DISPLAY_MESSAGE
+        if allow_macro_targets
+        else LIMITED_NUTRITION_DISPLAY_MESSAGE
+    )
 
     reason_codes.extend(
         [
@@ -163,6 +180,9 @@ def build_nutrition_targets(health_state: UserHealthState) -> NutritionTargets:
         confidence=confidence,
         allow_calorie_targets=allow_calorie_targets,
         allow_protein_targets=True,
+        allow_carbohydrate_targets=allow_macro_targets,
+        allow_fat_targets=allow_macro_targets,
+        nutrition_display_message=nutrition_display_message,
         reason_codes=reason_codes,
     )
 
@@ -178,5 +198,13 @@ def nutrition_targets_to_user_dict(targets: NutritionTargets) -> dict:
     if not targets.allow_protein_targets:
         payload["protein_grams_min"] = None
         payload["protein_grams_max"] = None
+
+    if not targets.allow_carbohydrate_targets:
+        payload["carbohydrate_grams_min"] = None
+        payload["carbohydrate_grams_max"] = None
+
+    if not targets.allow_fat_targets:
+        payload["fat_grams_min"] = None
+        payload["fat_grams_max"] = None
 
     return payload

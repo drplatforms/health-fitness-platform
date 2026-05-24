@@ -63,73 +63,91 @@ def format_range(
 
 
 def display_nutrition_targets(nutrition_targets: dict) -> None:
+    st.subheader("Nutrition Targets")
+
+    display_message = nutrition_targets.get("nutrition_display_message")
+    confidence = nutrition_targets.get("confidence")
+
+    if confidence == "Limited":
+        st.info(
+            display_message
+            or "Nutrition targets are limited until logging is more complete. "
+            "Focus on verifying entries and improving consistency first."
+        )
+        return
+
     target_rows = []
 
-    calorie_range = format_range(
-        nutrition_targets.get("calorie_target_min"),
-        nutrition_targets.get("calorie_target_max"),
-        "calories/day",
-    )
-
-    protein_range = format_range(
-        nutrition_targets.get("protein_grams_min"),
-        nutrition_targets.get("protein_grams_max"),
-        "g/day",
-    )
-
-    carbohydrate_range = format_range(
-        nutrition_targets.get("carbohydrate_grams_min"),
-        nutrition_targets.get("carbohydrate_grams_max"),
-        "g/day",
-    )
-
-    fat_range = format_range(
-        nutrition_targets.get("fat_grams_min"),
-        nutrition_targets.get("fat_grams_max"),
-        "g/day",
-    )
-
-    if calorie_range:
-        target_rows.append(
-            {
-                "Target": "Calories",
-                "Range": calorie_range,
-            }
+    if nutrition_targets.get("allow_calorie_targets"):
+        calorie_range = format_range(
+            nutrition_targets.get("calorie_target_min"),
+            nutrition_targets.get("calorie_target_max"),
+            "calories/day",
         )
+        if calorie_range:
+            target_rows.append(
+                {
+                    "Target": "Calories",
+                    "Range": calorie_range,
+                }
+            )
 
-    if protein_range:
-        target_rows.append(
-            {
-                "Target": "Protein",
-                "Range": protein_range,
-            }
+    if nutrition_targets.get("allow_protein_targets"):
+        protein_range = format_range(
+            nutrition_targets.get("protein_grams_min"),
+            nutrition_targets.get("protein_grams_max"),
+            "g/day",
         )
+        if protein_range:
+            target_rows.append(
+                {
+                    "Target": "Protein",
+                    "Range": protein_range,
+                }
+            )
 
-    if carbohydrate_range:
-        target_rows.append(
-            {
-                "Target": "Carbohydrates",
-                "Range": carbohydrate_range,
-            }
+    if nutrition_targets.get("allow_carbohydrate_targets"):
+        carbohydrate_range = format_range(
+            nutrition_targets.get("carbohydrate_grams_min"),
+            nutrition_targets.get("carbohydrate_grams_max"),
+            "g/day",
         )
+        if carbohydrate_range:
+            target_rows.append(
+                {
+                    "Target": "Carbohydrates",
+                    "Range": carbohydrate_range,
+                }
+            )
 
-    if fat_range:
-        target_rows.append(
-            {
-                "Target": "Fat",
-                "Range": fat_range,
-            }
+    if nutrition_targets.get("allow_fat_targets"):
+        fat_range = format_range(
+            nutrition_targets.get("fat_grams_min"),
+            nutrition_targets.get("fat_grams_max"),
+            "g/day",
         )
+        if fat_range:
+            target_rows.append(
+                {
+                    "Target": "Fat",
+                    "Range": fat_range,
+                }
+            )
 
     if target_rows:
-        st.subheader("Nutrition Targets")
         st.dataframe(
             pd.DataFrame(target_rows),
             width="stretch",
             hide_index=True,
         )
+        if display_message:
+            st.caption(display_message)
     else:
-        st.info("Nutrition targets are limited until logging confidence improves.")
+        st.info(
+            display_message
+            or "Nutrition targets are limited until logging is more complete. "
+            "Focus on verifying entries and improving consistency first."
+        )
 
 
 def display_training_constraints(training_constraints: dict) -> None:

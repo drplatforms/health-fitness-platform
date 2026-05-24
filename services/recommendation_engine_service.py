@@ -39,6 +39,10 @@ _CALORIE_CLAIM_RE = re.compile(
 _PROTEIN_CLAIM_RE = re.compile(
     r"\bprotein\s+(\d{1,3})\s*(?:-|to)?\s*(\d{1,3})?\s*g(?:/day)?\b"
 )
+_CARBOHYDRATE_CLAIM_RE = re.compile(
+    r"\b(?:carbohydrates?|carbs?)\s+(\d{1,4})\s*(?:-|to)?\s*(\d{1,4})?\s*g(?:/day)?\b"
+)
+_FAT_CLAIM_RE = re.compile(r"\bfat\s+(\d{1,3})\s*(?:-|to)?\s*(\d{1,3})?\s*g(?:/day)?\b")
 
 
 def build_recommendation_context(
@@ -103,7 +107,8 @@ def _protein_target_phrase(context: RecommendationContext) -> str:
 def _carbohydrate_target_phrase(context: RecommendationContext) -> str:
     targets = context.nutrition_targets
     if (
-        targets.carbohydrate_grams_min is not None
+        targets.allow_carbohydrate_targets
+        and targets.carbohydrate_grams_min is not None
         and targets.carbohydrate_grams_max is not None
     ):
         return (
@@ -303,6 +308,67 @@ def _validate_numeric_protein_claims(
     return violations
 
 
+def _validate_numeric_carbohydrate_claims(
+    text: str, context: RecommendationContext
+) -> list[str]:
+    targets = context.nutrition_targets
+    violations: list[str] = []
+
+    for match in _CARBOHYDRATE_CLAIM_RE.finditer(text):
+        values = tuple(int(value) for value in match.groups() if value is not None)
+        if not targets.allow_carbohydrate_targets:
+            violations.append(
+                "Numeric carbohydrate recommendations are not allowed at current target confidence."
+            )
+            continue
+
+        if (
+            targets.carbohydrate_grams_min is None
+            or targets.carbohydrate_grams_max is None
+        ):
+            violations.append(
+                "Numeric carbohydrate recommendation has no approved carbohydrate range."
+            )
+            continue
+
+        if not _all_range_values_within(
+            values, targets.carbohydrate_grams_min, targets.carbohydrate_grams_max
+        ):
+            violations.append(
+                "Numeric carbohydrate recommendation is outside NutritionTargets range."
+            )
+
+    return violations
+
+
+def _validate_numeric_fat_claims(
+    text: str, context: RecommendationContext
+) -> list[str]:
+    targets = context.nutrition_targets
+    violations: list[str] = []
+
+    for match in _FAT_CLAIM_RE.finditer(text):
+        values = tuple(int(value) for value in match.groups() if value is not None)
+        if not targets.allow_fat_targets:
+            violations.append(
+                "Numeric fat recommendations are not allowed at current target confidence."
+            )
+            continue
+
+        if targets.fat_grams_min is None or targets.fat_grams_max is None:
+            violations.append("Numeric fat recommendation has no approved fat range.")
+            continue
+
+        if not _all_range_values_within(
+            values, targets.fat_grams_min, targets.fat_grams_max
+        ):
+            violations.append(
+                "Numeric fat recommendation is outside NutritionTargets range."
+            )
+
+    return violations
+
+
 def validate_candidate_action_plan(
     candidate: CandidateActionPlan,
     context: RecommendationContext,
@@ -326,6 +392,8 @@ def validate_candidate_action_plan(
 
     violations.extend(_validate_numeric_calorie_claims(text, context))
     violations.extend(_validate_numeric_protein_claims(text, context))
+    violations.extend(_validate_numeric_carbohydrate_claims(text, context))
+    violations.extend(_validate_numeric_fat_claims(text, context))
 
     if context.scenario == "recovery_limited":
         if "low_rir_high_effort_training" in context.reason_codes:

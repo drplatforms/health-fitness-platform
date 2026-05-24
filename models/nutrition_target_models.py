@@ -15,4 +15,7 @@ class NutritionTargets:
     confidence: str
     allow_calorie_targets: bool = False
     allow_protein_targets: bool = False
+    allow_carbohydrate_targets: bool = False
+    allow_fat_targets: bool = False
+    nutrition_display_message: str = ""
     reason_codes: list[str] = field(default_factory=list)
