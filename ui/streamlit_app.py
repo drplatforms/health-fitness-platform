@@ -498,6 +498,220 @@ def display_planned_vs_actual_summary(summary: dict) -> None:
             st.info(note)
 
 
+def planned_exercise_option_label(exercise: dict) -> str:
+    reps_min = exercise.get("reps_min")
+    reps_max = exercise.get("reps_max")
+    rir_min = exercise.get("rir_min")
+    rir_max = exercise.get("rir_max")
+
+    reps_label = (
+        f"{reps_min}-{reps_max} reps"
+        if reps_min is not None and reps_max is not None
+        else "reps unknown"
+    )
+
+    rir_label = (
+        f"RIR {rir_min}-{rir_max}"
+        if rir_min is not None and rir_max is not None
+        else "RIR unknown"
+    )
+
+    return (
+        f"{exercise.get('id')} — "
+        f"{exercise.get('exercise_order', '?')}. "
+        f"{exercise.get('name', 'Unknown')} "
+        f"({exercise.get('sets', '?')} sets, {reps_label}, {rir_label})"
+    )
+
+
+def display_actual_set_logging(plan_instance_id: int) -> None:
+    try:
+        execution_response = api_get(f"/workout-plans/{plan_instance_id}/execution")
+    except requests.RequestException as exc:
+        st.error(f"Failed to load actual set logger: {extract_api_error_message(exc)}")
+        return
+
+    workout_plan_instance = execution_response.get("workout_plan_instance", {})
+    execution_session = execution_response.get("execution_session", {})
+    planned_exercises = execution_response.get("planned_exercises", [])
+
+    plan_status = workout_plan_instance.get("status")
+    execution_status = execution_session.get("status")
+
+    st.subheader("Actual Set Logging")
+
+    if plan_status not in {"started", "in_progress"} and execution_status not in {
+        "started",
+        "in_progress",
+    }:
+        st.info(
+            "Actual set logging will appear after this selected plan is started. "
+            f"Current plan status: {humanize_label(plan_status)}. "
+            f"Execution status: {humanize_label(execution_status)}."
+        )
+        return
+
+    if st.session_state.actual_set_logging_message:
+        st.success(st.session_state.actual_set_logging_message)
+        st.session_state.actual_set_logging_message = None
+
+    if not planned_exercises:
+        st.warning("No planned exercises are available for actual set logging.")
+        return
+
+    planned_options = {
+        planned_exercise_option_label(exercise): exercise
+        for exercise in planned_exercises
+    }
+
+    with st.form(f"actual_set_logging_form_{plan_instance_id}"):
+        logging_mode = st.radio(
+            "Log Type",
+            options=[
+                "Completed planned set",
+                "Skipped planned set",
+                "Substitution",
+            ],
+            horizontal=True,
+        )
+
+        selected_planned_label = st.selectbox(
+            "Planned Exercise",
+            options=list(planned_options.keys()),
+        )
+
+        selected_planned_exercise = planned_options[selected_planned_label]
+
+        set_number = st.number_input(
+            "Set Number",
+            min_value=1,
+            value=1,
+            step=1,
+        )
+
+        actual_exercise_name = None
+        if logging_mode == "Substitution":
+            actual_exercise_name = st.text_input(
+                "Actual Exercise Name",
+                value="",
+                help="Use this when you performed a different exercise than planned.",
+            )
+
+        actual_reps = None
+        actual_weight = None
+        actual_rir = None
+
+        if logging_mode != "Skipped planned set":
+            default_reps = selected_planned_exercise.get("reps_min") or 1
+            default_rir = selected_planned_exercise.get("rir_max") or 2
+
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                actual_reps = st.number_input(
+                    "Actual Reps",
+                    min_value=0,
+                    value=int(default_reps),
+                    step=1,
+                )
+
+            with col2:
+                actual_weight = st.number_input(
+                    "Actual Weight",
+                    min_value=0.0,
+                    value=0.0,
+                    step=5.0,
+                )
+
+            with col3:
+                actual_rir = st.slider(
+                    "Actual RIR",
+                    min_value=0,
+                    max_value=10,
+                    value=int(default_rir),
+                )
+        else:
+            st.info(
+                "Skipped sets are recorded without reps, weight, or RIR. "
+                "Use notes to explain why the set or exercise was skipped."
+            )
+
+        actual_set_notes = st.text_area("Actual Set Notes")
+
+        submit_actual_set = st.form_submit_button("Log Actual Set")
+
+    if submit_actual_set:
+        payload = {
+            "set_number": int(set_number),
+            "notes": actual_set_notes or None,
+        }
+
+        if logging_mode == "Skipped planned set":
+            payload.update(
+                {
+                    "planned_workout_exercise_id": selected_planned_exercise["id"],
+                    "completed": False,
+                    "skipped": True,
+                }
+            )
+
+        elif logging_mode == "Substitution":
+            if not actual_exercise_name or not actual_exercise_name.strip():
+                st.error("Actual Exercise Name is required for substitutions.")
+                return
+
+            payload.update(
+                {
+                    "substitution_for_planned_exercise_id": selected_planned_exercise[
+                        "id"
+                    ],
+                    "exercise_name": actual_exercise_name.strip(),
+                    "actual_reps": int(actual_reps),
+                    "actual_weight": float(actual_weight),
+                    "actual_rir": int(actual_rir),
+                    "completed": True,
+                    "skipped": False,
+                }
+            )
+
+        else:
+            payload.update(
+                {
+                    "planned_workout_exercise_id": selected_planned_exercise["id"],
+                    "actual_reps": int(actual_reps),
+                    "actual_weight": float(actual_weight),
+                    "actual_rir": int(actual_rir),
+                    "completed": True,
+                    "skipped": False,
+                }
+            )
+
+        payload = {key: value for key, value in payload.items() if value is not None}
+
+        try:
+            actual_set_response = api_post(
+                f"/workout-plans/{plan_instance_id}/actual-sets",
+                payload,
+            )
+
+            if actual_set_response.get("success"):
+                actual_set = actual_set_response.get("actual_set", {})
+                actual_set_id = actual_set.get("id", "Unknown")
+                st.session_state.actual_set_logging_message = (
+                    f"Actual set logged successfully. Actual set ID: {actual_set_id}."
+                )
+                st.rerun()
+            else:
+                st.error("Actual set logging failed.")
+
+        except requests.RequestException as exc:
+            st.error(f"Actual set logging failed: {extract_api_error_message(exc)}")
+
+    with st.expander("Developer details: actual set logging"):
+        st.subheader("Raw Execution Response Used By Logger")
+        st.json(execution_response)
+
+
 def display_workout_execution_review(plan_instance_id: int) -> None:
     st.subheader("Workout Execution Review")
 
@@ -632,6 +846,9 @@ if "started_workout_plan_response" not in st.session_state:
 if "workout_plan_action_error" not in st.session_state:
     st.session_state.workout_plan_action_error = None
 
+if "actual_set_logging_message" not in st.session_state:
+    st.session_state.actual_set_logging_message = None
+
 # =====================================
 # App Configuration
 # =====================================
@@ -684,6 +901,7 @@ if st.session_state.selected_user_id != user_id:
     st.session_state.selected_workout_plan_response = None
     st.session_state.started_workout_plan_response = None
     st.session_state.workout_plan_action_error = None
+    st.session_state.actual_set_logging_message = None
 
     st.rerun()
 
@@ -955,6 +1173,7 @@ try:
                 st.session_state.selected_workout_plan_response = None
                 st.session_state.started_workout_plan_response = None
                 st.session_state.workout_plan_action_error = None
+                st.session_state.actual_set_logging_message = None
                 st.rerun()
             else:
                 st.error("Equipment profile save failed.")
@@ -1007,6 +1226,7 @@ try:
                     st.session_state.selected_workout_plan_response = select_response
                     st.session_state.started_workout_plan_response = None
                     st.session_state.workout_plan_action_error = None
+                    st.session_state.actual_set_logging_message = None
                     st.success("Workout plan selected.")
                     st.rerun()
                 else:
@@ -1054,6 +1274,7 @@ try:
                                 start_response
                             )
                             st.session_state.workout_plan_action_error = None
+                            st.session_state.actual_set_logging_message = None
                             st.success("Workout plan started.")
                             st.rerun()
                         else:
@@ -1067,6 +1288,7 @@ try:
                             f"{extract_api_error_message(exc)}"
                         )
 
+                display_actual_set_logging(plan_instance_id)
                 display_workout_execution_review(plan_instance_id)
 
         if st.session_state.workout_plan_action_error:
