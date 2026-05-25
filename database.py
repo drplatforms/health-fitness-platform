@@ -304,6 +304,27 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # User Equipment Profiles
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_equipment_profiles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        user_id INTEGER NOT NULL UNIQUE,
+
+        training_environment TEXT NOT NULL,
+        available_equipment_json TEXT NOT NULL,
+        unavailable_equipment_json TEXT NOT NULL,
+
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    # -----------------------------
     # Seed Exercises
     # -----------------------------
 
