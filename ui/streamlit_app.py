@@ -901,6 +901,138 @@ def display_workout_execution_review(plan_instance_id: int) -> None:
             st.write(planned_vs_actual_error)
 
 
+def display_workout_execution_history_item(history_item: dict) -> None:
+    workout_plan_instance = history_item.get("workout_plan_instance", {})
+    execution_session = history_item.get("execution_session") or {}
+    planned_vs_actual_summary = history_item.get("planned_vs_actual_summary")
+
+    plan_instance_id = workout_plan_instance.get("id", "Unknown")
+    plan_status = workout_plan_instance.get("status")
+    execution_status = execution_session.get("status")
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric(
+        "Plan Instance ID",
+        plan_instance_id,
+    )
+    col2.metric(
+        "Plan Status",
+        humanize_label(plan_status),
+    )
+    col3.metric(
+        "Execution Status",
+        humanize_label(execution_status),
+    )
+
+    col4, col5, col6 = st.columns(3)
+
+    col4.metric(
+        "Scenario",
+        scenario_display_name(workout_plan_instance.get("scenario")),
+    )
+    col5.metric(
+        "Confidence",
+        workout_plan_instance.get("confidence", "Unknown"),
+    )
+    col6.metric(
+        "Workout Session ID",
+        execution_session.get("workout_session_id") or "Not created",
+    )
+
+    title = history_item.get("approved_workout_title") or workout_plan_instance.get(
+        "title",
+        "Unknown",
+    )
+    session_focus = history_item.get("approved_workout_session_focus") or "Unknown"
+
+    st.write(f"**Workout:** {title}")
+    st.write(f"**Focus:** {session_focus}")
+
+    time_rows = [
+        {
+            "Field": "Selected At",
+            "Value": workout_plan_instance.get("selected_at") or "Unknown",
+        },
+        {
+            "Field": "Started At",
+            "Value": execution_session.get("started_at") or "Not started",
+        },
+        {
+            "Field": "Completed At",
+            "Value": execution_session.get("completed_at")
+            or workout_plan_instance.get("completed_at")
+            or "Not completed",
+        },
+    ]
+
+    st.dataframe(
+        pd.DataFrame(time_rows),
+        width="stretch",
+        hide_index=True,
+    )
+
+    if plan_status in {"in_progress", "completed"} or execution_status in {
+        "in_progress",
+        "completed",
+    }:
+        if planned_vs_actual_summary:
+            display_planned_vs_actual_summary(planned_vs_actual_summary)
+        else:
+            st.info("Planned-vs-actual summary is not available for this item yet.")
+    else:
+        st.info(
+            "Planned-vs-actual summary is not available until the workout is "
+            "in progress or completed."
+        )
+
+
+def display_workout_execution_history(user_id: int) -> None:
+    st.header("📜 Workout Execution History")
+
+    try:
+        history_response = api_get(f"/workout-plans/history/{user_id}")
+    except requests.RequestException as exc:
+        st.error(
+            "Failed to load workout execution history: "
+            f"{extract_api_error_message(exc)}"
+        )
+        return
+
+    history_items = history_response.get("workout_plan_instances", [])
+
+    if not history_items:
+        st.info("No workout plan execution history found for this user.")
+    else:
+        for history_item in history_items:
+            workout_plan_instance = history_item.get("workout_plan_instance", {})
+            execution_session = history_item.get("execution_session") or {}
+
+            plan_instance_id = workout_plan_instance.get("id", "Unknown")
+            title = history_item.get(
+                "approved_workout_title"
+            ) or workout_plan_instance.get(
+                "title",
+                "Workout Plan",
+            )
+            plan_status = humanize_label(workout_plan_instance.get("status"))
+            selected_at = workout_plan_instance.get("selected_at") or "Unknown"
+
+            expander_label = (
+                f"Plan {plan_instance_id} — {title} — "
+                f"{plan_status} — selected {selected_at}"
+            )
+
+            with st.expander(expander_label):
+                display_workout_execution_history_item(history_item)
+
+                if execution_session.get("completed_at"):
+                    st.caption(f"Completed at: {execution_session['completed_at']}")
+
+    with st.expander("Developer details: workout execution history"):
+        st.json(history_response)
+
+
 TRAINING_ENVIRONMENT_OPTIONS = {
     "commercial_gym": "Commercial Gym",
     "home_gym": "Home Gym",
@@ -1451,6 +1583,13 @@ try:
 
 except requests.RequestException as exc:
     st.error(f"Failed to load workout plan preview: {exc}")
+
+
+# =====================================
+# Workout Execution History
+# =====================================
+
+display_workout_execution_history(user_id)
 
 
 # =====================================
