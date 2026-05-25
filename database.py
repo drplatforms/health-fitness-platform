@@ -325,6 +325,87 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # Workout Plan Instances
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS workout_plan_instances (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        user_id INTEGER NOT NULL,
+
+        status TEXT NOT NULL,
+        scenario TEXT NOT NULL,
+        confidence TEXT NOT NULL,
+        title TEXT NOT NULL,
+        approved_workout_plan_json TEXT NOT NULL,
+
+        selected_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    # -----------------------------
+    # Planned Workout Exercises
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS planned_workout_exercises (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        workout_plan_instance_id INTEGER NOT NULL,
+
+        exercise_order INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        sets INTEGER NOT NULL,
+        reps_min INTEGER NOT NULL,
+        reps_max INTEGER NOT NULL,
+        rir_min INTEGER NOT NULL,
+        rir_max INTEGER NOT NULL,
+        notes TEXT NOT NULL,
+        equipment_required_json TEXT NOT NULL,
+
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (workout_plan_instance_id)
+            REFERENCES workout_plan_instances(id)
+    )
+    """)
+
+    # -----------------------------
+    # Workout Execution Sessions
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS workout_execution_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        workout_plan_instance_id INTEGER NOT NULL UNIQUE,
+        user_id INTEGER NOT NULL,
+
+        status TEXT NOT NULL,
+        workout_session_id INTEGER,
+
+        started_at TEXT,
+        completed_at TEXT,
+        abandoned_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (workout_plan_instance_id)
+            REFERENCES workout_plan_instances(id),
+
+        FOREIGN KEY (user_id) REFERENCES users(id),
+
+        FOREIGN KEY (workout_session_id)
+            REFERENCES workout_sessions(id)
+    )
+    """)
+
+    # -----------------------------
     # Seed Exercises
     # -----------------------------
 

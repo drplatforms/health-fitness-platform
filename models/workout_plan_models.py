@@ -69,3 +69,46 @@ class ApprovedWorkoutPlan:
     confidence: str
     scenario: str
     reason_codes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PlannedWorkoutExercise:
+    id: int
+    workout_plan_instance_id: int
+    exercise_order: int
+    name: str
+    sets: int
+    reps_min: int
+    reps_max: int
+    rir_min: int
+    rir_max: int
+    notes: str
+    equipment_required: list[str] = field(default_factory=list)
+
+
+@dataclass
+class WorkoutPlanInstance:
+    id: int
+    user_id: int
+    status: str
+    scenario: str
+    confidence: str
+    title: str
+    approved_workout_plan: ApprovedWorkoutPlan
+    selected_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
+
+
+@dataclass
+class WorkoutExecutionSession:
+    id: int
+    workout_plan_instance_id: int
+    user_id: int
+    status: str
+    workout_session_id: int | None = None
+    started_at: str | None = None
+    completed_at: str | None = None
+    abandoned_at: str | None = None
+    created_at: str | None = None
+    updated_at: str | None = None
