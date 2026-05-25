@@ -410,6 +410,58 @@ def count_workout_plan_instances(user_id: int) -> int:
     return int(count)
 
 
+def get_workout_plan_history(user_id: int) -> list[dict]:
+    """Return recent workout plan execution history for a user.
+
+    The history endpoint is read-only. It does not mutate plan state, persist
+    planned-vs-actual summaries, or interact with manual workout logging.
+    Summaries are dynamically recomputed only for in-progress and completed
+    planned workouts.
+    """
+
+    ensure_workout_plan_persistence_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM workout_plan_instances
+        WHERE user_id = ?
+        ORDER BY created_at DESC, id DESC
+        """,
+        (user_id,),
+    )
+    instance_rows = cursor.fetchall()
+    conn.close()
+
+    history_items: list[dict] = []
+    for instance_row in instance_rows:
+        instance = _row_to_workout_plan_instance(instance_row)
+        execution_session = get_workout_execution_session(instance.id)
+        summary = None
+
+        if instance.status in {"in_progress", "completed"}:
+            try:
+                summary = build_planned_vs_actual_summary(instance.id)
+            except WorkoutPlanPersistenceError:
+                summary = None
+
+        history_items.append(
+            {
+                "workout_plan_instance": instance,
+                "execution_session": execution_session,
+                "approved_workout_title": instance.approved_workout_plan.title,
+                "approved_workout_session_focus": (
+                    instance.approved_workout_plan.session_focus
+                ),
+                "planned_vs_actual_summary": summary,
+            }
+        )
+
+    return history_items
+
+
 def get_actual_sets(
     plan_instance_id: int | None = None,
     execution_session_id: int | None = None,

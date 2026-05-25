@@ -13,6 +13,7 @@ from services.workout_plan_persistence_service import (
     get_execution_state,
     get_planned_workout_exercises,
     get_workout_execution_session,
+    get_workout_plan_history,
     get_workout_plan_instance,
     log_actual_set,
     select_current_workout_plan,
@@ -1145,3 +1146,150 @@ def test_planned_vs_actual_endpoint_keeps_manual_logging_independent(
     assert response.status_code == 200
     assert manual_session_id
     assert response.json()["planned_vs_actual_summary"]["actual_set_count"] == 1
+
+
+def test_workout_plan_history_endpoint_returns_empty_list_for_user_with_no_plans(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["user_id"] == 105
+    assert payload["workout_plan_instances"] == []
+
+
+def test_workout_plan_history_returns_selected_plan(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    selected = select_current_workout_plan(105)
+    instance_id = selected["workout_plan_instance"].id
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    payload = response.json()
+    history = payload["workout_plan_instances"]
+    assert len(history) == 1
+    item = history[0]
+    assert item["workout_plan_instance"]["id"] == instance_id
+    assert item["workout_plan_instance"]["status"] == "selected"
+    assert item["execution_session"]["status"] == "selected"
+    assert item["approved_workout_title"] == selected["approved_workout_plan"].title
+    assert (
+        item["approved_workout_session_focus"]
+        == selected["approved_workout_plan"].session_focus
+    )
+    assert item["planned_vs_actual_summary"] is None
+
+
+def test_workout_plan_history_returns_started_plan_without_summary(
+    tmp_path, monkeypatch
+):
+    instance_id, _started = _started_plan(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    item = response.json()["workout_plan_instances"][0]
+    assert item["workout_plan_instance"]["id"] == instance_id
+    assert item["workout_plan_instance"]["status"] == "started"
+    assert item["execution_session"]["status"] == "started"
+    assert item["planned_vs_actual_summary"] is None
+
+
+def test_workout_plan_history_returns_in_progress_plan_with_summary(
+    tmp_path, monkeypatch
+):
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    item = response.json()["workout_plan_instances"][0]
+    assert item["workout_plan_instance"]["id"] == instance_id
+    assert item["workout_plan_instance"]["status"] == "in_progress"
+    assert item["execution_session"]["status"] == "in_progress"
+    assert item["planned_vs_actual_summary"]["completed_set_count"] == 1
+
+
+def test_workout_plan_history_returns_completed_plan_with_completed_at_and_summary(
+    tmp_path, monkeypatch
+):
+    from services.workout_plan_persistence_service import complete_workout_plan
+
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    complete_workout_plan(instance_id)
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    item = response.json()["workout_plan_instances"][0]
+    assert item["workout_plan_instance"]["id"] == instance_id
+    assert item["workout_plan_instance"]["status"] == "completed"
+    assert item["workout_plan_instance"]["completed_at"] is not None
+    assert item["execution_session"]["status"] == "completed"
+    assert item["execution_session"]["completed_at"] is not None
+    assert item["planned_vs_actual_summary"]["completed_set_count"] == 1
+
+
+def test_workout_plan_history_sorts_newest_first(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    first = select_current_workout_plan(105)["workout_plan_instance"]
+    second = select_current_workout_plan(105)["workout_plan_instance"]
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    ids = [
+        item["workout_plan_instance"]["id"]
+        for item in response.json()["workout_plan_instances"]
+    ]
+    assert ids == [second.id, first.id]
+
+
+def test_workout_plan_history_service_matches_endpoint_summary(tmp_path, monkeypatch):
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    history = get_workout_plan_history(105)
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    service_summary = history[0]["planned_vs_actual_summary"]
+    endpoint_summary = response.json()["workout_plan_instances"][0][
+        "planned_vs_actual_summary"
+    ]
+    assert history[0]["workout_plan_instance"].id == instance_id
+    assert (
+        endpoint_summary["completed_set_count"] == service_summary.completed_set_count
+    )
+    assert endpoint_summary["planned_set_count"] == service_summary.planned_set_count
+
+
+def test_workout_plan_history_keeps_manual_logging_independent(tmp_path, monkeypatch):
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    manual_session_id = create_workout_session(
+        user_id=105,
+        workout_name="Manual Workout Near Plan History",
+        duration_minutes=20,
+        notes="Manual logging remains independent from plan history.",
+    )
+    client = TestClient(app)
+
+    response = client.get("/workout-plans/history/105")
+
+    assert response.status_code == 200
+    assert manual_session_id
+    history = response.json()["workout_plan_instances"]
+    assert len(history) == 1
+    assert history[0]["workout_plan_instance"]["id"] == instance_id
+    assert history[0]["planned_vs_actual_summary"]["actual_set_count"] == 1

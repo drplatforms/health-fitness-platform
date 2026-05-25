@@ -11,6 +11,7 @@ from services.workout_plan_persistence_service import (
     build_planned_vs_actual_summary,
     complete_workout_plan,
     get_execution_state,
+    get_workout_plan_history,
     log_actual_set,
     select_current_workout_plan,
     start_selected_workout_plan,
@@ -35,6 +36,36 @@ class ActualSetPayload(BaseModel):
     skipped: bool = False
     substitution_for_planned_exercise_id: int | None = None
     notes: str | None = None
+
+
+@router.get("/workout-plans/history/{user_id}")
+def workout_plan_history(user_id: int):
+    history_items = get_workout_plan_history(user_id)
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "workout_plan_instances": [
+            {
+                "workout_plan_instance": asdict(item["workout_plan_instance"]),
+                "execution_session": (
+                    asdict(item["execution_session"])
+                    if item["execution_session"] is not None
+                    else None
+                ),
+                "approved_workout_title": item["approved_workout_title"],
+                "approved_workout_session_focus": item[
+                    "approved_workout_session_focus"
+                ],
+                "planned_vs_actual_summary": (
+                    asdict(item["planned_vs_actual_summary"])
+                    if item["planned_vs_actual_summary"] is not None
+                    else None
+                ),
+            }
+            for item in history_items
+        ],
+    }
 
 
 @router.get("/workout-plans/preview/{user_id}")
