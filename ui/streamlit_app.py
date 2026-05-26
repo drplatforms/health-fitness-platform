@@ -1151,17 +1151,18 @@ def display_substitution_candidates(
             allow_apply=allow_apply,
         )
 
-        with st.expander(
-            f"Developer details: substitution candidates for {planned_exercise_name}"
-        ):
-            st.json(candidate_response)
+        if st.session_state.get("developer_mode", False):
+            with st.expander(
+                f"Developer details: substitution candidates for {planned_exercise_name}"
+            ):
+                st.json(candidate_response)
 
-            apply_response = st.session_state.applied_substitution_responses.get(
-                apply_response_key
-            )
-            if apply_response:
-                st.subheader("Latest Raw Apply Response")
-                st.json(apply_response)
+                apply_response = st.session_state.applied_substitution_responses.get(
+                    apply_response_key
+                )
+                if apply_response:
+                    st.subheader("Latest Raw Apply Response")
+                    st.json(apply_response)
 
 
 def display_actual_set_logging(plan_instance_id: int) -> None:
@@ -1383,9 +1384,10 @@ def display_actual_set_logging(plan_instance_id: int) -> None:
         except requests.RequestException as exc:
             st.error(f"Actual set logging failed: {extract_api_error_message(exc)}")
 
-    with st.expander("Developer details: actual set logging"):
-        st.subheader("Raw Execution Response Used By Logger")
-        st.json(execution_response)
+    if st.session_state.get("developer_mode", False):
+        with st.expander("Developer details: actual set logging"):
+            st.subheader("Raw Execution Response Used By Logger")
+            st.json(execution_response)
 
 
 def actual_set_option_label(actual_set: dict) -> str:
@@ -1902,17 +1904,18 @@ def display_workout_execution_review(plan_instance_id: int) -> None:
             f"Planned-vs-actual summary is not available yet: {planned_vs_actual_error}"
         )
 
-    with st.expander("Developer details: workout execution review"):
-        st.subheader("Raw Execution Response")
-        st.json(execution_response)
+    if st.session_state.get("developer_mode", False):
+        with st.expander("Developer details: workout execution review"):
+            st.subheader("Raw Execution Response")
+            st.json(execution_response)
 
-        if planned_vs_actual_response:
-            st.subheader("Raw Planned-vs-Actual Response")
-            st.json(planned_vs_actual_response)
+            if planned_vs_actual_response:
+                st.subheader("Raw Planned-vs-Actual Response")
+                st.json(planned_vs_actual_response)
 
-        if planned_vs_actual_error:
-            st.subheader("Planned-vs-Actual Error")
-            st.write(planned_vs_actual_error)
+            if planned_vs_actual_error:
+                st.subheader("Planned-vs-Actual Error")
+                st.write(planned_vs_actual_error)
 
 
 def display_workout_execution_history_item(history_item: dict) -> None:
@@ -2052,8 +2055,9 @@ def display_workout_execution_history(user_id: int) -> None:
                 if execution_session.get("completed_at"):
                     st.caption(f"Completed at: {execution_session['completed_at']}")
 
-    with st.expander("Developer details: workout execution history"):
-        st.json(history_response)
+    if st.session_state.get("developer_mode", False):
+        with st.expander("Developer details: workout execution history"):
+            st.json(history_response)
 
 
 TRAINING_ENVIRONMENT_OPTIONS = {
@@ -2171,8 +2175,9 @@ def display_exercise_catalog(user_id: int) -> None:
 
     if not exercises:
         st.info("No catalog exercises found.")
-        with st.expander("Developer details: exercise catalog"):
-            st.json(catalog_response)
+        if st.session_state.get("developer_mode", False):
+            with st.expander("Developer details: exercise catalog"):
+                st.json(catalog_response)
         return
 
     try:
@@ -2374,84 +2379,15 @@ def display_exercise_catalog(user_id: int) -> None:
             hide_index=True,
         )
 
-    with st.expander("Developer details: exercise catalog"):
-        st.subheader("Catalog Response")
-        st.json(catalog_response)
+    if st.session_state.get("developer_mode", False):
+        with st.expander("Developer details: exercise catalog"):
+            st.subheader("Catalog Response")
+            st.json(catalog_response)
 
-        if equipment_profile_response:
-            st.subheader("Equipment Profile Response")
-            st.json(equipment_profile_response)
+            if equipment_profile_response:
+                st.subheader("Equipment Profile Response")
+                st.json(equipment_profile_response)
 
-
-# =====================================
-# Session State Initialization
-# =====================================
-
-if "health_report" not in st.session_state:
-    st.session_state.health_report = None
-
-if "health_report_timestamp" not in st.session_state:
-    st.session_state.health_report_timestamp = None
-
-if "report_job_id" not in st.session_state:
-    st.session_state.report_job_id = None
-
-if "report_job_status" not in st.session_state:
-    st.session_state.report_job_status = None
-
-if "last_completed_job_id" not in st.session_state:
-    st.session_state.last_completed_job_id = None
-
-if "current_sets" not in st.session_state:
-    st.session_state.current_sets = []
-
-if "food_search_results" not in st.session_state:
-    st.session_state.food_search_results = []
-
-if "equipment_profile_saved" not in st.session_state:
-    st.session_state.equipment_profile_saved = False
-
-if "selected_workout_plan_response" not in st.session_state:
-    st.session_state.selected_workout_plan_response = None
-
-if "started_workout_plan_response" not in st.session_state:
-    st.session_state.started_workout_plan_response = None
-
-if "workout_plan_action_error" not in st.session_state:
-    st.session_state.workout_plan_action_error = None
-
-if "actual_set_logging_message" not in st.session_state:
-    st.session_state.actual_set_logging_message = None
-
-if "completed_workout_plan_response" not in st.session_state:
-    st.session_state.completed_workout_plan_response = None
-
-if "workout_completion_message" not in st.session_state:
-    st.session_state.workout_completion_message = None
-
-if "workout_completion_error" not in st.session_state:
-    st.session_state.workout_completion_error = None
-
-if "actual_set_editing_message" not in st.session_state:
-    st.session_state.actual_set_editing_message = None
-
-if "actual_set_editing_error" not in st.session_state:
-    st.session_state.actual_set_editing_error = None
-
-if "actual_set_edit_response" not in st.session_state:
-    st.session_state.actual_set_edit_response = None
-
-if "visible_substitution_candidates" not in st.session_state:
-    st.session_state.visible_substitution_candidates = []
-
-if "applied_substitution_responses" not in st.session_state:
-    st.session_state.applied_substitution_responses = {}
-
-if "substitution_apply_message" not in st.session_state:
-    st.session_state.substitution_apply_message = None
-
-if "substitution_apply_error" not in st.session_state:
-    st.session_state.substitution_apply_error = None
 
 # =====================================
 # App Configuration
@@ -2463,42 +2399,54 @@ st.set_page_config(
 )
 
 st.title("🏋️ Fitness AI Platform")
-
+st.caption("Daily workout flow, logging, history, and AI coaching in one place.")
 
 # =====================================
-# User Selection
+# Session State Initialization
 # =====================================
 
-USER_OPTIONS = {
-    "User 1": 1,
-    "User 2": 2,
-    "QA 101 — Under-recovered lifter": 101,
-    "QA 102 — Well-recovered baseline": 102,
-    "QA 103 — Nutrition/training mismatch": 103,
-    "QA 104 — Improving after deload": 104,
-    "QA 105 — Messy/incomplete logging": 105,
+SESSION_DEFAULTS = {
+    "health_report": None,
+    "health_report_timestamp": None,
+    "report_job_id": None,
+    "report_job_status": None,
+    "last_completed_job_id": None,
+    "current_sets": [],
+    "food_search_results": [],
+    "equipment_profile_saved": False,
+    "selected_workout_plan_response": None,
+    "started_workout_plan_response": None,
+    "workout_plan_action_error": None,
+    "actual_set_logging_message": None,
+    "completed_workout_plan_response": None,
+    "workout_completion_message": None,
+    "workout_completion_error": None,
+    "actual_set_editing_message": None,
+    "actual_set_editing_error": None,
+    "actual_set_edit_response": None,
+    "visible_substitution_candidates": [],
+    "applied_substitution_responses": {},
+    "substitution_apply_message": None,
+    "substitution_apply_error": None,
+    "developer_mode": False,
 }
 
-selected_user_label = st.selectbox(
-    "Select User",
-    options=list(USER_OPTIONS.keys()),
-    index=0,
-)
+for key, default_value in SESSION_DEFAULTS.items():
+    if key not in st.session_state:
+        if isinstance(default_value, list):
+            st.session_state[key] = default_value.copy()
+        elif isinstance(default_value, dict):
+            st.session_state[key] = default_value.copy()
+        else:
+            st.session_state[key] = default_value
 
-user_id = USER_OPTIONS[selected_user_label]
 
-if "selected_user_id" not in st.session_state:
-    st.session_state.selected_user_id = user_id
-
-if st.session_state.selected_user_id != user_id:
-    st.session_state.selected_user_id = user_id
-
+def reset_user_scoped_state() -> None:
     st.session_state.health_report = None
     st.session_state.health_report_timestamp = None
     st.session_state.report_job_id = None
     st.session_state.report_job_status = None
     st.session_state.last_completed_job_id = None
-
     st.session_state.current_sets = []
     st.session_state.food_search_results = []
     st.session_state.equipment_profile_saved = False
@@ -2517,194 +2465,292 @@ if st.session_state.selected_user_id != user_id:
     st.session_state.substitution_apply_message = None
     st.session_state.substitution_apply_error = None
 
+
+USER_OPTIONS = {
+    "User 1": 1,
+    "User 2": 2,
+    "QA 101 — Under-recovered lifter": 101,
+    "QA 102 — Well-recovered baseline": 102,
+    "QA 103 — Nutrition/training mismatch": 103,
+    "QA 104 — Improving after deload": 104,
+    "QA 105 — Messy/incomplete logging": 105,
+}
+
+# =====================================
+# Sidebar Controls
+# =====================================
+
+with st.sidebar:
+    st.header("Controls")
+
+    selected_user_label = st.selectbox(
+        "User",
+        options=list(USER_OPTIONS.keys()),
+        index=0,
+    )
+
+    user_id = USER_OPTIONS[selected_user_label]
+
+    st.session_state.developer_mode = st.toggle(
+        "Developer Mode",
+        value=st.session_state.developer_mode,
+        help="Show raw backend responses and internal diagnostic details.",
+    )
+
+    st.divider()
+    st.caption("Primary flow")
+    st.write("Today → Workout Plan → Log Workout → History")
+
+if "selected_user_id" not in st.session_state:
+    st.session_state.selected_user_id = user_id
+
+if st.session_state.selected_user_id != user_id:
+    st.session_state.selected_user_id = user_id
+    reset_user_scoped_state()
     st.rerun()
 
-# =====================================
-# Load Cached Report
-# =====================================
-
-if st.button(
-    "Load Latest Saved Report",
-    key="load_latest_report_button",
-):
-    response = requests.get(f"http://127.0.0.1:8000/reports/latest/{user_id}")
-
-    data = response.json()
-
-    if data["success"]:
-        latest_report = data["report"]
-
-        st.session_state.health_report = latest_report["report_text"]
-
-        st.session_state.health_report_timestamp = latest_report["created_at"]
-
-        st.success("Latest saved report loaded.")
-
-    else:
-        st.warning("No saved reports found.")
-
 
 # =====================================
-# AI Health Coordinator
+# Small UI Helpers
 # =====================================
 
-st.header("🧠 AI Health Insights")
 
-response = requests.get(f"http://127.0.0.1:8000/health-state/{user_id}")
+def developer_details(label: str, payload: object) -> None:
+    if st.session_state.get("developer_mode", False):
+        with st.expander(label):
+            st.json(payload)
 
-data = response.json()
 
-if data["success"]:
-    health_state = data["health_state"]
+def render_status_pill(label: str, value: object) -> None:
+    st.caption(f"**{label}:** {humanize_label(str(value)) if value else 'Unknown'}")
 
-    recovery = health_state["recovery_state"]
-    training = health_state["training_state"]
 
-    col1, col2, col3 = st.columns(3)
+def get_plan_instance_id_from_response(plan_response: dict | None) -> int | None:
+    if not plan_response:
+        return None
 
-    col1.metric(
-        "Recovery Score",
-        recovery["recovery_score"],
+    workout_plan_instance = plan_response.get("workout_plan_instance") or {}
+    plan_instance_id = workout_plan_instance.get("id")
+
+    if plan_instance_id is None:
+        return None
+
+    try:
+        return int(plan_instance_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def get_active_plan_response(user_id: int) -> dict | None:
+    active_response = (
+        st.session_state.started_workout_plan_response
+        or st.session_state.selected_workout_plan_response
     )
 
-    col2.metric(
-        "Fatigue Risk",
-        recovery["fatigue_risk"],
-    )
+    if active_response:
+        return active_response
 
-    col3.metric(
-        "Readiness",
-        recovery["readiness_level"],
-    )
+    try:
+        history_response = api_get(f"/workout-plans/history/{user_id}")
+    except requests.RequestException:
+        return None
 
-    col4, col5, col6 = st.columns(3)
+    for history_item in history_response.get("workout_plan_instances", []):
+        workout_plan_instance = history_item.get("workout_plan_instance") or {}
+        status = workout_plan_instance.get("status")
 
+        if status not in {"selected", "started", "in_progress"}:
+            continue
+
+        plan_instance_id = workout_plan_instance.get("id")
+        if plan_instance_id is None:
+            continue
+
+        try:
+            execution_response = api_get(
+                f"/workout-plans/{int(plan_instance_id)}/execution"
+            )
+        except (requests.RequestException, TypeError, ValueError):
+            continue
+
+        if status == "selected":
+            st.session_state.selected_workout_plan_response = execution_response
+        else:
+            st.session_state.started_workout_plan_response = execution_response
+
+        return execution_response
+
+    return None
+
+
+def get_plan_statuses(plan_response: dict | None) -> tuple[str | None, str | None]:
+    if not plan_response:
+        return None, None
+
+    workout_plan_instance = plan_response.get("workout_plan_instance") or {}
+    execution_session = plan_response.get("execution_session") or {}
+
+    return workout_plan_instance.get("status"), execution_session.get("status")
+
+
+def is_started_or_in_progress(plan_response: dict | None) -> bool:
+    plan_status, execution_status = get_plan_statuses(plan_response)
+    return plan_status in {"started", "in_progress"} or execution_status in {
+        "started",
+        "in_progress",
+    }
+
+
+def is_in_progress(plan_response: dict | None) -> bool:
+    plan_status, execution_status = get_plan_statuses(plan_response)
+    return plan_status == "in_progress" or execution_status == "in_progress"
+
+
+def render_active_plan_summary(plan_response: dict | None) -> None:
+    if not plan_response:
+        st.info("No active selected workout plan yet. Preview and select one first.")
+        return
+
+    workout_plan_instance = plan_response.get("workout_plan_instance") or {}
+    execution_session = plan_response.get("execution_session") or {}
+    planned_exercises = plan_response.get("planned_exercises") or []
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Plan ID", workout_plan_instance.get("id", "Unknown"))
+    col2.metric("Plan", humanize_label(workout_plan_instance.get("status")))
+    col3.metric("Execution", humanize_label(execution_session.get("status")))
     col4.metric(
-        "Sleep Trend",
-        recovery["sleep_trend"],
+        "Workout Session",
+        execution_session.get("workout_session_id") or "Not created",
     )
 
-    col5.metric(
-        "Weight Trend",
-        recovery["weight_trend"],
-    )
-
-    col6.metric(
-        "System Stress",
-        health_state.get("system_stress_level", "Unknown"),
-    )
-
-    st.caption(
-        f"Training adherence: "
-        f"{training['adherence_level']} | "
-        f"Training trend: "
-        f"{training['training_trend']}"
-    )
-
-st.write(
-    "Current Job ID:",
-    st.session_state.report_job_id,
-)
-
-st.write(
-    "Last Completed Job:",
-    st.session_state.last_completed_job_id,
-)
-
-if st.session_state.health_report_timestamp:
-    st.caption(f"Last Generated: {st.session_state.health_report_timestamp}")
-
-# =====================================
-# Daily Grounded Recommendation
-# =====================================
-
-st.header("✅ Daily Grounded Recommendation")
-
-try:
-    recommendation_data = api_get(f"/recommendations/daily/{user_id}")
-
-    if recommendation_data.get("success"):
-        scenario = recommendation_data.get("scenario")
-        confidence = recommendation_data.get("confidence", "Unknown")
-        approved_plan = recommendation_data.get("approved_action_plan", {})
-        nutrition_targets = recommendation_data.get("nutrition_targets", {})
-        training_constraints = recommendation_data.get("training_constraints", {})
-
-        col1, col2 = st.columns(2)
-
-        col1.metric(
-            "Status",
-            scenario_display_name(scenario),
+    if execution_session.get("started_at") or execution_session.get("completed_at"):
+        col5, col6 = st.columns(2)
+        col5.caption(f"Started: {execution_session.get('started_at') or 'Not started'}")
+        col6.caption(
+            f"Completed: {execution_session.get('completed_at') or 'Not completed'}"
         )
 
-        col2.metric(
-            "Confidence",
-            confidence,
+    if planned_exercises:
+        with st.expander("Planned exercises", expanded=False):
+            display_planned_exercises(planned_exercises)
+
+
+def render_preview_exercise_snapshot(workout_plan: dict) -> None:
+    exercises = workout_plan.get("exercises") or []
+
+    if not exercises:
+        st.info("No exercises were returned for today's workout preview.")
+        return
+
+    rows = []
+    for index, exercise in enumerate(exercises):
+        rows.append(
+            {
+                "Slot": workout_exercise_role_label(index, exercise),
+                "Exercise": exercise.get("name", "Unknown"),
+                "Sets": exercise.get("sets", "Unknown"),
+                "Reps": format_workout_range(
+                    exercise.get("reps_min"),
+                    exercise.get("reps_max"),
+                ),
+                "RIR": format_workout_range(
+                    exercise.get("rir_min"),
+                    exercise.get("rir_max"),
+                ),
+            }
         )
 
-        st.subheader("Daily Coaching Recommendation")
-        st.write(
-            approved_plan.get(
-                "daily_coaching_recommendation",
-                "No daily coaching recommendation available.",
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+
+def select_today_workout(user_id: int, button_key: str) -> None:
+    if st.button("Select This Workout", key=button_key, type="primary"):
+        try:
+            select_response = api_post(f"/workout-plans/{user_id}/select")
+        except requests.RequestException as exc:
+            st.session_state.workout_plan_action_error = (
+                f"Workout plan selection failed: {extract_api_error_message(exc)}"
             )
-        )
+            st.rerun()
 
-        st.subheader("Workout Recommendation")
-        st.write(
-            approved_plan.get(
-                "workout_recommendation",
-                "No workout recommendation available.",
-            )
-        )
+        if select_response.get("success"):
+            st.session_state.selected_workout_plan_response = select_response
+            st.session_state.started_workout_plan_response = None
+            st.session_state.workout_plan_action_error = None
+            st.session_state.actual_set_logging_message = None
+            st.session_state.completed_workout_plan_response = None
+            st.session_state.workout_completion_message = None
+            st.session_state.workout_completion_error = None
+            st.session_state.visible_substitution_candidates = []
+            st.session_state.applied_substitution_responses = {}
+            st.session_state.substitution_apply_message = None
+            st.session_state.substitution_apply_error = None
+            st.success("Workout plan selected.")
+            st.rerun()
 
-        st.subheader("Nutrition Action")
-        st.write(
-            approved_plan.get(
-                "nutrition_action",
-                "No nutrition action available.",
-            )
-        )
+        st.session_state.workout_plan_action_error = "Workout plan selection failed."
+        st.rerun()
 
-        st.subheader("Why")
-        st.write(
-            approved_plan.get(
-                "rationale",
-                "No rationale available.",
-            )
-        )
 
-        display_nutrition_targets(nutrition_targets)
-        display_training_constraints(training_constraints)
+def start_active_workout(plan_response: dict | None) -> None:
+    plan_instance_id = get_plan_instance_id_from_response(plan_response)
 
-        with st.expander("Developer details"):
-            st.json(recommendation_data)
+    if plan_instance_id is None:
+        st.info("Select a workout plan before starting.")
+        return
 
+    workout_plan_instance = plan_response.get("workout_plan_instance") or {}
+    plan_status = workout_plan_instance.get("status")
+
+    if plan_status == "selected":
+        if st.button(
+            "Start Workout", key=f"start_workout_{plan_instance_id}", type="primary"
+        ):
+            try:
+                start_response = api_post(f"/workout-plans/{plan_instance_id}/start")
+            except requests.RequestException as exc:
+                st.session_state.workout_plan_action_error = (
+                    f"Workout plan start failed: {extract_api_error_message(exc)}"
+                )
+                st.rerun()
+
+            if start_response.get("success"):
+                st.session_state.started_workout_plan_response = start_response
+                st.session_state.workout_plan_action_error = None
+                st.session_state.actual_set_logging_message = None
+                st.session_state.completed_workout_plan_response = None
+                st.session_state.workout_completion_message = None
+                st.session_state.workout_completion_error = None
+                st.success("Workout started.")
+                st.rerun()
+
+            st.session_state.workout_plan_action_error = "Workout plan start failed."
+            st.rerun()
+
+    elif plan_status in {"started", "in_progress"}:
+        st.success("Workout is active. Log sets below.")
+    elif plan_status == "completed":
+        st.info("This workout is already completed.")
     else:
-        st.warning("No daily recommendation is available for this user yet.")
-
-except requests.RequestException as exc:
-    st.error(f"Failed to load daily recommendation: {exc}")
+        st.info(f"Current plan status: {humanize_label(plan_status)}")
 
 
-# =====================================
-# Equipment Profile Editor
-# =====================================
+def render_equipment_profile_editor(user_id: int) -> None:
+    if st.session_state.equipment_profile_saved:
+        st.success(
+            "Equipment profile saved. Workout preview will use the updated profile."
+        )
+        st.session_state.equipment_profile_saved = False
 
-st.header("🏋️ Equipment Profile")
-
-if st.session_state.equipment_profile_saved:
-    st.success(
-        "Equipment profile saved. Workout Plan Preview will use the updated profile."
-    )
-    st.session_state.equipment_profile_saved = False
-
-try:
-    equipment_profile_response = api_get(f"/users/{user_id}/equipment-profile")
+    try:
+        equipment_profile_response = api_get(f"/users/{user_id}/equipment-profile")
+    except requests.RequestException as exc:
+        st.error(f"Failed to load equipment profile: {extract_api_error_message(exc)}")
+        return
 
     equipment_profile = equipment_profile_response.get("equipment_profile", {})
     equipment_profile_source = equipment_profile_response.get("source", "unknown")
-
     source_label = (
         "Explicit profile"
         if equipment_profile_source == "explicit"
@@ -2717,25 +2763,15 @@ try:
         "training_environment",
         "unknown",
     )
-
-    current_available_equipment = equipment_profile.get(
-        "available_equipment",
-        [],
-    )
-
-    current_unavailable_equipment = equipment_profile.get(
-        "unavailable_equipment",
-        [],
-    )
+    current_available_equipment = equipment_profile.get("available_equipment", [])
+    current_unavailable_equipment = equipment_profile.get("unavailable_equipment", [])
 
     training_environment_keys = list(TRAINING_ENVIRONMENT_OPTIONS.keys())
-
-    if current_training_environment in training_environment_keys:
-        training_environment_index = training_environment_keys.index(
-            current_training_environment
-        )
-    else:
-        training_environment_index = training_environment_keys.index("unknown")
+    training_environment_index = (
+        training_environment_keys.index(current_training_environment)
+        if current_training_environment in training_environment_keys
+        else training_environment_keys.index("unknown")
+    )
 
     with st.form("equipment_profile_form"):
         selected_training_environment = st.selectbox(
@@ -2777,663 +2813,727 @@ try:
         }
 
         try:
-            save_response = api_put(
-                f"/users/{user_id}/equipment-profile",
-                payload,
-            )
-
-            if save_response.get("success"):
-                st.session_state.equipment_profile_saved = True
-                st.session_state.selected_workout_plan_response = None
-                st.session_state.started_workout_plan_response = None
-                st.session_state.workout_plan_action_error = None
-                st.session_state.actual_set_logging_message = None
-                st.session_state.completed_workout_plan_response = None
-                st.session_state.workout_completion_message = None
-                st.session_state.workout_completion_error = None
-                st.session_state.visible_substitution_candidates = []
-                st.session_state.applied_substitution_responses = {}
-                st.session_state.substitution_apply_message = None
-                st.session_state.substitution_apply_error = None
-                st.rerun()
-            else:
-                st.error("Equipment profile save failed.")
-
+            save_response = api_put(f"/users/{user_id}/equipment-profile", payload)
         except requests.RequestException as exc:
-            st.error(f"Equipment profile save failed: {exc}")
+            st.error(f"Equipment profile save failed: {extract_api_error_message(exc)}")
+            return
 
-    with st.expander("Developer details: equipment profile"):
-        st.json(equipment_profile_response)
+        if save_response.get("success"):
+            st.session_state.equipment_profile_saved = True
+            st.session_state.selected_workout_plan_response = None
+            st.session_state.started_workout_plan_response = None
+            st.session_state.workout_plan_action_error = None
+            st.session_state.actual_set_logging_message = None
+            st.session_state.completed_workout_plan_response = None
+            st.session_state.workout_completion_message = None
+            st.session_state.workout_completion_error = None
+            st.session_state.visible_substitution_candidates = []
+            st.session_state.applied_substitution_responses = {}
+            st.session_state.substitution_apply_message = None
+            st.session_state.substitution_apply_error = None
+            st.rerun()
 
-except requests.RequestException as exc:
-    st.error(f"Failed to load equipment profile: {exc}")
+        st.error("Equipment profile save failed.")
 
-
-# =====================================
-# Exercise Catalog
-# =====================================
-
-display_exercise_catalog(user_id)
-
-
-# =====================================
-# Workout Plan Preview
-# =====================================
-
-st.header("🏋️ Workout Plan Preview")
-
-try:
-    workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
-
-    if workout_plan_data.get("success"):
-        scenario = workout_plan_data.get("scenario")
-        confidence = workout_plan_data.get("confidence", "Unknown")
-        approved_workout_plan = workout_plan_data.get("approved_workout_plan", {})
-        training_constraints = workout_plan_data.get("training_constraints", {})
-        workout_constraints = workout_plan_data.get("workout_constraints", {})
-
-        col1, col2 = st.columns(2)
-
-        col1.metric(
-            "Plan Context",
-            scenario_display_name(scenario),
-        )
-
-        col2.metric(
-            "Confidence",
-            confidence,
-        )
-
-        display_workout_plan_preview(approved_workout_plan)
-
-        if st.button("Select This Plan", key="select_workout_plan_button"):
-            try:
-                select_response = api_post(f"/workout-plans/{user_id}/select")
-
-                if select_response.get("success"):
-                    st.session_state.selected_workout_plan_response = select_response
-                    st.session_state.started_workout_plan_response = None
-                    st.session_state.workout_plan_action_error = None
-                    st.session_state.actual_set_logging_message = None
-                    st.session_state.completed_workout_plan_response = None
-                    st.session_state.workout_completion_message = None
-                    st.session_state.workout_completion_error = None
-                    st.session_state.visible_substitution_candidates = []
-                    st.session_state.applied_substitution_responses = {}
-                    st.session_state.substitution_apply_message = None
-                    st.session_state.substitution_apply_error = None
-                    st.success("Workout plan selected.")
-                    st.rerun()
-                else:
-                    st.session_state.workout_plan_action_error = (
-                        "Workout plan selection failed."
-                    )
-
-            except requests.RequestException as exc:
-                st.session_state.workout_plan_action_error = (
-                    f"Workout plan selection failed: {extract_api_error_message(exc)}"
-                )
-
-        active_plan_response = (
-            st.session_state.started_workout_plan_response
-            or st.session_state.selected_workout_plan_response
-        )
-
-        if active_plan_response:
-            display_selected_workout_plan_state(active_plan_response)
-
-            workout_plan_instance = active_plan_response.get(
-                "workout_plan_instance",
-                {},
-            )
-            plan_instance_id = workout_plan_instance.get("id")
-
-            if plan_instance_id is not None:
-                start_button_label = (
-                    "Start Selected Plan"
-                    if workout_plan_instance.get("status") == "selected"
-                    else "Start Again"
-                )
-
-                if st.button(
-                    start_button_label,
-                    key=f"start_workout_plan_button_{plan_instance_id}",
-                ):
-                    try:
-                        start_response = api_post(
-                            f"/workout-plans/{plan_instance_id}/start"
-                        )
-
-                        if start_response.get("success"):
-                            st.session_state.started_workout_plan_response = (
-                                start_response
-                            )
-                            st.session_state.workout_plan_action_error = None
-                            st.session_state.actual_set_logging_message = None
-                            st.session_state.completed_workout_plan_response = None
-                            st.session_state.workout_completion_message = None
-                            st.session_state.workout_completion_error = None
-                            st.success("Workout plan started.")
-                            st.rerun()
-                        else:
-                            st.session_state.workout_plan_action_error = (
-                                "Workout plan start failed."
-                            )
-
-                    except requests.RequestException as exc:
-                        st.session_state.workout_plan_action_error = (
-                            "Workout plan start failed: "
-                            f"{extract_api_error_message(exc)}"
-                        )
-
-                display_actual_set_logging(plan_instance_id)
-                display_complete_workout_control(plan_instance_id)
-                display_workout_execution_review(plan_instance_id)
-
-        if st.session_state.workout_plan_action_error:
-            st.error(st.session_state.workout_plan_action_error)
-
-        with st.expander("Developer details: workout plan preview/select/start"):
-            st.subheader("Training Constraints")
-            st.json(training_constraints)
-            st.subheader("Workout Constraints")
-            st.json(workout_constraints)
-            st.subheader("Raw Workout Plan Preview Response")
-            st.json(workout_plan_data)
-
-            if st.session_state.selected_workout_plan_response:
-                st.subheader("Raw Select Response")
-                st.json(st.session_state.selected_workout_plan_response)
-
-            if st.session_state.started_workout_plan_response:
-                st.subheader("Raw Start Response")
-                st.json(st.session_state.started_workout_plan_response)
-
-    else:
-        st.warning("No workout plan preview is available for this user yet.")
-
-except requests.RequestException as exc:
-    st.error(f"Failed to load workout plan preview: {exc}")
-
-
-# =====================================
-# Workout Execution History
-# =====================================
-
-display_workout_execution_history(user_id)
-
-
-# =====================================
-# Generate Report Button
-# =====================================
-
-if st.session_state.report_job_id is None:
-    if st.button(
-        "Generate AI Health Report",
-        key="generate_ai_report_button",
-    ):
-        response = requests.post(f"http://127.0.0.1:8000/reports/generate/{user_id}")
-
-        data = response.json()
-
-        if data["success"]:
-            st.session_state.report_job_id = data["job_id"]
-
-            st.session_state.report_job_status = data["status"]
-
-        else:
-            st.error("Failed to start AI report generation.")
-
-
-# =====================================
-# Active Report Polling
-# =====================================
-
-if st.session_state.report_job_id:
-    response = requests.get(
-        f"{API_BASE_URL}/reports/status/{st.session_state.report_job_id}"
+    developer_details(
+        "Developer details: equipment profile", equipment_profile_response
     )
 
-    data = response.json()
 
-    if data["success"]:
+def render_today_section(user_id: int) -> None:
+    st.header("Today")
+    st.caption(
+        "Start here: check readiness, see the daily recommendation, and preview today's workout."
+    )
+
+    health_col, action_col = st.columns([1.05, 1.25])
+
+    with health_col:
+        st.subheader("Readiness")
+        try:
+            data = api_get(f"/health-state/{user_id}")
+        except requests.RequestException as exc:
+            st.error(f"Failed to load health state: {extract_api_error_message(exc)}")
+            data = {}
+
+        if data.get("success"):
+            health_state = data["health_state"]
+            recovery = health_state.get("recovery_state", {})
+            training = health_state.get("training_state", {})
+
+            col1, col2 = st.columns(2)
+            col1.metric("Recovery", recovery.get("recovery_score", "Unknown"))
+            col2.metric("Readiness", recovery.get("readiness_level", "Unknown"))
+
+            col3, col4 = st.columns(2)
+            col3.metric("Fatigue Risk", recovery.get("fatigue_risk", "Unknown"))
+            col4.metric(
+                "System Stress", health_state.get("system_stress_level", "Unknown")
+            )
+
+            st.caption(
+                "Training: "
+                f"{training.get('adherence_level', 'Unknown')} adherence | "
+                f"{training.get('training_trend', 'Unknown')} trend"
+            )
+            developer_details("Developer details: health state", data)
+
+    with action_col:
+        st.subheader("Daily Grounded Recommendation")
+        try:
+            recommendation_data = api_get(f"/recommendations/daily/{user_id}")
+        except requests.RequestException as exc:
+            st.error(
+                f"Failed to load daily recommendation: {extract_api_error_message(exc)}"
+            )
+            recommendation_data = {}
+
+        if recommendation_data.get("success"):
+            scenario = recommendation_data.get("scenario")
+            confidence = recommendation_data.get("confidence", "Unknown")
+            approved_plan = recommendation_data.get("approved_action_plan", {})
+            training_constraints = recommendation_data.get("training_constraints", {})
+
+            col1, col2 = st.columns(2)
+            col1.metric("Status", scenario_display_name(scenario))
+            col2.metric("Confidence", confidence)
+
+            st.write(
+                approved_plan.get(
+                    "daily_coaching_recommendation",
+                    "No daily coaching recommendation available.",
+                )
+            )
+
+            with st.expander("Workout and nutrition details", expanded=False):
+                st.write("**Workout:**")
+                st.write(
+                    approved_plan.get(
+                        "workout_recommendation",
+                        "No workout recommendation available.",
+                    )
+                )
+                st.write("**Nutrition:**")
+                st.write(
+                    approved_plan.get(
+                        "nutrition_action",
+                        "No nutrition action available.",
+                    )
+                )
+                st.write("**Why:**")
+                st.write(approved_plan.get("rationale", "No rationale available."))
+                display_training_constraints(training_constraints)
+
+            developer_details(
+                "Developer details: daily recommendation", recommendation_data
+            )
+        else:
+            st.warning("No daily recommendation is available for this user yet.")
+
+    st.divider()
+    st.subheader("Today's Workout At A Glance")
+
+    try:
+        workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
+    except requests.RequestException as exc:
+        st.error(f"Failed to load workout preview: {extract_api_error_message(exc)}")
+        return
+
+    if not workout_plan_data.get("success"):
+        st.warning("No workout plan preview is available for this user yet.")
+        return
+
+    approved_workout_plan = workout_plan_data.get("approved_workout_plan", {})
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Workout", approved_workout_plan.get("title", "Workout Plan"))
+    col2.metric(
+        "Duration", f"{approved_workout_plan.get('duration_minutes', 'Unknown')} min"
+    )
+    col3.metric("Confidence", workout_plan_data.get("confidence", "Unknown"))
+
+    st.write(f"**Focus:** {approved_workout_plan.get('session_focus', 'Unknown')}")
+    render_preview_exercise_snapshot(approved_workout_plan)
+
+    active_plan_response = get_active_plan_response(user_id)
+    if active_plan_response:
+        st.success("You already have an active selected workout plan.")
+        render_active_plan_summary(active_plan_response)
+    else:
+        select_today_workout(user_id, "select_today_workout_button")
+
+    developer_details("Developer details: workout preview", workout_plan_data)
+
+
+def render_workout_plan_section(user_id: int) -> None:
+    st.header("Workout Plan")
+    st.caption(
+        "Simple flow: preview the plan, select it, start it, log sets, complete it, then review the result."
+    )
+
+    if st.session_state.workout_plan_action_error:
+        st.error(st.session_state.workout_plan_action_error)
+
+    plan_tab, do_tab, review_tab = st.tabs(["1. Plan", "2. Do Workout", "3. Review"])
+
+    with plan_tab:
+        with st.expander("Equipment Profile", expanded=False):
+            render_equipment_profile_editor(user_id)
+
+        st.subheader("Workout Preview")
+        try:
+            workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
+        except requests.RequestException as exc:
+            st.error(
+                f"Failed to load workout plan preview: {extract_api_error_message(exc)}"
+            )
+            return
+
+        if workout_plan_data.get("success"):
+            scenario = workout_plan_data.get("scenario")
+            confidence = workout_plan_data.get("confidence", "Unknown")
+            approved_workout_plan = workout_plan_data.get("approved_workout_plan", {})
+
+            col1, col2 = st.columns(2)
+            col1.metric("Plan Context", scenario_display_name(scenario))
+            col2.metric("Confidence", confidence)
+
+            display_workout_plan_preview(approved_workout_plan)
+
+            active_plan_response = get_active_plan_response(user_id)
+            if active_plan_response:
+                st.info(
+                    "An active selected workout exists. Use the Do Workout tab to continue."
+                )
+                render_active_plan_summary(active_plan_response)
+            else:
+                select_today_workout(user_id, "select_workout_plan_button")
+
+            if st.session_state.get("developer_mode", False):
+                with st.expander(
+                    "Developer details: workout plan preview/select/start"
+                ):
+                    st.subheader("Training Constraints")
+                    st.json(workout_plan_data.get("training_constraints", {}))
+                    st.subheader("Workout Constraints")
+                    st.json(workout_plan_data.get("workout_constraints", {}))
+                    st.subheader("Raw Workout Plan Preview Response")
+                    st.json(workout_plan_data)
+
+        else:
+            st.warning("No workout plan preview is available for this user yet.")
+
+    with do_tab:
+        active_plan_response = get_active_plan_response(user_id)
+        render_active_plan_summary(active_plan_response)
+
+        if active_plan_response:
+            plan_instance_id = get_plan_instance_id_from_response(active_plan_response)
+            if plan_instance_id is None:
+                st.warning("The active plan is missing a plan instance ID.")
+            else:
+                start_active_workout(active_plan_response)
+
+                if is_started_or_in_progress(active_plan_response):
+                    st.divider()
+                    display_actual_set_logging(plan_instance_id)
+
+                if is_in_progress(active_plan_response):
+                    st.divider()
+                    display_complete_workout_control(plan_instance_id)
+
+    with review_tab:
+        active_plan_response = get_active_plan_response(user_id)
+        plan_instance_id = get_plan_instance_id_from_response(active_plan_response)
+
+        if plan_instance_id is None:
+            st.info("Select or start a workout plan to review execution details.")
+        else:
+            display_workout_execution_review(plan_instance_id)
+
+
+def render_log_workout_section(user_id: int) -> None:
+    st.header("Log Workout")
+    st.caption(
+        "Use this for daily check-ins, food logging, and manual workouts outside the planned workout flow."
+    )
+
+    recovery_tab, nutrition_tab, manual_workout_tab = st.tabs(
+        ["Recovery Check-In", "Nutrition", "Manual Workout"]
+    )
+
+    with recovery_tab:
+        st.subheader("Recovery Check-In")
+        with st.form("recovery_checkin_form"):
+            body_weight = st.number_input(
+                "Body Weight", min_value=0.0, value=200.0, step=0.5
+            )
+            sleep_hours = st.number_input(
+                "Sleep Hours", min_value=0.0, max_value=24.0, value=7.0, step=0.5
+            )
+            energy_level = st.slider("Energy Level", min_value=1, max_value=10, value=6)
+            soreness_level = st.slider(
+                "Soreness Level", min_value=1, max_value=10, value=4
+            )
+            mood = st.text_input("Mood", value="Okay")
+            notes = st.text_area("Recovery Notes")
+            recovery_submitted = st.form_submit_button("Save Recovery Check-In")
+
+        if recovery_submitted:
+            payload = {
+                "user_id": user_id,
+                "body_weight": body_weight,
+                "sleep_hours": sleep_hours,
+                "energy_level": energy_level,
+                "soreness_level": soreness_level,
+                "mood": mood,
+                "notes": notes,
+            }
+            try:
+                data = api_post("/recovery/checkins", payload)
+            except requests.RequestException as exc:
+                st.error(f"Recovery check-in failed: {extract_api_error_message(exc)}")
+            else:
+                if data.get("success", True):
+                    st.success("Recovery check-in saved.")
+                else:
+                    st.error(data.get("message", "Recovery check-in failed."))
+
+    with nutrition_tab:
+        st.subheader("Log Food")
+        with st.form("food_search_form"):
+            food_query = st.text_input("Search Food", value="")
+            search_food = st.form_submit_button("Search Food")
+
+        if search_food:
+            if not food_query.strip():
+                st.warning("Enter a food search term.")
+            else:
+                try:
+                    data = api_get("/foods/search", params={"query": food_query})
+                except requests.RequestException as exc:
+                    st.error(f"Food search failed: {extract_api_error_message(exc)}")
+                else:
+                    st.session_state.food_search_results = data.get("foods", [])
+                    if not st.session_state.food_search_results:
+                        st.warning("No foods found.")
+
+        if st.session_state.food_search_results:
+            food_options = {
+                f"{food['id']} - {food['name']}": food
+                for food in st.session_state.food_search_results
+            }
+            selected_food_label = st.selectbox("Select Food", list(food_options.keys()))
+            selected_food = food_options[selected_food_label]
+            grams = st.number_input(
+                "Grams Consumed", min_value=1.0, value=100.0, step=5.0
+            )
+
+            if st.button("Log Food", key="log_food_button"):
+                payload = {
+                    "user_id": user_id,
+                    "food_id": selected_food["id"],
+                    "grams": grams,
+                }
+                try:
+                    data = api_post("/nutrition/log", payload)
+                except requests.RequestException as exc:
+                    st.error(f"Food logging failed: {extract_api_error_message(exc)}")
+                else:
+                    if data.get("success", True):
+                        st.success("Food logged successfully.")
+                        st.session_state.food_search_results = []
+                        st.rerun()
+                    else:
+                        st.error(data.get("message", "Food logging failed."))
+
+        st.subheader("Today's Nutrition")
+        today = datetime.now().strftime("%Y-%m-%d")
+        try:
+            data = api_get(f"/nutrition/{user_id}/{today}")
+        except requests.RequestException as exc:
+            st.error(f"Failed to load nutrition: {extract_api_error_message(exc)}")
+        else:
+            nutrition = data.get("nutrition") or {}
+            if nutrition:
+                nutrition_rows = [
+                    {
+                        "Nutrient": nutrient_name,
+                        "Amount": nutrient_data["amount"],
+                        "Unit": nutrient_data["unit"],
+                    }
+                    for nutrient_name, nutrient_data in nutrition.items()
+                ]
+                st.dataframe(
+                    pd.DataFrame(nutrition_rows), width="stretch", hide_index=True
+                )
+            else:
+                st.info("No nutrition data found for today.")
+
+    with manual_workout_tab:
+        st.subheader("Manual Workout Logger")
+        try:
+            exercise_response = api_get("/exercises")
+            exercise_data = exercise_response.get("exercises", [])
+        except requests.RequestException as exc:
+            st.error(f"Failed to load exercises: {extract_api_error_message(exc)}")
+            exercise_data = []
+
+        exercise_options = {
+            f"{exercise['name']} ({exercise.get('equipment', 'Unknown')})": exercise
+            for exercise in exercise_data
+        }
+
+        if not exercise_options:
+            st.warning(
+                "No exercises found. Make sure the /exercises endpoint is working."
+            )
+        else:
+            with st.form("workout_logger_form"):
+                workout_name = st.text_input("Workout Name", value="Manual Workout")
+                duration_minutes = st.number_input(
+                    "Duration (minutes)", min_value=1, value=30
+                )
+                selected_label = st.selectbox("Exercise", list(exercise_options.keys()))
+                reps = st.number_input("Reps", min_value=1, value=10)
+                weight = st.number_input("Weight", min_value=0.0, value=50.0, step=5.0)
+                rir = st.slider("RIR", min_value=0, max_value=5, value=2)
+                add_set = st.form_submit_button("Add Set")
+
+            if add_set:
+                selected_exercise = exercise_options[selected_label]
+                set_number = len(st.session_state.current_sets) + 1
+                st.session_state.current_sets.append(
+                    {
+                        "exercise_id": selected_exercise["id"],
+                        "exercise_name": selected_exercise["name"],
+                        "set_number": set_number,
+                        "reps": reps,
+                        "weight": weight,
+                        "rir": rir,
+                    }
+                )
+                st.success("Set added.")
+
+            if st.session_state.current_sets:
+                st.write("**Current Manual Workout**")
+                st.dataframe(
+                    pd.DataFrame(st.session_state.current_sets),
+                    width="stretch",
+                    hide_index=True,
+                )
+                notes = st.text_area("Workout Notes")
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Save Manual Workout"):
+                        payload = {
+                            "user_id": user_id,
+                            "workout_name": workout_name,
+                            "duration_minutes": duration_minutes,
+                            "notes": notes,
+                            "sets": [
+                                {
+                                    "exercise_id": set_data["exercise_id"],
+                                    "set_number": set_data["set_number"],
+                                    "reps": set_data["reps"],
+                                    "weight": set_data["weight"],
+                                    "rir": set_data["rir"],
+                                }
+                                for set_data in st.session_state.current_sets
+                            ],
+                        }
+                        try:
+                            data = api_post("/workouts/create", payload)
+                        except requests.RequestException as exc:
+                            st.error(
+                                f"Workout save failed: {extract_api_error_message(exc)}"
+                            )
+                        else:
+                            if data.get("success", True):
+                                st.success("Workout saved successfully.")
+                                st.session_state.current_sets = []
+                                st.rerun()
+                            else:
+                                st.error(data.get("message", "Workout save failed."))
+                with col2:
+                    if st.button("Clear Manual Workout"):
+                        st.session_state.current_sets = []
+                        st.rerun()
+
+
+def render_history_section(user_id: int) -> None:
+    st.header("History")
+    history_tab, manual_tab = st.tabs(["Planned Workout History", "Manual Workouts"])
+
+    with history_tab:
+        display_workout_execution_history(user_id)
+
+    with manual_tab:
+        st.subheader("Recent Manual Workouts")
+        try:
+            data = api_get(f"/workouts/{user_id}")
+        except requests.RequestException as exc:
+            st.error(
+                f"Failed to load recent workouts: {extract_api_error_message(exc)}"
+            )
+            return
+
+        workouts = data.get("workouts") or []
+        if not workouts:
+            st.info("No manual workout data found.")
+            return
+
+        for workout in workouts:
+            session = workout["session"]
+            with st.expander(f"{session['workout_date']} — {session['workout_name']}"):
+                col1, col2 = st.columns(2)
+                col1.metric("Duration", f"{session['duration_minutes']} min")
+                col2.metric("Session ID", session.get("id", "Unknown"))
+
+                workout_rows = [
+                    {
+                        "Exercise": set_data["name"],
+                        "Set": set_data["set_number"],
+                        "Reps": set_data["reps"],
+                        "Weight": set_data["weight"],
+                        "RIR": set_data["rir"],
+                    }
+                    for set_data in workout["sets"]
+                ]
+                st.dataframe(
+                    pd.DataFrame(workout_rows), width="stretch", hide_index=True
+                )
+
+
+def poll_report_status(user_id: int) -> None:
+    if not st.session_state.report_job_id:
+        return
+
+    try:
+        data = api_get(f"/reports/status/{st.session_state.report_job_id}")
+    except requests.RequestException as exc:
+        st.error(f"Report status check failed: {extract_api_error_message(exc)}")
+        st.session_state.report_job_id = None
+        st.session_state.report_job_status = None
+        return
+
+    if data.get("success"):
         st.session_state.report_job_status = data["status"]
-
-        # ---------------------------------
-        # Running
-        # ---------------------------------
 
         if data["status"] == "running":
             st.info("Generating report...")
-
             st_autorefresh(interval=3000, key="report_refresh")
-
-        # ---------------------------------
-        # Completed
-        # ---------------------------------
-
         elif data["status"] == "completed":
-            latest_response = requests.get(f"{API_BASE_URL}/reports/latest/{user_id}")
-            latest_data = latest_response.json()
+            try:
+                latest_data = api_get(f"/reports/latest/{user_id}")
+            except requests.RequestException:
+                latest_data = {}
 
             if latest_data.get("success"):
                 latest_report = latest_data["report"]
-
                 st.session_state.health_report = latest_report["report_text"]
                 st.session_state.health_report_timestamp = latest_report["created_at"]
-
             else:
-                st.session_state.health_report = data["report"]
+                st.session_state.health_report = data.get("report")
                 st.session_state.health_report_timestamp = datetime.now().strftime(
                     "%Y-%m-%d %I:%M %p"
                 )
 
             st.session_state.last_completed_job_id = st.session_state.report_job_id
-
             st.session_state.report_job_id = None
-
             st.session_state.report_job_status = None
-
             st.success("AI report completed.")
-
-        # ---------------------------------
-        # Failed
-        # ---------------------------------
-
+            st.rerun()
         elif data["status"] == "failed":
-            st.error(f"AI report failed: {data['report']}")
-
+            st.error(f"AI report failed: {data.get('report')}")
             st.session_state.report_job_id = None
-
             st.session_state.report_job_status = None
-
     else:
-        latest_response = requests.get(f"{API_BASE_URL}/reports/latest/{user_id}")
-        latest_data = latest_response.json()
+        try:
+            latest_data = api_get(f"/reports/latest/{user_id}")
+        except requests.RequestException:
+            latest_data = {}
 
         if latest_data.get("success"):
             latest_report = latest_data["report"]
-
             st.session_state.health_report = latest_report["report_text"]
             st.session_state.health_report_timestamp = latest_report["created_at"]
-            st.session_state.report_job_id = None
-            st.session_state.report_job_status = None
-
             st.warning(
-                "The report job status is no longer available, "
-                "so the latest saved report was loaded."
+                "The report job status is no longer available, so the latest saved report was loaded."
             )
-
         else:
             st.warning(data.get("message", "Report job status unavailable."))
-            st.session_state.report_job_id = None
-            st.session_state.report_job_status = None
 
+        st.session_state.report_job_id = None
+        st.session_state.report_job_status = None
 
-# =====================================
-# Display Health Report
-# =====================================
 
-if st.session_state.health_report:
-    st.write(st.session_state.health_report)
+def render_reports_section(user_id: int) -> None:
+    st.header("Reports")
+    st.caption("Run the slower full report when you want a complete AI health summary.")
 
-elif st.session_state.report_job_id is None:
-    st.info("Click the button to generate a new AI health report.")
+    col1, col2 = st.columns(2)
 
-# =====================================
-# Recovery Check-In
-# =====================================
-
-st.header("🛌 Recovery Check-In")
-
-with st.form("recovery_checkin_form"):
-    body_weight = st.number_input(
-        "Body Weight",
-        min_value=0.0,
-        value=200.0,
-        step=0.5,
-    )
-
-    sleep_hours = st.number_input(
-        "Sleep Hours",
-        min_value=0.0,
-        max_value=24.0,
-        value=7.0,
-        step=0.5,
-    )
-
-    energy_level = st.slider(
-        "Energy Level",
-        min_value=1,
-        max_value=10,
-        value=6,
-    )
-
-    soreness_level = st.slider(
-        "Soreness Level",
-        min_value=1,
-        max_value=10,
-        value=4,
-    )
-
-    mood = st.text_input("Mood", value="Okay")
-
-    notes = st.text_area("Recovery Notes")
-
-    recovery_submitted = st.form_submit_button("Save Recovery Check-In")
-
-if recovery_submitted:
-    payload = {
-        "user_id": user_id,
-        "body_weight": body_weight,
-        "sleep_hours": sleep_hours,
-        "energy_level": energy_level,
-        "soreness_level": soreness_level,
-        "mood": mood,
-        "notes": notes,
-    }
-
-    try:
-        data = api_post("/recovery/checkins", payload)
-
-        if data.get("success", True):
-            st.success("Recovery check-in saved.")
-        else:
-            st.error(data.get("message", "Recovery check-in failed."))
-
-    except requests.RequestException as exc:
-        st.error(f"Recovery check-in failed: {exc}")
-
-# =====================================
-# Nutrition Logger
-# =====================================
-
-st.header("🍽️ Log Food")
-
-with st.form("food_search_form"):
-    food_query = st.text_input("Search Food", value="")
-    search_food = st.form_submit_button("Search Food")
-
-if search_food:
-    if not food_query.strip():
-        st.warning("Enter a food search term.")
-    else:
-        try:
-            data = api_get(
-                "/foods/search",
-                params={"query": food_query},
-            )
-
-            st.session_state.food_search_results = data.get("foods", [])
-
-            if not st.session_state.food_search_results:
-                st.warning("No foods found.")
-
-        except requests.RequestException as exc:
-            st.error(f"Food search failed: {exc}")
-
-if st.session_state.food_search_results:
-    food_options = {
-        f"{food['id']} - {food['name']}": food
-        for food in st.session_state.food_search_results
-    }
-
-    selected_food_label = st.selectbox(
-        "Select Food",
-        list(food_options.keys()),
-    )
-
-    selected_food = food_options[selected_food_label]
-
-    grams = st.number_input(
-        "Grams Consumed",
-        min_value=1.0,
-        value=100.0,
-        step=5.0,
-    )
-
-    if st.button("Log Food", key="log_food_button"):
-        payload = {
-            "user_id": user_id,
-            "food_id": selected_food["id"],
-            "grams": grams,
-        }
-
-        try:
-            data = api_post("/nutrition/log", payload)
-
-            if data.get("success", True):
-                st.success("Food logged successfully.")
-                st.session_state.food_search_results = []
-                st.rerun()
-            else:
-                st.error(data.get("message", "Food logging failed."))
-
-        except requests.RequestException as exc:
-            st.error(f"Food logging failed: {exc}")
-
-# =====================================
-# Nutrition Section
-# =====================================
-
-st.header("🍎 Nutrition")
-
-today = datetime.now().strftime("%Y-%m-%d")
-
-response = requests.get(f"http://127.0.0.1:8000/nutrition/{user_id}/{today}")
-
-data = response.json()
-
-nutrition = data.get("nutrition") or {}
-
-if nutrition:
-    nutrition_rows = []
-
-    for nutrient_name, nutrient_data in nutrition.items():
-        nutrition_rows.append(
-            {
-                "Nutrient": nutrient_name,
-                "Amount": nutrient_data["amount"],
-                "Unit": nutrient_data["unit"],
-            }
-        )
-
-    nutrition_df = pd.DataFrame(nutrition_rows)
-
-    st.dataframe(
-        nutrition_df,
-        width="stretch",
-    )
-
-else:
-    st.warning("No nutrition data found.")
-
-# =====================================
-# Workout Logger
-# =====================================
-
-st.header("📝 Log Workout")
-
-try:
-    exercise_response = api_get("/exercises")
-    exercise_data = exercise_response.get("exercises", [])
-
-except requests.RequestException as exc:
-    st.error(f"Failed to load exercises: {exc}")
-    exercise_data = []
-
-exercise_options = {
-    f"{exercise['name']} ({exercise['equipment']})": exercise
-    for exercise in exercise_data
-}
-
-if exercise_options:
-    with st.form("workout_logger_form"):
-        workout_name = st.text_input(
-            "Workout Name",
-            value="Test Workout",
-        )
-
-        duration_minutes = st.number_input(
-            "Duration (minutes)",
-            min_value=1,
-            value=30,
-        )
-
-        selected_label = st.selectbox(
-            "Exercise",
-            list(exercise_options.keys()),
-        )
-
-        reps = st.number_input(
-            "Reps",
-            min_value=1,
-            value=10,
-        )
-
-        weight = st.number_input(
-            "Weight",
-            min_value=0.0,
-            value=50.0,
-            step=5.0,
-        )
-
-        rir = st.slider(
-            "RIR",
-            min_value=0,
-            max_value=5,
-            value=2,
-        )
-
-        add_set = st.form_submit_button("Add Set")
-
-    if add_set:
-        selected_exercise = exercise_options[selected_label]
-
-        set_number = len(st.session_state.current_sets) + 1
-
-        st.session_state.current_sets.append(
-            {
-                "exercise_id": selected_exercise["id"],
-                "exercise_name": selected_exercise["name"],
-                "set_number": set_number,
-                "reps": reps,
-                "weight": weight,
-                "rir": rir,
-            }
-        )
-
-        st.success("Set added.")
-
-    if st.session_state.current_sets:
-        st.subheader("Current Workout")
-
-        workout_preview = pd.DataFrame(st.session_state.current_sets)
-
-        st.dataframe(
-            workout_preview,
-            width="stretch",
-        )
-
-        notes = st.text_area("Workout Notes")
-
-        if st.button("Save Workout"):
-            payload = {
-                "user_id": user_id,
-                "workout_name": workout_name,
-                "duration_minutes": duration_minutes,
-                "notes": notes,
-                "sets": [
-                    {
-                        "exercise_id": set_data["exercise_id"],
-                        "set_number": set_data["set_number"],
-                        "reps": set_data["reps"],
-                        "weight": set_data["weight"],
-                        "rir": set_data["rir"],
-                    }
-                    for set_data in st.session_state.current_sets
-                ],
-            }
-
+    with col1:
+        if st.button("Load Latest Saved Report", key="load_latest_report_button"):
             try:
-                data = api_post("/workouts/create", payload)
-
-                if data.get("success", True):
-                    st.success("Workout saved successfully.")
-                    st.session_state.current_sets = []
-                    st.rerun()
-                else:
-                    st.error(data.get("message", "Workout save failed."))
-
+                data = api_get(f"/reports/latest/{user_id}")
             except requests.RequestException as exc:
-                st.error(f"Workout save failed: {exc}")
+                st.error(
+                    f"Failed to load latest report: {extract_api_error_message(exc)}"
+                )
+            else:
+                if data.get("success"):
+                    latest_report = data["report"]
+                    st.session_state.health_report = latest_report["report_text"]
+                    st.session_state.health_report_timestamp = latest_report[
+                        "created_at"
+                    ]
+                    st.success("Latest saved report loaded.")
+                else:
+                    st.warning("No saved reports found.")
 
-else:
-    st.warning("No exercises found. Make sure the /exercises endpoint is working.")
+    with col2:
+        if st.session_state.report_job_id is None:
+            if st.button(
+                "Generate Full AI Health Report",
+                key="generate_ai_report_button",
+                type="primary",
+            ):
+                try:
+                    data = api_post(f"/reports/generate/{user_id}")
+                except requests.RequestException as exc:
+                    st.error(
+                        f"Failed to start report generation: {extract_api_error_message(exc)}"
+                    )
+                else:
+                    if data.get("success"):
+                        st.session_state.report_job_id = data["job_id"]
+                        st.session_state.report_job_status = data["status"]
+                        st.rerun()
+                    else:
+                        st.error("Failed to start AI report generation.")
+        else:
+            st.info(f"Report job running: {st.session_state.report_job_id}")
+
+    poll_report_status(user_id)
+
+    if st.session_state.health_report_timestamp:
+        st.caption(f"Last generated: {st.session_state.health_report_timestamp}")
+
+    if st.session_state.health_report:
+        st.markdown(st.session_state.health_report)
+    elif st.session_state.report_job_id is None:
+        st.info("No report loaded yet.")
+
+    st.subheader("Report History")
+    try:
+        data = api_get(f"/reports/history/{user_id}")
+    except requests.RequestException as exc:
+        st.error(f"Failed to load report history: {extract_api_error_message(exc)}")
+        return
+
+    reports = data.get("reports") or []
+    if reports:
+        for report in reports:
+            with st.expander(f"{report['created_at']}"):
+                st.write(report["report_text"])
+    else:
+        st.info("No report history found.")
+
+    developer_details("Developer details: report history", data)
+
+
+def render_developer_section(user_id: int) -> None:
+    st.header("Developer")
+    st.caption(
+        "Developer details are hidden from the main UI unless Developer Mode is on."
+    )
+
+    if not st.session_state.get("developer_mode", False):
+        st.info("Turn on Developer Mode in the sidebar to show raw backend responses.")
+        return
+
+    st.subheader("Session State")
+    st.json(
+        {
+            "selected_user_id": st.session_state.selected_user_id,
+            "report_job_id": st.session_state.report_job_id,
+            "report_job_status": st.session_state.report_job_status,
+            "last_completed_job_id": st.session_state.last_completed_job_id,
+            "has_selected_workout_plan_response": st.session_state.selected_workout_plan_response
+            is not None,
+            "has_started_workout_plan_response": st.session_state.started_workout_plan_response
+            is not None,
+            "has_completed_workout_plan_response": st.session_state.completed_workout_plan_response
+            is not None,
+        }
+    )
+
+    st.subheader("Quick Endpoint Checks")
+    endpoint_options = {
+        "Health State": f"/health-state/{user_id}",
+        "Daily Recommendation": f"/recommendations/daily/{user_id}",
+        "Workout Preview": f"/workout-plans/preview/{user_id}",
+        "Workout History": f"/workout-plans/history/{user_id}",
+        "Equipment Profile": f"/users/{user_id}/equipment-profile",
+    }
+
+    selected_endpoint_label = st.selectbox(
+        "Endpoint",
+        options=list(endpoint_options.keys()),
+    )
+
+    if st.button("Run Endpoint Check"):
+        try:
+            response = api_get(endpoint_options[selected_endpoint_label])
+        except requests.RequestException as exc:
+            st.error(extract_api_error_message(exc))
+        else:
+            st.json(response)
 
 
 # =====================================
-# Workout Section
+# Main Navigation
 # =====================================
 
-st.header("🏋️ Recent Workouts")
+(
+    today_tab,
+    workout_tab,
+    log_tab,
+    history_tab,
+    catalog_tab,
+    reports_tab,
+    developer_tab,
+) = st.tabs(
+    [
+        "Today",
+        "Workout Plan",
+        "Log Workout",
+        "History",
+        "Exercise Catalog",
+        "Reports",
+        "Developer",
+    ]
+)
 
-response = requests.get(f"http://127.0.0.1:8000/workouts/{user_id}")
+with today_tab:
+    render_today_section(user_id)
 
-data = response.json()
+with workout_tab:
+    render_workout_plan_section(user_id)
 
-workouts = data.get("workouts") or []
+with log_tab:
+    render_log_workout_section(user_id)
 
-if workouts:
-    for workout in workouts:
-        session = workout["session"]
+with history_tab:
+    render_history_section(user_id)
 
-        st.subheader(session["workout_name"])
+with catalog_tab:
+    display_exercise_catalog(user_id)
 
-        st.write(f"Date: {session['workout_date']}")
+with reports_tab:
+    render_reports_section(user_id)
 
-        st.write(f"Duration: {session['duration_minutes']} minutes")
-
-        workout_rows = []
-
-        for set_data in workout["sets"]:
-            workout_rows.append(
-                {
-                    "Exercise": set_data["name"],
-                    "Set": set_data["set_number"],
-                    "Reps": set_data["reps"],
-                    "Weight": set_data["weight"],
-                    "RIR": set_data["rir"],
-                }
-            )
-
-        workout_df = pd.DataFrame(workout_rows)
-
-        st.dataframe(
-            workout_df,
-            width="stretch",
-        )
-
-else:
-    st.warning("No workout data found.")
-
-
-# =====================================
-# Report History Section
-# =====================================
-
-st.header("📚 Report History")
-
-response = requests.get(f"http://127.0.0.1:8000/reports/history/{user_id}")
-
-data = response.json()
-
-reports = data.get("reports") or []
-
-if reports:
-    for report in reports:
-        with st.expander(f"{report['created_at']}"):
-            st.write(report["report_text"])
-
-else:
-    st.warning("No report history found.")
+with developer_tab:
+    render_developer_section(user_id)
