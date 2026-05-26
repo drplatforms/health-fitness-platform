@@ -1217,6 +1217,213 @@ def display_substitution_candidates(
                         st.json(apply_response)
 
 
+def actual_set_reference_id(actual_set: dict) -> int | None:
+    planned_id = actual_set.get("planned_workout_exercise_id")
+    substitution_for_id = actual_set.get("substitution_for_planned_exercise_id")
+    reference_id = planned_id if planned_id is not None else substitution_for_id
+
+    if reference_id is None:
+        return None
+
+    try:
+        return int(reference_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def actual_sets_for_planned_exercise(
+    actual_sets: list[dict],
+    planned_exercise_id: int,
+) -> list[dict]:
+    return [
+        actual_set
+        for actual_set in actual_sets
+        if actual_set_reference_id(actual_set) == planned_exercise_id
+    ]
+
+
+def next_set_number_for_planned_exercise(
+    actual_sets: list[dict],
+    planned_exercise_id: int,
+) -> int:
+    existing_sets = actual_sets_for_planned_exercise(actual_sets, planned_exercise_id)
+    existing_numbers = [
+        int(actual_set.get("set_number"))
+        for actual_set in existing_sets
+        if actual_set.get("set_number") is not None
+    ]
+
+    if existing_numbers:
+        return max(existing_numbers) + 1
+
+    return 1
+
+
+def active_exercise_name_for_planned_exercise(
+    planned_exercise: dict,
+    active_substitutions: dict[int, dict],
+) -> str:
+    planned_exercise_id = planned_exercise.get("id")
+    planned_name = planned_exercise.get("name", "Unknown")
+
+    if planned_exercise_id is None:
+        return planned_name
+
+    active_substitution = active_substitutions.get(int(planned_exercise_id))
+    if not active_substitution:
+        return planned_name
+
+    return active_substitution.get("replacement_exercise_name") or planned_name
+
+
+def active_workout_exercise_label(
+    planned_exercise: dict,
+    active_substitutions: dict[int, dict],
+) -> str:
+    planned_exercise_id = planned_exercise.get("id")
+    planned_name = planned_exercise.get("name", "Unknown")
+    active_name = active_exercise_name_for_planned_exercise(
+        planned_exercise,
+        active_substitutions,
+    )
+    sets = planned_exercise.get("sets", "?")
+    reps = format_workout_range(
+        planned_exercise.get("reps_min"),
+        planned_exercise.get("reps_max"),
+        " reps",
+    )
+    rir = format_workout_range(
+        planned_exercise.get("rir_min"),
+        planned_exercise.get("rir_max"),
+    )
+
+    if planned_exercise_id is not None and active_name != planned_name:
+        return (
+            f"{planned_exercise_id} — {active_name} "
+            f"(sub for {planned_name}; {sets} sets, {reps}, RIR {rir})"
+        )
+
+    return f"{planned_exercise_id} — {planned_name} ({sets} sets, {reps}, RIR {rir})"
+
+
+def actual_set_status_label(actual_set: dict) -> str:
+    if actual_set.get("skipped"):
+        return "Skipped"
+
+    if actual_set.get("completed"):
+        return "Logged"
+
+    return "Started"
+
+
+def display_logged_sets_for_exercise(
+    actual_sets: list[dict],
+    planned_exercise_id: int,
+) -> None:
+    exercise_actual_sets = actual_sets_for_planned_exercise(
+        actual_sets,
+        planned_exercise_id,
+    )
+
+    if not exercise_actual_sets:
+        st.caption("No sets logged for this exercise yet.")
+        return
+
+    rows = []
+    show_debug_columns = st.session_state.get("developer_mode", False)
+
+    for actual_set in sorted(
+        exercise_actual_sets,
+        key=lambda item: item.get("set_number") or 0,
+    ):
+        row = {
+            "Set": actual_set.get("set_number", "Unknown"),
+            "Exercise Logged": actual_set.get("exercise_name", "Unknown"),
+            "Reps": actual_set.get("actual_reps", ""),
+            "Weight": actual_set.get("actual_weight", ""),
+            "RIR": actual_set.get("actual_rir", ""),
+            "Status": actual_set_status_label(actual_set),
+            "Notes": actual_set.get("notes") or "",
+        }
+
+        if show_debug_columns:
+            row = {"Actual Set ID": actual_set.get("id", "Unknown"), **row}
+
+        rows.append(row)
+
+    st.dataframe(
+        pd.DataFrame(rows),
+        width="stretch",
+        hide_index=True,
+    )
+
+
+def display_active_workout_session_overview(
+    planned_exercises: list[dict],
+    actual_sets: list[dict],
+    active_substitutions: dict[int, dict],
+) -> None:
+    st.markdown("#### Active Workout")
+
+    if not planned_exercises:
+        st.warning("No planned exercises are available for this active workout.")
+        return
+
+    rows = []
+    for exercise in planned_exercises:
+        planned_exercise_id = exercise.get("id")
+        if planned_exercise_id is None:
+            continue
+
+        planned_exercise_id = int(planned_exercise_id)
+        planned_name = exercise.get("name", "Unknown")
+        active_name = active_exercise_name_for_planned_exercise(
+            exercise,
+            active_substitutions,
+        )
+        logged_sets = actual_sets_for_planned_exercise(actual_sets, planned_exercise_id)
+        completed_sets = [
+            actual_set
+            for actual_set in logged_sets
+            if actual_set.get("completed") and not actual_set.get("skipped")
+        ]
+        skipped_sets = [
+            actual_set for actual_set in logged_sets if actual_set.get("skipped")
+        ]
+
+        rows.append(
+            {
+                "Exercise": active_name,
+                "Original": (planned_name if active_name != planned_name else ""),
+                "Planned": f"{exercise.get('sets', '?')} sets",
+                "Reps": format_workout_range(
+                    exercise.get("reps_min"),
+                    exercise.get("reps_max"),
+                ),
+                "Target RIR": format_workout_range(
+                    exercise.get("rir_min"),
+                    exercise.get("rir_max"),
+                ),
+                "Equipment": format_equipment_required(exercise),
+                "Logged": f"{len(completed_sets)}/{exercise.get('sets', '?')}",
+                "Skipped": len(skipped_sets),
+            }
+        )
+
+    if rows:
+        st.dataframe(
+            pd.DataFrame(rows),
+            width="stretch",
+            hide_index=True,
+        )
+
+    if active_substitutions:
+        st.caption(
+            "Substitutions are active for this workout. Original planned exercises "
+            "remain preserved, while set logging uses the active substituted exercise."
+        )
+
+
 def display_actual_set_logging(
     plan_instance_id: int, context_key: str = "workout"
 ) -> None:
@@ -1229,6 +1436,7 @@ def display_actual_set_logging(
     workout_plan_instance = execution_response.get("workout_plan_instance", {})
     execution_session = execution_response.get("execution_session", {})
     planned_exercises = execution_response.get("planned_exercises", [])
+    actual_sets = execution_response.get("actual_sets", [])
     active_substitutions = merged_active_substitution_map(
         plan_instance_id,
         execution_response,
@@ -1237,14 +1445,14 @@ def display_actual_set_logging(
     plan_status = workout_plan_instance.get("status")
     execution_status = execution_session.get("status")
 
-    st.subheader("Actual Set Logging")
+    st.subheader("Log Sets")
 
     if plan_status not in {"started", "in_progress"} and execution_status not in {
         "started",
         "in_progress",
     }:
         st.info(
-            "Actual set logging will appear after this selected plan is started. "
+            "Set logging appears after this selected plan is started. "
             f"Current plan status: {humanize_label(plan_status)}. "
             f"Execution status: {humanize_label(execution_status)}."
         )
@@ -1258,63 +1466,81 @@ def display_actual_set_logging(
         st.warning("No planned exercises are available for actual set logging.")
         return
 
+    display_active_workout_session_overview(
+        planned_exercises,
+        actual_sets,
+        active_substitutions,
+    )
+
     planned_options = {
-        planned_exercise_option_label(exercise): exercise
+        active_workout_exercise_label(exercise, active_substitutions): exercise
         for exercise in planned_exercises
+        if exercise.get("id") is not None
     }
 
-    with st.form(f"actual_set_logging_form_{context_key}_{plan_instance_id}"):
-        logging_mode = st.radio(
-            "Log Type",
-            options=[
-                "Completed planned set",
-                "Skipped planned set",
-                "Substitution",
-            ],
-            horizontal=True,
-        )
+    if not planned_options:
+        st.warning("No planned exercises have IDs available for set logging.")
+        return
 
+    st.markdown("#### Log Next Set")
+
+    with st.form(f"actual_set_logging_form_{context_key}_{plan_instance_id}"):
         selected_planned_label = st.selectbox(
-            "Planned Exercise",
+            "Exercise",
             options=list(planned_options.keys()),
+            key=f"actual_set_exercise_{context_key}_{plan_instance_id}",
+            help=(
+                "If a substitution is active, this selector shows the substituted "
+                "exercise first and set logging will automatically use it."
+            ),
         )
 
         selected_planned_exercise = planned_options[selected_planned_label]
         selected_planned_exercise_id = int(selected_planned_exercise["id"])
         active_substitution = active_substitutions.get(selected_planned_exercise_id)
+        planned_exercise_name = selected_planned_exercise.get("name", "Unknown")
+        active_exercise_name = active_exercise_name_for_planned_exercise(
+            selected_planned_exercise,
+            active_substitutions,
+        )
 
         if active_substitution:
             st.info(
-                "Active substitution selected for this exercise: "
-                f"{active_substitution.get('replacement_exercise_name', 'Unknown')}. "
-                "Completed sets logged here will be recorded against that "
-                "substitution while preserving the original planned exercise."
+                f"Original: {planned_exercise_name}\n\n"
+                f"Substituted with: {active_exercise_name}\n\n"
+                "This form will log completed sets using the substituted exercise."
             )
+        else:
+            st.caption(f"Logging sets for: {active_exercise_name}")
+
+        logging_mode = st.radio(
+            "Set status",
+            options=[
+                "Completed set",
+                "Skipped set",
+            ],
+            horizontal=True,
+            key=f"actual_set_mode_{context_key}_{plan_instance_id}",
+        )
+
+        suggested_set_number = next_set_number_for_planned_exercise(
+            actual_sets,
+            selected_planned_exercise_id,
+        )
 
         set_number = st.number_input(
             "Set Number",
             min_value=1,
-            value=1,
+            value=int(suggested_set_number),
             step=1,
+            key=f"actual_set_number_{context_key}_{plan_instance_id}",
         )
-
-        actual_exercise_name = None
-        if logging_mode == "Substitution":
-            actual_exercise_name = st.text_input(
-                "Actual Exercise Name",
-                value=(
-                    active_substitution.get("replacement_exercise_name", "")
-                    if active_substitution
-                    else ""
-                ),
-                help="Use this when you performed a different exercise than planned.",
-            )
 
         actual_reps = None
         actual_weight = None
         actual_rir = None
 
-        if logging_mode != "Skipped planned set":
+        if logging_mode == "Completed set":
             default_reps = selected_planned_exercise.get("reps_min") or 1
             default_rir = selected_planned_exercise.get("rir_max") or 2
 
@@ -1326,6 +1552,7 @@ def display_actual_set_logging(
                     min_value=0,
                     value=int(default_reps),
                     step=1,
+                    key=f"actual_reps_{context_key}_{plan_instance_id}",
                 )
 
             with col2:
@@ -1334,6 +1561,7 @@ def display_actual_set_logging(
                     min_value=0.0,
                     value=0.0,
                     step=5.0,
+                    key=f"actual_weight_{context_key}_{plan_instance_id}",
                 )
 
             with col3:
@@ -1342,6 +1570,7 @@ def display_actual_set_logging(
                     min_value=0,
                     max_value=10,
                     value=int(default_rir),
+                    key=f"actual_rir_{context_key}_{plan_instance_id}",
                 )
         else:
             st.info(
@@ -1349,9 +1578,15 @@ def display_actual_set_logging(
                 "Use notes to explain why the set or exercise was skipped."
             )
 
-        actual_set_notes = st.text_area("Actual Set Notes")
+        actual_set_notes = st.text_area(
+            "Notes",
+            key=f"actual_set_notes_{context_key}_{plan_instance_id}",
+        )
 
-        submit_actual_set = st.form_submit_button("Log Actual Set")
+        submit_actual_set = st.form_submit_button("Log Set")
+
+    st.markdown("#### Logged Sets For Selected Exercise")
+    display_logged_sets_for_exercise(actual_sets, selected_planned_exercise_id)
 
     if submit_actual_set:
         payload = {
@@ -1359,7 +1594,7 @@ def display_actual_set_logging(
             "notes": actual_set_notes or None,
         }
 
-        if logging_mode == "Skipped planned set":
+        if logging_mode == "Skipped set":
             payload.update(
                 {
                     "planned_workout_exercise_id": selected_planned_exercise["id"],
@@ -1367,18 +1602,13 @@ def display_actual_set_logging(
                     "skipped": True,
                 }
             )
-
-        elif logging_mode == "Substitution":
-            if not actual_exercise_name or not actual_exercise_name.strip():
-                st.error("Actual Exercise Name is required for substitutions.")
-                return
-
+        elif active_substitution:
             payload.update(
                 {
                     "substitution_for_planned_exercise_id": selected_planned_exercise[
                         "id"
                     ],
-                    "exercise_name": actual_exercise_name.strip(),
+                    "exercise_name": active_exercise_name,
                     "actual_reps": int(actual_reps),
                     "actual_weight": float(actual_weight),
                     "actual_rir": int(actual_rir),
@@ -1386,36 +1616,17 @@ def display_actual_set_logging(
                     "skipped": False,
                 }
             )
-
         else:
-            if active_substitution:
-                payload.update(
-                    {
-                        "substitution_for_planned_exercise_id": selected_planned_exercise[
-                            "id"
-                        ],
-                        "exercise_name": active_substitution.get(
-                            "replacement_exercise_name",
-                            selected_planned_exercise.get("name", "Unknown"),
-                        ),
-                        "actual_reps": int(actual_reps),
-                        "actual_weight": float(actual_weight),
-                        "actual_rir": int(actual_rir),
-                        "completed": True,
-                        "skipped": False,
-                    }
-                )
-            else:
-                payload.update(
-                    {
-                        "planned_workout_exercise_id": selected_planned_exercise["id"],
-                        "actual_reps": int(actual_reps),
-                        "actual_weight": float(actual_weight),
-                        "actual_rir": int(actual_rir),
-                        "completed": True,
-                        "skipped": False,
-                    }
-                )
+            payload.update(
+                {
+                    "planned_workout_exercise_id": selected_planned_exercise["id"],
+                    "actual_reps": int(actual_reps),
+                    "actual_weight": float(actual_weight),
+                    "actual_rir": int(actual_rir),
+                    "completed": True,
+                    "skipped": False,
+                }
+            )
 
         payload = {key: value for key, value in payload.items() if value is not None}
 
@@ -1428,8 +1639,10 @@ def display_actual_set_logging(
             if actual_set_response.get("success"):
                 actual_set = actual_set_response.get("actual_set", {})
                 actual_set_id = actual_set.get("id", "Unknown")
+                logged_name = actual_set.get("exercise_name") or active_exercise_name
                 st.session_state.actual_set_logging_message = (
-                    f"Actual set logged successfully. Actual set ID: {actual_set_id}."
+                    f"Logged {logged_name} set {set_number}. "
+                    f"Actual set ID: {actual_set_id}."
                 )
                 st.rerun()
             else:
