@@ -56,6 +56,10 @@ def _training_execution_summary(
     execution_effort_trend: str = "as_planned",
     execution_quality: str = "mostly_completed",
     incomplete_logging_count: int = 0,
+    skipped_exercise_count: int = 0,
+    substituted_exercise_count: int = 0,
+    missing_actual_rir_count: int = 0,
+    missing_actual_reps_count: int = 0,
 ):
     return TrainingExecutionSummary(
         user_id=42,
@@ -67,14 +71,14 @@ def _training_execution_summary(
         average_rir_deviation=(
             -1 if execution_effort_trend == "harder_than_planned" else 0
         ),
-        skipped_exercise_count=0,
-        substituted_exercise_count=0,
+        skipped_exercise_count=skipped_exercise_count,
+        substituted_exercise_count=substituted_exercise_count,
         sets_below_planned_reps=0,
         sets_inside_planned_reps=0,
         sets_above_planned_reps=0,
         incomplete_logging_count=incomplete_logging_count,
-        missing_actual_rir_count=0,
-        missing_actual_reps_count=0,
+        missing_actual_rir_count=missing_actual_rir_count,
+        missing_actual_reps_count=missing_actual_reps_count,
         execution_quality=execution_quality,
         execution_effort_trend=execution_effort_trend,
         execution_completion_trend="mostly_completed",
@@ -338,6 +342,196 @@ def test_execution_aware_validator_rejects_strong_quality_claims_with_incomplete
     violations = validate_candidate_action_plan(candidate, context)
 
     assert any("Incomplete actual-set logging" in violation for violation in violations)
+
+
+def _generated_execution_aware_candidate_text(context):
+    candidate = parse_candidate_action_plan(
+        generate_candidate_action_plan_json(context)
+    )
+    violations = validate_candidate_action_plan(candidate, context)
+    assert violations == []
+    return " ".join(
+        [
+            candidate.daily_coaching_recommendation,
+            candidate.workout_recommendation,
+            candidate.nutrition_action,
+            candidate.rationale,
+        ]
+    ).lower()
+
+
+def test_execution_aware_copy_no_completed_executions_keeps_recommendation_text_unchanged(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = None
+    baseline = parse_candidate_action_plan(generate_candidate_action_plan_json(context))
+
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=0,
+        confidence="Limited",
+        execution_quality="no_planned_execution_data",
+    )
+    with_no_data = parse_candidate_action_plan(
+        generate_candidate_action_plan_json(context)
+    )
+
+    assert with_no_data == baseline
+
+
+def test_execution_aware_copy_one_completed_execution_uses_limited_context_only(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=1,
+        confidence="Low",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "actual-set logging context is still developing" in text
+    assert "trend" not in text
+    assert "mostly completed" not in text
+    assert "harder than planned" not in text
+    assert "easier than planned" not in text
+
+
+def test_execution_aware_copy_limited_confidence_does_not_add_user_facing_claims(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Limited",
+        execution_effort_trend="harder_than_planned",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "actual-set logging" not in text
+    assert "planned workouts" not in text
+    assert "harder than planned" not in text
+
+
+def test_execution_aware_copy_low_confidence_adds_only_soft_logging_context(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=2,
+        confidence="Low",
+        execution_effort_trend="harder_than_planned",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "actual-set logging context is still developing" in text
+    assert "trend" not in text
+    assert "harder than planned" not in text
+    assert "mostly completed" not in text
+
+
+def test_execution_aware_copy_moderate_confidence_adds_cautious_completion_copy(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        execution_quality="consistently_completed",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "recent completed planned workouts were mostly completed" in text
+    assert "controlled progression" in text
+    assert "automatic" not in text
+
+
+def test_execution_aware_copy_harder_than_planned_uses_controlled_effort_language(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[101])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        execution_effort_trend="harder_than_planned",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "harder than planned" in text
+    assert "approved rir range" in text
+    assert "overtraining" not in text
+    assert "deload" not in text
+
+
+def test_execution_aware_copy_easier_than_planned_avoids_automatic_load_increase(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        execution_effort_trend="easier_than_planned",
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "easier than planned" in text
+    assert "monitor whether load selection" in text
+    assert "automatic" not in text
+    assert "increase load" not in text
+    assert "increase weight" not in text
+
+
+def test_execution_aware_copy_skipped_and_substituted_exercises_use_plan_fit_language(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        skipped_exercise_count=2,
+        substituted_exercise_count=2,
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "skipped or substituted exercises may suggest reviewing plan fit" in text
+    assert "equipment fit" in text
+    assert "poor adherence" not in text
+    assert "lack of discipline" not in text
+    assert "failure" not in text
+    assert "noncompliance" not in text
+
+
+def test_execution_aware_copy_incomplete_logging_adds_uncertainty_language(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        incomplete_logging_count=1,
+        missing_actual_rir_count=1,
+    )
+
+    text = _generated_execution_aware_candidate_text(context)
+
+    assert "incomplete actual-set logging limits interpretation" in text
+    assert "strong execution trend" not in text
+    assert "reliable execution trend" not in text
 
 
 def test_aligned_managed_recommendation_avoids_unnecessary_intervention_language(

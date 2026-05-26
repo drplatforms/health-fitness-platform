@@ -209,6 +209,197 @@ _EXECUTION_AWARE_SOFT_CONTEXT_TERMS = [
 ]
 
 
+def _append_sentence(existing_text: str, sentence: str | None) -> str:
+    if not sentence:
+        return existing_text
+
+    cleaned = existing_text.rstrip()
+    if cleaned.endswith(sentence):
+        return cleaned
+    return f"{cleaned} {sentence}"
+
+
+def _limited_execution_context_sentence(context: RecommendationContext) -> str | None:
+    summary = context.training_execution_summary
+    if summary is None:
+        return None
+
+    if summary.completed_execution_count == 0:
+        return None
+
+    if summary.confidence == "Limited":
+        return None
+
+    if summary.confidence == "Low" or summary.completed_execution_count == 1:
+        return (
+            "Actual-set logging context is still developing, so keep logging "
+            "actual reps, weight, and RIR before drawing stronger planned-vs-actual conclusions."
+        )
+
+    return None
+
+
+def _execution_logging_uncertainty_sentence(
+    context: RecommendationContext,
+) -> str | None:
+    summary = context.training_execution_summary
+    if summary is None:
+        return None
+
+    if summary.confidence == "Limited":
+        return None
+
+    if (
+        summary.incomplete_logging_count
+        or summary.missing_actual_rir_count
+        or summary.missing_actual_reps_count
+    ):
+        return (
+            "Incomplete actual-set logging limits interpretation, so keep logging "
+            "actual reps, weight, and RIR before using execution history for stronger conclusions."
+        )
+
+    return None
+
+
+def _execution_quality_sentence(context: RecommendationContext) -> str | None:
+    summary = context.training_execution_summary
+    if summary is None:
+        return None
+
+    if summary.completed_execution_count < 2:
+        return None
+
+    if summary.confidence not in {"Moderate", "High"}:
+        return None
+
+    if (
+        summary.incomplete_logging_count
+        or summary.missing_actual_rir_count
+        or summary.missing_actual_reps_count
+    ):
+        return None
+
+    if summary.execution_quality in {"mostly_completed", "consistently_completed"}:
+        return (
+            "Recent completed planned workouts were mostly completed, so maintain "
+            "controlled progression while monitoring recovery and actual RIR."
+        )
+
+    return None
+
+
+def _execution_effort_sentence(context: RecommendationContext) -> str | None:
+    summary = context.training_execution_summary
+    if summary is None:
+        return None
+
+    if summary.completed_execution_count < 2:
+        return None
+
+    if summary.confidence not in {"Moderate", "High"}:
+        return None
+
+    if summary.execution_effort_trend == "harder_than_planned":
+        if context.scenario == "data_quality_limited":
+            return None
+        return (
+            "Recent actual effort was harder than planned, so keep working sets "
+            "closer to the approved RIR range instead of pushing toward failure."
+        )
+
+    if summary.execution_effort_trend == "easier_than_planned":
+        if context.scenario in {"data_quality_limited", "recovery_limited"}:
+            return None
+        return (
+            "Recent actual effort was easier than planned, so monitor whether load "
+            "selection still matches the intended effort target before changing progression."
+        )
+
+    return None
+
+
+def _execution_plan_fit_sentence(context: RecommendationContext) -> str | None:
+    summary = context.training_execution_summary
+    if summary is None:
+        return None
+
+    if summary.completed_execution_count < 2:
+        return None
+
+    if summary.confidence not in {"Moderate", "High"}:
+        return None
+
+    if summary.skipped_exercise_count and summary.substituted_exercise_count:
+        return (
+            "Repeated skipped or substituted exercises may suggest reviewing plan fit, "
+            "equipment fit, session length, recovery, or nutrition support."
+        )
+
+    if summary.substituted_exercise_count:
+        return (
+            "Repeated substitutions may suggest reviewing exercise fit or equipment fit "
+            "before increasing training demand."
+        )
+
+    if summary.skipped_exercise_count:
+        return (
+            "Repeated skipped exercises may suggest reviewing plan fit, session length, "
+            "recovery, or nutrition support."
+        )
+
+    return None
+
+
+def _apply_execution_aware_copy(
+    plan: CandidateActionPlan,
+    context: RecommendationContext,
+) -> CandidateActionPlan:
+    """Add conservative execution-aware deterministic copy when policy allows it.
+
+    TrainingExecutionSummary stays out of the response shape and CrewAI payload.
+    This helper only adjusts deterministic CandidateActionPlan copy after the
+    summary clears completed-workout, confidence, and scenario gates.
+    """
+
+    summary = context.training_execution_summary
+    if summary is None:
+        return plan
+
+    if summary.completed_execution_count == 0 or summary.confidence == "Limited":
+        return plan
+
+    daily = plan.daily_coaching_recommendation
+    workout = plan.workout_recommendation
+    rationale = plan.rationale
+
+    limited_sentence = _limited_execution_context_sentence(context)
+    if limited_sentence:
+        rationale = _append_sentence(rationale, limited_sentence)
+        return CandidateActionPlan(
+            daily_coaching_recommendation=daily,
+            workout_recommendation=workout,
+            nutrition_action=plan.nutrition_action,
+            rationale=rationale,
+            confidence=plan.confidence,
+        )
+
+    rationale = _append_sentence(
+        rationale, _execution_logging_uncertainty_sentence(context)
+    )
+    daily = _append_sentence(daily, _execution_quality_sentence(context))
+    workout = _append_sentence(workout, _execution_effort_sentence(context))
+    rationale = _append_sentence(rationale, _execution_plan_fit_sentence(context))
+
+    return CandidateActionPlan(
+        daily_coaching_recommendation=daily,
+        workout_recommendation=workout,
+        nutrition_action=plan.nutrition_action,
+        rationale=rationale,
+        confidence=plan.confidence,
+    )
+
+
 def build_recommendation_context(
     health_state: UserHealthState,
 ) -> RecommendationContext:
@@ -515,6 +706,7 @@ def generate_candidate_action_plan_json(context: RecommendationContext) -> str:
             confidence=context.confidence,
         )
 
+    plan = _apply_execution_aware_copy(plan, context)
     return json.dumps(asdict(plan))
 
 
