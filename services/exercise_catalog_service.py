@@ -856,6 +856,6 @@ def filter_exercises_for_equipment(
 def find_catalog_entry_by_name(name: str) -> ExerciseCatalogEntry | None:
     normalized_name = _normalize_display_name(name)
     for entry in get_exercise_catalog():
-        if entry.name == normalized_name:
+        if _normalize_display_name(entry.name) == normalized_name:
             return entry
     return None

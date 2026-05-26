@@ -288,8 +288,8 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
-                        ("Leg Press", ["machine"]),
                         ("Goblet Squat", ["dumbbell"]),
+                        ("Leg Press", ["machine"]),
                         ("Bodyweight Squat", ["bodyweight"]),
                     ],
                     3,

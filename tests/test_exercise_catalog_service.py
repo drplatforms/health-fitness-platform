@@ -3,11 +3,15 @@ from scripts.seed_qa_scenarios import seed_qa_scenarios
 from services.equipment_profile_service import save_equipment_profile
 from services.exercise_catalog_service import (
     filter_exercises_for_equipment,
+    find_catalog_entry_by_name,
     get_exercise_catalog,
     seed_exercise_catalog,
 )
 from services.user_state_service import build_user_health_state
-from services.workout_plan_service import build_approved_workout_plan
+from services.workout_plan_service import (
+    _catalog_equipment_for_option,
+    build_approved_workout_plan,
+)
 
 USER_HOME_GYM_EQUIPMENT = [
     "adjustable_bench",
@@ -164,6 +168,77 @@ def test_workout_preview_uses_catalog_compatible_exercises(tmp_path, monkeypatch
     approved = build_approved_workout_plan(health_state)
 
     assert approved.exercises
+    allowed = {"bodyweight", "dumbbell"}
+    for exercise in approved.exercises:
+        assert set(exercise.equipment_required).issubset(allowed)
+
+
+def test_hyphenated_exercise_names_resolve_to_catalog_entries(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    for name in [
+        "Chest-Supported Row",
+        "Chest-Supported Dumbbell Row",
+        "EZ-Bar Curl",
+        "EZ-Bar Skull Crusher",
+        "Band-Assisted Pull-Up",
+    ]:
+        entry = find_catalog_entry_by_name(name)
+        assert entry is not None
+        assert entry.name == name
+
+
+def test_catalog_metadata_overrides_fallback_equipment_requirements(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    name, equipment_required = _catalog_equipment_for_option(
+        "Chest-Supported Row",
+        ["dumbbell"],
+    )
+
+    assert name == "Chest-Supported Row"
+    assert set(equipment_required) == {"adjustable_bench", "dumbbell"}
+
+
+def test_chest_supported_row_requires_adjustable_bench(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    entry = find_catalog_entry_by_name("Chest-Supported Row")
+
+    assert entry is not None
+    assert "adjustable_bench" in entry.equipment_required
+    assert "dumbbell" in entry.equipment_required
+
+
+def test_limited_equipment_without_bench_does_not_select_chest_supported_row(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    save_equipment_profile(
+        user_id=101,
+        training_environment="limited_equipment",
+        available_equipment=["bodyweight", "dumbbell"],
+        unavailable_equipment=[
+            "adjustable_bench",
+            "barbell",
+            "cable",
+            "machine",
+            "plates",
+            "pull_up_bar",
+            "rack",
+        ],
+    )
+
+    health_state = build_user_health_state(101)
+    approved = build_approved_workout_plan(health_state)
+
+    exercise_names = {exercise.name for exercise in approved.exercises}
+    assert "Chest-Supported Row" not in exercise_names
+    assert "Chest-Supported Dumbbell Row" not in exercise_names
+
     allowed = {"bodyweight", "dumbbell"}
     for exercise in approved.exercises:
         assert set(exercise.equipment_required).issubset(allowed)
