@@ -15,25 +15,51 @@ ALLOWED_TRAINING_ENVIRONMENTS = {
 }
 
 ALL_KNOWN_EQUIPMENT = [
+    "adjustable_bench",
     "barbell",
+    "bike",
     "bodyweight",
     "cable",
     "dumbbell",
+    "ez_bar",
     "kettlebell",
     "machine",
+    "plates",
+    "pull_up_bar",
+    "rack",
+    "resistance_band",
+    "treadmill",
 ]
 
 DEFAULT_AVAILABLE_EQUIPMENT = [
+    "adjustable_bench",
     "barbell",
     "bodyweight",
     "cable",
     "dumbbell",
     "machine",
+    "plates",
+    "rack",
+]
+
+HOME_GYM_AVAILABLE_EQUIPMENT = [
+    "adjustable_bench",
+    "barbell",
+    "bike",
+    "bodyweight",
+    "cable",
+    "dumbbell",
+    "ez_bar",
+    "plates",
+    "pull_up_bar",
+    "rack",
+    "resistance_band",
+    "treadmill",
 ]
 
 EQUIPMENT_BY_TRAINING_ENVIRONMENT = {
     "commercial_gym": DEFAULT_AVAILABLE_EQUIPMENT,
-    "home_gym": ["barbell", "bodyweight", "dumbbell", "kettlebell"],
+    "home_gym": HOME_GYM_AVAILABLE_EQUIPMENT,
     "bodyweight_only": ["bodyweight"],
     "limited_equipment": ["bodyweight", "dumbbell"],
     "unknown": DEFAULT_AVAILABLE_EQUIPMENT,
@@ -74,7 +100,7 @@ def _default_unavailable_for_environment(
     training_environment: str,
     available_equipment: list[str],
 ) -> list[str]:
-    if training_environment in {"bodyweight_only", "limited_equipment"}:
+    if training_environment in {"bodyweight_only", "limited_equipment", "home_gym"}:
         return [
             equipment
             for equipment in ALL_KNOWN_EQUIPMENT

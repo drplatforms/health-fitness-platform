@@ -10,6 +10,7 @@ from models.workout_plan_models import (
     WorkoutContext,
 )
 from services.coaching_decision_service import build_coaching_decision
+from services.exercise_catalog_service import find_catalog_entry_by_name
 from services.training_constraint_service import build_training_constraints
 from services.workout_constraint_service import build_workout_constraints
 
@@ -136,16 +137,36 @@ def _equipment_allowed(
     return True
 
 
+def _catalog_equipment_for_option(
+    name: str,
+    fallback_equipment_required: list[str],
+) -> tuple[str, list[str]]:
+    catalog_entry = find_catalog_entry_by_name(name)
+    if catalog_entry is None:
+        return name, [
+            _normalize_equipment(item) for item in fallback_equipment_required
+        ]
+
+    return (
+        catalog_entry.name,
+        [_normalize_equipment(item) for item in catalog_entry.equipment_required],
+    )
+
+
 def _select_exercise(
     workout_constraints: WorkoutConstraints,
     options: list[tuple[str, list[str]]],
 ) -> tuple[str, list[str]]:
     for name, equipment_required in options:
-        if _equipment_allowed(equipment_required, workout_constraints):
-            return name, [_normalize_equipment(item) for item in equipment_required]
+        catalog_name, catalog_equipment_required = _catalog_equipment_for_option(
+            name,
+            equipment_required,
+        )
+        if _equipment_allowed(catalog_equipment_required, workout_constraints):
+            return catalog_name, catalog_equipment_required
 
     name, equipment_required = options[-1]
-    return name, [_normalize_equipment(item) for item in equipment_required]
+    return _catalog_equipment_for_option(name, equipment_required)
 
 
 def _exercise(

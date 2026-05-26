@@ -1386,12 +1386,20 @@ TRAINING_ENVIRONMENT_OPTIONS = {
 }
 
 KNOWN_EQUIPMENT_OPTIONS = [
+    "adjustable_bench",
     "barbell",
+    "bike",
     "bodyweight",
     "cable",
     "dumbbell",
+    "ez_bar",
     "kettlebell",
     "machine",
+    "plates",
+    "pull_up_bar",
+    "rack",
+    "resistance_band",
+    "treadmill",
 ]
 
 
