@@ -10,3 +10,15 @@ class ExerciseCatalogEntry:
     primary_muscle_groups: list[str] = field(default_factory=list)
     equipment_required: list[str] = field(default_factory=list)
     difficulty: str = "intermediate"
+
+
+@dataclass
+class ExerciseSubstitutionCandidate:
+    catalog_exercise_id: int
+    name: str
+    movement_pattern: str
+    required_equipment: list[str] = field(default_factory=list)
+    primary_muscle_groups: list[str] = field(default_factory=list)
+    exercise_type: str = "strength"
+    difficulty: str = "intermediate"
+    compatibility_reason_codes: list[str] = field(default_factory=list)

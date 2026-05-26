@@ -3,6 +3,7 @@ from dataclasses import asdict
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from services.exercise_substitution_service import get_substitution_candidate_dicts
 from services.user_state_service import build_user_health_state
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
@@ -146,6 +147,32 @@ def start_workout_plan(plan_instance_id: int):
         ],
         "execution_session": asdict(execution_session),
         "approved_workout_plan": asdict(approved_plan),
+    }
+
+
+@router.get(
+    "/workout-plans/{plan_instance_id}/planned-exercises/"
+    "{planned_exercise_id}/substitution-candidates"
+)
+def workout_plan_substitution_candidates(
+    plan_instance_id: int,
+    planned_exercise_id: int,
+):
+    try:
+        candidates = get_substitution_candidate_dicts(
+            plan_instance_id,
+            planned_exercise_id,
+        )
+    except WorkoutPlanNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except WorkoutPlanValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "workout_plan_instance_id": plan_instance_id,
+        "planned_workout_exercise_id": planned_exercise_id,
+        "substitution_candidates": candidates,
     }
 
 
