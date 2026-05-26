@@ -493,88 +493,182 @@ def display_actual_sets(actual_sets: list[dict]) -> None:
     )
 
 
+PLANNED_VS_ACTUAL_FLAG_LABELS = {
+    "empty_completion": "No actual workout execution rows have been logged yet.",
+    "incomplete_logging": "Some planned work has not been logged yet.",
+    "skipped_exercises_present": "Some planned exercises or sets were skipped.",
+    "substitutions_present": "Some exercises were substituted.",
+    "actual_effort_harder_than_planned": "Logged effort was harder than planned.",
+    "actual_effort_easier_than_planned": "Logged effort was easier than planned.",
+    "reps_below_plan": "Some logged sets were below the planned rep range.",
+    "reps_above_plan": "Some logged sets were above the planned rep range.",
+    "missing_actual_rir": "Some completed sets are missing actual RIR.",
+    "missing_actual_reps": "Some completed sets are missing actual reps.",
+}
+
+
+def format_summary_metric(value: object, suffix: str = "") -> str:
+    if value is None or value == "":
+        return "Unknown"
+
+    if isinstance(value, float):
+        value = round(value, 2)
+        if value.is_integer():
+            value = int(value)
+
+    return f"{value}{suffix}"
+
+
+def planned_vs_actual_flag_label(flag: str) -> str:
+    return PLANNED_VS_ACTUAL_FLAG_LABELS.get(flag, humanize_label(flag))
+
+
+def display_metric_cards(metrics: list[dict], columns: int = 4) -> None:
+    if not metrics:
+        return
+
+    for index in range(0, len(metrics), columns):
+        row_metrics = metrics[index : index + columns]
+        cols = st.columns(len(row_metrics))
+
+        for column, metric in zip(cols, row_metrics, strict=False):
+            column.metric(
+                metric["label"],
+                metric["value"],
+                help=metric.get("help"),
+            )
+
+
 def display_planned_vs_actual_summary(summary: dict) -> None:
-    st.subheader("Planned vs Actual Summary")
+    st.subheader("Planned vs Actual Review")
 
     if not summary:
         st.info("Planned-vs-actual summary is not available yet.")
         return
 
-    col1, col2, col3, col4 = st.columns(4)
+    completion_percentage = summary.get("completion_percentage")
+    deviation_flags = summary.get("deviation_flags") or []
+    notes = summary.get("notes") or []
 
-    col1.metric(
-        "Completion",
-        f"{summary.get('completion_percentage', 0)}%",
-    )
-    col2.metric(
-        "Planned Exercises",
-        summary.get("planned_exercise_count", "Unknown"),
-    )
-    col3.metric(
-        "Completed Exercises",
-        summary.get("completed_exercise_count", "Unknown"),
-    )
-    col4.metric(
-        "Skipped Exercises",
-        summary.get("skipped_exercise_count", "Unknown"),
-    )
+    st.markdown("#### Completion")
 
-    col5, col6, col7, col8 = st.columns(4)
-
-    col5.metric(
-        "Planned Sets",
-        summary.get("planned_set_count", "Unknown"),
-    )
-    col6.metric(
-        "Actual Sets",
-        summary.get("actual_set_count", "Unknown"),
-    )
-    col7.metric(
-        "Completed Sets",
-        summary.get("completed_set_count", "Unknown"),
-    )
-    col8.metric(
-        "Skipped Sets",
-        summary.get("skipped_set_count", "Unknown"),
+    display_metric_cards(
+        [
+            {
+                "label": "Completion",
+                "value": format_summary_metric(completion_percentage, "%"),
+            },
+            {
+                "label": "Planned Sets",
+                "value": format_summary_metric(summary.get("planned_set_count")),
+            },
+            {
+                "label": "Actual Sets",
+                "value": format_summary_metric(summary.get("actual_set_count")),
+            },
+            {
+                "label": "Completed Sets",
+                "value": format_summary_metric(summary.get("completed_set_count")),
+            },
+            {
+                "label": "Skipped Sets",
+                "value": format_summary_metric(summary.get("skipped_set_count")),
+            },
+        ]
     )
 
-    col9, col10, col11 = st.columns(3)
-
-    col9.metric(
-        "Avg Planned RIR",
-        summary.get("average_planned_rir", "Unknown"),
-    )
-    col10.metric(
-        "Avg Actual RIR",
-        summary.get("average_actual_rir", "Unknown"),
-    )
-    col11.metric(
-        "RIR Deviation",
-        summary.get("rir_deviation", "Unknown"),
-    )
-
-    rep_deviation = summary.get("rep_deviation") or {}
-
-    rep_rows = [
+    exercise_rows = [
         {
-            "Metric": "Sets Below Planned Reps",
-            "Value": summary.get("sets_below_planned_reps", "Unknown"),
+            "Category": "Planned exercises",
+            "Count": summary.get("planned_exercise_count", "Unknown"),
         },
         {
-            "Metric": "Sets Inside Planned Reps",
-            "Value": summary.get("sets_inside_planned_reps", "Unknown"),
+            "Category": "Completed exercises",
+            "Count": summary.get("completed_exercise_count", "Unknown"),
         },
         {
-            "Metric": "Sets Above Planned Reps",
-            "Value": summary.get("sets_above_planned_reps", "Unknown"),
+            "Category": "Skipped exercises",
+            "Count": summary.get("skipped_exercise_count", "Unknown"),
+        },
+        {
+            "Category": "Substituted exercises",
+            "Count": summary.get("substituted_exercise_count", "Unknown"),
         },
     ]
 
+    st.dataframe(
+        pd.DataFrame(exercise_rows),
+        width="stretch",
+        hide_index=True,
+    )
+
+    st.markdown("#### Effort vs Plan")
+
+    display_metric_cards(
+        [
+            {
+                "label": "Avg Planned RIR",
+                "value": format_summary_metric(summary.get("average_planned_rir")),
+                "help": "The average target reps-in-reserve from the planned workout.",
+            },
+            {
+                "label": "Avg Actual RIR",
+                "value": format_summary_metric(summary.get("average_actual_rir")),
+                "help": "The average logged reps-in-reserve from completed sets.",
+            },
+            {
+                "label": "RIR Deviation",
+                "value": format_summary_metric(summary.get("rir_deviation")),
+                "help": (
+                    "Negative means logged effort was harder than planned. "
+                    "Positive means logged effort was easier than planned."
+                ),
+            },
+        ],
+        columns=3,
+    )
+
+    rir_deviation = summary.get("rir_deviation")
+    if rir_deviation is None:
+        st.info("Actual effort comparison is limited until actual RIR is logged.")
+    elif rir_deviation < 0:
+        st.info("Logged effort was harder than planned based on actual RIR.")
+    elif rir_deviation > 0:
+        st.info("Logged effort was easier than planned based on actual RIR.")
+    else:
+        st.info("Logged effort matched the planned RIR closely.")
+
+    st.markdown("#### Reps vs Plan")
+
+    rep_rows = [
+        {
+            "Rep Result": "Below planned range",
+            "Sets": summary.get("sets_below_planned_reps", "Unknown"),
+        },
+        {
+            "Rep Result": "Inside planned range",
+            "Sets": summary.get("sets_inside_planned_reps", "Unknown"),
+        },
+        {
+            "Rep Result": "Above planned range",
+            "Sets": summary.get("sets_above_planned_reps", "Unknown"),
+        },
+    ]
+
+    rep_deviation = summary.get("rep_deviation") or {}
+
     for key, value in rep_deviation.items():
+        if key in {
+            "sets_below_planned_reps",
+            "sets_inside_planned_reps",
+            "sets_above_planned_reps",
+        }:
+            continue
+
         rep_rows.append(
             {
-                "Metric": humanize_label(key),
-                "Value": value,
+                "Rep Result": humanize_label(key),
+                "Sets": value,
             }
         )
 
@@ -584,16 +678,54 @@ def display_planned_vs_actual_summary(summary: dict) -> None:
         hide_index=True,
     )
 
-    deviation_flags = summary.get("deviation_flags") or []
-    notes = summary.get("notes") or []
+    st.markdown("#### Skips / Substitutions")
 
-    if deviation_flags:
-        st.write("**Deviation Flags**")
-        for flag in deviation_flags:
-            st.warning(humanize_label(flag))
+    display_metric_cards(
+        [
+            {
+                "label": "Skipped Exercises",
+                "value": format_summary_metric(summary.get("skipped_exercise_count")),
+            },
+            {
+                "label": "Skipped Sets",
+                "value": format_summary_metric(summary.get("skipped_set_count")),
+            },
+            {
+                "label": "Substitutions",
+                "value": format_summary_metric(
+                    summary.get("substituted_exercise_count")
+                ),
+            },
+        ],
+        columns=3,
+    )
+
+    if "skipped_exercises_present" in deviation_flags:
+        st.info("Some planned work was skipped. This is recorded neutrally.")
+    if "substitutions_present" in deviation_flags:
+        st.info("Some exercises were substituted. This is recorded for review.")
+
+    st.markdown("#### Logging Quality")
+
+    logging_flags = [
+        {
+            "Signal": planned_vs_actual_flag_label(flag),
+            "Raw Flag": flag,
+        }
+        for flag in deviation_flags
+    ]
+
+    if logging_flags:
+        st.dataframe(
+            pd.DataFrame(logging_flags),
+            width="stretch",
+            hide_index=True,
+        )
+    else:
+        st.success("No planned-vs-actual review flags were returned.")
 
     if notes:
-        st.write("**Summary Notes**")
+        st.write("**Backend notes**")
         for note in notes:
             st.info(note)
 
