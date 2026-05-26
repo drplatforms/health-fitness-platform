@@ -2,6 +2,7 @@ import pytest
 
 import database
 import services.recommendation_engine_service as recommendation_engine_service
+from models.training_execution_summary_models import TrainingExecutionSummary
 from scripts.seed_qa_scenarios import QA_USER_IDS, seed_qa_scenarios
 from services.coaching_decision_service import build_coaching_decision
 from services.nutrition_target_service import build_nutrition_targets
@@ -36,6 +37,50 @@ def _seeded_health_states(tmp_path, monkeypatch):
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
     seed_qa_scenarios()
     return {user_id: build_user_health_state(user_id) for user_id in QA_USER_IDS}
+
+
+def _candidate_with_text(text: str, confidence: str = "Low"):
+    return recommendation_engine_service.CandidateActionPlan(
+        daily_coaching_recommendation=text,
+        workout_recommendation="Keep today's training decision conservative and aligned with approved context.",
+        nutrition_action="Keep nutrition logging consistent.",
+        rationale="Use only approved context and avoid unsupported claims.",
+        confidence=confidence,
+    )
+
+
+def _training_execution_summary(
+    *,
+    completed_execution_count: int,
+    confidence: str,
+    execution_effort_trend: str = "as_planned",
+    execution_quality: str = "mostly_completed",
+    incomplete_logging_count: int = 0,
+):
+    return TrainingExecutionSummary(
+        user_id=42,
+        completed_execution_count=completed_execution_count,
+        recent_plan_instance_ids=list(range(1, completed_execution_count + 1)),
+        average_completion_percentage=90 if completed_execution_count else None,
+        average_planned_rir=3 if completed_execution_count else None,
+        average_actual_rir=2 if completed_execution_count else None,
+        average_rir_deviation=(
+            -1 if execution_effort_trend == "harder_than_planned" else 0
+        ),
+        skipped_exercise_count=0,
+        substituted_exercise_count=0,
+        sets_below_planned_reps=0,
+        sets_inside_planned_reps=0,
+        sets_above_planned_reps=0,
+        incomplete_logging_count=incomplete_logging_count,
+        missing_actual_rir_count=0,
+        missing_actual_reps_count=0,
+        execution_quality=execution_quality,
+        execution_effort_trend=execution_effort_trend,
+        execution_completion_trend="mostly_completed",
+        confidence=confidence,
+        reason_codes=["test_training_execution_summary"],
+    )
 
 
 def test_nutrition_targets_and_training_constraints_for_seeded_users(
@@ -112,6 +157,187 @@ def test_training_execution_summary_is_not_in_llm_context_payload(
     assert "training_execution_summary" not in payload
     assert "actual_sets" not in payload
     assert "notes" not in payload
+
+
+def test_execution_aware_validator_rejects_claims_with_no_completed_executions(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=0,
+        confidence="Limited",
+        execution_quality="no_planned_execution_data",
+    )
+
+    candidate = _candidate_with_text(
+        "Execution history from planned workouts shows you mostly completed recent planned workouts."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any(
+        "without completed planned workouts" in violation for violation in violations
+    )
+
+
+def test_execution_aware_validator_rejects_strong_trends_from_one_execution(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=1,
+        confidence="Low",
+    )
+
+    candidate = _candidate_with_text(
+        "Your planned workouts show a consistent execution trend and prove the plan is working."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any(
+        "at least two completed planned workouts" in violation
+        for violation in violations
+    )
+
+
+def test_execution_aware_validator_blocks_limited_confidence_claims(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=2,
+        confidence="Limited",
+    )
+
+    candidate = _candidate_with_text(
+        "Planned workouts suggest your recent actual effort is matching the plan."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("Limited-confidence" in violation for violation in violations)
+
+
+def test_execution_aware_validator_allows_low_confidence_soft_logging_context(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=2,
+        confidence="Low",
+    )
+
+    candidate = _candidate_with_text(
+        "Actual-set logging context is still developing, so keep interpreting planned workouts carefully."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert violations == []
+
+
+def test_execution_aware_validator_rejects_harder_than_planned_overtraining_or_deload(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[101])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        execution_effort_trend="harder_than_planned",
+    )
+
+    candidate = _candidate_with_text(
+        "Actual effort was harder than planned, so automatic deload is required due to overtraining."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("overtraining" in violation.lower() for violation in violations)
+    assert any("automatic deload" in violation.lower() for violation in violations)
+
+
+def test_execution_aware_validator_rejects_easier_than_planned_automatic_progression(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+        execution_effort_trend="easier_than_planned",
+    )
+
+    candidate = _candidate_with_text(
+        "Actual effort was easier than planned, so automatically increase load next time."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("automatic progression" in violation.lower() for violation in violations)
+
+
+def test_execution_aware_validator_rejects_skipped_exercise_adherence_framing(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+    )
+
+    candidate = _candidate_with_text(
+        "Skipped exercises in planned workouts show poor adherence and lack of discipline."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("Skipped exercise language" in violation for violation in violations)
+
+
+def test_execution_aware_validator_rejects_substitution_failure_framing(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Moderate",
+    )
+
+    candidate = _candidate_with_text(
+        "Repeated substitutions in planned workouts show failure and noncompliance."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("Substitution language" in violation for violation in violations)
+
+
+def test_execution_aware_validator_rejects_strong_quality_claims_with_incomplete_logging(
+    tmp_path, monkeypatch
+):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_recommendation_context(health_states[102])
+    context.training_execution_summary = _training_execution_summary(
+        completed_execution_count=3,
+        confidence="Low",
+        incomplete_logging_count=2,
+    )
+
+    candidate = _candidate_with_text(
+        "Planned workouts show a reliable execution trend and consistently completed recent planned workouts."
+    )
+
+    violations = validate_candidate_action_plan(candidate, context)
+
+    assert any("Incomplete actual-set logging" in violation for violation in violations)
 
 
 def test_aligned_managed_recommendation_avoids_unnecessary_intervention_language(

@@ -120,6 +120,94 @@ _CARBOHYDRATE_CLAIM_RE = re.compile(
 )
 _FAT_CLAIM_RE = re.compile(r"\bfat\s+(\d{1,3})\s*(?:-|to)?\s*(\d{1,3})?\s*g(?:/day)?\b")
 
+_EXECUTION_AWARE_CLAIM_TERMS = [
+    "planned workout",
+    "planned workouts",
+    "planned session",
+    "planned sessions",
+    "planned-vs-actual",
+    "planned vs actual",
+    "execution history",
+    "execution summary",
+    "workout execution",
+    "actual effort",
+    "actual-set",
+    "actual set",
+    "actual sets",
+    "harder than planned",
+    "easier than planned",
+    "skipped exercise",
+    "skipped exercises",
+    "substituted exercise",
+    "substituted exercises",
+    "substitution",
+    "substitutions",
+]
+
+_EXECUTION_AWARE_STRONG_TREND_TERMS = [
+    "trend",
+    "trends",
+    "pattern",
+    "patterns",
+    "consistently",
+    "repeated",
+    "repeatedly",
+    "proves",
+    "shows that",
+    "demonstrates",
+]
+
+_EXECUTION_AWARE_FORBIDDEN_CLAIMS = [
+    "overtraining",
+    "poor adherence",
+    "failed programming",
+    "stalled progress",
+    "automatic deload",
+    "deload required",
+    "required deload",
+    "automatic load increase",
+    "automatically increase load",
+    "automatically increase weight",
+    "automatic progression",
+    "user failed the workout",
+    "failed the workout",
+    "plan is bad",
+    "bad plan",
+    "plan is ineffective",
+    "ineffective plan",
+    "lack of discipline",
+    "one workout proves",
+    "one workout shows",
+    "one workout means",
+]
+
+_EXECUTION_AWARE_LOW_CONFIDENCE_FORBIDDEN_TERMS = [
+    "trend",
+    "trends",
+    "pattern",
+    "patterns",
+    "consistently",
+    "repeated",
+    "repeatedly",
+    "mostly completed",
+    "high completion",
+    "harder than planned",
+    "easier than planned",
+    "increase load",
+    "increase weight",
+    "deload",
+]
+
+_EXECUTION_AWARE_SOFT_CONTEXT_TERMS = [
+    "logging",
+    "context",
+    "limited",
+    "developing",
+    "interpretation",
+    "review",
+    "verify",
+]
+
 
 def build_recommendation_context(
     health_state: UserHealthState,
@@ -617,6 +705,125 @@ def _validate_numeric_fat_claims(
     return violations
 
 
+def _validate_execution_aware_claims(
+    text: str,
+    context: RecommendationContext,
+) -> list[str]:
+    summary = context.training_execution_summary
+    if summary is None:
+        return []
+
+    violations: list[str] = []
+    has_execution_claim = any(term in text for term in _EXECUTION_AWARE_CLAIM_TERMS)
+    has_strong_trend_claim = has_execution_claim and any(
+        term in text for term in _EXECUTION_AWARE_STRONG_TREND_TERMS
+    )
+
+    for claim in _EXECUTION_AWARE_FORBIDDEN_CLAIMS:
+        if claim in text:
+            violations.append(
+                "Execution-aware recommendations must not make forbidden claims: "
+                f"{claim}"
+            )
+
+    if summary.completed_execution_count == 0 and has_execution_claim:
+        violations.append(
+            "Execution-aware recommendation claims are not allowed without completed planned workouts."
+        )
+
+    if summary.completed_execution_count < 2 and has_strong_trend_claim:
+        violations.append(
+            "Execution-aware trend claims require at least two completed planned workouts."
+        )
+
+    if summary.confidence == "Limited" and has_execution_claim:
+        violations.append(
+            "Limited-confidence TrainingExecutionSummary must not produce user-facing execution-aware claims."
+        )
+
+    if summary.confidence == "Low" and has_execution_claim:
+        has_soft_context = any(
+            term in text for term in _EXECUTION_AWARE_SOFT_CONTEXT_TERMS
+        )
+        has_low_confidence_forbidden_term = any(
+            term in text for term in _EXECUTION_AWARE_LOW_CONFIDENCE_FORBIDDEN_TERMS
+        )
+        if has_low_confidence_forbidden_term or not has_soft_context:
+            violations.append(
+                "Low-confidence TrainingExecutionSummary may only support soft logging or context language."
+            )
+
+    if "skipped" in text and any(
+        term in text
+        for term in [
+            "poor adherence",
+            "lack of discipline",
+            "failed the workout",
+            "user failed",
+            "noncompliance",
+        ]
+    ):
+        violations.append(
+            "Skipped exercise language must use plan-fit or review framing, not adherence or failure framing."
+        )
+
+    if any(term in text for term in ["substitution", "substitutions", "substituted"]):
+        if any(
+            term in text
+            for term in [
+                "failure",
+                "failed",
+                "noncompliance",
+                "poor adherence",
+                "lack of discipline",
+            ]
+        ):
+            violations.append(
+                "Substitution language must use plan-fit or equipment-fit framing, not failure or noncompliance framing."
+            )
+
+    if summary.execution_effort_trend == "harder_than_planned":
+        if has_execution_claim and any(
+            term in text
+            for term in ["overtraining", "deload", "reduce intensity required"]
+        ):
+            violations.append(
+                "Harder-than-planned effort must not be framed as overtraining or an automatic deload requirement."
+            )
+
+    if summary.execution_effort_trend == "easier_than_planned":
+        if has_execution_claim and any(
+            term in text
+            for term in [
+                "automatic progression",
+                "automatic load increase",
+                "automatically increase load",
+                "increase load",
+                "increase weight",
+            ]
+        ):
+            violations.append(
+                "Easier-than-planned effort must not trigger automatic progression or load-increase claims."
+            )
+
+    if summary.incomplete_logging_count:
+        strong_execution_quality_terms = [
+            "mostly completed",
+            "consistently completed",
+            "high completion",
+            "strong execution trend",
+            "reliable execution trend",
+        ]
+        if has_execution_claim and any(
+            term in text for term in strong_execution_quality_terms
+        ):
+            violations.append(
+                "Incomplete actual-set logging must not support strong execution-quality claims."
+            )
+
+    return violations
+
+
 def validate_candidate_action_plan(
     candidate: CandidateActionPlan,
     context: RecommendationContext,
@@ -654,6 +861,7 @@ def validate_candidate_action_plan(
     violations.extend(_validate_numeric_protein_claims(text, context))
     violations.extend(_validate_numeric_carbohydrate_claims(text, context))
     violations.extend(_validate_numeric_fat_claims(text, context))
+    violations.extend(_validate_execution_aware_claims(text, context))
 
     if context.scenario == "recovery_limited":
         if "low_rir_high_effort_training" in context.reason_codes:
