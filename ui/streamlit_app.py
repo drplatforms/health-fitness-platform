@@ -366,11 +366,15 @@ def extract_api_error_message(exc: requests.RequestException) -> str:
     return str(exc)
 
 
-def display_planned_exercises(planned_exercises: list[dict]) -> None:
+def display_planned_exercises(
+    planned_exercises: list[dict],
+    active_substitutions: dict[int, dict] | None = None,
+) -> None:
     if not planned_exercises:
         st.warning("No planned exercises were returned.")
         return
 
+    active_substitutions = active_substitutions or {}
     planned_rows = []
 
     for exercise in planned_exercises:
@@ -379,11 +383,32 @@ def display_planned_exercises(planned_exercises: list[dict]) -> None:
         rir_min = exercise.get("rir_min")
         rir_max = exercise.get("rir_max")
         equipment_required = exercise.get("equipment_required") or []
+        planned_exercise_id = exercise.get("id")
+        active_substitution = None
+
+        if planned_exercise_id is not None:
+            try:
+                active_substitution = active_substitutions.get(int(planned_exercise_id))
+            except (TypeError, ValueError):
+                active_substitution = None
+
+        original_exercise_name = exercise.get("name", "Unknown")
+        active_exercise_name = original_exercise_name
+        substitution_status = "Original"
+
+        if active_substitution:
+            active_exercise_name = active_substitution.get(
+                "replacement_exercise_name",
+                active_exercise_name,
+            )
+            substitution_status = "Substituted"
 
         planned_rows.append(
             {
                 "Order": exercise.get("exercise_order", "Unknown"),
-                "Exercise": exercise.get("name", "Unknown"),
+                "Original Exercise": original_exercise_name,
+                "Active Exercise": active_exercise_name,
+                "Status": substitution_status,
                 "Sets": exercise.get("sets", "Unknown"),
                 "Reps": (
                     f"{reps_min}-{reps_max}"
@@ -1026,10 +1051,14 @@ def display_apply_substitution_control(
                 st.session_state.applied_substitution_responses[apply_response_key] = (
                     apply_response
                 )
+                refresh_active_plan_response(plan_instance_id)
                 st.session_state.substitution_apply_message = (
-                    f"Substitution applied for {planned_exercise_name}."
+                    f"Substitution applied for {planned_exercise_name}. "
+                    "The active workout plan has been updated for logging."
                 )
                 st.session_state.substitution_apply_error = None
+                st.session_state.substitution_flow_ready_to_do_workout = True
+                request_workout_flow_step("2. Do Workout")
                 st.rerun()
 
             st.session_state.substitution_apply_error = (
@@ -1052,8 +1081,10 @@ def display_substitution_candidates(
     plan_status: str | None = None,
     execution_status: str | None = None,
     active_substitutions: dict[int, dict] | None = None,
+    always_visible: bool = False,
+    title: str = "Compatible Substitutions",
 ) -> None:
-    st.subheader("Compatible Substitutions")
+    st.subheader(title)
 
     if not planned_exercises:
         st.info("No planned exercises are available for substitution lookup.")
@@ -1095,74 +1126,89 @@ def display_substitution_candidates(
 
         visibility_key = f"{context_key}_{plan_instance_id}_{planned_exercise_id}"
 
-        is_visible = visibility_key in st.session_state.visible_substitution_candidates
-        button_label = (
-            f"Hide compatible substitutions for {planned_exercise_name}"
-            if is_visible
-            else f"Show compatible substitutions for {planned_exercise_name}"
-        )
-
-        if st.button(
-            button_label,
-            key=f"substitution_candidates_button_{visibility_key}",
-        ):
-            if is_visible:
-                st.session_state.visible_substitution_candidates.remove(visibility_key)
-            else:
-                st.session_state.visible_substitution_candidates.append(visibility_key)
-
-            st.rerun()
-
-        if visibility_key not in st.session_state.visible_substitution_candidates:
-            continue
-
-        try:
-            candidate_response = api_get(
-                "/workout-plans/"
-                f"{plan_instance_id}/planned-exercises/"
-                f"{planned_exercise_id}/substitution-candidates"
+        if always_visible:
+            is_visible = True
+        else:
+            is_visible = (
+                visibility_key in st.session_state.visible_substitution_candidates
             )
-        except requests.RequestException as exc:
-            st.error(
-                "Failed to load substitution candidates for "
-                f"{planned_exercise_name}: {extract_api_error_message(exc)}"
+            button_label = (
+                f"Hide compatible substitutions for {planned_exercise_name}"
+                if is_visible
+                else f"Show compatible substitutions for {planned_exercise_name}"
             )
-            continue
 
-        st.write(f"**Planned exercise:** {planned_exercise_name}")
-
-        apply_response_key = f"{plan_instance_id}_{planned_exercise_id}"
-        apply_response = st.session_state.applied_substitution_responses.get(
-            apply_response_key
-        ) or active_substitution_response_from_record(
-            active_substitutions.get(int(planned_exercise_id))
-        )
-        display_active_substitution(apply_response)
-
-        candidates = candidate_response.get("substitution_candidates", [])
-
-        display_substitution_candidate_table(candidates)
-        display_apply_substitution_control(
-            plan_instance_id=plan_instance_id,
-            planned_exercise_id=int(planned_exercise_id),
-            planned_exercise_name=planned_exercise_name,
-            candidates=candidates,
-            apply_response_key=apply_response_key,
-            allow_apply=allow_apply,
-        )
-
-        if st.session_state.get("developer_mode", False):
-            with st.expander(
-                f"Developer details: substitution candidates for {planned_exercise_name}"
+            if st.button(
+                button_label,
+                key=f"substitution_candidates_button_{visibility_key}",
             ):
-                st.json(candidate_response)
+                if is_visible:
+                    st.session_state.visible_substitution_candidates.remove(
+                        visibility_key
+                    )
+                else:
+                    st.session_state.visible_substitution_candidates.append(
+                        visibility_key
+                    )
 
-                apply_response = st.session_state.applied_substitution_responses.get(
-                    apply_response_key
+                st.rerun()
+
+        if not is_visible:
+            continue
+
+        with st.expander(
+            f"{planned_exercise_name} substitutions",
+            expanded=always_visible or int(planned_exercise_id) in active_substitutions,
+        ):
+            try:
+                candidate_response = api_get(
+                    "/workout-plans/"
+                    f"{plan_instance_id}/planned-exercises/"
+                    f"{planned_exercise_id}/substitution-candidates"
                 )
-                if apply_response:
-                    st.subheader("Latest Raw Apply Response")
-                    st.json(apply_response)
+            except requests.RequestException as exc:
+                st.error(
+                    "Failed to load substitution candidates for "
+                    f"{planned_exercise_name}: {extract_api_error_message(exc)}"
+                )
+                continue
+
+            st.write(f"**Original planned exercise:** {planned_exercise_name}")
+
+            apply_response_key = f"{plan_instance_id}_{planned_exercise_id}"
+            apply_response = st.session_state.applied_substitution_responses.get(
+                apply_response_key
+            ) or active_substitution_response_from_record(
+                active_substitutions.get(int(planned_exercise_id))
+            )
+            display_active_substitution(apply_response)
+
+            candidates = candidate_response.get("substitution_candidates", [])
+
+            display_substitution_candidate_table(candidates)
+            display_apply_substitution_control(
+                plan_instance_id=plan_instance_id,
+                planned_exercise_id=int(planned_exercise_id),
+                planned_exercise_name=planned_exercise_name,
+                candidates=candidates,
+                apply_response_key=apply_response_key,
+                allow_apply=allow_apply,
+            )
+
+            if st.session_state.get("developer_mode", False):
+                with st.expander(
+                    f"Developer details: substitution candidates for {planned_exercise_name}"
+                ):
+                    st.json(candidate_response)
+
+                    apply_response = (
+                        st.session_state.applied_substitution_responses.get(
+                            apply_response_key
+                        )
+                    )
+                    if apply_response:
+                        st.subheader("Latest Raw Apply Response")
+                        st.json(apply_response)
 
 
 def display_actual_set_logging(plan_instance_id: int) -> None:
@@ -1874,14 +1920,6 @@ def display_workout_execution_review(plan_instance_id: int) -> None:
     st.write("**Planned Exercises**")
     display_planned_exercises(planned_exercises)
     display_active_substitution_summary(planned_exercises, active_substitutions)
-    display_substitution_candidates(
-        plan_instance_id,
-        planned_exercises,
-        context_key="execution_review",
-        plan_status=workout_plan_instance.get("status"),
-        execution_status=execution_session.get("status"),
-        active_substitutions=active_substitutions,
-    )
     display_actual_sets(actual_sets)
     display_actual_set_editing(
         plan_instance_id,
@@ -2075,7 +2113,6 @@ KNOWN_EQUIPMENT_OPTIONS = [
     "bodyweight",
     "cable",
     "dumbbell",
-    "exercise_ball",
     "ez_bar",
     "kettlebell",
     "machine",
@@ -2083,7 +2120,6 @@ KNOWN_EQUIPMENT_OPTIONS = [
     "pull_up_bar",
     "rack",
     "resistance_band",
-    "rope_cable_attachment",
     "treadmill",
 ]
 
@@ -2430,6 +2466,10 @@ SESSION_DEFAULTS = {
     "applied_substitution_responses": {},
     "substitution_apply_message": None,
     "substitution_apply_error": None,
+    "substitution_flow_ready_to_do_workout": False,
+    "workout_flow_step": "1. Plan",
+    "workout_flow_step_selector": "1. Plan",
+    "workout_flow_step_override": None,
     "developer_mode": False,
 }
 
@@ -2441,6 +2481,18 @@ for key, default_value in SESSION_DEFAULTS.items():
             st.session_state[key] = default_value.copy()
         else:
             st.session_state[key] = default_value
+
+
+def request_workout_flow_step(step: str) -> None:
+    """Request a workout-flow step change for the next Streamlit rerun.
+
+    The visible step selector uses its own widget key. Streamlit does not allow
+    modifying a widget-backed session-state key after that widget has rendered,
+    so button handlers set a non-widget override key instead. The override is
+    consumed before the selector is instantiated on the next run.
+    """
+    st.session_state.workout_flow_step = step
+    st.session_state.workout_flow_step_override = step
 
 
 def reset_user_scoped_state() -> None:
@@ -2466,6 +2518,10 @@ def reset_user_scoped_state() -> None:
     st.session_state.applied_substitution_responses = {}
     st.session_state.substitution_apply_message = None
     st.session_state.substitution_apply_error = None
+    st.session_state.substitution_flow_ready_to_do_workout = False
+    st.session_state.workout_flow_step = "1. Plan"
+    st.session_state.workout_flow_step_selector = "1. Plan"
+    st.session_state.workout_flow_step_override = None
 
 
 USER_OPTIONS = {
@@ -2585,6 +2641,26 @@ def get_active_plan_response(user_id: int) -> dict | None:
     return None
 
 
+def refresh_active_plan_response(plan_instance_id: int) -> dict | None:
+    try:
+        execution_response = api_get(f"/workout-plans/{plan_instance_id}/execution")
+    except requests.RequestException:
+        return None
+
+    workout_plan_instance = execution_response.get("workout_plan_instance") or {}
+    status = workout_plan_instance.get("status")
+
+    if status == "selected":
+        st.session_state.selected_workout_plan_response = execution_response
+        st.session_state.started_workout_plan_response = None
+    elif status in {"started", "in_progress", "completed"}:
+        st.session_state.started_workout_plan_response = execution_response
+        if status != "selected":
+            st.session_state.selected_workout_plan_response = None
+
+    return execution_response
+
+
 def get_plan_statuses(plan_response: dict | None) -> tuple[str | None, str | None]:
     if not plan_response:
         return None, None
@@ -2633,9 +2709,15 @@ def render_active_plan_summary(plan_response: dict | None) -> None:
             f"Completed: {execution_session.get('completed_at') or 'Not completed'}"
         )
 
+    active_substitutions = merged_active_substitution_map(
+        get_plan_instance_id_from_response(plan_response) or 0,
+        plan_response,
+    )
+
     if planned_exercises:
-        with st.expander("Planned exercises", expanded=False):
-            display_planned_exercises(planned_exercises)
+        with st.expander("Workout exercises", expanded=True):
+            display_planned_exercises(planned_exercises, active_substitutions)
+            display_active_substitution_summary(planned_exercises, active_substitutions)
 
 
 def render_preview_exercise_snapshot(workout_plan: dict) -> None:
@@ -2688,7 +2770,9 @@ def select_today_workout(user_id: int, button_key: str) -> None:
             st.session_state.applied_substitution_responses = {}
             st.session_state.substitution_apply_message = None
             st.session_state.substitution_apply_error = None
-            st.success("Workout plan selected.")
+            st.session_state.substitution_flow_ready_to_do_workout = False
+            request_workout_flow_step("1. Plan")
+            st.success("Workout plan selected. Review substitutions before starting.")
             st.rerun()
 
         st.session_state.workout_plan_action_error = "Workout plan selection failed."
@@ -2724,6 +2808,7 @@ def start_active_workout(plan_response: dict | None) -> None:
                 st.session_state.completed_workout_plan_response = None
                 st.session_state.workout_completion_message = None
                 st.session_state.workout_completion_error = None
+                request_workout_flow_step("2. Do Workout")
                 st.success("Workout started.")
                 st.rerun()
 
@@ -2970,15 +3055,43 @@ def render_today_section(user_id: int) -> None:
 def render_workout_plan_section(user_id: int) -> None:
     st.header("Workout Plan")
     st.caption(
-        "Simple flow: preview the plan, select it, start it, log sets, complete it, then review the result."
+        "Simple flow: preview the plan, select it, make substitutions if needed, "
+        "then start and log the workout."
     )
 
     if st.session_state.workout_plan_action_error:
         st.error(st.session_state.workout_plan_action_error)
 
-    plan_tab, do_tab, review_tab = st.tabs(["1. Plan", "2. Do Workout", "3. Review"])
+    workout_steps = ["1. Plan", "2. Do Workout", "3. Review"]
 
-    with plan_tab:
+    override_step = st.session_state.get("workout_flow_step_override")
+    if override_step in workout_steps:
+        st.session_state.workout_flow_step = override_step
+        st.session_state.workout_flow_step_selector = override_step
+        st.session_state.workout_flow_step_override = None
+
+    current_step = st.session_state.get("workout_flow_step", "1. Plan")
+    if current_step not in workout_steps:
+        current_step = "1. Plan"
+        st.session_state.workout_flow_step = current_step
+
+    selector_step = st.session_state.get("workout_flow_step_selector", current_step)
+    if selector_step not in workout_steps:
+        selector_step = current_step
+        st.session_state.workout_flow_step_selector = current_step
+
+    selected_step = st.radio(
+        "Workout flow",
+        options=workout_steps,
+        index=workout_steps.index(selector_step),
+        horizontal=True,
+        key="workout_flow_step_selector",
+    )
+
+    if selected_step != current_step:
+        st.session_state.workout_flow_step = selected_step
+
+    if selected_step == "1. Plan":
         with st.expander("Equipment Profile", expanded=False):
             render_equipment_profile_editor(user_id)
 
@@ -3004,10 +3117,73 @@ def render_workout_plan_section(user_id: int) -> None:
 
             active_plan_response = get_active_plan_response(user_id)
             if active_plan_response:
-                st.info(
-                    "An active selected workout exists. Use the Do Workout tab to continue."
-                )
+                st.success("Selected workout plan is ready to customize.")
                 render_active_plan_summary(active_plan_response)
+
+                plan_instance_id = get_plan_instance_id_from_response(
+                    active_plan_response
+                )
+                if plan_instance_id is not None:
+                    workout_plan_instance = (
+                        active_plan_response.get("workout_plan_instance") or {}
+                    )
+                    execution_session = (
+                        active_plan_response.get("execution_session") or {}
+                    )
+                    planned_exercises = (
+                        active_plan_response.get("planned_exercises") or []
+                    )
+                    active_substitutions = merged_active_substitution_map(
+                        plan_instance_id,
+                        active_plan_response,
+                    )
+
+                    st.divider()
+                    st.subheader("Substitute Before You Start")
+                    st.caption(
+                        "Apply substitutions here while planning. After you apply one, "
+                        "the active workout plan updates automatically and the Do Workout "
+                        "step uses the substituted exercise for logging."
+                    )
+                    display_substitution_candidates(
+                        plan_instance_id,
+                        planned_exercises,
+                        context_key="plan_step",
+                        plan_status=workout_plan_instance.get("status"),
+                        execution_status=execution_session.get("status"),
+                        active_substitutions=active_substitutions,
+                        always_visible=True,
+                        title="Available Substitutions",
+                    )
+
+                    refreshed_plan_response = refresh_active_plan_response(
+                        plan_instance_id
+                    )
+                    if refreshed_plan_response:
+                        active_plan_response = refreshed_plan_response
+                        active_substitutions = merged_active_substitution_map(
+                            plan_instance_id,
+                            active_plan_response,
+                        )
+
+                    if active_substitutions:
+                        st.success(
+                            "Workout plan updated with active substitutions. "
+                            "The Do Workout step is populated with the active exercise choices."
+                        )
+                    else:
+                        st.info(
+                            "No substitutions are active yet. Keep the original plan or "
+                            "apply a compatible substitution before moving to Do Workout."
+                        )
+
+                    if st.button(
+                        "Continue to Do Workout",
+                        key=f"continue_to_do_workout_{plan_instance_id}",
+                        type="primary",
+                    ):
+                        request_workout_flow_step("2. Do Workout")
+                        st.rerun()
             else:
                 select_today_workout(user_id, "select_workout_plan_button")
 
@@ -3025,7 +3201,7 @@ def render_workout_plan_section(user_id: int) -> None:
         else:
             st.warning("No workout plan preview is available for this user yet.")
 
-    with do_tab:
+    elif selected_step == "2. Do Workout":
         active_plan_response = get_active_plan_response(user_id)
         render_active_plan_summary(active_plan_response)
 
@@ -3036,6 +3212,10 @@ def render_workout_plan_section(user_id: int) -> None:
             else:
                 start_active_workout(active_plan_response)
 
+                refreshed_plan_response = refresh_active_plan_response(plan_instance_id)
+                if refreshed_plan_response:
+                    active_plan_response = refreshed_plan_response
+
                 if is_started_or_in_progress(active_plan_response):
                     st.divider()
                     display_actual_set_logging(plan_instance_id)
@@ -3043,8 +3223,10 @@ def render_workout_plan_section(user_id: int) -> None:
                 if is_in_progress(active_plan_response):
                     st.divider()
                     display_complete_workout_control(plan_instance_id)
+        else:
+            st.info("Select a workout plan before starting the workout.")
 
-    with review_tab:
+    elif selected_step == "3. Review":
         active_plan_response = get_active_plan_response(user_id)
         plan_instance_id = get_plan_instance_id_from_response(active_plan_response)
 
