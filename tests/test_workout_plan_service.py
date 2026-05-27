@@ -6,8 +6,12 @@ import database
 from api.main import app
 from models.workout_constraint_models import WorkoutConstraints
 from scripts.seed_qa_scenarios import QA_USER_IDS, seed_qa_scenarios
+from services.equipment_profile_service import save_equipment_profile
+from services.exercise_catalog_service import find_catalog_entry_by_name
 from services.user_state_service import build_user_health_state
+from services.workout_plan_persistence_service import select_current_workout_plan
 from services.workout_plan_service import (
+    _select_exercise,
     approve_candidate_workout_plan,
     build_approved_workout_plan,
     build_workout_context,
@@ -23,6 +27,33 @@ EXPECTED_SCENARIOS = {
     104: "improving_after_deload",
     105: "data_quality_limited",
 }
+
+
+USER_HOME_GYM_EQUIPMENT = [
+    "adjustable_bench",
+    "barbell",
+    "bike",
+    "bodyweight",
+    "cable",
+    "dumbbell",
+    "exercise_ball",
+    "ez_bar",
+    "plates",
+    "pull_up_bar",
+    "rack",
+    "resistance_band",
+    "rope_cable_attachment",
+    "treadmill",
+]
+
+
+def _movement_patterns_for_plan(approved):
+    patterns = []
+    for exercise in approved.exercises:
+        entry = find_catalog_entry_by_name(exercise.name)
+        if entry is not None:
+            patterns.append(entry.movement_pattern)
+    return patterns
 
 
 def _seeded_health_states(tmp_path, monkeypatch):
@@ -201,3 +232,75 @@ def test_workout_plan_preview_endpoint_smoke(tmp_path, monkeypatch):
     assert payload["workout_constraints"]["available_equipment"]
     assert payload["approved_workout_plan"]["exercises"]
     assert "Workout Plan Preview" in payload["rendered_workout_plan"]
+
+
+def test_scored_selection_penalizes_recent_exact_exercises(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    workout_constraints = WorkoutConstraints(
+        available_equipment=[
+            "bodyweight",
+            "barbell",
+            "dumbbell",
+            "plates",
+            "rack",
+        ],
+        unavailable_equipment=["machine"],
+        recent_exercises=["Romanian Deadlift"],
+        confidence="High",
+        reason_codes=["test_recent_history"],
+    )
+
+    name, equipment_required = _select_exercise(
+        workout_constraints,
+        [
+            ("Romanian Deadlift", ["barbell"]),
+            ("Goblet Squat", ["dumbbell"]),
+        ],
+    )
+
+    assert name == "Goblet Squat"
+    assert equipment_required == ["dumbbell"]
+
+
+def test_home_gym_preview_rotates_after_recent_planned_history(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    save_equipment_profile(
+        user_id=102,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+
+    first_plan = build_approved_workout_plan(build_user_health_state(102))
+    select_current_workout_plan(102)
+    second_plan = build_approved_workout_plan(build_user_health_state(102))
+
+    first_names = [exercise.name for exercise in first_plan.exercises]
+    second_names = [exercise.name for exercise in second_plan.exercises]
+
+    assert second_names != first_names
+    assert any(name not in first_names for name in second_names)
+    assert all(
+        "machine" not in exercise.equipment_required
+        for exercise in second_plan.exercises
+    )
+
+
+def test_home_gym_preview_rotates_movement_patterns_after_recent_trio(
+    tmp_path, monkeypatch
+):
+    _seeded_health_states(tmp_path, monkeypatch)
+    save_equipment_profile(
+        user_id=102,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+
+    select_current_workout_plan(102)
+    second_plan = build_approved_workout_plan(build_user_health_state(102))
+    patterns = set(_movement_patterns_for_plan(second_plan))
+
+    assert "squat" in patterns or "hinge" in patterns
+    assert "horizontal_push" in patterns or "vertical_push" in patterns
+    assert "horizontal_pull" in patterns or "vertical_pull" in patterns

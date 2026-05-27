@@ -153,20 +153,142 @@ def _catalog_equipment_for_option(
     )
 
 
+def _normalize_exercise_name(name: str) -> str:
+    return name.strip().lower().replace("-", " ").replace("_", " ")
+
+
+def _recent_exercise_names(workout_constraints: WorkoutConstraints) -> set[str]:
+    return {
+        _normalize_exercise_name(name)
+        for name in workout_constraints.recent_exercises
+        if name
+    }
+
+
+def _recent_movement_patterns(workout_constraints: WorkoutConstraints) -> set[str]:
+    patterns: set[str] = set()
+    for name in workout_constraints.recent_exercises:
+        catalog_entry = find_catalog_entry_by_name(name)
+        if catalog_entry is not None:
+            patterns.add(catalog_entry.movement_pattern)
+    return patterns
+
+
+def _is_home_gym_like(workout_constraints: WorkoutConstraints) -> bool:
+    available = {
+        _normalize_equipment(item) for item in workout_constraints.available_equipment
+    }
+    return bool(
+        available
+        & {
+            "barbell",
+            "cable",
+            "dumbbell",
+            "ez_bar",
+            "pull_up_bar",
+            "resistance_band",
+        }
+    )
+
+
+def _difficulty_score(
+    difficulty: str | None, workout_constraints: WorkoutConstraints
+) -> int:
+    normalized = (difficulty or "intermediate").strip().lower()
+    if workout_constraints.confidence == "Low":
+        return {"beginner": 12, "intermediate": 2, "advanced": -18}.get(normalized, 0)
+
+    return {"beginner": 2, "intermediate": 12, "advanced": 4}.get(normalized, 0)
+
+
+def _option_score(
+    name: str,
+    equipment_required: list[str],
+    workout_constraints: WorkoutConstraints,
+    option_index: int,
+    recent_names: set[str],
+    recent_patterns: set[str],
+) -> int:
+    catalog_entry = find_catalog_entry_by_name(name)
+    catalog_name, normalized_equipment = _catalog_equipment_for_option(
+        name, equipment_required
+    )
+    score = 1000 - option_index
+
+    if _normalize_exercise_name(catalog_name) in recent_names:
+        score -= 450
+
+    if catalog_entry is not None:
+        if catalog_entry.movement_pattern in recent_patterns:
+            score -= 45
+        score += _difficulty_score(catalog_entry.difficulty, workout_constraints)
+
+    equipment = set(normalized_equipment)
+    if "machine" in equipment:
+        score -= 90
+
+    if _is_home_gym_like(workout_constraints):
+        score += 12 * len(
+            equipment
+            & {
+                "barbell",
+                "cable",
+                "dumbbell",
+                "ez_bar",
+                "pull_up_bar",
+                "resistance_band",
+                "rope_cable_attachment",
+            }
+        )
+        if equipment == {"bodyweight"}:
+            score -= 8
+
+    return score
+
+
 def _select_exercise(
     workout_constraints: WorkoutConstraints,
     options: list[tuple[str, list[str]]],
 ) -> tuple[str, list[str]]:
-    for name, equipment_required in options:
+    allowed_options: list[tuple[int, str, list[str]]] = []
+    recent_names = _recent_exercise_names(workout_constraints)
+    recent_patterns = _recent_movement_patterns(workout_constraints)
+
+    for index, (name, equipment_required) in enumerate(options):
         catalog_name, catalog_equipment_required = _catalog_equipment_for_option(
             name,
             equipment_required,
         )
         if _equipment_allowed(catalog_equipment_required, workout_constraints):
-            return catalog_name, catalog_equipment_required
+            allowed_options.append(
+                (
+                    _option_score(
+                        name,
+                        equipment_required,
+                        workout_constraints,
+                        index,
+                        recent_names,
+                        recent_patterns,
+                    ),
+                    catalog_name,
+                    catalog_equipment_required,
+                )
+            )
+
+    if allowed_options:
+        _, name, equipment_required = max(allowed_options, key=lambda item: item[0])
+        return name, equipment_required
 
     name, equipment_required = options[-1]
     return _catalog_equipment_for_option(name, equipment_required)
+
+
+def _prefer_alternate_template(context: WorkoutContext) -> bool:
+    recent_patterns = _recent_movement_patterns(context.workout_constraints)
+    return bool(
+        {"hinge", "vertical_push", "vertical_pull"}.issubset(recent_patterns)
+        or {"squat", "horizontal_push", "horizontal_pull"}.issubset(recent_patterns)
+    )
 
 
 def _exercise(
@@ -229,8 +351,11 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Goblet Squat", ["dumbbell"]),
-                        ("Leg Press", ["machine"]),
+                        ("Dumbbell Split Squat", ["dumbbell"]),
+                        ("Stability Ball Wall Squat", ["exercise_ball"]),
+                        ("Reverse Lunge", ["bodyweight"]),
                         ("Bodyweight Squat", ["bodyweight"]),
+                        ("Leg Press", ["machine"]),
                     ],
                     3,
                     8,
@@ -242,7 +367,9 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
+                        ("Dumbbell Floor Press", ["dumbbell"]),
                         ("Dumbbell Bench Press", ["dumbbell"]),
+                        ("Band Resisted Push-Up", ["bodyweight", "resistance_band"]),
                         ("Push-Up", ["bodyweight"]),
                         ("Machine Chest Press", ["machine"]),
                     ],
@@ -256,10 +383,12 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
-                        ("Chest-Supported Row", ["dumbbell"]),
+                        ("Band Row", ["resistance_band"]),
                         ("Cable Row", ["cable"]),
-                        ("Machine Row", ["machine"]),
+                        ("One-Arm Dumbbell Row", ["dumbbell"]),
+                        ("Chest-Supported Row", ["dumbbell"]),
                         ("Inverted Row", ["bodyweight"]),
+                        ("Machine Row", ["machine"]),
                     ],
                     3,
                     10,
@@ -271,10 +400,12 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
+                        ("Bird Dog", ["bodyweight"]),
                         ("Band Face Pull", ["resistance_band"]),
+                        ("Stability Ball Dead Bug", ["exercise_ball"]),
                         ("Dead Bug", ["bodyweight"]),
+                        ("Bike Recovery Ride", ["bike"]),
                         ("Farmer Carry", ["dumbbell"]),
-                        ("Bike Steady State", ["bike"]),
                     ],
                     2,
                     8,
@@ -304,9 +435,12 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Dumbbell RDL", ["dumbbell"]),
+                        ("Cable Pull-Through", ["cable", "rope_cable_attachment"]),
+                        ("Stability Ball Hamstring Curl", ["exercise_ball"]),
                         ("Goblet Squat", ["dumbbell"]),
-                        ("Leg Press", ["machine"]),
+                        ("Reverse Lunge", ["bodyweight"]),
                         ("Bodyweight Squat", ["bodyweight"]),
+                        ("Leg Press", ["machine"]),
                     ],
                     3,
                     8,
@@ -319,6 +453,8 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Incline Dumbbell Press", ["dumbbell"]),
+                        ("Dumbbell Floor Press", ["dumbbell"]),
+                        ("Single-Arm Cable Press", ["cable"]),
                         ("Push-Up", ["bodyweight"]),
                         ("Machine Chest Press", ["machine"]),
                     ],
@@ -332,7 +468,8 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
-                        ("Lat Pulldown", ["cable"]),
+                        ("Cable Lat Pulldown", ["cable"]),
+                        ("Band Lat Pulldown", ["resistance_band"]),
                         ("Cable Row", ["cable"]),
                         ("Dumbbell Row", ["dumbbell"]),
                         ("Inverted Row", ["bodyweight"]),
@@ -348,6 +485,7 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Cable Woodchop", ["cable"]),
+                        ("Band Pallof Press", ["resistance_band"]),
                         ("Dead Bug", ["bodyweight"]),
                         ("Band Face Pull", ["resistance_band"]),
                         ("Bike Steady State", ["bike"]),
@@ -357,7 +495,10 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     12,
                     rir_min,
                     rir_max,
-                    "Keep the accessory work low-to-moderate while nutrition support is clarified.",
+                    (
+                        "Keep the accessory work low-to-moderate while nutrition "
+                        "support is clarified."
+                    ),
                 ),
             ],
             warmup="Use progressive warm-up sets before the first two movements.",
@@ -379,10 +520,13 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                 _exercise_from_options(
                     context,
                     [
+                        ("Romanian Deadlift", ["barbell"]),
                         ("Barbell Squat", ["barbell"]),
+                        ("Dumbbell Split Squat", ["dumbbell"]),
+                        ("Dumbbell Single-Leg RDL", ["dumbbell"]),
                         ("Goblet Squat", ["dumbbell"]),
-                        ("Leg Press", ["machine"]),
                         ("Bodyweight Squat", ["bodyweight"]),
+                        ("Leg Press", ["machine"]),
                     ],
                     3,
                     5,
@@ -395,8 +539,10 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Overhead Press", ["barbell"]),
+                        ("Dumbbell Shoulder Press", ["dumbbell"]),
                         ("Dumbbell Bench Press", ["dumbbell"]),
                         ("Barbell Bench Press", ["barbell"]),
+                        ("Dumbbell Floor Press", ["dumbbell"]),
                         ("Push-Up", ["bodyweight"]),
                     ],
                     3,
@@ -410,9 +556,12 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Pull-Up", ["pull_up_bar"]),
+                        ("Cable Lat Pulldown", ["cable"]),
+                        ("Cable High Row", ["cable"]),
                         ("Cable Row", ["cable"]),
                         ("Barbell Row", ["barbell"]),
                         ("Dumbbell Row", ["dumbbell"]),
+                        ("Band Row", ["resistance_band"]),
                         ("Inverted Row", ["bodyweight"]),
                     ],
                     3,
@@ -426,8 +575,11 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
                     context,
                     [
                         ("Farmer Carry", ["dumbbell"]),
+                        ("Suitcase Carry", ["dumbbell"]),
+                        ("Cable Pallof Press", ["cable"]),
                         ("Cable Woodchop", ["cable"]),
                         ("EZ-Bar Curl", ["ez_bar"]),
+                        ("Stability Ball Rollout", ["exercise_ball"]),
                         ("Dead Bug", ["bodyweight"]),
                     ],
                     2,
@@ -523,6 +675,82 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
             confidence=context.confidence,
         )
 
+    alternate_template = _prefer_alternate_template(context)
+    lower_body_options = (
+        [
+            ("Romanian Deadlift", ["barbell"]),
+            ("Dumbbell Single-Leg RDL", ["dumbbell"]),
+            ("Front Squat", ["barbell"]),
+            ("Goblet Squat", ["dumbbell"]),
+            ("Stability Ball Wall Squat", ["exercise_ball"]),
+            ("Bodyweight Squat", ["bodyweight"]),
+            ("Leg Press", ["machine"]),
+        ]
+        if alternate_template
+        else [
+            ("Romanian Deadlift", ["barbell"]),
+            ("Dumbbell Single-Leg RDL", ["dumbbell"]),
+            ("Cable Pull-Through", ["cable", "rope_cable_attachment"]),
+            ("Barbell Squat", ["barbell"]),
+            ("Goblet Squat", ["dumbbell"]),
+            ("Bodyweight Squat", ["bodyweight"]),
+            ("Leg Press", ["machine"]),
+        ]
+    )
+    push_options = (
+        [
+            ("Barbell Bench Press", ["barbell"]),
+            ("Dumbbell Bench Press", ["dumbbell"]),
+            ("Dumbbell Floor Press", ["dumbbell"]),
+            ("Single-Arm Cable Press", ["cable"]),
+            ("Push-Up", ["bodyweight"]),
+        ]
+        if alternate_template
+        else [
+            ("Overhead Press", ["barbell"]),
+            ("Dumbbell Shoulder Press", ["dumbbell"]),
+            ("Arnold Press", ["dumbbell"]),
+            ("Barbell Bench Press", ["barbell"]),
+            ("Push-Up", ["bodyweight"]),
+        ]
+    )
+    pull_options = (
+        [
+            ("Cable Row", ["cable"]),
+            ("Barbell Row", ["barbell"]),
+            ("One-Arm Dumbbell Row", ["dumbbell", "adjustable_bench"]),
+            ("Dumbbell Row", ["dumbbell"]),
+            ("Band Row", ["resistance_band"]),
+            ("Inverted Row", ["bodyweight"]),
+        ]
+        if alternate_template
+        else [
+            ("Pull-Up", ["pull_up_bar"]),
+            ("Chin-Up", ["pull_up_bar"]),
+            ("Cable Lat Pulldown", ["cable"]),
+            ("Band Lat Pulldown", ["resistance_band"]),
+            ("Cable Row", ["cable"]),
+            ("Inverted Row", ["bodyweight"]),
+        ]
+    )
+    accessory_options = (
+        [
+            ("Cable Woodchop", ["cable"]),
+            ("Cable Pallof Press", ["cable"]),
+            ("EZ-Bar Curl", ["ez_bar"]),
+            ("Dumbbell Lateral Raise", ["dumbbell"]),
+            ("Dead Bug", ["bodyweight"]),
+        ]
+        if alternate_template
+        else [
+            ("Farmer Carry", ["dumbbell"]),
+            ("Suitcase Carry", ["dumbbell"]),
+            ("Stability Ball Rollout", ["exercise_ball"]),
+            ("Rope Face Pull", ["cable", "rope_cable_attachment"]),
+            ("Dead Bug", ["bodyweight"]),
+        ]
+    )
+
     return CandidateWorkoutPlan(
         title="Gradual Progression Strength Session",
         session_focus="Maintain consistency and progress gradually.",
@@ -530,13 +758,7 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
         exercises=[
             _exercise_from_options(
                 context,
-                [
-                    ("Romanian Deadlift", ["barbell"]),
-                    ("Barbell Squat", ["barbell"]),
-                    ("Goblet Squat", ["dumbbell"]),
-                    ("Leg Press", ["machine"]),
-                    ("Bodyweight Squat", ["bodyweight"]),
-                ],
+                lower_body_options,
                 3,
                 5,
                 8,
@@ -546,12 +768,7 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
             ),
             _exercise_from_options(
                 context,
-                [
-                    ("Overhead Press", ["barbell"]),
-                    ("Barbell Bench Press", ["barbell"]),
-                    ("Dumbbell Bench Press", ["dumbbell"]),
-                    ("Push-Up", ["bodyweight"]),
-                ],
+                push_options,
                 3,
                 6,
                 8,
@@ -561,13 +778,7 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
             ),
             _exercise_from_options(
                 context,
-                [
-                    ("Pull-Up", ["pull_up_bar"]),
-                    ("Cable Row", ["cable"]),
-                    ("Barbell Row", ["barbell"]),
-                    ("Dumbbell Row", ["dumbbell"]),
-                    ("Inverted Row", ["bodyweight"]),
-                ],
+                pull_options,
                 3,
                 8,
                 10,
@@ -577,13 +788,7 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
             ),
             _exercise_from_options(
                 context,
-                [
-                    ("Farmer Carry", ["dumbbell"]),
-                    ("Cable Woodchop", ["cable"]),
-                    ("EZ-Bar Curl", ["ez_bar"]),
-                    ("Dumbbell Lateral Raise", ["dumbbell"]),
-                    ("Dead Bug", ["bodyweight"]),
-                ],
+                accessory_options,
                 2,
                 8,
                 12,
