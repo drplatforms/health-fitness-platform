@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 
 from fastapi.testclient import TestClient
@@ -14,8 +15,10 @@ from services.workout_plan_service import (
     _select_exercise,
     approve_candidate_workout_plan,
     build_approved_workout_plan,
+    build_approved_workout_plan_from_candidate_output,
     build_workout_context,
     generate_candidate_workout_plan,
+    parse_candidate_workout_plan_json,
     render_approved_workout_plan,
     validate_candidate_workout_plan,
 )
@@ -304,3 +307,269 @@ def test_home_gym_preview_rotates_movement_patterns_after_recent_trio(
     assert "squat" in patterns or "hinge" in patterns
     assert "horizontal_push" in patterns or "vertical_push" in patterns
     assert "horizontal_pull" in patterns or "vertical_pull" in patterns
+
+
+def _approved_fallback_title(context):
+    fallback = approve_candidate_workout_plan(
+        generate_candidate_workout_plan(context),
+        context,
+    )
+    return fallback.title
+
+
+def _candidate_payload_for_entry(
+    entry_name: str,
+    *,
+    title: str = "CrewAI Candidate Strength Session",
+    notes: str = "Keep reps controlled and leave room in reserve.",
+    progression_guidance: str = "Progress only when recovery and performance stay stable.",
+    confidence: str = "Moderate",
+) -> dict:
+    entry = find_catalog_entry_by_name(entry_name)
+    assert entry is not None
+    assert entry.id is not None
+    return {
+        "title": title,
+        "session_focus": "Use a controlled strength session.",
+        "duration_minutes": 45,
+        "warmup": "Use easy movement and ramp-up sets before work sets.",
+        "exercises": [
+            {
+                "exercise_name": entry.name,
+                "catalog_exercise_id": entry.id,
+                "movement_pattern": entry.movement_pattern,
+                "target_zone": "main",
+                "sets": 3,
+                "reps_min": 8,
+                "reps_max": 10,
+                "target_rir_min": 2,
+                "target_rir_max": 3,
+                "required_equipment": entry.equipment_required,
+                "notes": notes,
+            }
+        ],
+        "cooldown": "Log performance, soreness, and energy after training.",
+        "progression_guidance": progression_guidance,
+        "rationale": "This plan stays within today's training limits.",
+        "confidence": confidence,
+    }
+
+
+def _context_for_user_102_home_gym(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    save_equipment_profile(
+        user_id=102,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+    return build_workout_context(build_user_health_state(102))
+
+
+def test_candidate_workout_plan_json_parses_and_approves(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    raw_output = json.dumps(_candidate_payload_for_entry("Goblet Squat"))
+
+    candidate = parse_candidate_workout_plan_json(raw_output)
+    approved = approve_candidate_workout_plan(candidate, context)
+
+    assert candidate.title == "CrewAI Candidate Strength Session"
+    assert approved.title == "CrewAI Candidate Strength Session"
+    assert approved.exercises[0].name == "Goblet Squat"
+    assert approved.exercises[0].equipment_required == ["dumbbell"]
+
+
+def test_malformed_candidate_json_falls_back_deterministically(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        "not-json",
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_markdown_wrapped_candidate_json_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    raw_output = (
+        "```json\n" + json.dumps(_candidate_payload_for_entry("Goblet Squat")) + "\n```"
+    )
+
+    approved = build_approved_workout_plan_from_candidate_output(raw_output, context)
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_candidate_missing_required_field_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    payload.pop("rationale")
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_candidate_extra_field_falls_back_under_strict_parsing(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    payload["debug_reason_codes"] = ["not_allowed"]
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_unknown_catalog_exercise_candidate_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    payload["exercises"][0]["exercise_name"] = "Imaginary Cable Machine Squat"
+    payload["exercises"][0]["catalog_exercise_id"] = None
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_catalog_exercise_id_name_mismatch_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    mismatched_entry = find_catalog_entry_by_name("Dumbbell Bench Press")
+    assert mismatched_entry is not None
+    assert mismatched_entry.id is not None
+    payload["exercises"][0]["catalog_exercise_id"] = mismatched_entry.id
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_unavailable_equipment_candidate_falls_back(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    context = build_workout_context(build_user_health_state(102))
+    restricted_context = replace(
+        context,
+        workout_constraints=WorkoutConstraints(
+            available_equipment=["bodyweight", "dumbbell"],
+            unavailable_equipment=["barbell", "machine", "cable", "pull_up_bar"],
+            confidence="Low",
+            reason_codes=["test_equipment_restricted"],
+        ),
+    )
+    raw_output = json.dumps(_candidate_payload_for_entry("Barbell Squat"))
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        raw_output,
+        restricted_context,
+    )
+
+    assert approved.title == _approved_fallback_title(restricted_context)
+    assert all(
+        "barbell" not in exercise.equipment_required for exercise in approved.exercises
+    )
+
+
+def test_machine_candidate_falls_back_when_machine_unavailable(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    context = build_workout_context(build_user_health_state(102))
+    restricted_context = replace(
+        context,
+        workout_constraints=WorkoutConstraints(
+            available_equipment=["bodyweight", "dumbbell"],
+            unavailable_equipment=["machine"],
+            confidence="Low",
+            reason_codes=["test_machine_unavailable"],
+        ),
+    )
+    raw_output = json.dumps(_candidate_payload_for_entry("Leg Press"))
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        raw_output,
+        restricted_context,
+    )
+
+    assert approved.title == _approved_fallback_title(restricted_context)
+    assert all(
+        "machine" not in exercise.equipment_required for exercise in approved.exercises
+    )
+
+
+def test_candidate_rir_outside_training_constraints_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    payload["exercises"][0]["target_rir_min"] = 0
+    payload["exercises"][0]["target_rir_max"] = 1
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+
+
+def test_recovery_limited_max_effort_candidate_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_workout_context(health_states[101])
+    payload = _candidate_payload_for_entry(
+        "Goblet Squat",
+        notes="Use max effort sets to failure.",
+    )
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+    assert "max effort" not in render_approved_workout_plan(approved).lower()
+
+
+def test_data_quality_limited_overtraining_candidate_falls_back(tmp_path, monkeypatch):
+    health_states = _seeded_health_states(tmp_path, monkeypatch)
+    context = build_workout_context(health_states[105])
+    payload = _candidate_payload_for_entry(
+        "Goblet Squat",
+        notes="This avoids overtraining and stalled progress.",
+    )
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    rendered = render_approved_workout_plan(approved).lower()
+    assert approved.title == _approved_fallback_title(context)
+    assert "overtraining" not in rendered
+    assert "stalled progress" not in rendered
+
+
+def test_automatic_load_increase_candidate_falls_back(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+    payload = _candidate_payload_for_entry(
+        "Goblet Squat",
+        progression_guidance="Use an automatic load increase every session.",
+    )
+
+    approved = build_approved_workout_plan_from_candidate_output(
+        json.dumps(payload),
+        context,
+    )
+
+    assert approved.title == _approved_fallback_title(context)
+    assert (
+        "automatic load increase" not in render_approved_workout_plan(approved).lower()
+    )

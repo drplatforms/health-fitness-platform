@@ -29,6 +29,9 @@ class CandidateWorkoutExercise:
     rir_max: int
     notes: str
     equipment_required: list[str] = field(default_factory=list)
+    catalog_exercise_id: int | None = None
+    movement_pattern: str | None = None
+    target_zone: str | None = None
 
 
 @dataclass

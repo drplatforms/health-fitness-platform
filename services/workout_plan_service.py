@@ -1,3 +1,4 @@
+import json
 from dataclasses import asdict
 
 from models.user_state_models import UserHealthState
@@ -64,6 +65,76 @@ _DATA_QUALITY_FORBIDDEN_TERMS = [
     "likely caused",
     "likely causing",
     "likely contribute",
+]
+
+
+_ALLOWED_WORKOUT_PLAN_FIELDS = {
+    "title",
+    "session_focus",
+    "duration_minutes",
+    "exercises",
+    "warmup",
+    "cooldown",
+    "progression_guidance",
+    "rationale",
+    "confidence",
+}
+
+_ALLOWED_WORKOUT_EXERCISE_FIELDS = {
+    "exercise_name",
+    "catalog_exercise_id",
+    "movement_pattern",
+    "target_zone",
+    "sets",
+    "reps_min",
+    "reps_max",
+    "target_rir_min",
+    "target_rir_max",
+    "required_equipment",
+    "notes",
+}
+
+_REQUIRED_WORKOUT_PLAN_FIELDS = {
+    "title",
+    "session_focus",
+    "duration_minutes",
+    "exercises",
+    "warmup",
+    "cooldown",
+    "progression_guidance",
+    "rationale",
+    "confidence",
+}
+
+_REQUIRED_WORKOUT_EXERCISE_FIELDS = {
+    "exercise_name",
+    "movement_pattern",
+    "sets",
+    "reps_min",
+    "reps_max",
+    "target_rir_min",
+    "target_rir_max",
+    "required_equipment",
+    "notes",
+}
+
+_ALLOWED_CONFIDENCE_VALUES = {"Limited", "Low", "Moderate", "High"}
+
+_WORKOUT_CANDIDATE_FORBIDDEN_TERMS = [
+    "overtraining",
+    "stalled progress",
+    "stalled weight loss",
+    "stalled fat loss",
+    "automatic deload",
+    "required deload",
+    "must deload",
+    "automatic load increase",
+    "increase load automatically",
+    "add weight automatically",
+    "injury diagnosis",
+    "diagnose",
+    "medical",
+    "pain means injury",
 ]
 
 
@@ -808,6 +879,236 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
     )
 
 
+class WorkoutCandidateParseError(ValueError):
+    """Raised when a CrewAI workout candidate cannot be parsed safely."""
+
+
+def _normalize_required_equipment(values: list[str]) -> list[str]:
+    return [_normalize_equipment(item) for item in values if str(item).strip()]
+
+
+def _require_string(payload: dict, key: str) -> str:
+    value = payload.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise WorkoutCandidateParseError(f"Missing or invalid string field: {key}")
+    return value.strip()
+
+
+def _require_int(payload: dict, key: str) -> int:
+    value = payload.get(key)
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise WorkoutCandidateParseError(f"Missing or invalid integer field: {key}")
+    return value
+
+
+def _require_string_list(payload: dict, key: str) -> list[str]:
+    value = payload.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise WorkoutCandidateParseError(f"Missing or invalid string list field: {key}")
+    return [item.strip() for item in value if item.strip()]
+
+
+def _reject_unapproved_fields(
+    payload: dict,
+    allowed_fields: set[str],
+    field_path: str,
+) -> None:
+    extra_fields = set(payload) - allowed_fields
+    if extra_fields:
+        formatted = ", ".join(sorted(extra_fields))
+        raise WorkoutCandidateParseError(
+            f"Unexpected field(s) in {field_path}: {formatted}"
+        )
+
+
+def parse_candidate_workout_plan_json(
+    raw_output: str,
+    *,
+    strict: bool = True,
+) -> CandidateWorkoutPlan:
+    """Parse strict CandidateWorkoutPlan JSON from a provider output string.
+
+    CrewAI workout generation is expected to return one JSON object only. Markdown
+    wrappers and commentary are rejected here so the backend never has to guess at
+    user-facing workout intent.
+    """
+
+    if not isinstance(raw_output, str) or not raw_output.strip():
+        raise WorkoutCandidateParseError("Candidate workout output is empty.")
+
+    stripped_output = raw_output.strip()
+    if stripped_output.startswith("```") or stripped_output.endswith("```"):
+        raise WorkoutCandidateParseError(
+            "Candidate workout output must be raw JSON, not markdown."
+        )
+
+    try:
+        payload = json.loads(stripped_output)
+    except json.JSONDecodeError as exc:
+        raise WorkoutCandidateParseError(
+            "Malformed CandidateWorkoutPlan JSON."
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise WorkoutCandidateParseError("CandidateWorkoutPlan JSON must be an object.")
+
+    missing_fields = _REQUIRED_WORKOUT_PLAN_FIELDS - set(payload)
+    if missing_fields:
+        formatted = ", ".join(sorted(missing_fields))
+        raise WorkoutCandidateParseError(
+            f"CandidateWorkoutPlan missing required field(s): {formatted}"
+        )
+
+    if strict:
+        _reject_unapproved_fields(payload, _ALLOWED_WORKOUT_PLAN_FIELDS, "plan")
+
+    confidence = _require_string(payload, "confidence")
+    if confidence not in _ALLOWED_CONFIDENCE_VALUES:
+        raise WorkoutCandidateParseError("CandidateWorkoutPlan confidence is invalid.")
+
+    exercises_payload = payload.get("exercises")
+    if not isinstance(exercises_payload, list) or not exercises_payload:
+        raise WorkoutCandidateParseError(
+            "CandidateWorkoutPlan exercises must be a non-empty list."
+        )
+
+    exercises: list[CandidateWorkoutExercise] = []
+    for index, exercise_payload in enumerate(exercises_payload, start=1):
+        if not isinstance(exercise_payload, dict):
+            raise WorkoutCandidateParseError(f"Exercise {index} must be a JSON object.")
+
+        missing_exercise_fields = _REQUIRED_WORKOUT_EXERCISE_FIELDS - set(
+            exercise_payload
+        )
+        if missing_exercise_fields:
+            formatted = ", ".join(sorted(missing_exercise_fields))
+            raise WorkoutCandidateParseError(
+                f"Exercise {index} missing required field(s): {formatted}"
+            )
+
+        if strict:
+            _reject_unapproved_fields(
+                exercise_payload,
+                _ALLOWED_WORKOUT_EXERCISE_FIELDS,
+                f"exercise {index}",
+            )
+
+        catalog_exercise_id = exercise_payload.get("catalog_exercise_id")
+        if catalog_exercise_id is not None and (
+            isinstance(catalog_exercise_id, bool)
+            or not isinstance(catalog_exercise_id, int)
+        ):
+            raise WorkoutCandidateParseError(
+                f"Exercise {index} catalog_exercise_id must be an integer when present."
+            )
+
+        exercises.append(
+            CandidateWorkoutExercise(
+                name=_require_string(exercise_payload, "exercise_name"),
+                sets=_require_int(exercise_payload, "sets"),
+                reps_min=_require_int(exercise_payload, "reps_min"),
+                reps_max=_require_int(exercise_payload, "reps_max"),
+                rir_min=_require_int(exercise_payload, "target_rir_min"),
+                rir_max=_require_int(exercise_payload, "target_rir_max"),
+                notes=_require_string(exercise_payload, "notes"),
+                equipment_required=_normalize_required_equipment(
+                    _require_string_list(exercise_payload, "required_equipment")
+                ),
+                catalog_exercise_id=catalog_exercise_id,
+                movement_pattern=_require_string(exercise_payload, "movement_pattern"),
+                target_zone=(
+                    str(exercise_payload.get("target_zone")).strip()
+                    if exercise_payload.get("target_zone") is not None
+                    else None
+                ),
+            )
+        )
+
+    return CandidateWorkoutPlan(
+        title=_require_string(payload, "title"),
+        session_focus=_require_string(payload, "session_focus"),
+        duration_minutes=_require_int(payload, "duration_minutes"),
+        exercises=exercises,
+        warmup=_require_string(payload, "warmup"),
+        cooldown=_require_string(payload, "cooldown"),
+        progression_guidance=_require_string(payload, "progression_guidance"),
+        rationale=_require_string(payload, "rationale"),
+        confidence=confidence,
+    )
+
+
+def _catalog_entry_for_candidate_exercise(exercise: CandidateWorkoutExercise):
+    return find_catalog_entry_by_name(exercise.name)
+
+
+def _catalog_validation_violations(
+    exercise: CandidateWorkoutExercise,
+    context: WorkoutContext,
+) -> list[str]:
+    violations: list[str] = []
+    catalog_entry = _catalog_entry_for_candidate_exercise(exercise)
+    if catalog_entry is None:
+        return [f"{exercise.name} does not exist in the exercise catalog."]
+
+    if (
+        exercise.catalog_exercise_id is not None
+        and catalog_entry.id is not None
+        and exercise.catalog_exercise_id != catalog_entry.id
+    ):
+        violations.append(
+            f"{exercise.name} catalog_exercise_id does not match the exercise catalog."
+        )
+
+    if (
+        exercise.movement_pattern is not None
+        and exercise.movement_pattern != catalog_entry.movement_pattern
+    ):
+        violations.append(
+            f"{exercise.name} movement pattern must match the exercise catalog."
+        )
+
+    catalog_equipment = _normalize_required_equipment(catalog_entry.equipment_required)
+    candidate_equipment = _normalize_required_equipment(exercise.equipment_required)
+    if set(candidate_equipment) != set(catalog_equipment):
+        violations.append(
+            f"{exercise.name} required equipment must match the exercise catalog."
+        )
+
+    if not _equipment_allowed(catalog_equipment, context.workout_constraints):
+        violations.append(
+            f"{exercise.name} requires equipment outside current workout constraints."
+        )
+
+    avoid_movements = {
+        movement.strip().lower()
+        for movement in context.workout_constraints.avoid_movements
+        + context.workout_constraints.movement_restrictions
+        if movement.strip()
+    }
+    if catalog_entry.movement_pattern in avoid_movements:
+        violations.append(
+            f"{exercise.name} uses a movement pattern outside current constraints."
+        )
+
+    return violations
+
+
+def build_approved_workout_plan_from_candidate_output(
+    raw_output: str,
+    context: WorkoutContext,
+) -> ApprovedWorkoutPlan:
+    """Parse/validate provider output, with deterministic fallback on failure."""
+
+    try:
+        candidate = parse_candidate_workout_plan_json(raw_output)
+        return approve_candidate_workout_plan(candidate, context)
+    except (ValueError, WorkoutCandidateParseError):
+        return approve_candidate_workout_plan(
+            generate_candidate_workout_plan(context),
+            context,
+        )
+
+
 def validate_candidate_workout_plan(
     candidate: CandidateWorkoutPlan,
     context: WorkoutContext,
@@ -818,7 +1119,6 @@ def validate_candidate_workout_plan(
         violations.append("Workout plan must include at least one exercise.")
 
     training_constraints = context.training_constraints
-    workout_constraints = context.workout_constraints
     for exercise in candidate.exercises:
         if exercise.sets < 1 or exercise.sets > 6:
             violations.append(f"Invalid set count for {exercise.name}.")
@@ -845,16 +1145,18 @@ def validate_candidate_workout_plan(
                     f"{exercise.name} uses higher RIR than current constraints allow."
                 )
 
-        if not _equipment_allowed(exercise.equipment_required, workout_constraints):
-            violations.append(
-                f"{exercise.name} requires equipment outside current workout constraints."
-            )
+        violations.extend(_catalog_validation_violations(exercise, context))
 
     text = _text_blob(candidate)
 
     for term in _INTERNAL_DEBUG_TERMS:
         if term in text:
             violations.append("Workout plan contains internal/debug language.")
+            break
+
+    for term in _WORKOUT_CANDIDATE_FORBIDDEN_TERMS:
+        if term in text:
+            violations.append("Workout plan contains forbidden workout guidance.")
             break
 
     if context.scenario == "recovery_limited":
