@@ -58,7 +58,7 @@ FINAL_PLAN_SOURCE_DETERMINISTIC = "deterministic"
 FINAL_PLAN_SOURCE_CREWAI_APPROVED = "crewai_approved"
 FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 RAW_OUTPUT_PREVIEW_LIMIT = 240
-ALLOWED_CATALOG_CONTEXT_LIMIT = 80
+ALLOWED_CATALOG_CONTEXT_LIMIT = 12
 
 _CONFIDENCE_RANK = {"Limited": 0, "Low": 1, "Moderate": 2, "High": 3}
 
@@ -259,6 +259,27 @@ def _movement_pattern_targets_for_context(context: WorkoutContext) -> list[str]:
     ]
 
 
+def _compact_safety_constraints(context: WorkoutContext) -> list[str]:
+    constraints = [
+        "Use only provided exercises.",
+        "Respect equipment and RIR bounds.",
+        "Return JSON only; no markdown or commentary.",
+    ]
+    if context.scenario == "recovery_limited":
+        constraints.append("Keep effort controlled; no max-effort language.")
+    elif context.scenario == "nutrition_training_mismatch":
+        constraints.append("Avoid aggressive conditioning.")
+    elif context.scenario == "improving_after_deload":
+        constraints.append("Use controlled progression.")
+    elif context.scenario == "data_quality_limited":
+        constraints.append(
+            "Keep plan simple; no overtraining or stalled-progress claims."
+        )
+    elif context.scenario == "aligned_managed":
+        constraints.append("Use normal variety; no deload framing.")
+    return constraints
+
+
 def _scenario_safety_constraints(context: WorkoutContext) -> list[str]:
     base_constraints = [
         "Exercises must come from allowed_exercises only.",
@@ -338,14 +359,22 @@ def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, A
                 score,
                 {
                     "catalog_exercise_id": entry.id,
-                    "name": entry.name,
-                    "exercise_type": entry.exercise_type,
+                    "exercise_name": entry.name,
                     "movement_pattern": entry.movement_pattern,
-                    "primary_muscle_groups": list(entry.primary_muscle_groups),
                     "required_equipment": [
                         _normalize_equipment(item) for item in entry.equipment_required
                     ],
-                    "difficulty": entry.difficulty,
+                    "target_zone": (
+                        "core"
+                        if entry.movement_pattern.startswith("core")
+                        else (
+                            "conditioning"
+                            if entry.movement_pattern == "conditioning"
+                            else (
+                                "carry" if entry.movement_pattern == "carry" else "main"
+                            )
+                        )
+                    ),
                 },
             )
         )
@@ -355,48 +384,63 @@ def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, A
 
 
 def workout_context_to_llm_json(context: WorkoutContext) -> dict[str, Any]:
-    """Build the bounded, LLM-safe workout context for a candidate provider.
+    """Build the compact, LLM-safe workout context for a candidate provider.
 
-    This intentionally excludes raw actual-set rows, raw notes, unbounded workout
-    history, internal debug payloads, and backend-only metadata. The provider can
-    suggest CandidateWorkoutPlan JSON only; backend validation remains the source
-    of approval.
+    The runtime provider only needs a small planning brief, a bounded exercise
+    list, and the required JSON shape.  This intentionally excludes raw
+    actual-set rows, raw notes, unbounded workout history, internal debug
+    payloads, backend-only metadata, and verbose architecture details.
     """
 
-    training_execution_summary = build_training_execution_summary(context.user_id)
+    training_constraints = context.training_constraints
+    rir_min = training_constraints.recommended_rir_min or 2
+    rir_max = training_constraints.recommended_rir_max or 4
 
     return {
-        "user_id": context.user_id,
         "scenario": context.scenario,
         "confidence": context.confidence,
-        "primary_goal": context.primary_goal,
-        "training_load": context.training_load,
-        "recovery_demand": context.recovery_demand,
-        "avg_rir": context.avg_rir,
-        "workout_count": context.workout_count,
-        "training_constraints": asdict(context.training_constraints),
-        "workout_constraints": {
-            "available_equipment": list(
-                context.workout_constraints.available_equipment
-            ),
-            "unavailable_equipment": list(
-                context.workout_constraints.unavailable_equipment
-            ),
-            "preferred_movements": list(
-                context.workout_constraints.preferred_movements
-            ),
-            "avoid_movements": list(context.workout_constraints.avoid_movements),
-            "movement_restrictions": list(
-                context.workout_constraints.movement_restrictions
-            ),
-            "sore_regions": list(context.workout_constraints.sore_regions),
-            "recent_exercises": list(context.workout_constraints.recent_exercises[:12]),
-            "confidence": context.workout_constraints.confidence,
+        "allowed_rir_range": {
+            "target_rir_min": rir_min,
+            "target_rir_max": rir_max,
         },
-        "movement_pattern_targets": _movement_pattern_targets_for_context(context),
+        "exercise_count": {"min": 3, "target": 4, "max": 5},
+        "duration_minutes": {"min": 30, "target": 45, "max": 60},
+        "available_equipment": list(context.workout_constraints.available_equipment),
+        "unavailable_equipment": list(
+            context.workout_constraints.unavailable_equipment
+        ),
+        "movement_pattern_targets": _movement_pattern_targets_for_context(context)[:6],
         "allowed_exercises": _allowed_catalog_exercise_slice(context),
-        "training_execution_summary": asdict(training_execution_summary),
-        "safety_constraints": _scenario_safety_constraints(context),
+        "execution_summary": {
+            "completed_execution_count": build_training_execution_summary(
+                context.user_id
+            ).completed_execution_count,
+        },
+        "safety_constraints": _compact_safety_constraints(context),
+        "required_top_level_keys": [
+            "title",
+            "session_focus",
+            "duration_minutes",
+            "exercises",
+            "warmup",
+            "cooldown",
+            "progression_guidance",
+            "rationale",
+            "confidence",
+        ],
+        "required_exercise_keys": [
+            "exercise_name",
+            "catalog_exercise_id",
+            "movement_pattern",
+            "target_zone",
+            "sets",
+            "reps_min",
+            "reps_max",
+            "target_rir_min",
+            "target_rir_max",
+            "required_equipment",
+            "notes",
+        ],
     }
 
 
@@ -1513,54 +1557,24 @@ def build_crewai_candidate_workout_plan_prompt(context: WorkoutContext) -> str:
     safe_context = workout_context_to_llm_json(context)
     return f"""
 /no_think
-You are a workout-plan JSON generator. You receive approved context only.
-Return one raw JSON object only. Do not think aloud. Do not return reasoning,
-markdown, code fences, commentary, extra keys, explanations, or final report prose.
-The first non-whitespace character must be {{ and the top-level object itself must
-be the CandidateWorkoutPlan object. Do not wrap it in any container key.
+Return one raw JSON object only. Do not think aloud. No markdown. No commentary. No reasoning.
+The first character must be {{. Do not wrap the object.
 
-Required top-level keys only:
+Use this exact top-level key set only:
 title, session_focus, duration_minutes, exercises, warmup, cooldown,
 progression_guidance, rationale, confidence
 
-Forbidden top-level wrapper keys:
+Never use these top-level wrapper keys:
 workout_plan, plan, response, result, data
 
-Required exercise keys only:
+Each exercise must use this exact key set only:
 exercise_name, catalog_exercise_id, movement_pattern, target_zone, sets, reps_min,
 reps_max, target_rir_min, target_rir_max, required_equipment, notes
 
-Forbidden exercise keys:
+Never use these exercise keys:
 equipment, reps, rir_target, rir, exercise, name
 
-Required JSON object shape:
-{{
-  "title": "string",
-  "session_focus": "string",
-  "duration_minutes": 20-90,
-  "exercises": [
-    {{
-      "exercise_name": "must match an allowed_exercises name",
-      "catalog_exercise_id": 123,
-      "movement_pattern": "must match the allowed exercise movement_pattern",
-      "target_zone": "main | accessory | core | carry | conditioning",
-      "sets": 1-6,
-      "reps_min": 1,
-      "reps_max": 1,
-      "target_rir_min": 2,
-      "target_rir_max": 4,
-      "required_equipment": ["must match allowed exercise required_equipment"],
-      "notes": "short user-facing coaching note"
-    }}
-  ],
-  "warmup": "string",
-  "cooldown": "string",
-  "progression_guidance": "string",
-  "rationale": "string",
-  "confidence": "Limited | Low | Moderate | High"
-}}
-
-Compact valid example using exact keys only:
+Compact valid example:
 {{
   "title": "Controlled Strength Session",
   "session_focus": "Train productively within today's constraints.",
@@ -1577,35 +1591,27 @@ Compact valid example using exact keys only:
       "target_rir_min": 2,
       "target_rir_max": 4,
       "required_equipment": ["dumbbell"],
-      "notes": "Keep reps controlled and repeatable."
+      "notes": "Keep reps controlled."
     }}
   ],
   "warmup": "Use easy movement and ramp-up sets.",
   "cooldown": "Log performance and recovery markers.",
-  "progression_guidance": "Progress gradually while recovery markers remain stable.",
-  "rationale": "This session stays inside the approved training constraints.",
+  "progression_guidance": "Progress gradually within the approved RIR range.",
+  "rationale": "This session uses only the provided exercise list and equipment.",
   "confidence": "Moderate"
 }}
 
 Rules:
-- Use no-think mode. Never emit <think>, reasoning text, or hidden-chain commentary.
-- Use only allowed_exercises from the approved context.
-- Do not invent exercises, equipment, movement patterns, or progression rules.
-- Do not use top-level keys other than the required top-level keys.
-- Do not use exercise keys other than the required exercise keys.
-- Do not output workout_plan, plan, response, result, or data wrappers.
-- Use reps_min and reps_max only; never use reps.
-- Use target_rir_min and target_rir_max only; never use rir_target or rir.
-- Use required_equipment only; never use equipment.
-- Exercise name, catalog_exercise_id, movement_pattern, and required_equipment must match the allowed catalog item.
-- Target RIR must stay inside the approved TrainingConstraints.
-- Confidence must not exceed approved context confidence.
-- Use 3-6 exercises.
-- Do not include overtraining, stalled-progress, poor-adherence, injury, medical, automatic deload, or automatic load-increase claims.
-- CrewAI output is a candidate only; the backend validates and approves it.
+- Choose only from allowed_exercises.
+- Copy exercise_name, catalog_exercise_id, movement_pattern, and required_equipment exactly.
+- Use 3-5 exercises.
+- Keep duration between 30 and 60 minutes.
+- Keep target_rir_min and target_rir_max inside allowed_rir_range.
+- Keep notes short.
+- Do not mention overtraining, stalled progress, injury, medical advice, automatic deload, or automatic load increase.
 
-Approved context:
-{json.dumps(safe_context, indent=2, sort_keys=True)}
+Context:
+{json.dumps(safe_context, separators=(",", ":"), sort_keys=True)}
 """.strip()
 
 

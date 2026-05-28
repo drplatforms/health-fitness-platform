@@ -731,16 +731,55 @@ def test_workout_context_to_llm_json_is_bounded_and_safe(tmp_path, monkeypatch):
     payload = workout_context_to_llm_json(context)
 
     assert payload["scenario"] == "aligned_managed"
-    assert payload["training_constraints"]
-    assert payload["workout_constraints"]["available_equipment"]
+    assert payload["allowed_rir_range"]["target_rir_min"] >= 0
+    assert payload["exercise_count"] == {"min": 3, "target": 4, "max": 5}
+    assert payload["duration_minutes"] == {"min": 30, "target": 45, "max": 60}
+    assert payload["available_equipment"]
     assert payload["allowed_exercises"]
-    assert len(payload["allowed_exercises"]) <= 80
-    assert payload["training_execution_summary"]
+    assert 8 <= len(payload["allowed_exercises"]) <= 12
+    assert payload["execution_summary"]
     assert payload["movement_pattern_targets"]
     assert payload["safety_constraints"]
+    assert payload["required_top_level_keys"] == [
+        "title",
+        "session_focus",
+        "duration_minutes",
+        "exercises",
+        "warmup",
+        "cooldown",
+        "progression_guidance",
+        "rationale",
+        "confidence",
+    ]
+    assert "training_constraints" not in payload
+    assert "workout_constraints" not in payload
+    assert "reason_codes" not in payload
     assert "raw_actual_set_rows" not in payload
     assert "actual_sets" not in payload
     assert all("notes" not in exercise for exercise in payload["allowed_exercises"])
+    assert all(
+        set(exercise)
+        == {
+            "catalog_exercise_id",
+            "exercise_name",
+            "movement_pattern",
+            "required_equipment",
+            "target_zone",
+        }
+        for exercise in payload["allowed_exercises"]
+    )
+
+
+def test_workout_context_to_llm_json_is_compact(tmp_path, monkeypatch):
+    context = _context_for_user_102_home_gym(tmp_path, monkeypatch)
+
+    payload = workout_context_to_llm_json(context)
+    serialized = json.dumps(payload, separators=(",", ":"), sort_keys=True)
+
+    assert len(serialized) < 6500
+    assert len(payload["allowed_exercises"]) <= 12
+    assert "training_execution_summary" not in payload
+    assert "recent_exercises" not in payload
 
 
 def test_crewai_workout_prompt_requires_raw_json_only(tmp_path, monkeypatch):
@@ -753,15 +792,17 @@ def test_crewai_workout_prompt_requires_raw_json_only(tmp_path, monkeypatch):
     assert "Do not think aloud" in prompt
     assert "markdown" in prompt.lower()
     assert "allowed_exercises" in prompt
-    assert "automatic load-increase" in prompt
-    assert "Required top-level keys only" in prompt
-    assert "Forbidden top-level wrapper keys" in prompt
+    assert "automatic load increase" in prompt
+    assert "Use this exact top-level key set only" in prompt
+    assert "Never use these top-level wrapper keys" in prompt
     assert "workout_plan, plan, response, result, data" in prompt
-    assert "Required exercise keys only" in prompt
-    assert "Forbidden exercise keys" in prompt
+    assert "Each exercise must use this exact key set only" in prompt
+    assert "Never use these exercise keys" in prompt
     assert "equipment, reps, rir_target, rir, exercise, name" in prompt
-    assert "Use reps_min and reps_max only; never use reps." in prompt
-    assert "Use required_equipment only; never use equipment." in prompt
+    assert "Choose only from allowed_exercises" in prompt
+    assert "training_constraints" not in prompt
+    assert "workout_constraints" not in prompt
+    assert "reason_codes" not in prompt
 
 
 def test_crewai_workout_llm_kwargs_disable_thinking_by_default(monkeypatch):
