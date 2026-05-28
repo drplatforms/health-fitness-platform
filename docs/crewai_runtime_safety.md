@@ -16,6 +16,13 @@ CREWAI_RECOMMENDATION_MODEL=ollama/qwen3:8b
 OLLAMA_BASE_URL=http://localhost:11434
 ```
 
+Workout plan generation remains deterministic by default. The workout explanation provider may be tested with CrewAI because it explains an already-approved `ApprovedWorkoutPlan` and cannot change exercises, sets, reps, RIR, equipment, progression, or deload decisions.
+
+```env
+WORKOUT_CANDIDATE_PROVIDER=deterministic
+WORKOUT_EXPLANATION_PROVIDER=deterministic
+```
+
 Do not enable CrewAI mode for normal local development, automated tests, or broad QA unless the specific goal is to inspect CrewAI runtime behavior.
 
 ## Why same-process hard timeouts were reverted
@@ -55,8 +62,54 @@ The safe runtime posture is:
 5. `ApprovedActionPlan` remains the only renderable recommendation contract.
 6. The debug endpoint should be used to inspect provider/fallback behavior:
    - `GET /recommendations/daily/{user_id}/debug`
+7. Workout candidate generation remains deterministic by default.
+8. Workout explanation CrewAI tests must stay behind the debug endpoint:
+   - `GET /workout-plans/preview/{user_id}/explanation/debug`
+9. No raw AI output should be exposed from normal workout preview endpoints.
+10. Workout candidate and explanation parsers/validators must remain strict.
 
 Normal QA should start in deterministic mode. CrewAI mode should be limited to targeted runtime experiments.
+
+## CrewAI workout explanation runtime QA
+
+Use this path only for manual debugging of explanation copy over an already-approved deterministic workout plan. The normal workout preview endpoint must remain stable and must not expose runtime metadata or raw model output.
+
+Known-good split-runtime configuration for `qwen2.5:3b` through the CrewAI/LiteLLM/OpenAI-compatible Ollama path:
+
+```env
+WORKOUT_CANDIDATE_PROVIDER=deterministic
+WORKOUT_EXPLANATION_PROVIDER=crewai
+CREWAI_WORKOUT_MODEL=ollama/qwen2.5:3b
+OLLAMA_BASE_URL=http://<WINDOWS_LAN_IP>:11434
+CREWAI_WORKOUT_DISABLE_THINKING=false
+CREWAI_WORKOUT_JSON_RESPONSE_FORMAT=true
+```
+
+Important provider notes:
+
+- `CREWAI_WORKOUT_JSON_RESPONSE_FORMAT=true` uses `response_format={"type": "json_object"}` and is required for this provider path.
+- For `qwen2.5:3b` through this CrewAI/LiteLLM/OpenAI-compatible path, keep `CREWAI_WORKOUT_DISABLE_THINKING=false`; passing the `think` kwarg can raise `TypeError: Completions.create() got an unexpected keyword argument 'think'`.
+- Strict backend parsing and validation still determine whether a model explanation is approved.
+- Invalid, malformed, unsafe, or provider-failed output must fall back to the deterministic explanation.
+- The approved workout plan remains unchanged regardless of explanation-provider output.
+
+Manual test endpoint:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/workout-plans/preview/102/explanation/debug
+```
+
+Best-case runtime metadata:
+
+- `configured_provider: crewai`
+- `selected_provider: crewai`
+- `crewai_attempted: true`
+- `candidate_parse_status: success`
+- `candidate_validation_status: success`
+- `final_explanation_source: crewai_approved`
+- `fallback_used: false`
+
+Safe fallback remains acceptable when `fallback_reason` is clear and the normal workout preview endpoint remains stable.
 
 ## Full report generation policy
 
@@ -91,6 +144,8 @@ For normal development and QA:
 1. Set deterministic mode:
    ```powershell
    $env:RECOMMENDATION_CANDIDATE_PROVIDER="deterministic"
+   $env:WORKOUT_CANDIDATE_PROVIDER="deterministic"
+   $env:WORKOUT_EXPLANATION_PROVIDER="deterministic"
    ```
 2. Restart FastAPI.
 3. Run:
