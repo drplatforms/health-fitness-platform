@@ -1516,8 +1516,24 @@ def build_crewai_candidate_workout_plan_prompt(context: WorkoutContext) -> str:
 You are a workout-plan JSON generator. You receive approved context only.
 Return one raw JSON object only. Do not think aloud. Do not return reasoning,
 markdown, code fences, commentary, extra keys, explanations, or final report prose.
+The first non-whitespace character must be {{ and the top-level object itself must
+be the CandidateWorkoutPlan object. Do not wrap it in any container key.
 
-Required JSON object:
+Required top-level keys only:
+title, session_focus, duration_minutes, exercises, warmup, cooldown,
+progression_guidance, rationale, confidence
+
+Forbidden top-level wrapper keys:
+workout_plan, plan, response, result, data
+
+Required exercise keys only:
+exercise_name, catalog_exercise_id, movement_pattern, target_zone, sets, reps_min,
+reps_max, target_rir_min, target_rir_max, required_equipment, notes
+
+Forbidden exercise keys:
+equipment, reps, rir_target, rir, exercise, name
+
+Required JSON object shape:
 {{
   "title": "string",
   "session_focus": "string",
@@ -1525,14 +1541,14 @@ Required JSON object:
   "exercises": [
     {{
       "exercise_name": "must match an allowed_exercises name",
-      "catalog_exercise_id": "must match the allowed exercise id when present",
+      "catalog_exercise_id": 123,
       "movement_pattern": "must match the allowed exercise movement_pattern",
       "target_zone": "main | accessory | core | carry | conditioning",
       "sets": 1-6,
-      "reps_min": 1 or higher,
-      "reps_max": reps_min or higher,
-      "target_rir_min": "within TrainingConstraints",
-      "target_rir_max": "within TrainingConstraints",
+      "reps_min": 1,
+      "reps_max": 1,
+      "target_rir_min": 2,
+      "target_rir_max": 4,
       "required_equipment": ["must match allowed exercise required_equipment"],
       "notes": "short user-facing coaching note"
     }}
@@ -1544,10 +1560,43 @@ Required JSON object:
   "confidence": "Limited | Low | Moderate | High"
 }}
 
+Compact valid example using exact keys only:
+{{
+  "title": "Controlled Strength Session",
+  "session_focus": "Train productively within today's constraints.",
+  "duration_minutes": 45,
+  "exercises": [
+    {{
+      "exercise_name": "Goblet Squat",
+      "catalog_exercise_id": 1,
+      "movement_pattern": "squat",
+      "target_zone": "main",
+      "sets": 3,
+      "reps_min": 8,
+      "reps_max": 10,
+      "target_rir_min": 2,
+      "target_rir_max": 4,
+      "required_equipment": ["dumbbell"],
+      "notes": "Keep reps controlled and repeatable."
+    }}
+  ],
+  "warmup": "Use easy movement and ramp-up sets.",
+  "cooldown": "Log performance and recovery markers.",
+  "progression_guidance": "Progress gradually while recovery markers remain stable.",
+  "rationale": "This session stays inside the approved training constraints.",
+  "confidence": "Moderate"
+}}
+
 Rules:
 - Use no-think mode. Never emit <think>, reasoning text, or hidden-chain commentary.
 - Use only allowed_exercises from the approved context.
 - Do not invent exercises, equipment, movement patterns, or progression rules.
+- Do not use top-level keys other than the required top-level keys.
+- Do not use exercise keys other than the required exercise keys.
+- Do not output workout_plan, plan, response, result, or data wrappers.
+- Use reps_min and reps_max only; never use reps.
+- Use target_rir_min and target_rir_max only; never use rir_target or rir.
+- Use required_equipment only; never use equipment.
 - Exercise name, catalog_exercise_id, movement_pattern, and required_equipment must match the allowed catalog item.
 - Target RIR must stay inside the approved TrainingConstraints.
 - Confidence must not exceed approved context confidence.
@@ -1633,10 +1682,10 @@ def _raw_output_diagnostics(raw_output: str | None) -> dict[str, Any]:
 
 def _fallback_reason_for_parse_error(exc: Exception) -> str:
     message = str(exc).lower()
-    if "confidence" in message:
-        return FALLBACK_REASON_INVALID_CONFIDENCE
     if "malformed" in message or "markdown" in message or "empty" in message:
         return FALLBACK_REASON_MALFORMED_JSON
+    if "confidence is invalid" in message:
+        return FALLBACK_REASON_INVALID_CONFIDENCE
     return FALLBACK_REASON_SCHEMA_MISMATCH
 
 

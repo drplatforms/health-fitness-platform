@@ -525,6 +525,34 @@ def test_candidate_extra_field_is_rejected_under_strict_parsing():
         parse_candidate_workout_plan_json(json.dumps(payload))
 
 
+def test_candidate_wrapped_in_workout_plan_is_rejected_under_strict_parsing():
+    payload = {"workout_plan": [_candidate_payload_for_entry("Goblet Squat")]}
+
+    with pytest.raises(WorkoutCandidateParseError):
+        parse_candidate_workout_plan_json(json.dumps(payload))
+
+
+@pytest.mark.parametrize(
+    "bad_key, replacement_value, removed_keys",
+    [
+        ("equipment", ["dumbbell"], ["required_equipment"]),
+        ("reps", "8-10", ["reps_min", "reps_max"]),
+        ("rir_target", 3, ["target_rir_min", "target_rir_max"]),
+    ],
+)
+def test_candidate_wrong_exercise_schema_keys_are_rejected_under_strict_parsing(
+    bad_key, replacement_value, removed_keys
+):
+    payload = _candidate_payload_for_entry("Goblet Squat")
+    exercise = payload["exercises"][0]
+    for key in removed_keys:
+        exercise.pop(key)
+    exercise[bad_key] = replacement_value
+
+    with pytest.raises(WorkoutCandidateParseError):
+        parse_candidate_workout_plan_json(json.dumps(payload))
+
+
 def test_candidate_invalid_confidence_is_rejected_without_full_fallback():
     payload = _candidate_payload_for_entry("Goblet Squat")
     payload["confidence"] = "Pretty Good"
@@ -726,6 +754,14 @@ def test_crewai_workout_prompt_requires_raw_json_only(tmp_path, monkeypatch):
     assert "markdown" in prompt.lower()
     assert "allowed_exercises" in prompt
     assert "automatic load-increase" in prompt
+    assert "Required top-level keys only" in prompt
+    assert "Forbidden top-level wrapper keys" in prompt
+    assert "workout_plan, plan, response, result, data" in prompt
+    assert "Required exercise keys only" in prompt
+    assert "Forbidden exercise keys" in prompt
+    assert "equipment, reps, rir_target, rir, exercise, name" in prompt
+    assert "Use reps_min and reps_max only; never use reps." in prompt
+    assert "Use required_equipment only; never use equipment." in prompt
 
 
 def test_crewai_workout_llm_kwargs_disable_thinking_by_default(monkeypatch):
@@ -908,6 +944,64 @@ def test_mocked_crewai_workout_provider_missing_fields_fall_back(tmp_path, monke
 
     assert result.runtime_metadata.fallback_used is True
     assert result.runtime_metadata.fallback_reason == "schema_mismatch"
+
+
+def test_mocked_crewai_workout_provider_wrapped_workout_plan_falls_back(
+    tmp_path, monkeypatch
+):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    payload = json.loads(_valid_provider_json_for_context(context))
+    wrapped_payload = {"workout_plan": payload["exercises"]}
+
+    monkeypatch.setenv("WORKOUT_CANDIDATE_PROVIDER", "crewai")
+    monkeypatch.setattr(
+        workout_plan_service,
+        "generate_crewai_candidate_workout_plan_json",
+        lambda provided_context: json.dumps(wrapped_payload),
+    )
+
+    result = build_configured_approved_workout_plan_with_metadata(health_state)
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "schema_mismatch"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert result.runtime_metadata.final_plan_source == "deterministic_fallback"
+
+
+@pytest.mark.parametrize(
+    "bad_key, replacement_value, removed_keys",
+    [
+        ("equipment", ["dumbbell"], ["required_equipment"]),
+        ("reps", "8-10", ["reps_min", "reps_max"]),
+        ("rir_target", 3, ["target_rir_min", "target_rir_max"]),
+    ],
+)
+def test_mocked_crewai_workout_provider_wrong_exercise_schema_keys_fall_back(
+    tmp_path, monkeypatch, bad_key, replacement_value, removed_keys
+):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    payload = json.loads(_valid_provider_json_for_context(context))
+    exercise = payload["exercises"][0]
+    for key in removed_keys:
+        exercise.pop(key)
+    exercise[bad_key] = replacement_value
+
+    monkeypatch.setenv("WORKOUT_CANDIDATE_PROVIDER", "crewai")
+    monkeypatch.setattr(
+        workout_plan_service,
+        "generate_crewai_candidate_workout_plan_json",
+        lambda provided_context: json.dumps(payload),
+    )
+
+    result = build_configured_approved_workout_plan_with_metadata(health_state)
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "schema_mismatch"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
 
 
 def test_mocked_crewai_aligned_managed_deload_candidate_falls_back(
