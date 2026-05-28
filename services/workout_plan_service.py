@@ -10,11 +10,15 @@ from models.user_state_models import UserHealthState
 from models.workout_constraint_models import WorkoutConstraints
 from models.workout_plan_models import (
     ApprovedWorkoutExercise,
+    ApprovedWorkoutExplanation,
+    ApprovedWorkoutExplanationResult,
     ApprovedWorkoutPlan,
     ApprovedWorkoutPlanResult,
     CandidateWorkoutExercise,
+    CandidateWorkoutExplanation,
     CandidateWorkoutPlan,
     WorkoutContext,
+    WorkoutExplanationRuntimeMetadata,
     WorkoutPlanRuntimeMetadata,
 )
 from services.coaching_decision_service import build_coaching_decision
@@ -27,7 +31,9 @@ from services.training_execution_summary_service import build_training_execution
 from services.workout_constraint_service import build_workout_constraints
 
 WorkoutCandidateProvider = Callable[[WorkoutContext], str]
+WorkoutExplanationProvider = Callable[[ApprovedWorkoutPlan, WorkoutContext], str]
 WORKOUT_CANDIDATE_PROVIDER_ENV = "WORKOUT_CANDIDATE_PROVIDER"
+WORKOUT_EXPLANATION_PROVIDER_ENV = "WORKOUT_EXPLANATION_PROVIDER"
 WORKOUT_PROVIDER_DETERMINISTIC = "deterministic"
 WORKOUT_PROVIDER_CREWAI = "crewai"
 CREWAI_WORKOUT_MODEL_ENV = "CREWAI_WORKOUT_MODEL"
@@ -57,6 +63,9 @@ CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED = "not_attempted"
 FINAL_PLAN_SOURCE_DETERMINISTIC = "deterministic"
 FINAL_PLAN_SOURCE_CREWAI_APPROVED = "crewai_approved"
 FINAL_PLAN_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
+FINAL_EXPLANATION_SOURCE_DETERMINISTIC = "deterministic"
+FINAL_EXPLANATION_SOURCE_CREWAI_APPROVED = "crewai_approved"
+FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 RAW_OUTPUT_PREVIEW_LIMIT = 240
 ALLOWED_CATALOG_CONTEXT_LIMIT = 12
 
@@ -166,6 +175,60 @@ _REQUIRED_WORKOUT_EXERCISE_FIELDS = {
 }
 
 _ALLOWED_CONFIDENCE_VALUES = {"Limited", "Low", "Moderate", "High"}
+
+_ALLOWED_WORKOUT_EXPLANATION_FIELDS = {
+    "session_summary",
+    "why_this_fits_today",
+    "focus_cue",
+    "recovery_context",
+    "nutrition_or_logging_context",
+    "confidence",
+}
+
+_REQUIRED_WORKOUT_EXPLANATION_FIELDS = set(_ALLOWED_WORKOUT_EXPLANATION_FIELDS)
+
+_WORKOUT_EXPLANATION_FORBIDDEN_TERMS = [
+    "overtraining",
+    "stalled progress",
+    "stalled weight loss",
+    "stalled fat loss",
+    "poor adherence",
+    "lack of discipline",
+    "failed programming",
+    "automatic deload",
+    "required deload",
+    "must deload",
+    "automatic load increase",
+    "increase load automatically",
+    "add weight automatically",
+    "injury diagnosis",
+    "diagnose",
+    "medical",
+    "pain means injury",
+    "calorie target",
+    "macro target",
+    "protein target",
+    "carb target",
+    "fat target",
+    "replace the exercise",
+    "swap the exercise",
+    "change the exercise",
+    "add an exercise",
+    "remove the exercise",
+]
+
+_EXPLANATION_PRESCRIPTION_CHANGE_TERMS = [
+    "change your sets",
+    "change sets",
+    "change your reps",
+    "change reps",
+    "change your rir",
+    "change rir",
+    "different exercise",
+    "instead of the approved",
+    "ignore the approved",
+    "override the plan",
+]
 
 _WORKOUT_CANDIDATE_FORBIDDEN_TERMS = [
     "overtraining",
@@ -1492,6 +1555,635 @@ def approve_candidate_workout_plan(
         scenario=context.scenario,
         reason_codes=context.reason_codes,
     )
+
+
+def parse_candidate_workout_explanation_json(
+    raw_output: str,
+    *,
+    strict: bool = True,
+) -> CandidateWorkoutExplanation:
+    """Parse strict CandidateWorkoutExplanation JSON from provider output."""
+
+    if not isinstance(raw_output, str) or not raw_output.strip():
+        raise WorkoutCandidateParseError(
+            "Candidate workout explanation output is empty."
+        )
+
+    stripped_output = raw_output.strip()
+    if stripped_output.startswith("```") or stripped_output.endswith("```"):
+        raise WorkoutCandidateParseError(
+            "Candidate workout explanation output must be raw JSON, not markdown."
+        )
+
+    try:
+        payload = json.loads(stripped_output)
+    except json.JSONDecodeError as exc:
+        raise WorkoutCandidateParseError(
+            "Malformed CandidateWorkoutExplanation JSON."
+        ) from exc
+
+    if not isinstance(payload, dict):
+        raise WorkoutCandidateParseError(
+            "CandidateWorkoutExplanation JSON must be an object."
+        )
+
+    missing_fields = _REQUIRED_WORKOUT_EXPLANATION_FIELDS - set(payload)
+    if missing_fields:
+        formatted = ", ".join(sorted(missing_fields))
+        raise WorkoutCandidateParseError(
+            "CandidateWorkoutExplanation missing required field(s): " + formatted
+        )
+
+    if strict:
+        _reject_unapproved_fields(
+            payload,
+            _ALLOWED_WORKOUT_EXPLANATION_FIELDS,
+            "explanation",
+        )
+
+    confidence = _require_string(payload, "confidence")
+    if confidence not in _ALLOWED_CONFIDENCE_VALUES:
+        raise WorkoutCandidateParseError(
+            "CandidateWorkoutExplanation confidence is invalid."
+        )
+
+    return CandidateWorkoutExplanation(
+        session_summary=_require_string(payload, "session_summary"),
+        why_this_fits_today=_require_string(payload, "why_this_fits_today"),
+        focus_cue=_require_string(payload, "focus_cue"),
+        recovery_context=_require_string(payload, "recovery_context"),
+        nutrition_or_logging_context=_require_string(
+            payload,
+            "nutrition_or_logging_context",
+        ),
+        confidence=confidence,
+    )
+
+
+def _explanation_text_blob(explanation: CandidateWorkoutExplanation) -> str:
+    return " ".join(
+        [
+            explanation.session_summary,
+            explanation.why_this_fits_today,
+            explanation.focus_cue,
+            explanation.recovery_context,
+            explanation.nutrition_or_logging_context,
+        ]
+    ).lower()
+
+
+def _sentence_count(value: str) -> int:
+    markers = [".", "!", "?"]
+    count = sum(value.count(marker) for marker in markers)
+    return max(1, count)
+
+
+def validate_candidate_workout_explanation(
+    candidate: CandidateWorkoutExplanation,
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> list[str]:
+    """Validate optional AI workout explanation copy.
+
+    Explanation copy may describe an already-approved plan, but it must never
+    prescribe changes to exercises, sets, reps, RIR, equipment, progression, or
+    deload decisions. ApprovedWorkoutPlan remains the source of truth.
+    """
+
+    violations: list[str] = []
+    fields = [
+        candidate.session_summary,
+        candidate.why_this_fits_today,
+        candidate.focus_cue,
+        candidate.recovery_context,
+        candidate.nutrition_or_logging_context,
+    ]
+
+    for value in fields:
+        if len(value) > 320:
+            violations.append("Workout explanation fields must stay concise.")
+            break
+        if _sentence_count(value) > 2:
+            violations.append("Workout explanation fields must be 1-2 sentences.")
+            break
+
+    if _CONFIDENCE_RANK.get(candidate.confidence, -1) > _CONFIDENCE_RANK.get(
+        approved_plan.confidence,
+        -1,
+    ):
+        violations.append(
+            "Workout explanation confidence must not exceed plan confidence."
+        )
+
+    text = _explanation_text_blob(candidate)
+
+    for term in _INTERNAL_DEBUG_TERMS:
+        if term in text:
+            violations.append("Workout explanation contains internal/debug language.")
+            break
+
+    for term in _WORKOUT_EXPLANATION_FORBIDDEN_TERMS:
+        if term in text:
+            violations.append(
+                "Workout explanation contains forbidden coaching language."
+            )
+            break
+
+    for term in _EXPLANATION_PRESCRIPTION_CHANGE_TERMS:
+        if term in text:
+            violations.append("Workout explanation must not change the approved plan.")
+            break
+
+    if context.scenario == "data_quality_limited":
+        for term in _DATA_QUALITY_FORBIDDEN_TERMS:
+            if term in text:
+                violations.append(
+                    "Data-quality-limited workout explanations must avoid "
+                    "overconfident claims."
+                )
+                break
+
+    if context.scenario == "aligned_managed":
+        for term in _ALIGNED_MANAGED_FORBIDDEN_TERMS:
+            if term in text:
+                violations.append(
+                    "Aligned workout explanations must avoid unnecessary "
+                    "intervention framing."
+                )
+                break
+
+    if context.scenario == "recovery_limited":
+        for term in _RECOVERY_LIMITED_FORBIDDEN_TERMS:
+            if term in text:
+                violations.append(
+                    "Recovery-limited workout explanations must avoid "
+                    "max-effort language."
+                )
+                break
+
+    return violations
+
+
+def approve_candidate_workout_explanation(
+    candidate: CandidateWorkoutExplanation,
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> ApprovedWorkoutExplanation:
+    violations = validate_candidate_workout_explanation(
+        candidate, approved_plan, context
+    )
+    if violations:
+        raise ValueError(
+            "CandidateWorkoutExplanation failed validation: " + "; ".join(violations)
+        )
+
+    return ApprovedWorkoutExplanation(
+        session_summary=candidate.session_summary,
+        why_this_fits_today=candidate.why_this_fits_today,
+        focus_cue=candidate.focus_cue,
+        recovery_context=candidate.recovery_context,
+        nutrition_or_logging_context=candidate.nutrition_or_logging_context,
+        confidence=candidate.confidence,
+    )
+
+
+def build_deterministic_workout_explanation(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> ApprovedWorkoutExplanation:
+    if context.scenario == "recovery_limited":
+        recovery_context = (
+            "Recovery signals suggest keeping the session controlled and leaving "
+            "reps in reserve today."
+        )
+        nutrition_context = (
+            "Keep nutrition and logging steady so recovery trends are easier to "
+            "interpret after the session."
+        )
+    elif context.scenario == "nutrition_training_mismatch":
+        recovery_context = (
+            "The session stays productive without adding aggressive training stress."
+        )
+        nutrition_context = (
+            "Nutrition support and training demand should be reviewed together, so "
+            "log meals and workout effort carefully today."
+        )
+    elif context.scenario == "improving_after_deload":
+        recovery_context = (
+            "Recent recovery looks more stable, so the plan supports controlled "
+            "progression rather than a fast ramp-up."
+        )
+        nutrition_context = (
+            "Consistent logging will help confirm whether the improved trend holds "
+            "after training."
+        )
+    elif context.scenario == "data_quality_limited":
+        recovery_context = (
+            "The session is intentionally manageable because logging quality limits "
+            "stronger training conclusions."
+        )
+        nutrition_context = (
+            "Focus on recording the workout and nutrition clearly before making "
+            "stronger adjustments."
+        )
+    else:
+        recovery_context = (
+            "Current context supports a normal session while monitoring effort and "
+            "recovery afterward."
+        )
+        nutrition_context = (
+            "Keep logging consistent so future recommendations can stay grounded."
+        )
+
+    return ApprovedWorkoutExplanation(
+        session_summary=(
+            f"{approved_plan.title} is an approved {approved_plan.duration_minutes}-minute "
+            "session built from the current training and equipment context."
+        ),
+        why_this_fits_today=approved_plan.rationale,
+        focus_cue=(
+            "Focus on clean execution, honest effort logging, and stopping within "
+            "the approved plan targets."
+        ),
+        recovery_context=recovery_context,
+        nutrition_or_logging_context=nutrition_context,
+        confidence=approved_plan.confidence,
+    )
+
+
+def _deterministic_workout_explanation_result(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+    metadata: WorkoutExplanationRuntimeMetadata,
+) -> ApprovedWorkoutExplanationResult:
+    return ApprovedWorkoutExplanationResult(
+        approved_workout_explanation=build_deterministic_workout_explanation(
+            approved_plan,
+            context,
+        ),
+        runtime_metadata=metadata,
+    )
+
+
+def workout_explanation_context_to_llm_json(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> dict[str, Any]:
+    training_execution_summary = build_training_execution_summary(context.user_id)
+    return {
+        "scenario": context.scenario,
+        "confidence": approved_plan.confidence,
+        "approved_plan": {
+            "title": approved_plan.title,
+            "session_focus": approved_plan.session_focus,
+            "duration_minutes": approved_plan.duration_minutes,
+            "exercise_count": len(approved_plan.exercises),
+            "movement_patterns": _movement_pattern_targets_for_context(context)[:5],
+        },
+        "allowed_explanation_fields": sorted(_ALLOWED_WORKOUT_EXPLANATION_FIELDS),
+        "constraints": [
+            "Explain only the approved plan.",
+            "Do not change exercises, sets, reps, RIR, equipment, progression, or deload decisions.",
+            "Use concise user-facing coaching language only.",
+        ],
+        "training_execution_summary": {
+            "completed_execution_count": training_execution_summary.completed_execution_count,
+            "confidence": training_execution_summary.confidence,
+            "execution_quality": training_execution_summary.execution_quality,
+        },
+    }
+
+
+def build_crewai_workout_explanation_prompt(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> str:
+    safe_context = workout_explanation_context_to_llm_json(approved_plan, context)
+    return f"""
+/no_think
+Return one raw JSON object only. No markdown. No commentary. No reasoning.
+Explain the already-approved workout plan. Do not change the plan.
+
+Use this exact key set only:
+session_summary, why_this_fits_today, focus_cue, recovery_context,
+nutrition_or_logging_context, confidence
+
+Each field must be 1-2 concise user-facing sentences.
+Do not prescribe exercises, sets, reps, RIR, equipment, progression, deloads, medical guidance, or nutrition targets.
+Do not mention overtraining, stalled progress, poor adherence, failure, discipline, or internal backend terms.
+
+Compact valid example:
+{{
+  "session_summary": "This is a controlled strength session built from today's approved plan.",
+  "why_this_fits_today": "It matches the current recovery, equipment, and training constraints without adding unnecessary stress.",
+  "focus_cue": "Keep the work clean and log effort honestly after each exercise.",
+  "recovery_context": "The session is designed to support consistency while respecting current recovery signals.",
+  "nutrition_or_logging_context": "Consistent logging today will make the next recommendation more useful.",
+  "confidence": "Moderate"
+}}
+
+Context:
+{json.dumps(safe_context, separators=(",", ":"), sort_keys=True)}
+""".strip()
+
+
+def generate_crewai_workout_explanation_json(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> str:
+    """Run optional CrewAI workout explanation generation.
+
+    The returned text is untrusted and must pass strict parse/validation before it
+    can be returned from a debug path. The ApprovedWorkoutPlan remains the source
+    of truth.
+    """
+    from crewai import LLM, Agent, Crew, Task
+
+    llm_kwargs = _crewai_workout_llm_kwargs()
+    try:
+        llm = LLM(**llm_kwargs)
+    except TypeError:
+        logger.warning(
+            "crewai_workout_explanation_llm_rejected_no_think_kwargs",
+            extra={
+                "model": llm_kwargs.get("model"),
+                "base_url": llm_kwargs.get("base_url"),
+            },
+        )
+        llm = LLM(**_fallback_crewai_workout_llm_kwargs(llm_kwargs))
+
+    explanation_agent = Agent(
+        role="Workout Explanation JSON Generator",
+        goal="Explain an already-approved workout plan without changing it.",
+        backstory=(
+            "You create concise coaching explanations for approved workout plans. "
+            "You never create or alter the workout structure."
+        ),
+        llm=llm,
+        verbose=False,
+    )
+
+    explanation_task = Task(
+        description=build_crewai_workout_explanation_prompt(approved_plan, context),
+        expected_output="Raw CandidateWorkoutExplanation JSON object only. No markdown.",
+        agent=explanation_agent,
+    )
+
+    crew = Crew(agents=[explanation_agent], tasks=[explanation_task], verbose=False)
+    result = crew.kickoff()
+    return _crew_result_to_raw_json(result)
+
+
+def _log_workout_explanation_runtime(
+    context: WorkoutContext,
+    metadata: WorkoutExplanationRuntimeMetadata,
+    elapsed_ms: int,
+) -> None:
+    logger.info(
+        "workout_explanation_provider_result",
+        extra={
+            "user_id": context.user_id,
+            "scenario": context.scenario,
+            "configured_provider": metadata.configured_provider,
+            "selected_provider": metadata.selected_provider,
+            "crewai_attempted": metadata.crewai_attempted,
+            "candidate_parse_status": metadata.candidate_parse_status,
+            "candidate_validation_status": metadata.candidate_validation_status,
+            "final_explanation_source": metadata.final_explanation_source,
+            "fallback_used": metadata.fallback_used,
+            "fallback_reason": metadata.fallback_reason,
+            "validation_violations": metadata.validation_errors,
+            "raw_output_length": metadata.raw_output_length,
+            "raw_output_preview_truncated": metadata.raw_output_preview_truncated,
+            "markdown_wrapper_detected": metadata.markdown_wrapper_detected,
+            "elapsed_ms": elapsed_ms,
+        },
+    )
+
+
+def approve_workout_explanation_json_or_fallback_with_metadata(
+    raw_json: str,
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+    *,
+    configured_provider: str = WORKOUT_PROVIDER_DETERMINISTIC,
+    selected_provider: str = WORKOUT_PROVIDER_DETERMINISTIC,
+    crewai_attempted: bool = False,
+) -> ApprovedWorkoutExplanationResult:
+    start_time = time.perf_counter()
+    raw_diagnostics = _raw_output_diagnostics(raw_json)
+    try:
+        candidate = parse_candidate_workout_explanation_json(raw_json)
+        violations = validate_candidate_workout_explanation(
+            candidate,
+            approved_plan,
+            context,
+        )
+        if violations:
+            metadata = WorkoutExplanationRuntimeMetadata(
+                configured_provider=configured_provider,
+                selected_provider=selected_provider,
+                crewai_attempted=crewai_attempted,
+                fallback_used=True,
+                fallback_reason=FALLBACK_REASON_VALIDATION_FAILURE,
+                explanation_valid=False,
+                validation_errors=violations,
+                candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+                candidate_validation_status=CANDIDATE_VALIDATION_STATUS_FAILED,
+                final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+                **raw_diagnostics,
+            )
+            result = _deterministic_workout_explanation_result(
+                approved_plan,
+                context,
+                metadata,
+            )
+        else:
+            metadata = WorkoutExplanationRuntimeMetadata(
+                configured_provider=configured_provider,
+                selected_provider=selected_provider,
+                crewai_attempted=crewai_attempted,
+                fallback_used=False,
+                fallback_reason=None,
+                explanation_valid=True,
+                validation_errors=[],
+                candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+                candidate_validation_status=CANDIDATE_VALIDATION_STATUS_SUCCESS,
+                final_explanation_source=(
+                    FINAL_EXPLANATION_SOURCE_CREWAI_APPROVED
+                    if crewai_attempted
+                    else FINAL_EXPLANATION_SOURCE_DETERMINISTIC
+                ),
+                **raw_diagnostics,
+            )
+            result = ApprovedWorkoutExplanationResult(
+                approved_workout_explanation=approve_candidate_workout_explanation(
+                    candidate,
+                    approved_plan,
+                    context,
+                ),
+                runtime_metadata=metadata,
+            )
+    except (ValueError, WorkoutCandidateParseError) as exc:
+        metadata = WorkoutExplanationRuntimeMetadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            crewai_attempted=crewai_attempted,
+            fallback_used=True,
+            fallback_reason=_fallback_reason_for_parse_error(exc),
+            explanation_valid=False,
+            validation_errors=[str(exc)],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_FAILED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+            **raw_diagnostics,
+        )
+        result = _deterministic_workout_explanation_result(
+            approved_plan,
+            context,
+            metadata,
+        )
+
+    _log_workout_explanation_runtime(
+        context,
+        result.runtime_metadata,
+        elapsed_ms=round((time.perf_counter() - start_time) * 1000),
+    )
+    return result
+
+
+def approve_workout_explanation_provider_or_fallback_with_metadata(
+    explanation_provider: WorkoutExplanationProvider,
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+    *,
+    configured_provider: str = WORKOUT_PROVIDER_CREWAI,
+    selected_provider: str = WORKOUT_PROVIDER_CREWAI,
+) -> ApprovedWorkoutExplanationResult:
+    start_time = time.perf_counter()
+    try:
+        raw_json = explanation_provider(approved_plan, context)
+    except Exception as exc:
+        metadata = WorkoutExplanationRuntimeMetadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            crewai_attempted=True,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
+            explanation_valid=False,
+            validation_errors=[type(exc).__name__],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        result = _deterministic_workout_explanation_result(
+            approved_plan,
+            context,
+            metadata,
+        )
+        _log_workout_explanation_runtime(
+            context,
+            result.runtime_metadata,
+            elapsed_ms=round((time.perf_counter() - start_time) * 1000),
+        )
+        return result
+
+    if not isinstance(raw_json, str):
+        metadata = WorkoutExplanationRuntimeMetadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            crewai_attempted=True,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT,
+            explanation_valid=False,
+            validation_errors=[
+                "CandidateWorkoutExplanation provider returned non-string output."
+            ],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        result = _deterministic_workout_explanation_result(
+            approved_plan,
+            context,
+            metadata,
+        )
+        _log_workout_explanation_runtime(
+            context,
+            result.runtime_metadata,
+            elapsed_ms=round((time.perf_counter() - start_time) * 1000),
+        )
+        return result
+
+    return approve_workout_explanation_json_or_fallback_with_metadata(
+        raw_json,
+        approved_plan,
+        context,
+        configured_provider=configured_provider,
+        selected_provider=selected_provider,
+        crewai_attempted=True,
+    )
+
+
+def _configured_workout_explanation_provider() -> str:
+    return (
+        os.getenv(WORKOUT_EXPLANATION_PROVIDER_ENV, WORKOUT_PROVIDER_DETERMINISTIC)
+        .strip()
+        .lower()
+    )
+
+
+def build_configured_workout_explanation_with_metadata(
+    approved_plan: ApprovedWorkoutPlan,
+    context: WorkoutContext,
+) -> ApprovedWorkoutExplanationResult:
+    provider = _configured_workout_explanation_provider()
+
+    if provider == WORKOUT_PROVIDER_DETERMINISTIC:
+        metadata = WorkoutExplanationRuntimeMetadata(
+            configured_provider=provider,
+            selected_provider=WORKOUT_PROVIDER_DETERMINISTIC,
+            crewai_attempted=False,
+            fallback_used=False,
+            fallback_reason=FALLBACK_REASON_DETERMINISTIC_SELECTED,
+            explanation_valid=True,
+            validation_errors=[],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC,
+        )
+        result = _deterministic_workout_explanation_result(
+            approved_plan,
+            context,
+            metadata,
+        )
+        _log_workout_explanation_runtime(context, result.runtime_metadata, elapsed_ms=0)
+        return result
+
+    if provider == WORKOUT_PROVIDER_CREWAI:
+        return approve_workout_explanation_provider_or_fallback_with_metadata(
+            generate_crewai_workout_explanation_json,
+            approved_plan,
+            context,
+            configured_provider=provider,
+            selected_provider=WORKOUT_PROVIDER_CREWAI,
+        )
+
+    metadata = WorkoutExplanationRuntimeMetadata(
+        configured_provider=provider,
+        selected_provider=WORKOUT_PROVIDER_DETERMINISTIC,
+        crewai_attempted=False,
+        fallback_used=True,
+        fallback_reason=FALLBACK_REASON_INVALID_PROVIDER,
+        explanation_valid=True,
+        validation_errors=[f"Unsupported workout explanation provider: {provider}"],
+        candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+        candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+        final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+    )
+    result = _deterministic_workout_explanation_result(approved_plan, context, metadata)
+    _log_workout_explanation_runtime(context, result.runtime_metadata, elapsed_ms=0)
+    return result
 
 
 def _crew_result_to_raw_json(result: Any) -> str:

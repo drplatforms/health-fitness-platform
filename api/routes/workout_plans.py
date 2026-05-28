@@ -24,6 +24,7 @@ from services.workout_plan_persistence_service import (
 from services.workout_plan_service import (
     build_approved_workout_plan,
     build_configured_approved_workout_plan_with_metadata,
+    build_configured_workout_explanation_with_metadata,
     build_workout_context,
     render_approved_workout_plan,
 )
@@ -127,6 +128,29 @@ def workout_plan_preview_debug(user_id: int):
         "approved_workout_plan": asdict(approved_plan),
         "rendered_workout_plan": render_approved_workout_plan(approved_plan),
         "runtime_metadata": asdict(result.runtime_metadata),
+    }
+
+
+@router.get("/workout-plans/preview/{user_id}/explanation/debug")
+def workout_plan_explanation_debug(user_id: int):
+    health_state = build_user_health_state(user_id)
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+    explanation_result = build_configured_workout_explanation_with_metadata(
+        approved_plan,
+        context,
+    )
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "scenario": approved_plan.scenario,
+        "confidence": approved_plan.confidence,
+        "approved_workout_plan": asdict(approved_plan),
+        "approved_workout_explanation": asdict(
+            explanation_result.approved_workout_explanation
+        ),
+        "explanation_runtime_metadata": asdict(explanation_result.runtime_metadata),
     }
 
 

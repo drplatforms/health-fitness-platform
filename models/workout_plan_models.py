@@ -75,6 +75,49 @@ class ApprovedWorkoutPlan:
 
 
 @dataclass
+class CandidateWorkoutExplanation:
+    session_summary: str
+    why_this_fits_today: str
+    focus_cue: str
+    recovery_context: str
+    nutrition_or_logging_context: str
+    confidence: str
+
+
+@dataclass
+class ApprovedWorkoutExplanation:
+    session_summary: str
+    why_this_fits_today: str
+    focus_cue: str
+    recovery_context: str
+    nutrition_or_logging_context: str
+    confidence: str
+
+
+@dataclass
+class WorkoutExplanationRuntimeMetadata:
+    configured_provider: str
+    selected_provider: str
+    crewai_attempted: bool
+    fallback_used: bool
+    fallback_reason: str | None
+    explanation_valid: bool
+    validation_errors: list[str] = field(default_factory=list)
+    candidate_parse_status: str = "not_attempted"
+    candidate_validation_status: str = "not_attempted"
+    final_explanation_source: str = "deterministic"
+    raw_output_length: int | None = None
+    raw_output_preview_truncated: str | None = None
+    markdown_wrapper_detected: bool = False
+
+
+@dataclass
+class ApprovedWorkoutExplanationResult:
+    approved_workout_explanation: ApprovedWorkoutExplanation
+    runtime_metadata: WorkoutExplanationRuntimeMetadata
+
+
+@dataclass
 class WorkoutPlanRuntimeMetadata:
     configured_provider: str
     selected_provider: str

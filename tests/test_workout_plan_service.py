@@ -1,5 +1,5 @@
 import json
-from dataclasses import replace
+from dataclasses import asdict, replace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,16 +20,23 @@ from services.workout_plan_service import (
     WorkoutCandidateParseError,
     _crewai_workout_llm_kwargs,
     _select_exercise,
+    approve_candidate_workout_explanation,
     approve_candidate_workout_plan,
     approve_workout_candidate_provider_or_fallback_with_metadata,
+    approve_workout_explanation_provider_or_fallback_with_metadata,
     build_approved_workout_plan,
     build_approved_workout_plan_from_candidate_output,
     build_configured_approved_workout_plan_with_metadata,
+    build_configured_workout_explanation_with_metadata,
     build_crewai_candidate_workout_plan_prompt,
+    build_crewai_workout_explanation_prompt,
+    build_deterministic_workout_explanation,
     build_workout_context,
     generate_candidate_workout_plan,
+    parse_candidate_workout_explanation_json,
     parse_candidate_workout_plan_json,
     render_approved_workout_plan,
+    validate_candidate_workout_explanation,
     validate_candidate_workout_plan,
     workout_context_to_llm_json,
 )
@@ -1205,3 +1212,234 @@ def test_invalid_workout_candidate_provider_falls_back_to_deterministic(
     assert result.runtime_metadata.selected_provider == "deterministic"
     assert result.runtime_metadata.fallback_used is True
     assert result.runtime_metadata.fallback_reason == "invalid_provider"
+
+
+def _valid_explanation_payload(
+    *, confidence: str = "Moderate", focus_cue: str | None = None
+) -> dict:
+    return {
+        "session_summary": "This is a controlled strength session based on today's approved plan.",
+        "why_this_fits_today": "It matches the current equipment and training context without adding unnecessary stress.",
+        "focus_cue": focus_cue
+        or "Keep execution clean and log effort honestly after the session.",
+        "recovery_context": "The plan supports consistency while respecting current recovery signals.",
+        "nutrition_or_logging_context": "Clear logging today will make the next recommendation more useful.",
+        "confidence": confidence,
+    }
+
+
+def _lightweight_approved_plan(monkeypatch):
+    _patch_lightweight_catalog(monkeypatch)
+    context = _lightweight_workout_context()
+    candidate = parse_candidate_workout_plan_json(
+        json.dumps(_candidate_payload_for_entry("Goblet Squat"))
+    )
+    approved_plan = approve_candidate_workout_plan(candidate, context)
+    return approved_plan, context
+
+
+def test_candidate_workout_explanation_json_parses_and_approves(monkeypatch):
+    approved_plan, context = _lightweight_approved_plan(monkeypatch)
+    raw_output = json.dumps(_valid_explanation_payload())
+
+    candidate = parse_candidate_workout_explanation_json(raw_output)
+    approved = approve_candidate_workout_explanation(candidate, approved_plan, context)
+
+    assert approved.session_summary.startswith("This is a controlled")
+    assert approved.confidence == "Moderate"
+
+
+def test_candidate_workout_explanation_rejects_markdown(monkeypatch):
+    _lightweight_approved_plan(monkeypatch)
+    raw_output = "```json\n" + json.dumps(_valid_explanation_payload()) + "\n```"
+
+    with pytest.raises(WorkoutCandidateParseError):
+        parse_candidate_workout_explanation_json(raw_output)
+
+
+def test_candidate_workout_explanation_rejects_extra_fields(monkeypatch):
+    _lightweight_approved_plan(monkeypatch)
+    payload = _valid_explanation_payload()
+    payload["exercise_changes"] = ["not allowed"]
+
+    with pytest.raises(WorkoutCandidateParseError):
+        parse_candidate_workout_explanation_json(json.dumps(payload))
+
+
+def test_workout_explanation_validator_rejects_plan_changes(monkeypatch):
+    approved_plan, context = _lightweight_approved_plan(monkeypatch)
+    candidate = parse_candidate_workout_explanation_json(
+        json.dumps(
+            _valid_explanation_payload(
+                focus_cue="Ignore the approved plan and swap the exercise today."
+            )
+        )
+    )
+
+    violations = validate_candidate_workout_explanation(
+        candidate, approved_plan, context
+    )
+
+    assert any(
+        "forbidden" in violation.lower() or "change" in violation.lower()
+        for violation in violations
+    )
+
+
+def test_workout_explanation_validator_rejects_unsafe_claims(monkeypatch):
+    approved_plan, context = _lightweight_approved_plan(monkeypatch)
+    candidate = parse_candidate_workout_explanation_json(
+        json.dumps(
+            _valid_explanation_payload(
+                focus_cue="This prevents overtraining and stalled progress."
+            )
+        )
+    )
+
+    violations = validate_candidate_workout_explanation(
+        candidate, approved_plan, context
+    )
+
+    assert any("forbidden" in violation.lower() for violation in violations)
+
+
+def test_deterministic_workout_explanation_preserves_approved_plan(monkeypatch):
+    approved_plan, context = _lightweight_approved_plan(monkeypatch)
+    before = asdict(approved_plan)
+
+    explanation = build_deterministic_workout_explanation(approved_plan, context)
+
+    assert asdict(approved_plan) == before
+    assert explanation.session_summary
+    assert explanation.confidence == approved_plan.confidence
+
+
+def test_crewai_workout_explanation_prompt_is_secondary_to_plan(monkeypatch):
+    approved_plan, context = _lightweight_approved_plan(monkeypatch)
+
+    prompt = build_crewai_workout_explanation_prompt(approved_plan, context)
+
+    assert "Explain the already-approved workout plan" in prompt
+    assert "Do not change the plan" in prompt
+    assert "session_summary" in prompt
+    assert "No markdown" in prompt
+    assert (
+        "exercises"
+        not in prompt.split("Use this exact key set only:", 1)[1].split(
+            "Each field", 1
+        )[0]
+    )
+
+
+def test_mocked_crewai_workout_explanation_valid_json_approves(tmp_path, monkeypatch):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+
+    result = approve_workout_explanation_provider_or_fallback_with_metadata(
+        lambda provided_plan, provided_context: json.dumps(
+            _valid_explanation_payload()
+        ),
+        approved_plan,
+        context,
+    )
+
+    assert result.runtime_metadata.crewai_attempted is True
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "success"
+    assert result.runtime_metadata.final_explanation_source == "crewai_approved"
+
+
+def test_mocked_crewai_workout_explanation_malformed_json_falls_back(
+    tmp_path, monkeypatch
+):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+
+    result = approve_workout_explanation_provider_or_fallback_with_metadata(
+        lambda provided_plan, provided_context: "not-json",
+        approved_plan,
+        context,
+    )
+
+    assert result.approved_workout_explanation.session_summary
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "malformed_json"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+
+
+def test_mocked_crewai_workout_explanation_unsafe_copy_falls_back(
+    tmp_path, monkeypatch
+):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+
+    result = approve_workout_explanation_provider_or_fallback_with_metadata(
+        lambda provided_plan, provided_context: json.dumps(
+            _valid_explanation_payload(
+                focus_cue="Use an automatic deload because progress has stalled."
+            )
+        ),
+        approved_plan,
+        context,
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "validation_failure"
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "failed"
+
+
+def test_configured_workout_explanation_defaults_to_deterministic(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("WORKOUT_EXPLANATION_PROVIDER", raising=False)
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+
+    result = build_configured_workout_explanation_with_metadata(approved_plan, context)
+
+    assert result.approved_workout_explanation.session_summary
+    assert result.runtime_metadata.selected_provider == "deterministic"
+    assert result.runtime_metadata.crewai_attempted is False
+    assert result.runtime_metadata.fallback_used is False
+
+
+def test_workout_explanation_debug_endpoint_returns_debug_only_metadata(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+    monkeypatch.setenv("WORKOUT_EXPLANATION_PROVIDER", "deterministic")
+
+    client = TestClient(app)
+    response = client.get("/workout-plans/preview/102/explanation/debug")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["approved_workout_plan"]["exercises"]
+    assert payload["approved_workout_explanation"]["session_summary"]
+    assert (
+        payload["explanation_runtime_metadata"]["selected_provider"] == "deterministic"
+    )
+    assert payload["explanation_runtime_metadata"]["crewai_attempted"] is False
+
+
+def test_normal_workout_preview_response_shape_does_not_expose_explanation(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+
+    client = TestClient(app)
+    response = client.get("/workout-plans/preview/102")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "approved_workout_explanation" not in payload
+    assert "explanation_runtime_metadata" not in payload
