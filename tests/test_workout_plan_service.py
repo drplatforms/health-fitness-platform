@@ -1370,6 +1370,34 @@ def test_mocked_crewai_workout_explanation_malformed_json_falls_back(
     assert result.runtime_metadata.candidate_parse_status == "failed"
 
 
+def test_mocked_crewai_workout_explanation_provider_exception_is_diagnostic(
+    tmp_path, monkeypatch
+):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    approved_plan = build_approved_workout_plan(health_state)
+    long_message = "No module named 'crewai_tools' " + ("x" * 500)
+
+    def broken_provider(provided_plan, provided_context):
+        raise ImportError(long_message)
+
+    result = approve_workout_explanation_provider_or_fallback_with_metadata(
+        broken_provider,
+        approved_plan,
+        context,
+    )
+
+    assert result.approved_workout_explanation.session_summary
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "provider_exception"
+    assert result.runtime_metadata.candidate_parse_status == "not_attempted"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert len(result.runtime_metadata.validation_errors) == 1
+    error = result.runtime_metadata.validation_errors[0]
+    assert error.startswith("ImportError: No module named 'crewai_tools'")
+    assert len(error) <= len("ImportError: ") + 300
+
+
 def test_mocked_crewai_workout_explanation_unsafe_copy_falls_back(
     tmp_path, monkeypatch
 ):

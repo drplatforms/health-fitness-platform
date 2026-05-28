@@ -2052,6 +2052,19 @@ def approve_workout_explanation_json_or_fallback_with_metadata(
     return result
 
 
+def _provider_exception_summary(exc: Exception, *, limit: int = 300) -> str:
+    """Return a bounded provider exception summary for debug metadata.
+
+    Runtime metadata should help QA identify missing/incompatible dependencies,
+    but it should not expose full tracebacks or unbounded provider output.
+    """
+
+    message = " ".join(str(exc).split())[:limit]
+    if not message:
+        return type(exc).__name__
+    return f"{type(exc).__name__}: {message}"
+
+
 def approve_workout_explanation_provider_or_fallback_with_metadata(
     explanation_provider: WorkoutExplanationProvider,
     approved_plan: ApprovedWorkoutPlan,
@@ -2064,6 +2077,18 @@ def approve_workout_explanation_provider_or_fallback_with_metadata(
     try:
         raw_json = explanation_provider(approved_plan, context)
     except Exception as exc:
+        exception_summary = _provider_exception_summary(exc)
+        logger.exception(
+            "workout_explanation_provider_exception",
+            extra={
+                "user_id": context.user_id,
+                "scenario": context.scenario,
+                "configured_provider": configured_provider,
+                "selected_provider": selected_provider,
+                "exception_type": type(exc).__name__,
+                "exception_summary": exception_summary,
+            },
+        )
         metadata = WorkoutExplanationRuntimeMetadata(
             configured_provider=configured_provider,
             selected_provider=selected_provider,
@@ -2071,7 +2096,7 @@ def approve_workout_explanation_provider_or_fallback_with_metadata(
             fallback_used=True,
             fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
             explanation_valid=False,
-            validation_errors=[type(exc).__name__],
+            validation_errors=[exception_summary],
             candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
             candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
             final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
