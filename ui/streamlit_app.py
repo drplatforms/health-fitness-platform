@@ -240,7 +240,9 @@ def format_equipment_required(exercise: dict) -> str:
     )
 
 
-def display_workout_plan_preview(workout_plan: dict) -> None:
+def display_workout_plan_preview(
+    workout_plan: dict, user_id: int | None = None
+) -> None:
     title = workout_plan.get("title", "Workout Plan Preview")
     session_focus = workout_plan.get("session_focus", "No focus available.")
     duration_minutes = workout_plan.get("duration_minutes", "Unknown")
@@ -262,6 +264,9 @@ def display_workout_plan_preview(workout_plan: dict) -> None:
     col3.metric("Exercises", len(exercises))
 
     st.write(f"**Session focus:** {session_focus}")
+
+    if user_id is not None:
+        display_workout_plan_explanation(user_id)
 
     st.subheader("Workout Exercises")
 
@@ -347,6 +352,98 @@ def display_workout_plan_preview(workout_plan: dict) -> None:
 
     if not any([warmup, progression_guidance, cooldown]):
         st.info("No additional guidance was returned for this workout preview.")
+
+
+def get_workout_explanation_for_user(user_id: int) -> dict | None:
+    """Fetch the public-safe workout explanation and cache it by user.
+
+    The public endpoint intentionally returns explanation copy only. It does not
+    return the approved workout plan, raw output, provider internals, runtime
+    metadata, or prompt/context details.
+    """
+    cache = st.session_state.workout_explanation_by_user
+    errors = st.session_state.workout_explanation_error_by_user
+
+    if user_id in cache:
+        errors.pop(user_id, None)
+        return cache[user_id]
+
+    try:
+        explanation_data = api_get(f"/workout-plans/preview/{user_id}/explanation")
+        cache[user_id] = explanation_data
+        errors.pop(user_id, None)
+        return explanation_data
+    except requests.RequestException as exc:
+        errors[user_id] = extract_api_error_message(exc)
+        return None
+
+
+def display_workout_plan_explanation(user_id: int) -> None:
+    st.markdown("#### Coach Explanation")
+    st.caption(
+        "This explains the already-approved workout. It does not change the "
+        "exercises, sets, reps, RIR, equipment, progression, deload, or nutrition "
+        "decisions."
+    )
+
+    explanation_data = get_workout_explanation_for_user(user_id)
+    explanation_error = st.session_state.workout_explanation_error_by_user.get(user_id)
+
+    if explanation_error and not explanation_data:
+        st.info(f"Coach explanation is unavailable right now: {explanation_error}")
+        return
+
+    if not explanation_data or not explanation_data.get("success"):
+        st.info("Coach explanation is not available for this workout preview yet.")
+        return
+
+    explanation = explanation_data.get("approved_workout_explanation") or {}
+
+    if not explanation:
+        st.info("Coach explanation is not available for this workout preview yet.")
+        return
+
+    session_summary = explanation.get("session_summary")
+    why_this_fits_today = explanation.get("why_this_fits_today")
+    focus_cue = explanation.get("focus_cue")
+    recovery_context = explanation.get("recovery_context")
+    nutrition_or_logging_context = explanation.get("nutrition_or_logging_context")
+    confidence = explanation.get("confidence") or explanation_data.get("confidence")
+
+    if session_summary:
+        st.write(f"**Session summary:** {session_summary}")
+
+    if focus_cue:
+        st.info(f"**Focus cue:** {focus_cue}")
+
+    with st.expander("Why this workout?", expanded=False):
+        if why_this_fits_today:
+            st.write("**Why this fits today:**")
+            st.write(why_this_fits_today)
+
+        if recovery_context:
+            st.write("**Recovery context:**")
+            st.write(recovery_context)
+
+        if nutrition_or_logging_context:
+            st.write("**Nutrition/logging context:**")
+            st.write(nutrition_or_logging_context)
+
+        if confidence:
+            st.caption(f"Confidence: {confidence}")
+
+    if st.session_state.get("developer_mode", False):
+        safe_debug_response = {
+            "success": explanation_data.get("success"),
+            "user_id": explanation_data.get("user_id"),
+            "scenario": explanation_data.get("scenario"),
+            "confidence": explanation_data.get("confidence"),
+            "approved_workout_explanation": explanation,
+        }
+        developer_details(
+            "Developer details: public workout explanation",
+            safe_debug_response,
+        )
 
 
 def extract_api_error_message(exc: requests.RequestException) -> str:
@@ -2888,6 +2985,8 @@ SESSION_DEFAULTS = {
     "last_user_id": None,
     "daily_recommendation_by_user": {},
     "daily_recommendation_error_by_user": {},
+    "workout_explanation_by_user": {},
+    "workout_explanation_error_by_user": {},
 }
 
 for key, default_value in SESSION_DEFAULTS.items():
@@ -3367,6 +3466,8 @@ def render_equipment_profile_editor(user_id: int) -> None:
             st.session_state.applied_substitution_responses = {}
             st.session_state.substitution_apply_message = None
             st.session_state.substitution_apply_error = None
+            st.session_state.workout_explanation_by_user.pop(user_id, None)
+            st.session_state.workout_explanation_error_by_user.pop(user_id, None)
             st.rerun()
 
         st.error("Equipment profile save failed.")
@@ -3584,6 +3685,7 @@ def render_today_workout_panel(user_id: int) -> None:
     col3.metric("Confidence", workout_plan_data.get("confidence", "Unknown"))
 
     st.write(f"**Focus:** {approved_workout_plan.get('session_focus', 'Unknown')}")
+    display_workout_plan_explanation(user_id)
     render_preview_exercise_snapshot(approved_workout_plan)
 
     select_today_workout(user_id, "select_today_workout_button")
@@ -3791,7 +3893,7 @@ def render_workout_plan_section(user_id: int) -> None:
             col1.metric("Plan Context", scenario_display_name(scenario))
             col2.metric("Confidence", confidence)
 
-            display_workout_plan_preview(approved_workout_plan)
+            display_workout_plan_preview(approved_workout_plan, user_id=user_id)
 
             active_plan_response = get_active_plan_response(user_id)
             if active_plan_response:
