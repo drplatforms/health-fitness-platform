@@ -7,6 +7,10 @@ from services.exercise_substitution_service import (
     apply_substitution,
     get_substitution_candidate_dicts,
 )
+from services.post_workout_review_service import (
+    build_configured_post_workout_review_summary_with_metadata,
+    build_post_workout_review_context,
+)
 from services.user_state_service import build_user_health_state
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
@@ -172,6 +176,32 @@ def workout_plan_explanation_debug(user_id: int):
             explanation_result.approved_workout_explanation
         ),
         "explanation_runtime_metadata": asdict(explanation_result.runtime_metadata),
+    }
+
+
+@router.get("/workout-executions/{execution_id}/post-workout-summary/debug")
+def workout_execution_post_workout_summary_debug(execution_id: int):
+    try:
+        review_context = build_post_workout_review_context(execution_id)
+        review_result = build_configured_post_workout_review_summary_with_metadata(
+            execution_id
+        )
+    except WorkoutPlanNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (WorkoutPlanInvalidStatusError, WorkoutPlanValidationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": review_context.user_id,
+        "execution_id": review_context.execution_id,
+        "plan_instance_id": review_context.plan_instance_id,
+        "approved_workout_plan": asdict(review_context.approved_workout_plan),
+        "planned_vs_actual_summary": asdict(review_context.planned_vs_actual_summary),
+        "approved_post_workout_review_summary": asdict(
+            review_result.approved_post_workout_review_summary
+        ),
+        "post_workout_review_runtime_metadata": asdict(review_result.runtime_metadata),
     }
 
 

@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import database
+import services.post_workout_review_service as post_workout_review_service
 import services.workout_plan_service as workout_plan_service
 from api.main import app
 from models.exercise_catalog_models import ExerciseCatalogEntry
@@ -14,8 +15,21 @@ from models.workout_plan_models import WorkoutContext
 from scripts.seed_qa_scenarios import QA_USER_IDS, seed_qa_scenarios
 from services.equipment_profile_service import save_equipment_profile
 from services.exercise_catalog_service import find_catalog_entry_by_name
+from services.post_workout_review_service import (
+    approve_candidate_post_workout_review_summary,
+    approve_post_workout_review_summary_provider_or_fallback_with_metadata,
+    build_configured_post_workout_review_summary_with_metadata,
+    build_post_workout_review_context,
+    parse_candidate_post_workout_review_summary_json,
+    validate_candidate_post_workout_review_summary,
+)
 from services.user_state_service import build_user_health_state
-from services.workout_plan_persistence_service import select_current_workout_plan
+from services.workout_plan_persistence_service import (
+    complete_workout_plan,
+    log_actual_set,
+    select_current_workout_plan,
+    start_selected_workout_plan,
+)
 from services.workout_plan_service import (
     WorkoutCandidateParseError,
     _crewai_workout_llm_kwargs,
@@ -1437,78 +1451,6 @@ def test_configured_workout_explanation_defaults_to_deterministic(
     assert result.runtime_metadata.fallback_used is False
 
 
-def test_public_workout_explanation_endpoint_returns_approved_copy_only(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
-    seed_qa_scenarios()
-    monkeypatch.setenv("WORKOUT_EXPLANATION_PROVIDER", "deterministic")
-
-    client = TestClient(app)
-    response = client.get("/workout-plans/preview/102/explanation")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["success"] is True
-    assert payload["user_id"] == 102
-    assert payload["scenario"] == "aligned_managed"
-    assert payload["confidence"]
-    assert payload["approved_workout_explanation"]["session_summary"]
-
-    assert "approved_workout_plan" not in payload
-    assert "explanation_runtime_metadata" not in payload
-    assert "runtime_metadata" not in payload
-    assert "raw_output" not in payload
-
-
-def test_public_workout_explanation_endpoint_uses_mocked_crewai_when_enabled(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
-    seed_qa_scenarios()
-    monkeypatch.setenv("WORKOUT_EXPLANATION_PROVIDER", "crewai")
-    monkeypatch.setattr(
-        workout_plan_service,
-        "generate_crewai_workout_explanation_json",
-        lambda approved_plan, context: json.dumps(_valid_explanation_payload()),
-    )
-
-    client = TestClient(app)
-    response = client.get("/workout-plans/preview/102/explanation")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["success"] is True
-    assert payload["approved_workout_explanation"]["session_summary"].startswith(
-        "This is a controlled"
-    )
-    assert "explanation_runtime_metadata" not in payload
-    assert "approved_workout_plan" not in payload
-
-
-def test_public_workout_explanation_endpoint_falls_back_on_bad_crewai_output(
-    tmp_path, monkeypatch
-):
-    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
-    seed_qa_scenarios()
-    monkeypatch.setenv("WORKOUT_EXPLANATION_PROVIDER", "crewai")
-    monkeypatch.setattr(
-        workout_plan_service,
-        "generate_crewai_workout_explanation_json",
-        lambda approved_plan, context: "not-json",
-    )
-
-    client = TestClient(app)
-    response = client.get("/workout-plans/preview/102/explanation")
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["success"] is True
-    assert payload["approved_workout_explanation"]["session_summary"]
-    assert "explanation_runtime_metadata" not in payload
-    assert "approved_workout_plan" not in payload
-
-
 def test_workout_explanation_debug_endpoint_returns_debug_only_metadata(
     tmp_path, monkeypatch
 ):
@@ -1616,3 +1558,232 @@ def test_public_workout_explanation_endpoint_falls_back_on_malformed_crewai(
     assert payload["approved_workout_explanation"]["session_summary"]
     assert "explanation_runtime_metadata" not in payload
     assert "runtime_metadata" not in payload
+
+
+def _completed_workout_execution(tmp_path, monkeypatch) -> tuple[int, int]:
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_qa_scenarios()
+    selected = select_current_workout_plan(102)
+    plan_instance_id = selected["workout_plan_instance"].id
+    started = start_selected_workout_plan(plan_instance_id)
+
+    for exercise in started["planned_exercises"]:
+        for set_number in range(1, exercise.sets + 1):
+            log_actual_set(
+                plan_instance_id,
+                {
+                    "planned_workout_exercise_id": exercise.id,
+                    "exercise_name": exercise.name,
+                    "set_number": set_number,
+                    "actual_reps": exercise.reps_min,
+                    "actual_weight": 25,
+                    "actual_rir": exercise.rir_min,
+                    "completed": True,
+                    "skipped": False,
+                },
+            )
+
+    completed = complete_workout_plan(plan_instance_id)
+    return completed["execution_session"].id, plan_instance_id
+
+
+def _valid_post_workout_review_payload(
+    *, confidence: str = "Low", next_time_focus: str | None = None
+) -> dict:
+    return {
+        "session_summary": "You completed the approved workout and logged enough detail to review it.",
+        "completion_reflection": "Most of the planned work was completed, and any differences are useful session context.",
+        "effort_reflection": "Logged effort stayed close to the planned RIR range.",
+        "reps_or_volume_reflection": "Completed sets and reps mostly matched the approved plan.",
+        "substitutions_or_skips_context": "No major substitution pattern needs emphasis from this session.",
+        "logging_quality_note": "Set-level logging was complete enough for a useful review.",
+        "next_time_focus": next_time_focus
+        or "Next time, focus on clean execution and consistent logging.",
+        "confidence": confidence,
+    }
+
+
+def test_post_workout_review_context_uses_completed_summary(tmp_path, monkeypatch):
+    execution_id, plan_instance_id = _completed_workout_execution(tmp_path, monkeypatch)
+
+    context = build_post_workout_review_context(execution_id)
+
+    assert context.execution_id == execution_id
+    assert context.plan_instance_id == plan_instance_id
+    assert context.completion_status == "completed"
+    assert context.completed_sets == context.planned_sets
+    assert context.approved_workout_plan.exercises
+    assert (
+        context.planned_vs_actual_summary.completed_set_count == context.completed_sets
+    )
+
+
+def test_candidate_post_workout_review_json_parses_and_approves(tmp_path, monkeypatch):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    context = build_post_workout_review_context(execution_id)
+
+    candidate = parse_candidate_post_workout_review_summary_json(
+        json.dumps(_valid_post_workout_review_payload())
+    )
+    approved = approve_candidate_post_workout_review_summary(candidate, context)
+
+    assert approved.session_summary.startswith("You completed")
+    assert approved.confidence == "Low"
+
+
+def test_candidate_post_workout_review_rejects_markdown(tmp_path, monkeypatch):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    build_post_workout_review_context(execution_id)
+    raw_output = (
+        "```json\n" + json.dumps(_valid_post_workout_review_payload()) + "\n```"
+    )
+
+    with pytest.raises(WorkoutCandidateParseError):
+        parse_candidate_post_workout_review_summary_json(raw_output)
+
+
+def test_post_workout_review_validator_rejects_unsafe_programming(
+    tmp_path, monkeypatch
+):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    context = build_post_workout_review_context(execution_id)
+    candidate = parse_candidate_post_workout_review_summary_json(
+        json.dumps(
+            _valid_post_workout_review_payload(
+                next_time_focus="Next workout should add weight automatically."
+            )
+        )
+    )
+
+    violations = validate_candidate_post_workout_review_summary(candidate, context)
+
+    assert any("programming" in violation.lower() for violation in violations)
+
+
+def test_configured_post_workout_review_defaults_to_deterministic(
+    tmp_path, monkeypatch
+):
+    monkeypatch.delenv("POST_WORKOUT_REVIEW_PROVIDER", raising=False)
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+
+    result = build_configured_post_workout_review_summary_with_metadata(execution_id)
+
+    assert result.approved_post_workout_review_summary.session_summary
+    assert result.runtime_metadata.selected_provider == "deterministic"
+    assert result.runtime_metadata.crewai_attempted is False
+    assert result.runtime_metadata.fallback_used is False
+
+
+def test_mocked_crewai_post_workout_review_valid_json_approves(tmp_path, monkeypatch):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    context = build_post_workout_review_context(execution_id)
+
+    result = approve_post_workout_review_summary_provider_or_fallback_with_metadata(
+        lambda provided_context: json.dumps(_valid_post_workout_review_payload()),
+        context,
+    )
+
+    assert result.runtime_metadata.crewai_attempted is True
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "success"
+    assert result.runtime_metadata.final_review_source == "crewai_approved"
+
+
+def test_mocked_crewai_post_workout_review_malformed_json_falls_back(
+    tmp_path, monkeypatch
+):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    context = build_post_workout_review_context(execution_id)
+
+    result = approve_post_workout_review_summary_provider_or_fallback_with_metadata(
+        lambda provided_context: "not-json",
+        context,
+    )
+
+    assert result.approved_post_workout_review_summary.session_summary
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "malformed_json"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+
+
+def test_mocked_crewai_post_workout_review_unsafe_copy_falls_back(
+    tmp_path, monkeypatch
+):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    context = build_post_workout_review_context(execution_id)
+
+    result = approve_post_workout_review_summary_provider_or_fallback_with_metadata(
+        lambda provided_context: json.dumps(
+            _valid_post_workout_review_payload(
+                next_time_focus="Use an automatic deload because progress has stalled."
+            )
+        ),
+        context,
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "validation_failure"
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "failed"
+
+
+def test_post_workout_review_debug_endpoint_returns_runtime_metadata(
+    tmp_path, monkeypatch
+):
+    execution_id, plan_instance_id = _completed_workout_execution(tmp_path, monkeypatch)
+    monkeypatch.setenv("POST_WORKOUT_REVIEW_PROVIDER", "deterministic")
+
+    client = TestClient(app)
+    response = client.get(
+        f"/workout-executions/{execution_id}/post-workout-summary/debug"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["execution_id"] == execution_id
+    assert payload["plan_instance_id"] == plan_instance_id
+    assert payload["approved_workout_plan"]["exercises"]
+    assert payload["planned_vs_actual_summary"]["completed_set_count"] > 0
+    assert payload["approved_post_workout_review_summary"]["session_summary"]
+    assert (
+        payload["post_workout_review_runtime_metadata"]["selected_provider"]
+        == "deterministic"
+    )
+    assert payload["post_workout_review_runtime_metadata"]["crewai_attempted"] is False
+
+
+def test_configured_post_workout_review_uses_mocked_crewai_provider(
+    tmp_path, monkeypatch
+):
+    execution_id, _plan_instance_id = _completed_workout_execution(
+        tmp_path, monkeypatch
+    )
+    monkeypatch.setenv("POST_WORKOUT_REVIEW_PROVIDER", "crewai")
+    monkeypatch.setattr(
+        post_workout_review_service,
+        "generate_crewai_post_workout_review_summary_json",
+        lambda context: json.dumps(_valid_post_workout_review_payload()),
+    )
+
+    result = build_configured_post_workout_review_summary_with_metadata(execution_id)
+
+    assert result.runtime_metadata.selected_provider == "crewai"
+    assert result.runtime_metadata.crewai_attempted is True
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.final_review_source == "crewai_approved"

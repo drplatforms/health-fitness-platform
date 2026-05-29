@@ -248,3 +248,81 @@ class WorkoutPlannedVsActualSummary:
     sets_above_planned_reps: int
     notes: list[str] = field(default_factory=list)
     deviation_flags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CandidatePostWorkoutReviewSummary:
+    session_summary: str
+    completion_reflection: str
+    effort_reflection: str
+    reps_or_volume_reflection: str
+    substitutions_or_skips_context: str
+    logging_quality_note: str
+    next_time_focus: str
+    confidence: str
+
+
+@dataclass
+class ApprovedPostWorkoutReviewSummary:
+    session_summary: str
+    completion_reflection: str
+    effort_reflection: str
+    reps_or_volume_reflection: str
+    substitutions_or_skips_context: str
+    logging_quality_note: str
+    next_time_focus: str
+    confidence: str
+
+
+@dataclass
+class PostWorkoutReviewRuntimeMetadata:
+    configured_provider: str
+    selected_provider: str
+    crewai_attempted: bool
+    fallback_used: bool
+    fallback_reason: str | None
+    review_valid: bool
+    validation_errors: list[str] = field(default_factory=list)
+    candidate_parse_status: str = "not_attempted"
+    candidate_validation_status: str = "not_attempted"
+    final_review_source: str = "deterministic"
+    raw_output_length: int | None = None
+    raw_output_preview_truncated: str | None = None
+    markdown_wrapper_detected: bool = False
+
+
+@dataclass
+class ApprovedPostWorkoutReviewSummaryResult:
+    approved_post_workout_review_summary: ApprovedPostWorkoutReviewSummary
+    runtime_metadata: PostWorkoutReviewRuntimeMetadata
+
+
+@dataclass
+class PostWorkoutReviewContext:
+    user_id: int
+    execution_id: int
+    plan_instance_id: int
+    scenario: str
+    confidence: str
+    workout_title: str
+    planned_duration_minutes: int
+    completed_at: str | None
+    completion_status: str
+    exercise_count_planned: int
+    exercise_count_completed: int
+    planned_sets: int
+    completed_sets: int
+    skipped_exercise_count: int
+    substitution_count: int
+    planned_rir_range: list[float | None]
+    actual_rir_average: float | None
+    actual_rir_min: int | None
+    actual_rir_max: int | None
+    effort_delta_summary: str
+    reps_completed_summary: str
+    volume_completion_summary: str
+    logging_completeness: str
+    safety_constraints: list[str]
+    approved_summary_facts: list[str]
+    approved_workout_plan: ApprovedWorkoutPlan
+    planned_vs_actual_summary: WorkoutPlannedVsActualSummary

@@ -423,6 +423,31 @@ def get_workout_execution_session(
     return _row_to_execution_session(row)
 
 
+def get_workout_execution_session_by_id(
+    execution_session_id: int,
+) -> WorkoutExecutionSession | None:
+    ensure_workout_plan_persistence_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT *
+        FROM workout_execution_sessions
+        WHERE id = ?
+        """,
+        (execution_session_id,),
+    )
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    return _row_to_execution_session(row)
+
+
 def get_workout_plan_instance(
     workout_plan_instance_id: int,
 ) -> WorkoutPlanInstance | None:
