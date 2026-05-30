@@ -551,20 +551,90 @@ def _normalize_exercise_name(name: str) -> str:
 
 
 def _recent_exercise_names(workout_constraints: WorkoutConstraints) -> set[str]:
-    return {
-        _normalize_exercise_name(name)
-        for name in workout_constraints.recent_exercises
-        if name
-    }
+    return set(_recent_exercise_counts(workout_constraints))
+
+
+def _recent_exercise_counts(workout_constraints: WorkoutConstraints) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for name in workout_constraints.recent_exercises:
+        if not name:
+            continue
+        normalized = _normalize_exercise_name(name)
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return counts
 
 
 def _recent_movement_patterns(workout_constraints: WorkoutConstraints) -> set[str]:
-    patterns: set[str] = set()
+    return set(_recent_movement_pattern_counts(workout_constraints))
+
+
+def _recent_movement_pattern_counts(
+    workout_constraints: WorkoutConstraints,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
     for name in workout_constraints.recent_exercises:
         catalog_entry = find_catalog_entry_by_name(name)
         if catalog_entry is not None:
-            patterns.add(catalog_entry.movement_pattern)
-    return patterns
+            counts[catalog_entry.movement_pattern] = (
+                counts.get(catalog_entry.movement_pattern, 0) + 1
+            )
+    return counts
+
+
+def _equipment_modality(equipment_required: list[str]) -> str:
+    equipment = {_normalize_equipment(item) for item in equipment_required}
+    if equipment == {"bodyweight"}:
+        return "bodyweight"
+
+    for modality in [
+        "barbell",
+        "dumbbell",
+        "cable",
+        "pull_up_bar",
+        "resistance_band",
+        "ez_bar",
+        "kettlebell",
+        "treadmill",
+        "bike",
+        "exercise_ball",
+        "machine",
+    ]:
+        if modality in equipment:
+            return modality
+
+    if equipment:
+        return sorted(equipment)[0]
+    return "unknown"
+
+
+def _recent_equipment_modality_counts(
+    workout_constraints: WorkoutConstraints,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for name in workout_constraints.recent_exercises:
+        catalog_entry = find_catalog_entry_by_name(name)
+        if catalog_entry is None:
+            continue
+        modality = _equipment_modality(catalog_entry.equipment_required)
+        counts[modality] = counts.get(modality, 0) + 1
+    return counts
+
+
+def _stable_rotation_index(seed: str, count: int, user_id: int | None = None) -> int:
+    if count <= 1:
+        return 0
+    user_offset = user_id or 0
+    seed_offset = sum((index + 1) * ord(char) for index, char in enumerate(seed))
+    return (user_offset + seed_offset) % count
+
+
+def _selection_slot_key(options: list[tuple[str, list[str]]]) -> str:
+    catalog_patterns: list[str] = []
+    for name, _equipment_required in options[:4]:
+        catalog_entry = find_catalog_entry_by_name(name)
+        if catalog_entry is not None:
+            catalog_patterns.append(catalog_entry.movement_pattern)
+    return "|".join(catalog_patterns or [name for name, _ in options[:4]])
 
 
 def _is_home_gym_like(workout_constraints: WorkoutConstraints) -> bool:
@@ -599,24 +669,37 @@ def _option_score(
     equipment_required: list[str],
     workout_constraints: WorkoutConstraints,
     option_index: int,
-    recent_names: set[str],
-    recent_patterns: set[str],
+    recent_name_counts: dict[str, int],
+    recent_pattern_counts: dict[str, int],
+    recent_modality_counts: dict[str, int],
 ) -> int:
     catalog_entry = find_catalog_entry_by_name(name)
     catalog_name, normalized_equipment = _catalog_equipment_for_option(
         name, equipment_required
     )
-    score = 1000 - option_index
+    score = 1000 - (option_index * 4)
 
-    if _normalize_exercise_name(catalog_name) in recent_names:
-        score -= 450
+    normalized_name = _normalize_exercise_name(catalog_name)
+    recent_name_count = recent_name_counts.get(normalized_name, 0)
+    if recent_name_count:
+        score -= 700 + (175 * (recent_name_count - 1))
+    else:
+        score += 35
 
     if catalog_entry is not None:
-        if catalog_entry.movement_pattern in recent_patterns:
-            score -= 45
+        recent_pattern_count = recent_pattern_counts.get(
+            catalog_entry.movement_pattern, 0
+        )
+        if recent_pattern_count:
+            score -= min(recent_pattern_count, 4) * 85
         score += _difficulty_score(catalog_entry.difficulty, workout_constraints)
 
     equipment = set(normalized_equipment)
+    modality = _equipment_modality(normalized_equipment)
+    recent_modality_count = recent_modality_counts.get(modality, 0)
+    if recent_modality_count:
+        score -= min(recent_modality_count, 5) * 45
+
     if "machine" in equipment:
         score -= 90
 
@@ -631,6 +714,9 @@ def _option_score(
                 "pull_up_bar",
                 "resistance_band",
                 "rope_cable_attachment",
+                "treadmill",
+                "bike",
+                "exercise_ball",
             }
         )
         if equipment == {"bodyweight"}:
@@ -639,13 +725,57 @@ def _option_score(
     return score
 
 
+def _select_from_rotated_top_options(
+    allowed_options: list[tuple[int, str, list[str]]],
+    *,
+    user_id: int | None,
+    slot_key: str,
+    recent_name_counts: dict[str, int],
+) -> tuple[str, list[str]]:
+    ranked = sorted(allowed_options, key=lambda item: item[0], reverse=True)
+    best_score = ranked[0][0]
+    top_options = [item for item in ranked[:5] if best_score - item[0] <= 180]
+
+    primary_slot_pattern = (slot_key or "").split("|", 1)[0]
+    if primary_slot_pattern:
+        same_pattern_options = []
+        for item in top_options:
+            _score, option_name, _equipment_required = item
+            catalog_entry = find_catalog_entry_by_name(option_name)
+            if (
+                catalog_entry is not None
+                and catalog_entry.movement_pattern == primary_slot_pattern
+            ):
+                same_pattern_options.append(item)
+        if same_pattern_options:
+            top_options = same_pattern_options
+
+    if user_id is None or len(top_options) <= 1:
+        _score, name, equipment_required = top_options[0]
+        return name, equipment_required
+
+    recent_seed = "|".join(
+        f"{name}:{count}" for name, count in sorted(recent_name_counts.items())[:12]
+    )
+    rotation_seed = f"{slot_key}:{recent_seed}"
+    rotation_index = _stable_rotation_index(
+        rotation_seed, len(top_options), user_id=user_id
+    )
+    _score, name, equipment_required = top_options[rotation_index]
+    return name, equipment_required
+
+
 def _select_exercise(
     workout_constraints: WorkoutConstraints,
     options: list[tuple[str, list[str]]],
+    *,
+    user_id: int | None = None,
+    slot_key: str | None = None,
 ) -> tuple[str, list[str]]:
     allowed_options: list[tuple[int, str, list[str]]] = []
-    recent_names = _recent_exercise_names(workout_constraints)
-    recent_patterns = _recent_movement_patterns(workout_constraints)
+    recent_name_counts = _recent_exercise_counts(workout_constraints)
+    recent_pattern_counts = _recent_movement_pattern_counts(workout_constraints)
+    recent_modality_counts = _recent_equipment_modality_counts(workout_constraints)
 
     for index, (name, equipment_required) in enumerate(options):
         catalog_name, catalog_equipment_required = _catalog_equipment_for_option(
@@ -660,8 +790,9 @@ def _select_exercise(
                         equipment_required,
                         workout_constraints,
                         index,
-                        recent_names,
-                        recent_patterns,
+                        recent_name_counts,
+                        recent_pattern_counts,
+                        recent_modality_counts,
                     ),
                     catalog_name,
                     catalog_equipment_required,
@@ -669,8 +800,12 @@ def _select_exercise(
             )
 
     if allowed_options:
-        _, name, equipment_required = max(allowed_options, key=lambda item: item[0])
-        return name, equipment_required
+        return _select_from_rotated_top_options(
+            allowed_options,
+            user_id=user_id,
+            slot_key=slot_key or _selection_slot_key(options),
+            recent_name_counts=recent_name_counts,
+        )
 
     name, equipment_required = options[-1]
     return _catalog_equipment_for_option(name, equipment_required)
@@ -716,7 +851,12 @@ def _exercise_from_options(
     rir_max: int,
     notes: str,
 ) -> CandidateWorkoutExercise:
-    name, equipment_required = _select_exercise(context.workout_constraints, options)
+    name, equipment_required = _select_exercise(
+        context.workout_constraints,
+        options,
+        user_id=context.user_id,
+        slot_key=_selection_slot_key(options),
+    )
     return _exercise(
         name,
         sets,

@@ -297,6 +297,70 @@ def test_scored_selection_penalizes_recent_exact_exercises(tmp_path, monkeypatch
     assert equipment_required == ["dumbbell"]
 
 
+def test_scored_selection_uses_deterministic_top_k_rotation_by_user(
+    tmp_path, monkeypatch
+):
+    _seeded_health_states(tmp_path, monkeypatch)
+    workout_constraints = WorkoutConstraints(
+        available_equipment=[
+            "bodyweight",
+            "barbell",
+            "cable",
+            "dumbbell",
+            "rope_cable_attachment",
+        ],
+        unavailable_equipment=["machine"],
+        confidence="High",
+        reason_codes=["test_home_gym_rotation"],
+    )
+    options = [
+        ("Romanian Deadlift", ["barbell"]),
+        ("Goblet Squat", ["dumbbell"]),
+        ("Cable Pull-Through", ["cable", "rope_cable_attachment"]),
+        ("Bodyweight Squat", ["bodyweight"]),
+    ]
+
+    user_101_selection = _select_exercise(
+        workout_constraints, options, user_id=101, slot_key="lower_body"
+    )
+    user_102_selection = _select_exercise(
+        workout_constraints, options, user_id=102, slot_key="lower_body"
+    )
+
+    assert user_101_selection != user_102_selection
+    assert user_101_selection[0] in {name for name, _equipment in options}
+    assert user_102_selection[0] in {name for name, _equipment in options}
+
+
+def test_home_gym_repeated_selected_previews_use_broader_pool(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    save_equipment_profile(
+        user_id=102,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+
+    exercise_names: set[str] = set()
+    equipment_modalities: set[str] = set()
+    for _index in range(5):
+        approved = build_approved_workout_plan(build_user_health_state(102))
+        exercise_names.update(exercise.name for exercise in approved.exercises)
+        for exercise in approved.exercises:
+            equipment_modalities.update(exercise.equipment_required)
+            assert "machine" not in exercise.equipment_required
+        select_current_workout_plan(102)
+
+    assert len(exercise_names) >= 12
+    assert {"barbell", "cable", "dumbbell"}.issubset(equipment_modalities)
+    assert equipment_modalities & {
+        "bodyweight",
+        "pull_up_bar",
+        "resistance_band",
+        "ez_bar",
+    }
+
+
 def test_home_gym_preview_rotates_after_recent_planned_history(tmp_path, monkeypatch):
     _seeded_health_states(tmp_path, monkeypatch)
     save_equipment_profile(
