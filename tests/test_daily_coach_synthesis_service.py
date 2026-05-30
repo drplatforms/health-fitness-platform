@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import pytest
+from fastapi.testclient import TestClient
 
 import database
+from api.main import app
 from models.coaching_decision_models import CoachingDecision
 from models.nutrition_target_models import NutritionTargets
 from models.recommendation_models import ApprovedActionPlan, RecommendationContext
@@ -528,3 +530,173 @@ def test_seeded_users_produce_safe_scenario_aligned_synthesis(
     assert "lack of discipline" not in combined
     assert "automatic deload" not in combined
     assert "automatic progression" not in combined
+
+
+_PUBLIC_DAILY_COACH_TOP_LEVEL_KEYS = {
+    "success",
+    "user_id",
+    "synthesis_date",
+    "scenario",
+    "confidence",
+    "daily_coach_synthesis",
+}
+
+_PUBLIC_DAILY_COACH_SYNTHESIS_KEYS = {
+    "user_id",
+    "synthesis_date",
+    "scenario",
+    "confidence",
+    "today_summary",
+    "recovery_signal",
+    "training_signal",
+    "workout_guidance",
+    "execution_context",
+    "logging_focus",
+    "plan_fit_note",
+    "recommended_focus",
+    "reason_codes",
+    "limitations",
+}
+
+_PUBLIC_DAILY_COACH_FORBIDDEN_KEYS = {
+    "raw_actual_set_rows",
+    "raw_notes",
+    "raw_output",
+    "runtime_metadata",
+    "validator_internals",
+    "prompt",
+    "prompt_text",
+    "debug_payload",
+    "provider_metadata",
+    "validation_errors",
+}
+
+
+def _collect_keys(value):
+    keys = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            keys.add(key)
+            keys.update(_collect_keys(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            keys.update(_collect_keys(nested))
+    return keys
+
+
+def test_daily_coach_synthesis_endpoint_returns_public_contract_for_seeded_users(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    for user_id in QA_USER_IDS:
+        response = client.get(f"/daily-coach/{user_id}/synthesis")
+        payload = response.json()
+
+        assert response.status_code == 200
+        assert set(payload) == _PUBLIC_DAILY_COACH_TOP_LEVEL_KEYS
+        assert payload["success"] is True
+        assert payload["user_id"] == user_id
+        assert payload["scenario"] in {
+            "recovery_limited",
+            "aligned_managed",
+            "nutrition_training_mismatch",
+            "improving_after_deload",
+            "data_quality_limited",
+        }
+        assert payload["daily_coach_synthesis"]
+        assert (
+            set(payload["daily_coach_synthesis"]) == _PUBLIC_DAILY_COACH_SYNTHESIS_KEYS
+        )
+        assert payload["daily_coach_synthesis"]["user_id"] == user_id
+
+
+def test_daily_coach_synthesis_endpoint_does_not_expose_debug_or_runtime_fields(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/daily-coach/102/synthesis")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert not (_collect_keys(payload) & _PUBLIC_DAILY_COACH_FORBIDDEN_KEYS)
+    assert "approved_workout_plan" not in payload
+    assert "training_execution_summary" not in payload
+
+
+def test_daily_coach_synthesis_endpoint_missing_user_returns_safe_404(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/daily-coach/999999/synthesis")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_daily_coach_synthesis_endpoint_data_quality_limited_remains_safe(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/daily-coach/105/synthesis")
+    payload = response.json()
+    combined = str(payload).lower()
+
+    assert response.status_code == 200
+    assert payload["scenario"] == "data_quality_limited"
+    assert "logging" in combined or "verification" in combined
+    assert "nutrition is inadequate" not in combined
+    assert "supplement" not in combined
+    assert "stalled progress" not in combined
+    assert "stalled fat loss" not in combined
+    assert "overtraining" not in combined
+
+
+def test_daily_coach_synthesis_endpoint_recovery_limited_uses_controlled_language(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/daily-coach/101/synthesis")
+    payload = response.json()
+    combined = str(payload).lower()
+
+    assert response.status_code == 200
+    assert payload["scenario"] == "recovery_limited"
+    assert "controlled" in combined or "recovery" in combined
+    assert "overtraining" not in combined
+    assert "deload" not in combined
+    assert "automatic progression" not in combined
+
+
+def test_daily_coach_synthesis_endpoint_keeps_recommendation_endpoint_shape_stable(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    daily_response = client.get("/recommendations/daily/102")
+    debug_response = client.get("/recommendations/daily/102/debug")
+
+    assert daily_response.status_code == 200
+    assert set(daily_response.json()) == {
+        "success",
+        "user_id",
+        "scenario",
+        "confidence",
+        "nutrition_targets",
+        "training_constraints",
+        "approved_action_plan",
+        "rendered_recommendation",
+    }
+    assert debug_response.status_code == 200
+    assert "runtime_metadata" in debug_response.json()
+    assert "training_execution_summary" in debug_response.json()

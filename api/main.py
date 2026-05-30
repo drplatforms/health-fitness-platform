@@ -4,6 +4,7 @@
 
 from fastapi import FastAPI
 
+from api.routes.daily_coach import router as daily_coach_router
 from api.routes.equipment_profiles import router as equipment_profile_router
 from api.routes.nutrition import router as nutrition_router
 from api.routes.recommendations import router as recommendation_router
@@ -18,6 +19,7 @@ from api.routes.workouts import router as workout_router
 
 app = FastAPI()
 app.include_router(workout_router)
+app.include_router(daily_coach_router)
 app.include_router(equipment_profile_router)
 app.include_router(report_router)
 app.include_router(recovery_router)
