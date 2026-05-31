@@ -308,7 +308,7 @@ def display_workout_plan_preview(
             role = workout_exercise_role_label(index, exercise)
             exercise_name = exercise.get("name", "Unknown")
 
-            with st.expander(f"{role}: {exercise_name}", expanded=index < 3):
+            with st.expander(f"{role}: {exercise_name}", expanded=False):
                 col1, col2, col3, col4 = st.columns(4)
 
                 col1.metric("Sets", exercise.get("sets", "Unknown"))
@@ -332,26 +332,24 @@ def display_workout_plan_preview(
                 if notes:
                     st.write(f"**Notes:** {notes}")
 
-    st.subheader("Why This Plan")
+    with st.expander("Why this plan", expanded=False):
+        if rationale:
+            st.write(rationale)
+        else:
+            st.info("No rationale was returned for this workout preview.")
 
-    if rationale:
-        st.write(rationale)
-    else:
-        st.info("No rationale was returned for this workout preview.")
+    with st.expander("Warmup, progression, and cooldown guidance", expanded=False):
+        if warmup:
+            st.write(f"**Warmup:** {warmup}")
 
-    st.subheader("Guidance")
+        if progression_guidance:
+            st.write(f"**Progression guidance:** {progression_guidance}")
 
-    if warmup:
-        st.write(f"**Warmup:** {warmup}")
+        if cooldown:
+            st.write(f"**Cooldown:** {cooldown}")
 
-    if progression_guidance:
-        st.write(f"**Progression guidance:** {progression_guidance}")
-
-    if cooldown:
-        st.write(f"**Cooldown:** {cooldown}")
-
-    if not any([warmup, progression_guidance, cooldown]):
-        st.info("No additional guidance was returned for this workout preview.")
+        if not any([warmup, progression_guidance, cooldown]):
+            st.info("No additional guidance was returned for this workout preview.")
 
 
 def get_workout_explanation_for_user(user_id: int) -> dict | None:
@@ -2470,13 +2468,14 @@ def display_complete_workout_control(
                 context_key=f"completion_result_{plan_instance_id}",
             )
 
-    with st.expander("Developer details: workout completion"):
-        st.subheader("Raw Execution Response Used By Completion Control")
-        st.json(execution_response)
+    if st.session_state.get("developer_mode", False):
+        with st.expander("Developer details: workout completion"):
+            st.subheader("Raw Execution Response Used By Completion Control")
+            st.json(execution_response)
 
-        if completion_response:
-            st.subheader("Raw Complete Response")
-            st.json(completion_response)
+            if completion_response:
+                st.subheader("Raw Complete Response")
+                st.json(completion_response)
 
 
 def display_workout_execution_review(plan_instance_id: int) -> None:
@@ -2530,10 +2529,13 @@ def display_workout_execution_review(plan_instance_id: int) -> None:
         execution_session.get("completed_at") or "Not completed",
     )
 
-    st.write("**Planned Exercises**")
-    display_planned_exercises(planned_exercises)
-    display_active_substitution_summary(planned_exercises, active_substitutions)
-    display_actual_sets(actual_sets)
+    with st.expander("Planned exercises and substitutions", expanded=False):
+        display_planned_exercises(planned_exercises)
+        display_active_substitution_summary(planned_exercises, active_substitutions)
+
+    with st.expander("Logged sets", expanded=False):
+        display_actual_sets(actual_sets)
+
     display_actual_set_editing(
         plan_instance_id,
         context_key="execution_review",
@@ -3077,6 +3079,7 @@ st.set_page_config(
 
 st.title("🏋️ Fitness AI Platform")
 st.caption("Daily workout flow, logging, history, and AI coaching in one place.")
+# Streamlit Today + Workout UX Consolidation v3
 
 # =====================================
 # Session State Initialization
@@ -3388,7 +3391,7 @@ def render_active_plan_summary(plan_response: dict | None) -> None:
     )
 
     if planned_exercises:
-        with st.expander("Workout exercises", expanded=True):
+        with st.expander("Workout exercise details", expanded=False):
             display_planned_exercises(planned_exercises, active_substitutions)
             display_active_substitution_summary(planned_exercises, active_substitutions)
 
@@ -4021,17 +4024,82 @@ def render_quick_nutrition_status(user_id: int) -> None:
     st.dataframe(pd.DataFrame(rows[:6]), width="stretch", hide_index=True)
 
 
+def latest_completed_workout_history_item(user_id: int) -> dict | None:
+    try:
+        history_response = api_get(f"/workout-plans/history/{user_id}")
+    except requests.RequestException:
+        return None
+
+    for history_item in history_response.get("workout_plan_instances", []):
+        workout_plan_instance = history_item.get("workout_plan_instance") or {}
+        execution_session = history_item.get("execution_session") or {}
+
+        if (
+            workout_plan_instance.get("status") == "completed"
+            or execution_session.get("status") == "completed"
+        ):
+            return history_item
+
+    return None
+
+
+def render_recent_workout_reflection_card(user_id: int) -> None:
+    st.subheader("Recent Workout Reflection")
+
+    history_item = latest_completed_workout_history_item(user_id)
+    if not history_item:
+        st.info("Complete a planned workout to see a short reflection here.")
+        return
+
+    workout_plan_instance = history_item.get("workout_plan_instance") or {}
+    execution_session = history_item.get("execution_session") or {}
+    summary = history_item.get("planned_vs_actual_summary") or {}
+    title = history_item.get("approved_workout_title") or workout_plan_instance.get(
+        "title",
+        "Completed workout",
+    )
+
+    st.write(f"**Latest completed:** {title}")
+
+    if summary:
+        col1, col2, col3 = st.columns(3)
+        col1.metric(
+            "Completion",
+            format_summary_metric(summary.get("completion_percentage"), "%"),
+        )
+        col2.metric(
+            "Sets",
+            f"{compact_count(summary.get('completed_set_count'))}/"
+            f"{compact_count(summary.get('planned_set_count'))}",
+        )
+        col3.metric(
+            "Effort",
+            format_signed_delta(summary.get("rir_deviation"), " RIR"),
+        )
+    else:
+        st.caption(
+            "Review details will appear when planned-vs-actual data is available."
+        )
+
+    execution_id = execution_session.get("id")
+    if execution_id is not None:
+        with st.expander("Post-workout review", expanded=False):
+            display_post_workout_review_summary(
+                int(execution_id),
+                context_key=f"today_recent_{workout_plan_instance.get('id', 'unknown')}",
+            )
+
+
 def render_today_section(user_id: int) -> None:
     st.header("Today")
     st.caption(
-        "Start here: review your daily coaching, check in, and run today's workout."
+        "Start here: review the coach's read, check in, and run today's workout."
     )
 
     render_daily_coach_synthesis_card(user_id)
 
-    st.divider()
-
-    render_daily_recommendation_snapshot(user_id)
+    with st.expander("Daily Grounded Recommendation", expanded=False):
+        render_daily_recommendation_snapshot(user_id)
 
     st.divider()
 
@@ -4040,6 +4108,8 @@ def render_today_section(user_id: int) -> None:
         render_recovery_checkin_card(user_id)
     with nutrition_col:
         render_quick_nutrition_status(user_id)
+        st.divider()
+        render_recent_workout_reflection_card(user_id)
 
     st.divider()
 
@@ -4059,6 +4129,11 @@ def render_workout_plan_section(user_id: int) -> None:
         st.error(st.session_state.workout_plan_action_error)
 
     workout_steps = ["1. Plan", "2. Do Workout", "3. Review"]
+    workout_step_display_labels = {
+        "1. Plan": "Plan",
+        "2. Do Workout": "Active Workout",
+        "3. Review": "Review",
+    }
 
     override_step = st.session_state.get("workout_flow_step_override")
     if override_step in workout_steps:
@@ -4077,10 +4152,11 @@ def render_workout_plan_section(user_id: int) -> None:
         st.session_state.workout_flow_step_selector = current_step
 
     selected_step = st.radio(
-        "Workout flow",
+        "Workout area",
         options=workout_steps,
         index=workout_steps.index(selector_step),
         horizontal=True,
+        format_func=lambda step: workout_step_display_labels.get(step, step),
         key="workout_flow_step_selector",
     )
 
@@ -4237,6 +4313,9 @@ def render_workout_plan_section(user_id: int) -> None:
             display_workout_execution_review(plan_instance_id)
 
     st.divider()
+    with st.expander("Workout History", expanded=False):
+        display_workout_execution_history(user_id)
+
     with st.expander("Exercise Catalog", expanded=False):
         display_exercise_catalog(user_id)
 
