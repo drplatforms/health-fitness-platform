@@ -3670,6 +3670,58 @@ def get_daily_recommendation_for_user(user_id: int) -> dict | None:
         return cache.get(user_id)
 
 
+DAILY_COACH_LIMITATION_LABELS = {
+    "incomplete_actual_set_logging_limits_inference": (
+        "Workout logging is incomplete, so recent training trends are limited."
+    ),
+    "nutrition_targets_limited_by_logging_quality": (
+        "Nutrition guidance is limited because recent logging quality is incomplete."
+    ),
+}
+
+
+def daily_coach_limitation_label(limitation: object) -> str | None:
+    """Return user-friendly limitation copy for the Daily Coach Synthesis card."""
+
+    if limitation is None:
+        return None
+
+    if isinstance(limitation, dict):
+        message = limitation.get("message") or limitation.get("label")
+        if message:
+            return str(message)
+
+        limitation = (
+            limitation.get("reason_code")
+            or limitation.get("code")
+            or limitation.get("name")
+            or limitation
+        )
+
+    limitation_code = str(limitation).strip()
+    if not limitation_code:
+        return None
+
+    friendly_label = DAILY_COACH_LIMITATION_LABELS.get(limitation_code)
+    if friendly_label:
+        return friendly_label
+
+    return f"{limitation_code.replace('_', ' ').capitalize()}."
+
+
+def friendly_daily_coach_limitations(limitations: list[object]) -> list[str]:
+    """Translate raw limitation/reason-code style values for normal UI."""
+
+    friendly_values = []
+
+    for limitation in limitations:
+        friendly_label = daily_coach_limitation_label(limitation)
+        if friendly_label and friendly_label not in friendly_values:
+            friendly_values.append(friendly_label)
+
+    return friendly_values
+
+
 def render_daily_coach_synthesis_card(user_id: int) -> None:
     st.subheader("Coach’s Read for Today")
     st.caption(
@@ -3742,9 +3794,10 @@ def render_daily_coach_synthesis_card(user_id: int) -> None:
             if value:
                 st.write(f"**{label}:** {value}")
 
-        if limitations:
-            st.write("**Limitations:**")
-            for limitation in limitations:
+        friendly_limitations = friendly_daily_coach_limitations(limitations)
+        if friendly_limitations:
+            st.write("**Current limits on the read:**")
+            for limitation in friendly_limitations:
                 st.write(f"- {limitation}")
 
     developer_details(
@@ -3931,9 +3984,9 @@ def render_today_workout_panel(user_id: int) -> None:
 
 def render_recovery_checkin_card(user_id: int) -> None:
     st.subheader("Recovery Check-In")
-    st.info(
-        "Complete today's recovery check-in to improve today's workout and "
-        "nutrition guidance."
+    st.caption(
+        "Quick check-in: improves today's workout and nutrition guidance without "
+        "changing anything until you save it."
     )
 
     with st.expander("Complete recovery check-in", expanded=False):
@@ -4011,7 +4064,9 @@ def render_quick_nutrition_status(user_id: int) -> None:
 
     nutrition = data.get("nutrition") or {}
     if not nutrition:
-        st.info("No food logged today yet. Use the Nutrition tab when you are ready.")
+        st.caption(
+            "No food logged today yet. Use the Nutrition tab when you are ready."
+        )
         return
 
     preferred_names = ["Energy", "Calories", "Protein", "Carbohydrate", "Fat"]
