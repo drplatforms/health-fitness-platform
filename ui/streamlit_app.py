@@ -3658,6 +3658,89 @@ def get_daily_recommendation_for_user(user_id: int) -> dict | None:
         return cache.get(user_id)
 
 
+def render_daily_coach_synthesis_card(user_id: int) -> None:
+    st.subheader("Coach’s Read for Today")
+    st.caption(
+        "A concise synthesis of today’s recovery, training, workout, and logging context."
+    )
+
+    synthesis_response = None
+    synthesis_error = None
+
+    try:
+        synthesis_response = api_get(f"/daily-coach/{user_id}/synthesis")
+    except requests.RequestException as exc:
+        synthesis_error = extract_api_error_message(exc)
+
+    if synthesis_error:
+        st.info("Coach synthesis is not available yet.")
+        if st.session_state.get("developer_mode", False):
+            with st.expander("Developer details: daily coach synthesis error"):
+                st.write(synthesis_error)
+        return
+
+    if not synthesis_response or not synthesis_response.get("success"):
+        st.info("Coach synthesis is not available yet.")
+        developer_details(
+            "Developer details: daily coach synthesis response",
+            synthesis_response or {},
+        )
+        return
+
+    synthesis = synthesis_response.get("daily_coach_synthesis") or {}
+    if not synthesis:
+        st.info("Coach synthesis is not available yet.")
+        developer_details(
+            "Developer details: daily coach synthesis response",
+            synthesis_response,
+        )
+        return
+
+    today_summary = synthesis.get("today_summary")
+    recommended_focus = synthesis.get("recommended_focus")
+    workout_guidance = synthesis.get("workout_guidance")
+    confidence = synthesis.get("confidence") or synthesis_response.get("confidence")
+    limitations = synthesis.get("limitations") or []
+
+    top_col, confidence_col = st.columns([4, 1])
+    with top_col:
+        if today_summary:
+            st.write(today_summary)
+        else:
+            st.info("No coach summary is available yet.")
+    with confidence_col:
+        st.metric("Confidence", confidence or "Unknown")
+
+    if recommended_focus:
+        st.info(f"**Recommended focus:** {recommended_focus}")
+
+    if workout_guidance:
+        st.write(f"**Workout guidance:** {workout_guidance}")
+
+    with st.expander("More coaching context", expanded=False):
+        detail_rows = [
+            ("Recovery signal", synthesis.get("recovery_signal")),
+            ("Training signal", synthesis.get("training_signal")),
+            ("Execution context", synthesis.get("execution_context")),
+            ("Logging focus", synthesis.get("logging_focus")),
+            ("Plan fit note", synthesis.get("plan_fit_note")),
+        ]
+
+        for label, value in detail_rows:
+            if value:
+                st.write(f"**{label}:** {value}")
+
+        if limitations:
+            st.write("**Limitations:**")
+            for limitation in limitations:
+                st.write(f"- {limitation}")
+
+    developer_details(
+        "Developer details: daily coach synthesis response",
+        synthesis_response,
+    )
+
+
 def render_daily_recommendation_snapshot(user_id: int) -> None:
     st.subheader("Daily Coaching")
 
@@ -3943,6 +4026,10 @@ def render_today_section(user_id: int) -> None:
     st.caption(
         "Start here: review your daily coaching, check in, and run today's workout."
     )
+
+    render_daily_coach_synthesis_card(user_id)
+
+    st.divider()
 
     render_daily_recommendation_snapshot(user_id)
 
