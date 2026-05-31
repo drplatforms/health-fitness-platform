@@ -2688,7 +2688,7 @@ def display_workout_execution_history_item(
     ):
         display_actual_set_editing(
             int(plan_instance_id),
-            context_key=f"history_{plan_instance_id}",
+            context_key=f"{context_scope}_{plan_instance_id}_{execution_session.get('id') or execution_session.get('workout_session_id') or 'no_execution'}",
         )
 
 
