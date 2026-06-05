@@ -110,6 +110,29 @@ def _insert_food_entry(
     conn.close()
 
 
+def _set_user_field(user_id: int, field_name: str, value) -> None:
+    allowed_fields = {
+        "gender",
+        "age",
+        "height_cm",
+        "starting_weight",
+        "goal_weight",
+        "primary_goal",
+        "activity_level",
+    }
+    if field_name not in allowed_fields:
+        raise ValueError(f"Unsupported test user field: {field_name}")
+
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"UPDATE users SET {field_name} = ? WHERE id = ?",
+        (value, user_id),
+    )
+    conn.commit()
+    conn.close()
+
+
 def test_no_logs_returns_limited_confidence_and_safe_limitations(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
 
@@ -355,6 +378,117 @@ def test_seeded_users_build_safe_target_vs_actual_summaries(
     assert violations == []
 
 
+def test_target_vs_actual_uses_formula_derived_protein_target_by_default(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    summary = build_target_vs_actual_nutrition_summary(102, _today())
+    protein = summary.comparisons["protein"]
+
+    assert "formula_derived_targets" in summary.reason_codes
+    assert protein.target_min is not None
+    assert protein.target_max is not None
+    assert protein.comparison_available is True
+    assert "protein_target_available" in protein.reason_codes
+
+
+def test_formula_protein_only_comparison_works_when_calories_are_blocked(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    summary = build_target_vs_actual_nutrition_summary(102, _today())
+
+    assert summary.comparisons["protein"].comparison_available is True
+    assert summary.comparisons["calories"].comparison_available is False
+    assert summary.comparisons["carbs"].comparison_available is False
+    assert summary.comparisons["fat"].comparison_available is False
+    assert "missing_sex" in summary.reason_codes
+    assert "calorie_target_unavailable" in summary.comparisons["calories"].reason_codes
+    assert "carbs_target_unavailable" in summary.comparisons["carbs"].reason_codes
+
+
+def test_missing_body_weight_blocks_formula_protein_comparison(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    health_state = build_user_health_state(102)
+    health_state.latest_body_weight = "Unknown"
+    health_state.starting_weight = None
+
+    summary = build_target_vs_actual_nutrition_summary(
+        102,
+        _today(),
+        health_state=health_state,
+    )
+
+    protein = summary.comparisons["protein"]
+    assert protein.comparison_available is False
+    assert protein.target_min is None
+    assert protein.target_max is None
+    assert "missing_body_weight" in summary.reason_codes
+    assert "protein_target_unavailable" in protein.reason_codes
+
+
+@pytest.mark.parametrize(
+    ("field_name", "expected_reason"),
+    [
+        ("height_cm", "missing_height"),
+        ("age", "missing_age"),
+        ("activity_level", "missing_activity_level"),
+        ("primary_goal", "missing_primary_goal"),
+    ],
+)
+def test_missing_formula_profile_fields_block_or_limit_calorie_comparison(
+    field_name, expected_reason, tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    _set_user_field(102, "gender", "Male")
+    _set_user_field(102, field_name, None)
+
+    summary = build_target_vs_actual_nutrition_summary(102, _today())
+
+    calories = summary.comparisons["calories"]
+    assert calories.comparison_available is False
+    assert calories.target_min is None
+    assert calories.target_max is None
+    assert expected_reason in summary.reason_codes
+
+
+def test_complete_formula_targets_and_complete_logs_compare_all_macros(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    _set_user_field(102, "gender", "Male")
+    _insert_food_entry(102, "QA Complete Performance Meal", 100, _today())
+
+    summary = build_target_vs_actual_nutrition_summary(102, _today())
+
+    assert summary.logging_completeness == LOGGING_COMPLETENESS_COMPLETE_ENOUGH
+    assert summary.comparisons["calories"].comparison_available is True
+    assert summary.comparisons["protein"].comparison_available is True
+    assert summary.comparisons["carbs"].comparison_available is True
+    assert summary.comparisons["fat"].comparison_available is True
+    assert "calorie_target_available" in summary.comparisons["calories"].reason_codes
+    assert "formula_derived_targets" in summary.reason_codes
+
+
+def test_formula_metadata_limitations_inform_summary_without_public_internals(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    summary = build_target_vs_actual_nutrition_summary(105, _today())
+    combined = str(summary.to_dict()).lower()
+
+    assert "formula_derived_targets" in summary.reason_codes
+    assert summary.limitations
+    assert "validator" not in combined
+    assert "raw" not in combined
+    assert "crewai" not in combined
+    assert "ollama" not in combined
+    assert "medical" not in combined
+
+
 _PUBLIC_NUTRITION_TARGET_VS_ACTUAL_TOP_LEVEL_KEYS = {
     "success",
     "user_id",
@@ -544,7 +678,7 @@ def test_target_vs_actual_endpoint_protein_comparison_requires_approved_target_a
     assert no_log_protein["target_status"] == TARGET_STATUS_UNAVAILABLE
 
 
-def test_target_vs_actual_endpoint_calorie_comparison_stays_limited_when_unapproved_or_incomplete(
+def test_target_vs_actual_endpoint_calorie_comparison_limited_when_needed(
     tmp_path, monkeypatch
 ):
     _seed_test_db(tmp_path, monkeypatch)

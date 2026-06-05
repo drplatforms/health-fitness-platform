@@ -4,6 +4,10 @@ from datetime import date
 from typing import Any
 
 from database import get_connection
+from models.nutrition_target_formula_models import (
+    ApprovedMacroTargets,
+    MacroTargetResult,
+)
 from models.nutrition_target_models import NutritionTargets
 from models.nutrition_target_vs_actual_models import (
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
@@ -22,7 +26,14 @@ from models.nutrition_target_vs_actual_models import (
     TargetVsActualNutritionSummary,
 )
 from models.user_state_models import UserHealthState
-from services.nutrition_target_service import build_nutrition_targets
+from services.nutrition_target_formula_service import (
+    build_nutrition_target_formula_inputs,
+    calculate_nutrition_target_formula,
+)
+from services.nutrition_target_formula_validation_service import (
+    approve_validated_macro_targets,
+)
+from services.user_service import get_user_profile
 from services.user_state_service import build_user_health_state
 
 _CONFIDENCE_RANK = {"Limited": 0, "Low": 1, "Moderate": 2, "High": 3}
@@ -83,8 +94,29 @@ def _round_or_none(value: float | None) -> float | None:
     return round(value, 1)
 
 
+def _as_float(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return float(value)
+    return None
+
+
 def _unique(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
+
+
+_PUBLIC_FORMULA_FILTER_TERMS = {"medical", "crewai", "ollama", "ai-generated"}
+
+
+def _public_safe_formula_values(values: list[str]) -> list[str]:
+    safe_values: list[str] = []
+    for value in values:
+        lowered = value.lower()
+        if any(term in lowered for term in _PUBLIC_FORMULA_FILTER_TERMS):
+            continue
+        safe_values.append(value)
+    return _unique(safe_values)
 
 
 def _rank_min(*confidences: str) -> str:
@@ -313,6 +345,150 @@ def _logging_summary_from_actuals(actuals: NutritionActuals) -> NutritionLogging
     )
 
 
+def _profile_value(user_profile: Any, key: str, default: Any = None) -> Any:
+    try:
+        return user_profile[key]
+    except (KeyError, IndexError, TypeError):
+        return default
+
+
+def _target_value_if_allowed(
+    target: MacroTargetResult | None,
+    *,
+    display_allowed: bool,
+    attr_name: str,
+) -> int | None:
+    if target is None or not display_allowed:
+        return None
+    value = getattr(target, attr_name)
+    return int(value) if value is not None else None
+
+
+def _approved_formula_limitations(approved_targets: ApprovedMacroTargets) -> list[str]:
+    limitations = [
+        *approved_targets.limitations,
+        *approved_targets.formula_metadata.limitations,
+    ]
+    for target in [
+        approved_targets.calorie_target,
+        approved_targets.protein_target_g,
+        approved_targets.carbohydrate_target_g,
+        approved_targets.fat_target_g,
+    ]:
+        if target is not None:
+            limitations.extend(target.limitations)
+    return _public_safe_formula_values(limitations)
+
+
+def _approved_macro_targets_to_nutrition_targets(
+    approved_targets: ApprovedMacroTargets,
+    health_state: UserHealthState,
+) -> NutritionTargets:
+    display_flags = approved_targets.display_flags
+    body_weight = _as_float(health_state.latest_body_weight) or _as_float(
+        health_state.starting_weight
+    )
+    reason_codes = [
+        "formula_derived_targets",
+        *approved_targets.reason_codes,
+        *approved_targets.formula_metadata.reason_codes,
+    ]
+
+    for target in [
+        approved_targets.calorie_target,
+        approved_targets.protein_target_g,
+        approved_targets.carbohydrate_target_g,
+        approved_targets.fat_target_g,
+    ]:
+        if target is not None:
+            reason_codes.extend(target.reason_codes)
+
+    return NutritionTargets(
+        body_weight_lb=round(body_weight, 1) if body_weight is not None else None,
+        calorie_target_min=_target_value_if_allowed(
+            approved_targets.calorie_target,
+            display_allowed=display_flags["allow_calorie_targets"],
+            attr_name="min_value",
+        ),
+        calorie_target_max=_target_value_if_allowed(
+            approved_targets.calorie_target,
+            display_allowed=display_flags["allow_calorie_targets"],
+            attr_name="max_value",
+        ),
+        protein_grams_min=_target_value_if_allowed(
+            approved_targets.protein_target_g,
+            display_allowed=display_flags["allow_protein_targets"],
+            attr_name="min_value",
+        ),
+        protein_grams_max=_target_value_if_allowed(
+            approved_targets.protein_target_g,
+            display_allowed=display_flags["allow_protein_targets"],
+            attr_name="max_value",
+        ),
+        carbohydrate_grams_min=_target_value_if_allowed(
+            approved_targets.carbohydrate_target_g,
+            display_allowed=display_flags["allow_carbohydrate_targets"],
+            attr_name="min_value",
+        ),
+        carbohydrate_grams_max=_target_value_if_allowed(
+            approved_targets.carbohydrate_target_g,
+            display_allowed=display_flags["allow_carbohydrate_targets"],
+            attr_name="max_value",
+        ),
+        fat_grams_min=_target_value_if_allowed(
+            approved_targets.fat_target_g,
+            display_allowed=display_flags["allow_fat_targets"],
+            attr_name="min_value",
+        ),
+        fat_grams_max=_target_value_if_allowed(
+            approved_targets.fat_target_g,
+            display_allowed=display_flags["allow_fat_targets"],
+            attr_name="max_value",
+        ),
+        confidence=approved_targets.confidence,
+        allow_calorie_targets=display_flags["allow_calorie_targets"],
+        allow_protein_targets=display_flags["allow_protein_targets"],
+        allow_carbohydrate_targets=display_flags["allow_carbohydrate_targets"],
+        allow_fat_targets=display_flags["allow_fat_targets"],
+        nutrition_display_message=(
+            "Formula-derived nutrition targets are available for approved comparisons."
+            if any(display_flags.values())
+            else (
+                "Nutrition target comparisons are limited until formula inputs improve."
+            )
+        ),
+        reason_codes=_public_safe_formula_values(reason_codes),
+    )
+
+
+def build_formula_derived_nutrition_targets(
+    health_state: UserHealthState,
+    *,
+    calculation_date: str | None = None,
+) -> tuple[NutritionTargets, ApprovedMacroTargets]:
+    """Build validated formula-derived targets for target-vs-actual comparisons.
+
+    This composes the formula service directly instead of calling the HTTP API.
+    Missing inputs stay missing; no AI, estimation, persistence, or food-log mutation
+    occurs here.
+    """
+
+    user_profile = get_user_profile(health_state.user_id)
+    sex = _profile_value(user_profile, "gender") if user_profile else None
+    formula_inputs = build_nutrition_target_formula_inputs(
+        health_state,
+        calculation_date=calculation_date,
+        sex=sex,
+        input_source_metadata={"consumer": "nutrition_target_vs_actual"},
+    )
+    formula_result = calculate_nutrition_target_formula(formula_inputs)
+    approved_targets = approve_validated_macro_targets(formula_result)
+    return (
+        _approved_macro_targets_to_nutrition_targets(approved_targets, health_state),
+        approved_targets,
+    )
+
+
 def _target_range_for_nutrient(
     targets: NutritionTargets, nutrient: str
 ) -> tuple[float | None, float | None, bool, str]:
@@ -532,7 +708,16 @@ def build_target_vs_actual_nutrition_summary(
 
     target_date = target_date or _today_iso()
     health_state = health_state or build_user_health_state(user_id)
-    nutrition_targets = nutrition_targets or build_nutrition_targets(health_state)
+    formula_limitations: list[str] = []
+    if nutrition_targets is None:
+        (
+            nutrition_targets,
+            approved_formula_targets,
+        ) = build_formula_derived_nutrition_targets(
+            health_state,
+            calculation_date=target_date,
+        )
+        formula_limitations = _approved_formula_limitations(approved_formula_targets)
 
     actuals = build_nutrition_actuals(user_id, target_date)
     logging_summary = _logging_summary_from_actuals(actuals)
@@ -547,7 +732,7 @@ def build_target_vs_actual_nutrition_summary(
     }
 
     reason_codes = [*nutrition_targets.reason_codes, *logging_summary.reason_codes]
-    limitations = list(logging_summary.limitations)
+    limitations = [*formula_limitations, *logging_summary.limitations]
 
     if training_day_context_available:
         reason_codes.append("training_day_context_available")
