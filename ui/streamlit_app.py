@@ -4390,11 +4390,475 @@ def render_workout_plan_section(user_id: int) -> None:
         render_manual_workout_logger(user_id)
 
 
+def nutrition_public_text(value: object) -> str:
+    """Convert public-safe nutrition text/code values into friendly UI copy."""
+    if value is None or value == "":
+        return ""
+
+    if isinstance(value, dict):
+        for key in ("message", "label", "description", "text", "code"):
+            if value.get(key):
+                return nutrition_public_text(value.get(key))
+        return humanize_label(str(value))
+
+    text_value = str(value).strip()
+    if not text_value:
+        return ""
+
+    limitation_labels = {
+        "no_logs": "No nutrition logs are available for this date yet.",
+        "no_nutrition_logs": "No nutrition logs are available for this date yet.",
+        "nutrition_logs_missing": "No nutrition logs are available for this date yet.",
+        "partial_day_logging": "Nutrition logging may only cover part of the day.",
+        "likely_incomplete_logging": "Nutrition logging may be incomplete for this date.",
+        "incomplete_logging": "Nutrition logging may be incomplete for this date.",
+        "nutrition_targets_limited_by_logging_quality": (
+            "Nutrition guidance is limited because recent logging quality is incomplete."
+        ),
+        "calorie_targets_limited_by_logging_quality": (
+            "Calorie comparison is limited until logging quality improves."
+        ),
+        "protein_targets_limited_by_logging_quality": (
+            "Protein comparison is limited until logging quality improves."
+        ),
+        "missing_calorie_actual": "Logged calories are not available for this date.",
+        "missing_protein_actual": "Logged protein is not available for this date.",
+        "missing_carbohydrate_actual": "Logged carbohydrate is not available for this date.",
+        "missing_fat_actual": "Logged fat is not available for this date.",
+        "target_not_approved": "This target comparison is not approved for display yet.",
+        "calorie_target_not_approved": "Calorie targets are not approved for display yet.",
+        "protein_target_not_approved": "Protein targets are not approved for display yet.",
+        "carbohydrate_target_not_approved": (
+            "Carbohydrate targets are not approved for display yet."
+        ),
+        "fat_target_not_approved": "Fat targets are not approved for display yet.",
+    }
+
+    if text_value in limitation_labels:
+        return limitation_labels[text_value]
+
+    return humanize_label(text_value).rstrip(".") + "."
+
+
+def nutrition_amount_parts(value: object) -> tuple[object, str | None]:
+    if isinstance(value, dict):
+        amount = (
+            value.get("amount")
+            if value.get("amount") is not None
+            else (
+                value.get("value")
+                if value.get("value") is not None
+                else (
+                    value.get("actual")
+                    if value.get("actual") is not None
+                    else value.get("total")
+                )
+            )
+        )
+        unit = value.get("unit") or value.get("units")
+        return amount, unit
+
+    return value, None
+
+
+def format_nutrition_value(value: object, default_unit: str | None = None) -> str:
+    amount, unit = nutrition_amount_parts(value)
+    unit = unit or default_unit
+
+    if amount is None or amount == "":
+        return "Not available"
+
+    if isinstance(amount, float):
+        amount = round(amount, 1)
+        if amount.is_integer():
+            amount = int(amount)
+
+    return f"{amount} {unit}".strip() if unit else str(amount)
+
+
+def first_present_value(source: dict, keys: list[str]) -> object | None:
+    for key in keys:
+        if key in source and source.get(key) is not None:
+            return source.get(key)
+
+    return None
+
+
+def nutrition_metric_value(source: dict, candidate_keys: list[str]) -> object | None:
+    if not source:
+        return None
+
+    direct_value = first_present_value(source, candidate_keys)
+    if direct_value is not None:
+        return direct_value
+
+    for key, value in source.items():
+        normalized_key = str(key).lower().replace(" ", "_")
+        if normalized_key in candidate_keys:
+            return value
+
+    return None
+
+
+def target_comparison_value(comparison: dict, keys: list[str]) -> object | None:
+    value = first_present_value(comparison, keys)
+    if value is not None:
+        return value
+
+    target_min = comparison.get("target_min")
+    target_max = comparison.get("target_max")
+
+    if target_min is not None and target_max is not None:
+        return (
+            f"{format_nutrition_value(target_min)}–{format_nutrition_value(target_max)}"
+        )
+
+    return None
+
+
+def macro_comparison_from_summary(
+    summary: dict, candidate_keys: list[str]
+) -> dict | None:
+    for key in candidate_keys:
+        value = summary.get(key)
+        if isinstance(value, dict):
+            return value
+
+    comparisons = summary.get("comparisons")
+    if isinstance(comparisons, list):
+        for comparison in comparisons:
+            if not isinstance(comparison, dict):
+                continue
+            name = str(
+                comparison.get("nutrient")
+                or comparison.get("macro")
+                or comparison.get("target")
+                or comparison.get("name")
+                or ""
+            ).lower()
+            if any(candidate in name for candidate in candidate_keys):
+                return comparison
+
+    return None
+
+
+def comparison_is_displayable(comparison: dict) -> bool:
+    display_flags = [
+        "approved",
+        "allow_display",
+        "display_allowed",
+        "comparison_available",
+        "target_available",
+        "target_approved",
+    ]
+
+    for flag in display_flags:
+        if flag in comparison:
+            return bool(comparison.get(flag))
+
+    status = str(comparison.get("status") or comparison.get("confidence") or "").lower()
+    if status in {"blocked", "limited", "not_available", "unavailable"}:
+        return False
+
+    return True
+
+
+def display_nutrition_actuals(actuals: dict, logging_summary: dict) -> None:
+    st.markdown("#### Logged Actuals")
+
+    if not actuals:
+        st.caption(
+            "No nutrition logs found for this date yet. Logging meals will improve "
+            "nutrition guidance."
+        )
+        return
+
+    metric_specs = [
+        (
+            "Calories",
+            [
+                "calories",
+                "calorie_actual",
+                "total_calories",
+                "energy",
+                "energy_kcal",
+                "kcal",
+            ],
+            "kcal",
+        ),
+        ("Protein", ["protein", "protein_g", "protein_grams", "total_protein_g"], "g"),
+        (
+            "Carbs",
+            [
+                "carbs",
+                "carbohydrates",
+                "carbohydrate",
+                "carbohydrate_g",
+                "carbohydrate_grams",
+                "total_carbohydrate_g",
+            ],
+            "g",
+        ),
+        ("Fat", ["fat", "fat_g", "fat_grams", "total_fat_g"], "g"),
+    ]
+
+    cols = st.columns(4)
+    for column, (label, keys, unit) in zip(cols, metric_specs, strict=False):
+        column.metric(
+            label, format_nutrition_value(nutrition_metric_value(actuals, keys), unit)
+        )
+
+    entry_count = first_present_value(
+        logging_summary,
+        ["entry_count", "food_entry_count", "logged_entry_count", "entries_logged"],
+    )
+    meal_count = first_present_value(
+        logging_summary,
+        ["meal_count", "logged_meal_count", "meals_logged"],
+    )
+
+    caption_parts = []
+    if meal_count is not None:
+        caption_parts.append(f"{meal_count} meals")
+    if entry_count is not None:
+        caption_parts.append(f"{entry_count} entries")
+
+    if caption_parts:
+        st.caption("Logged today: " + " / ".join(caption_parts))
+
+
+def display_target_vs_actual_table(summary: dict) -> None:
+    st.markdown("#### Target vs Actual")
+
+    if not summary:
+        st.caption("Target comparison is not available for this date yet.")
+        return
+
+    macro_specs = [
+        ("Calories", ["calories", "calorie", "energy", "kcal"], "kcal"),
+        ("Protein", ["protein", "protein_g", "protein_grams"], "g"),
+        (
+            "Carbs",
+            [
+                "carbs",
+                "carbohydrate",
+                "carbohydrates",
+                "carbohydrate_g",
+                "carbohydrate_grams",
+            ],
+            "g",
+        ),
+        ("Fat", ["fat", "fat_g", "fat_grams"], "g"),
+    ]
+
+    rows = []
+    for label, keys, unit in macro_specs:
+        comparison = macro_comparison_from_summary(summary, keys)
+        if not comparison:
+            continue
+
+        if comparison_is_displayable(comparison):
+            actual = target_comparison_value(
+                comparison,
+                ["actual", "actual_amount", "actual_value", "logged", "logged_amount"],
+            )
+            target = target_comparison_value(
+                comparison,
+                ["target", "target_amount", "target_value", "range", "approved_target"],
+            )
+            delta = target_comparison_value(
+                comparison,
+                ["delta", "difference", "variance", "remaining"],
+            )
+            status = (
+                comparison.get("status") or comparison.get("guidance") or "Available"
+            )
+        else:
+            actual = target_comparison_value(
+                comparison,
+                ["actual", "actual_amount", "actual_value", "logged", "logged_amount"],
+            )
+            target = "Limited"
+            delta = "Limited"
+            status = nutrition_public_text(
+                comparison.get("limitation")
+                or comparison.get("reason")
+                or comparison.get("reason_code")
+                or "target_not_approved"
+            )
+
+        rows.append(
+            {
+                "Nutrient": label,
+                "Actual": format_nutrition_value(actual, unit),
+                "Target": format_nutrition_value(target, unit),
+                "Difference": format_nutrition_value(delta, unit),
+                "Status": (
+                    nutrition_public_text(status)
+                    if "_" in str(status)
+                    else humanize_label(str(status))
+                ),
+            }
+        )
+
+    if rows:
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+    else:
+        st.caption(
+            "Target comparisons are limited for this date. Keep logging meals to improve "
+            "nutrition guidance."
+        )
+
+
+def display_approved_nutrition_guidance(guidance: object) -> None:
+    if not guidance:
+        st.caption("No approved nutrition guidance is available for this date yet.")
+        return
+
+    if isinstance(guidance, str):
+        st.write(guidance)
+        return
+
+    if not isinstance(guidance, dict):
+        st.write(str(guidance))
+        return
+
+    preferred_keys = [
+        "summary",
+        "guidance",
+        "nutrition_guidance",
+        "calorie_guidance",
+        "protein_guidance",
+        "carbohydrate_guidance",
+        "fat_guidance",
+        "logging_guidance",
+        "next_step",
+    ]
+
+    shown = False
+    for key in preferred_keys:
+        value = guidance.get(key)
+        if value:
+            st.write(f"**{humanize_label(key)}:** {value}")
+            shown = True
+
+    if not shown:
+        for key, value in guidance.items():
+            if value and key not in {"reason_codes", "runtime_metadata", "debug"}:
+                st.write(f"**{humanize_label(key)}:** {value}")
+
+
+def display_logging_quality(
+    logging_summary: dict,
+    logging_completeness: object,
+    limitations: list,
+) -> None:
+    st.markdown("#### Logging Quality")
+
+    quality_value = (
+        logging_completeness
+        or logging_summary.get("logging_quality")
+        or logging_summary.get("status")
+        or logging_summary.get("completeness")
+    )
+
+    if quality_value:
+        st.caption(f"Logging completeness: {nutrition_public_text(quality_value)}")
+    else:
+        st.caption("Logging completeness is not available yet.")
+
+    missing_fields = logging_summary.get(
+        "missing_nutrient_fields"
+    ) or logging_summary.get("missing_fields")
+    if missing_fields:
+        friendly_fields = ", ".join(
+            humanize_label(str(field)) for field in missing_fields
+        )
+        st.caption(f"Missing fields: {friendly_fields}")
+
+    if limitations:
+        st.markdown("#### Limitations")
+        for limitation in limitations:
+            friendly = nutrition_public_text(limitation)
+            if friendly:
+                st.caption(f"• {friendly}")
+
+
+def render_nutrition_target_vs_actual_card(user_id: int) -> None:
+    st.subheader("Nutrition Today Summary")
+    st.caption(
+        "Public-safe target comparison based on logged nutrition and approved display rules."
+    )
+
+    selected_date = st.date_input(
+        "Nutrition summary date",
+        value=datetime.now().date(),
+        key=f"nutrition_target_vs_actual_date_{user_id}",
+    )
+    selected_date_text = selected_date.isoformat()
+
+    try:
+        nutrition_response = api_get(
+            f"/nutrition/{user_id}/target-vs-actual",
+            params={"date": selected_date_text},
+        )
+    except requests.RequestException as exc:
+        st.caption(
+            "Nutrition target-vs-actual summary is not available yet. "
+            f"{extract_api_error_message(exc)}"
+        )
+        return
+
+    if not nutrition_response.get("success"):
+        st.caption("Nutrition target-vs-actual summary is not available yet.")
+        developer_details(
+            "Developer details: nutrition target-vs-actual response",
+            nutrition_response,
+        )
+        return
+
+    nutrition_actuals = nutrition_response.get("nutrition_actuals") or {}
+    logging_summary = nutrition_response.get("logging_summary") or {}
+    target_vs_actual_summary = nutrition_response.get("target_vs_actual_summary") or {}
+    approved_guidance = nutrition_response.get("approved_nutrition_guidance")
+    logging_completeness = nutrition_response.get("logging_completeness")
+    confidence = nutrition_response.get("confidence", "Unknown")
+    limitations = nutrition_response.get("limitations") or []
+
+    top_cols = st.columns(3)
+    top_cols[0].metric("Date", nutrition_response.get("date", selected_date_text))
+    top_cols[1].metric("Confidence", confidence)
+    top_cols[2].metric(
+        "Logging",
+        (
+            nutrition_public_text(logging_completeness)
+            if logging_completeness
+            else "Unknown"
+        ),
+    )
+
+    st.markdown("#### Approved Guidance")
+    display_approved_nutrition_guidance(approved_guidance)
+
+    display_nutrition_actuals(nutrition_actuals, logging_summary)
+    display_target_vs_actual_table(target_vs_actual_summary)
+    display_logging_quality(logging_summary, logging_completeness, limitations)
+
+    developer_details(
+        "Developer details: nutrition target-vs-actual response",
+        nutrition_response,
+    )
+
+
 def render_nutrition_section(user_id: int) -> None:
     st.header("Nutrition")
     st.caption(
         "Log food and review today's nutrition without leaving the main workflow."
     )
+
+    render_nutrition_target_vs_actual_card(user_id)
+
+    st.divider()
 
     st.subheader("Log Food")
     with st.form("nutrition_food_search_form"):
