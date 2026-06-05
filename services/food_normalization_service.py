@@ -739,7 +739,9 @@ def _build_search_result(row) -> CanonicalFoodSearchResult:
 
 
 def search_canonical_foods(
-    search_term: str, limit: int = 10
+    search_term: str,
+    limit: int = 10,
+    include_inactive: bool = False,
 ) -> list[CanonicalFoodSearchResult]:
     ensure_food_normalization_tables()
 
@@ -749,6 +751,7 @@ def search_canonical_foods(
 
     like_query = f"%{normalized_query}%"
     prefix_query = f"{normalized_query}%"
+    include_inactive_flag = 1 if include_inactive else 0
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -766,7 +769,7 @@ def search_canonical_foods(
                     ELSE 80
                 END + canonical_foods.search_priority AS rank_score
             FROM canonical_foods
-            WHERE canonical_foods.active = 1
+            WHERE (? = 1 OR canonical_foods.active = 1)
               AND canonical_foods.normalized_name LIKE ?
 
             UNION ALL
@@ -784,7 +787,7 @@ def search_canonical_foods(
             FROM canonical_food_aliases
             JOIN canonical_foods
                 ON canonical_food_aliases.canonical_food_id = canonical_foods.id
-            WHERE canonical_foods.active = 1
+            WHERE (? = 1 OR canonical_foods.active = 1)
               AND canonical_food_aliases.normalized_alias LIKE ?
         ),
         best_match AS (
@@ -812,12 +815,14 @@ def search_canonical_foods(
             normalized_query,
             prefix_query,
             like_query,
+            include_inactive_flag,
             like_query,
             normalized_query,
             prefix_query,
             like_query,
+            include_inactive_flag,
             like_query,
-            limit,
+            int(limit),
         ),
     )
     rows = cursor.fetchall()
