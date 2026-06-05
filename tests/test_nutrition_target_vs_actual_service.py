@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+from fastapi.testclient import TestClient
 
+import api.routes.nutrition_target_vs_actual as nutrition_target_vs_actual_route
 import database
+from api.main import app
 from models.nutrition_target_models import NutritionTargets
 from models.nutrition_target_vs_actual_models import (
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
@@ -350,3 +353,282 @@ def test_seeded_users_build_safe_target_vs_actual_summaries(
     assert summary.nutrition_actuals.user_id == user_id
     assert set(summary.comparisons) == {"calories", "protein", "carbs", "fat"}
     assert violations == []
+
+
+_PUBLIC_NUTRITION_TARGET_VS_ACTUAL_TOP_LEVEL_KEYS = {
+    "success",
+    "user_id",
+    "date",
+    "nutrition_actuals",
+    "logging_summary",
+    "target_vs_actual_summary",
+    "approved_nutrition_guidance",
+    "logging_completeness",
+    "confidence",
+    "reason_codes",
+    "limitations",
+}
+
+_PUBLIC_NUTRITION_TARGET_VS_ACTUAL_FORBIDDEN_KEYS = {
+    "raw_food_entries",
+    "food_entries",
+    "raw_foods",
+    "raw_food_nutrients",
+    "raw_nutrients",
+    "raw_sql",
+    "debug_payload",
+    "validator_internals",
+    "validation_errors",
+    "stack_trace",
+    "traceback",
+    "provider_metadata",
+    "crewai",
+    "ollama",
+    "unbounded_history",
+    "private_notes",
+}
+
+
+def _collect_keys(value):
+    keys = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            keys.add(key)
+            keys.update(_collect_keys(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            keys.update(_collect_keys(nested))
+    return keys
+
+
+def test_target_vs_actual_endpoint_returns_public_contract_for_user_with_logs(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/102/target-vs-actual?date={_today()}")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert set(payload) == _PUBLIC_NUTRITION_TARGET_VS_ACTUAL_TOP_LEVEL_KEYS
+    assert payload["success"] is True
+    assert payload["user_id"] == 102
+    assert payload["date"] == _today()
+    assert payload["nutrition_actuals"]["user_id"] == 102
+    assert payload["logging_summary"]["user_id"] == 102
+    assert payload["target_vs_actual_summary"]["comparisons"]
+    assert payload["approved_nutrition_guidance"]["summary_message"]
+
+
+def test_target_vs_actual_endpoint_returns_safe_no_logs_response(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/102/target-vs-actual?date={_future_date()}")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert payload["logging_completeness"] == LOGGING_COMPLETENESS_NO_LOGS
+    assert payload["confidence"] == "Limited"
+    assert "no_nutrition_logs_today" in payload["reason_codes"]
+    assert payload["nutrition_actuals"]["entry_count"] == 0
+    assert (
+        "No nutrition logs" in payload["approved_nutrition_guidance"]["summary_message"]
+    )
+
+
+def test_target_vs_actual_endpoint_supports_explicit_date_query_parameter(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    explicit_date = _future_date()
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/102/target-vs-actual?date={explicit_date}")
+
+    assert response.status_code == 200
+    assert response.json()["date"] == explicit_date
+
+
+def test_target_vs_actual_endpoint_defaults_to_today_when_date_is_omitted(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/nutrition/102/target-vs-actual")
+
+    assert response.status_code == 200
+    assert response.json()["date"] == _today()
+
+
+def test_target_vs_actual_endpoint_rejects_invalid_date_format(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/nutrition/102/target-vs-actual?date=not-a-date")
+
+    assert response.status_code == 400
+    assert "yyyy-mm-dd" in response.json()["detail"].lower()
+
+
+def test_target_vs_actual_endpoint_nonexistent_user_returns_safe_404(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/999999/target-vs-actual?date={_today()}")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_target_vs_actual_endpoint_validation_failure_returns_safe_400(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        nutrition_target_vs_actual_route,
+        "validate_target_vs_actual_nutrition_summary",
+        lambda summary, guidance: ["forced validation failure"],
+    )
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/102/target-vs-actual?date={_today()}")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Nutrition target-vs-actual validation failed."
+    assert "forced validation failure" not in str(response.json())
+
+
+def test_target_vs_actual_endpoint_does_not_expose_raw_or_internal_fields(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/102/target-vs-actual?date={_today()}")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert not (
+        _collect_keys(payload) & _PUBLIC_NUTRITION_TARGET_VS_ACTUAL_FORBIDDEN_KEYS
+    )
+
+
+def test_target_vs_actual_endpoint_protein_comparison_requires_approved_target_and_logs(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    logged_response = client.get(f"/nutrition/102/target-vs-actual?date={_today()}")
+    no_log_response = client.get(
+        f"/nutrition/102/target-vs-actual?date={_future_date()}"
+    )
+
+    logged_protein = logged_response.json()["target_vs_actual_summary"]["comparisons"][
+        "protein"
+    ]
+    no_log_protein = no_log_response.json()["target_vs_actual_summary"]["comparisons"][
+        "protein"
+    ]
+
+    assert logged_response.status_code == 200
+    assert logged_protein["comparison_available"] is True
+    assert "protein_target_available" in logged_protein["reason_codes"]
+    assert no_log_protein["comparison_available"] is False
+    assert no_log_protein["target_status"] == TARGET_STATUS_UNAVAILABLE
+
+
+def test_target_vs_actual_endpoint_calorie_comparison_stays_limited_when_unapproved_or_incomplete(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/101/target-vs-actual?date={_today()}")
+    payload = response.json()
+    calories = payload["target_vs_actual_summary"]["comparisons"]["calories"]
+    guidance = payload["approved_nutrition_guidance"]
+
+    assert response.status_code == 200
+    assert calories["comparison_available"] is False
+    assert calories["target_status"] == TARGET_STATUS_UNAVAILABLE
+    assert "calorie" in guidance["calorie_guidance"].lower()
+    assert "limited" in guidance["calorie_guidance"].lower()
+
+
+def test_target_vs_actual_endpoint_missing_nutrients_remain_tracked_not_zero(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/105/target-vs-actual?date={_today()}")
+    payload = response.json()
+    actuals = payload["nutrition_actuals"]
+
+    assert response.status_code == 200
+    assert actuals["entry_count"] > 0
+    assert actuals["logged_calories"] is None
+    assert actuals["missing_calorie_entries"] == actuals["entry_count"]
+    assert "missing_calorie_values" in actuals["reason_codes"]
+
+
+def test_target_vs_actual_endpoint_avoids_unsafe_nutrition_language(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get(f"/nutrition/105/target-vs-actual?date={_today()}")
+    combined = str(response.json()).lower()
+
+    assert response.status_code == 200
+    for term in [
+        "you failed",
+        "bad food",
+        "medical",
+        "supplement",
+        "stalled fat loss",
+        "must cut calories",
+        "skip meals",
+        "compensate tomorrow",
+        "burn this off",
+    ]:
+        assert term not in combined
+
+
+def test_target_vs_actual_endpoint_keeps_recommendation_and_daily_coach_shapes_stable(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    recommendation_response = client.get("/recommendations/daily/102")
+    daily_coach_response = client.get("/daily-coach/102/synthesis")
+
+    assert recommendation_response.status_code == 200
+    assert set(recommendation_response.json()) == {
+        "success",
+        "user_id",
+        "scenario",
+        "confidence",
+        "nutrition_targets",
+        "training_constraints",
+        "approved_action_plan",
+        "rendered_recommendation",
+    }
+    assert daily_coach_response.status_code == 200
+    assert set(daily_coach_response.json()) == {
+        "success",
+        "user_id",
+        "synthesis_date",
+        "scenario",
+        "confidence",
+        "daily_coach_synthesis",
+    }
