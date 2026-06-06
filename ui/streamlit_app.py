@@ -5662,6 +5662,223 @@ def unique_food_option_label(label: str, existing_labels: set[str]) -> str:
     return candidate
 
 
+def food_suggestion_macro_label(macro_name: object) -> str:
+    labels = {
+        "calories": "Calories",
+        "protein_g": "Protein",
+        "carbohydrate_g": "Carbs",
+        "fat_g": "Fat",
+        "none": "No approved gap",
+        None: "No approved gap",
+    }
+    return labels.get(macro_name, humanize_label(str(macro_name)))
+
+
+def food_suggestion_public_text(value: object) -> str:
+    """Humanize public-safe food suggestion limitations/reason-style values."""
+    if value is None or value == "":
+        return ""
+
+    if isinstance(value, dict):
+        for key in ("message", "label", "description", "text", "reason", "code"):
+            if value.get(key):
+                return food_suggestion_public_text(value.get(key))
+        return humanize_label(str(value))
+
+    text_value = str(value).strip()
+    if not text_value:
+        return ""
+
+    limitation_labels = {
+        "no_macro_gap_detected": "No approved macro gap is available for food suggestions right now.",
+        "no_approved_macro_gap": "No approved macro gap is available for food suggestions right now.",
+        "target_not_approved": "Food suggestions are limited because the relevant target is not approved for display yet.",
+        "protein_target_not_approved": "Protein food suggestions require an approved protein target.",
+        "calorie_target_not_approved": "Calorie food suggestions require an approved calorie target.",
+        "carbohydrate_target_not_approved": "Carbohydrate food suggestions require an approved carbohydrate target.",
+        "fat_target_not_approved": "Fat food suggestions require an approved fat target.",
+        "logging_incomplete_limits_suggestions": "Suggestions are limited because logging appears incomplete.",
+        "nutrition_logging_incomplete": "Suggestions are limited because logging appears incomplete.",
+        "nutrition_actuals_unavailable": "Suggestions are limited because logged nutrition actuals are unavailable for this date.",
+        "canonical_food_catalog_unavailable": "Food suggestions are limited because the canonical food catalog is unavailable.",
+        "canonical_food_nutrients_incomplete": "Some food nutrient estimates are incomplete.",
+    }
+
+    if text_value in limitation_labels:
+        return limitation_labels[text_value]
+
+    if " " in text_value and "_" not in text_value:
+        return text_value if text_value.endswith((".", "!", "?")) else f"{text_value}."
+
+    return nutrition_public_text(text_value)
+
+
+def food_suggestion_amount(value: object, suffix: str = "") -> str:
+    if value is None or value == "":
+        return "Not available"
+
+    if isinstance(value, float):
+        value = round(value, 1)
+        if value.is_integer():
+            value = int(value)
+
+    return f"{value}{suffix}"
+
+
+def food_suggestion_estimate_text(suggestion: dict) -> str:
+    estimate_specs = [
+        ("estimated_calories", " kcal"),
+        ("estimated_protein_g", "g protein"),
+        ("estimated_carbohydrate_g", "g carbs"),
+        ("estimated_fat_g", "g fat"),
+    ]
+    parts = []
+    for key, label in estimate_specs:
+        value = suggestion.get(key)
+        if value is None:
+            continue
+        parts.append(food_suggestion_amount(value, label))
+
+    if not parts:
+        return "Estimated nutrients unavailable."
+
+    return "Estimated: " + " / ".join(parts)
+
+
+def food_suggestion_primary_gap_summary(suggestions_response: dict) -> str:
+    primary_gap = suggestions_response.get("primary_gap")
+    if not primary_gap or primary_gap == "none":
+        return "No approved macro gap is available for food suggestions right now."
+
+    primary_label = food_suggestion_macro_label(primary_gap)
+    macro_gaps = suggestions_response.get("macro_gaps") or []
+    matching_gap = None
+    for macro_gap in macro_gaps:
+        if macro_gap.get("macro_name") == primary_gap:
+            matching_gap = macro_gap
+            break
+
+    if matching_gap and matching_gap.get("display_allowed"):
+        target_status = matching_gap.get("target_status")
+        gap_value = matching_gap.get("gap_value")
+        unit = matching_gap.get("unit") or ""
+        if target_status == "below_target" and gap_value is not None:
+            gap_text = food_suggestion_amount(gap_value, f" {unit}" if unit else "")
+            return (
+                f"{primary_label} is below target by about {gap_text} based on logged meals. "
+                "These foods may help close that approved gap."
+            )
+        if target_status:
+            return (
+                f"{primary_label} is the primary approved nutrition focus for this date. "
+                "Suggestions are based on backend-approved target and actual data."
+            )
+
+    return (
+        f"{primary_label} is the primary approved nutrition focus, but suggestion detail "
+        "is limited by the current logging or target context."
+    )
+
+
+def render_food_suggestion_card(suggestion: dict, index: int) -> None:
+    display_name = suggestion.get("display_name") or "Suggested food"
+    suggested_grams = suggestion.get("suggested_grams")
+    macro_gap = food_suggestion_macro_label(suggestion.get("macro_gap_addressed"))
+    confidence = suggestion.get("confidence", "Unknown")
+    suggestion_summary = suggestion.get("suggestion_summary")
+    limitations = suggestion.get("limitations") or []
+
+    st.markdown(f"**{food_suggestion_amount(suggested_grams, 'g')} {display_name}**")
+
+    cols = st.columns([2, 1, 1])
+    cols[0].caption(food_suggestion_estimate_text(suggestion))
+    cols[1].caption(f"Focus: {macro_gap}")
+    cols[2].caption(f"Confidence: {confidence}")
+
+    if suggestion_summary:
+        st.caption(food_suggestion_public_text(suggestion_summary))
+
+    if limitations:
+        with st.expander(f"Suggestion limitations #{index + 1}", expanded=False):
+            for limitation in limitations:
+                friendly = food_suggestion_public_text(limitation)
+                if friendly:
+                    st.caption(f"• {friendly}")
+
+
+def render_nutrition_food_suggestions_card(user_id: int) -> None:
+    st.subheader("Food Suggestions")
+    st.caption(
+        "Backend-approved canonical food ideas for approved macro gaps. "
+        "These are optional suggestions, not instructions."
+    )
+
+    suggestion_date = selected_nutrition_summary_date_text(user_id)
+
+    try:
+        suggestions_response = api_get(
+            f"/nutrition/{user_id}/food-suggestions",
+            params={"date": suggestion_date},
+        )
+    except requests.RequestException as exc:
+        st.caption(
+            "Food suggestions are not available yet. "
+            f"{extract_api_error_message(exc)}"
+        )
+        return
+
+    if not suggestions_response.get("success"):
+        st.caption("Food suggestions are not available for this date yet.")
+        developer_details(
+            "Developer details: nutrition food suggestions response",
+            suggestions_response,
+        )
+        return
+
+    suggestions = suggestions_response.get("suggestions") or []
+    confidence = suggestions_response.get("confidence", "Unknown")
+    primary_gap = suggestions_response.get("primary_gap")
+    limitations = suggestions_response.get("limitations") or []
+
+    metric_cols = st.columns(3)
+    metric_cols[0].metric(
+        "Date", suggestions_response.get("suggestion_date", suggestion_date)
+    )
+    metric_cols[1].metric("Primary gap", food_suggestion_macro_label(primary_gap))
+    metric_cols[2].metric("Confidence", confidence)
+
+    st.caption(food_suggestion_primary_gap_summary(suggestions_response))
+
+    if limitations:
+        with st.expander("Why suggestions may be limited", expanded=False):
+            for limitation in limitations:
+                friendly = food_suggestion_public_text(limitation)
+                if friendly:
+                    st.caption(f"• {friendly}")
+
+    if not suggestions:
+        st.caption(
+            "No approved food suggestions are available for this date yet. "
+            "Keep logging meals to improve nutrition guidance."
+        )
+        developer_details(
+            "Developer details: nutrition food suggestions response",
+            suggestions_response,
+        )
+        return
+
+    st.markdown("#### Suggested canonical foods")
+    for index, suggestion in enumerate(suggestions):
+        render_food_suggestion_card(suggestion, index)
+        if index < len(suggestions) - 1:
+            st.divider()
+
+    developer_details(
+        "Developer details: nutrition food suggestions response",
+        suggestions_response,
+    )
+
+
 def render_nutrition_section(user_id: int) -> None:
     st.header("Nutrition")
     st.caption(
@@ -5945,6 +6162,8 @@ def render_nutrition_section(user_id: int) -> None:
     st.divider()
 
     render_nutrition_target_vs_actual_card(user_id)
+
+    render_nutrition_food_suggestions_card(user_id)
 
     render_nutrition_formula_target_transparency_card(user_id)
 
