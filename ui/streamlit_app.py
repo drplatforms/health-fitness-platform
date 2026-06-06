@@ -5532,37 +5532,77 @@ def canonical_food_nutrient_summary_text(food: dict) -> str:
 
 
 def canonical_food_option_label(food: dict) -> str:
+    """Short normal-user label for canonical food selection."""
     display_name = food.get("display_name") or "Unknown food"
     food_type = humanize_label(food.get("food_type"))
     serving_grams = food.get("default_grams")
-    nutrient_summary = canonical_food_nutrient_summary_text(food)
 
-    serving_label = ""
+    details = []
+    if food_type != "Unknown":
+        details.append(food_type)
     if serving_grams is not None:
-        serving_label = f" · default {serving_grams}g"
+        details.append(f"default {serving_grams:g}g")
 
-    type_label = "" if food_type == "Unknown" else f" · {food_type}"
+    if details:
+        return f"{display_name} ({'; '.join(details)})"
 
-    return f"{display_name}{type_label}{serving_label} · {nutrient_summary}"
+    return str(display_name)
 
 
-def canonical_food_result_rows(canonical_foods: list[dict]) -> list[dict]:
-    rows = []
-    for food in canonical_foods:
-        rows.append(
-            {
-                "Food": food.get("display_name", "Unknown food"),
-                "Type": humanize_label(food.get("food_type")),
-                "Default": (
-                    f"{food.get('default_grams')}g"
-                    if food.get("default_grams") is not None
-                    else "Unknown"
-                ),
-                "Nutrition": canonical_food_nutrient_summary_text(food),
-            }
-        )
+def canonical_food_default_serving_text(food: dict) -> str:
+    default_grams = food.get("default_grams")
+    default_unit = food.get("default_unit") or "serving"
 
-    return rows
+    if default_grams is None:
+        return "Default serving unavailable"
+
+    return f"Default: {default_grams:g}g {default_unit}"
+
+
+def display_canonical_food_matches(canonical_foods: list[dict]) -> None:
+    """Display canonical search results as compact rows instead of a dense table."""
+    if not canonical_foods:
+        return
+
+    st.markdown("#### Clean food matches")
+    st.caption("Top clean matches from the canonical food catalog.")
+
+    for index, food in enumerate(canonical_foods[:5], start=1):
+        display_name = food.get("display_name") or "Unknown food"
+        food_type = humanize_label(food.get("food_type"))
+        nutrient_summary = canonical_food_nutrient_summary_text(food)
+        default_serving = canonical_food_default_serving_text(food)
+
+        with st.container():
+            left_col, right_col = st.columns([3, 2])
+            left_col.markdown(f"**{index}. {display_name}**")
+            type_text = "" if food_type == "Unknown" else f"{food_type} · "
+            left_col.caption(f"{type_text}{default_serving}")
+            right_col.caption(nutrient_summary)
+
+    if len(canonical_foods) > 5:
+        with st.expander("Show additional clean matches", expanded=False):
+            for food in canonical_foods[5:]:
+                display_name = food.get("display_name") or "Unknown food"
+                food_type = humanize_label(food.get("food_type"))
+                nutrient_summary = canonical_food_nutrient_summary_text(food)
+                default_serving = canonical_food_default_serving_text(food)
+                type_text = "" if food_type == "Unknown" else f"{food_type} · "
+                st.markdown(f"**{display_name}**")
+                st.caption(f"{type_text}{default_serving} · {nutrient_summary}")
+
+
+def display_selected_canonical_food_summary(food: dict) -> None:
+    display_name = food.get("display_name") or "Selected food"
+    food_type = humanize_label(food.get("food_type"))
+    nutrient_summary = canonical_food_nutrient_summary_text(food)
+    default_serving = canonical_food_default_serving_text(food)
+
+    st.markdown(f"**Selected:** {display_name}")
+    summary_parts = [default_serving, nutrient_summary]
+    if food_type != "Unknown":
+        summary_parts.insert(0, food_type)
+    st.caption(" · ".join(summary_parts))
 
 
 def raw_food_option_label(food: dict) -> str:
@@ -5700,20 +5740,18 @@ def render_nutrition_section(user_id: int) -> None:
                 st.write(canonical_error)
 
     if canonical_results:
-        st.markdown("#### Clean food matches")
-        result_rows = canonical_food_result_rows(canonical_results)
-        if result_rows:
-            st.dataframe(
-                pd.DataFrame(result_rows),
-                width="stretch",
-                hide_index=True,
-            )
+        display_canonical_food_matches(canonical_results)
 
-        canonical_options = {
-            canonical_food_option_label(food): food
-            for food in canonical_results
-            if food.get("canonical_food_id") is not None
-        }
+        canonical_options = {}
+        used_canonical_labels = set()
+        for food in canonical_results:
+            if food.get("canonical_food_id") is None:
+                continue
+            label = unique_food_option_label(
+                canonical_food_option_label(food),
+                used_canonical_labels,
+            )
+            canonical_options[label] = food
 
         if canonical_options:
             with st.form("nutrition_log_canonical_food_form"):
@@ -5723,6 +5761,7 @@ def render_nutrition_section(user_id: int) -> None:
                     key="nutrition_selected_canonical_food",
                 )
                 selected_food = canonical_options[selected_food_label]
+                display_selected_canonical_food_summary(selected_food)
                 default_grams = float(selected_food.get("default_grams") or 100.0)
                 grams = st.number_input(
                     "Amount in grams",
@@ -5832,10 +5871,14 @@ def render_nutrition_section(user_id: int) -> None:
                         )
 
         if st.session_state.food_search_results:
-            food_options = {
-                raw_food_option_label(food): food
-                for food in st.session_state.food_search_results
-            }
+            food_options = {}
+            used_raw_labels = set()
+            for food in st.session_state.food_search_results:
+                label = unique_food_option_label(
+                    raw_food_option_label(food),
+                    used_raw_labels,
+                )
+                food_options[label] = food
 
             with st.form("nutrition_log_raw_food_form"):
                 selected_food_label = st.selectbox(
@@ -5851,8 +5894,8 @@ def render_nutrition_section(user_id: int) -> None:
                     key="nutrition_raw_grams",
                 )
                 st.caption(
-                    "Existing food logging uses the legacy food ID returned by "
-                    "the existing food database."
+                    "Use this fallback only when a clean canonical food is not available. "
+                    "Clean foods remain the preferred logging path."
                 )
                 log_food = st.form_submit_button("Save Existing Food Log")
 
