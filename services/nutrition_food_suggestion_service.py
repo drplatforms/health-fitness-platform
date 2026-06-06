@@ -68,6 +68,33 @@ _PROTEIN_SUGGESTION_NAMES = {
     "Pork Tenderloin, Cooked": (100, 200, 10),
 }
 
+_CARBOHYDRATE_SUGGESTION_NAMES = {
+    "White Rice, Cooked": (100, 250, 1),
+    "Jasmine Rice, Cooked": (100, 250, 2),
+    "Basmati Rice, Cooked": (100, 250, 3),
+    "Brown Rice, Cooked": (100, 250, 4),
+    "Potato, Baked": (100, 300, 5),
+    "Sweet Potato, Baked": (100, 300, 6),
+    "Pasta, Cooked": (100, 250, 7),
+    "Whole Wheat Pasta, Cooked": (100, 250, 8),
+    "Banana": (100, 200, 9),
+    "Oats, Dry": (30, 80, 10),
+    "Black Beans, Cooked": (100, 250, 11),
+    "Pinto Beans, Cooked": (100, 250, 12),
+    "Lentils, Cooked": (100, 250, 13),
+    "Flour Tortilla": (40, 100, 14),
+    "Whole Wheat Bread": (35, 100, 15),
+    "Bagel, Plain": (70, 120, 16),
+    "Apple": (100, 200, 17),
+}
+
+_MACRO_PRIORITY = {
+    "protein_g": 0,
+    "carbohydrate_g": 1,
+    "calories": 2,
+    "fat_g": 3,
+}
+
 _FORBIDDEN_SUGGESTION_TERMS = {
     "you must eat",
     "you failed",
@@ -85,12 +112,10 @@ _FORBIDDEN_SUGGESTION_TERMS = {
 _SAFE_DEFAULT_LIMITATION = "Food suggestions are limited to approved canonical foods with usable nutrient data."
 _UNSUPPORTED_SUGGESTION_GAP_REASON_CODES = {
     "calories": "calorie_gap_suggestions_not_enabled_v1",
-    "carbohydrate_g": "carbohydrate_gap_suggestions_not_enabled_v1",
     "fat_g": "fat_gap_suggestions_not_enabled_v1",
 }
 _UNSUPPORTED_SUGGESTION_GAP_LABELS = {
     "calories": "calorie",
-    "carbohydrate_g": "carbohydrate",
     "fat_g": "fat",
 }
 
@@ -300,23 +325,31 @@ def _canonical_food_nutrient_maps() -> list[dict[str, Any]]:
     return list(grouped.values())
 
 
-def _serving_bounds_for_food(display_name: str) -> tuple[float, float, int] | None:
-    if display_name in _PROTEIN_SUGGESTION_NAMES:
-        min_grams, max_grams, preference_rank = _PROTEIN_SUGGESTION_NAMES[display_name]
+def _serving_bounds_for_food(
+    display_name: str,
+    macro_gap_addressed: str,
+) -> tuple[float, float, int] | None:
+    source = (
+        _PROTEIN_SUGGESTION_NAMES
+        if macro_gap_addressed == "protein_g"
+        else _CARBOHYDRATE_SUGGESTION_NAMES
+    )
+    if display_name in source:
+        min_grams, max_grams, preference_rank = source[display_name]
         return float(min_grams), float(max_grams), int(preference_rank)
     return None
 
 
 def _serving_grams_for_gap(
     *,
-    protein_gap_g: float,
-    protein_per_100g: float,
+    gap_value: float,
+    nutrient_per_100g: float,
     min_grams: float,
     max_grams: float,
 ) -> tuple[float, bool]:
-    if protein_per_100g <= 0:
+    if nutrient_per_100g <= 0:
         return min_grams, True
-    desired_grams = protein_gap_g * 100.0 / protein_per_100g
+    desired_grams = gap_value * 100.0 / nutrient_per_100g
     bounded_grams = min(max(desired_grams, min_grams), max_grams)
     rounded_grams = _round_to_nearest_5(bounded_grams)
     bounded_again = min(max(rounded_grams, min_grams), max_grams)
@@ -333,7 +366,7 @@ def _nutrient_at_serving(
     return round(value * serving_grams / 100.0, 1)
 
 
-def _candidate_score(
+def _protein_candidate_score(
     *,
     nutrients: dict[str, float],
     serving_grams: float,
@@ -358,39 +391,111 @@ def _candidate_score(
     return round(max(score, 0.0), 2)
 
 
-def get_canonical_food_suggestion_candidates(
+def _carbohydrate_candidate_score(
+    *,
+    nutrients: dict[str, float],
+    serving_grams: float,
+    search_priority: int,
+    preference_rank: int,
+    calorie_gap: float | None,
+) -> float:
+    carbohydrate = nutrients["carbohydrate_g"]
+    calories = max(nutrients.get("calories", 0.0), 1.0)
+    fat = nutrients.get("fat_g", 0.0)
+    protein = nutrients.get("protein_g", 0.0)
+    carbohydrate_density = carbohydrate / calories * 100.0
+    serving_practicality = max(0.0, 100.0 - abs(serving_grams - 150.0) / 2.0)
+    priority_bonus = max(0.0, 100.0 - float(search_priority)) / 10.0
+    preference_bonus = max(0.0, 18.0 - float(preference_rank)) * 4.0
+    fat_penalty = max(0.0, fat - 5.0) * 3.0
+    protein_bonus = min(protein, 12.0) * 0.75
+    calorie_penalty = 0.0
+    serving_calories = nutrients.get("calories", 0.0) * serving_grams / 100.0
+    if calorie_gap is not None and serving_calories > calorie_gap * 1.15:
+        calorie_penalty = (serving_calories - calorie_gap) * 0.1
+    score = (
+        carbohydrate_density * 4.0
+        + serving_practicality
+        + priority_bonus
+        + preference_bonus
+        + protein_bonus
+        - fat_penalty
+        - calorie_penalty
+    )
+    return round(max(score, 0.0), 2)
+
+
+def _calorie_context_allows_carbohydrate_suggestions(
+    macro_gaps: list[NutritionMacroGap],
+) -> bool:
+    calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
+    if calorie_gap is None or not calorie_gap.display_allowed:
+        return False
+    return calorie_gap.target_status in {TARGET_STATUS_BELOW, TARGET_STATUS_NEAR}
+
+
+def _carbohydrate_block_limitations(
     macro_gaps: list[NutritionMacroGap],
     *,
-    logging_incomplete: bool = False,
-) -> list[CanonicalFoodSuggestionCandidate]:
-    """Build deterministic suggestion candidates from canonical foods only."""
+    logging_incomplete: bool,
+) -> tuple[list[str], list[str]]:
+    reason_codes: list[str] = ["carb_suggestion_limited"]
+    limitations: list[str] = []
+    carbohydrate_gap = _macro_gap_by_name(macro_gaps, "carbohydrate_g")
+    calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
 
+    if carbohydrate_gap is None or not carbohydrate_gap.display_allowed:
+        reason_codes.append("target_not_approved")
+        limitations.append(
+            "Carbohydrate food suggestions require an approved carbohydrate target."
+        )
+    if calorie_gap is None or not calorie_gap.display_allowed:
+        reason_codes.append("target_not_approved")
+        limitations.append(
+            "Carbohydrate food suggestions require an approved calorie target."
+        )
+    elif calorie_gap.target_status == TARGET_STATUS_ABOVE:
+        reason_codes.append("calorie_conflict_limits_carb_suggestions")
+        limitations.append(
+            "Carbohydrate food suggestions are limited because calories are already above target."
+        )
+    if logging_incomplete:
+        reason_codes.append("logging_incomplete_limits_suggestions")
+        limitations.append(
+            "Carbohydrate suggestions are limited because logging appears incomplete."
+        )
+    return _unique(reason_codes), _unique(limitations)
+
+
+def _required_macro_nutrients_available(nutrients: dict[str, float]) -> bool:
+    required_keys = {"calories", "protein_g", "carbohydrate_g", "fat_g"}
+    return required_keys.issubset(nutrients)
+
+
+def _protein_suggestion_candidates(
+    macro_gaps: list[NutritionMacroGap],
+    *,
+    logging_incomplete: bool,
+) -> list[CanonicalFoodSuggestionCandidate]:
     protein_gap = _macro_gap_by_name(macro_gaps, "protein_g")
-    if (
-        protein_gap is None
-        or not protein_gap.display_allowed
-        or protein_gap.target_status != TARGET_STATUS_BELOW
-        or protein_gap.gap_value is None
-        or protein_gap.gap_value <= 0
-    ):
+    if protein_gap is None or not _is_displayable_macro_gap(protein_gap):
         return []
 
     candidates: list[CanonicalFoodSuggestionCandidate] = []
     for food in _canonical_food_nutrient_maps():
-        bounds = _serving_bounds_for_food(food["display_name"])
+        bounds = _serving_bounds_for_food(food["display_name"], "protein_g")
         if bounds is None:
             continue
         nutrients = food["nutrients"]
-        required_keys = {"calories", "protein_g", "carbohydrate_g", "fat_g"}
-        if not required_keys.issubset(nutrients):
+        if not _required_macro_nutrients_available(nutrients):
             continue
         if nutrients["protein_g"] <= 0:
             continue
 
         min_grams, max_grams, preference_rank = bounds
         serving_grams, was_bounded = _serving_grams_for_gap(
-            protein_gap_g=float(protein_gap.gap_value),
-            protein_per_100g=nutrients["protein_g"],
+            gap_value=float(protein_gap.gap_value),
+            nutrient_per_100g=nutrients["protein_g"],
             min_grams=min_grams,
             max_grams=max_grams,
         )
@@ -421,7 +526,7 @@ def get_canonical_food_suggestion_candidates(
                 ),
                 fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
                 macro_gap_addressed="protein_g",
-                score=_candidate_score(
+                score=_protein_candidate_score(
                     nutrients=nutrients,
                     serving_grams=serving_grams,
                     search_priority=food["search_priority"],
@@ -435,6 +540,105 @@ def get_canonical_food_suggestion_candidates(
     return candidates
 
 
+def _carbohydrate_suggestion_candidates(
+    macro_gaps: list[NutritionMacroGap],
+    *,
+    logging_incomplete: bool,
+) -> list[CanonicalFoodSuggestionCandidate]:
+    carbohydrate_gap = _macro_gap_by_name(macro_gaps, "carbohydrate_g")
+    calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
+    if carbohydrate_gap is None or not _is_displayable_macro_gap(carbohydrate_gap):
+        return []
+    if logging_incomplete:
+        return []
+    if not _calorie_context_allows_carbohydrate_suggestions(macro_gaps):
+        return []
+
+    calorie_room = (
+        calorie_gap.gap_value if calorie_gap and calorie_gap.gap_value else None
+    )
+    candidates: list[CanonicalFoodSuggestionCandidate] = []
+    for food in _canonical_food_nutrient_maps():
+        bounds = _serving_bounds_for_food(food["display_name"], "carbohydrate_g")
+        if bounds is None:
+            continue
+        nutrients = food["nutrients"]
+        if not _required_macro_nutrients_available(nutrients):
+            continue
+        if nutrients["carbohydrate_g"] <= 0:
+            continue
+        if nutrients.get("fat_g", 0.0) > 18.0:
+            continue
+
+        min_grams, max_grams, preference_rank = bounds
+        serving_grams, was_bounded = _serving_grams_for_gap(
+            gap_value=float(carbohydrate_gap.gap_value),
+            nutrient_per_100g=nutrients["carbohydrate_g"],
+            min_grams=min_grams,
+            max_grams=max_grams,
+        )
+        serving_calories = _nutrient_at_serving(nutrients, "calories", serving_grams)
+        if calorie_room is not None and serving_calories is not None:
+            if serving_calories > max(calorie_room * 1.25, calorie_room + 150.0):
+                continue
+
+        reason_codes = [
+            "canonical_food_catalog_available",
+            "canonical_food_nutrients_available",
+            "practical_serving_selected",
+            "carbohydrate_suggestion_available",
+        ]
+        limitations: list[str] = []
+        if was_bounded:
+            reason_codes.append("serving_limited_by_practical_bounds")
+
+        candidates.append(
+            CanonicalFoodSuggestionCandidate(
+                canonical_food_id=food["canonical_food_id"],
+                display_name=food["display_name"],
+                food_type=food["food_type"],
+                serving_grams=serving_grams,
+                calories=serving_calories,
+                protein_g=_nutrient_at_serving(nutrients, "protein_g", serving_grams),
+                carbohydrate_g=_nutrient_at_serving(
+                    nutrients, "carbohydrate_g", serving_grams
+                ),
+                fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
+                macro_gap_addressed="carbohydrate_g",
+                score=_carbohydrate_candidate_score(
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                    search_priority=food["search_priority"],
+                    preference_rank=preference_rank,
+                    calorie_gap=calorie_room,
+                ),
+                confidence=carbohydrate_gap.confidence,
+                reason_codes=_unique(reason_codes),
+                limitations=limitations,
+            )
+        )
+    return candidates
+
+
+def get_canonical_food_suggestion_candidates(
+    macro_gaps: list[NutritionMacroGap],
+    *,
+    logging_incomplete: bool = False,
+) -> list[CanonicalFoodSuggestionCandidate]:
+    """Build deterministic suggestion candidates from canonical foods only."""
+
+    return [
+        *_protein_suggestion_candidates(
+            macro_gaps,
+            logging_incomplete=logging_incomplete,
+        ),
+        *_carbohydrate_suggestion_candidates(
+            macro_gaps,
+            logging_incomplete=logging_incomplete,
+        ),
+    ]
+
+
 def rank_food_suggestion_candidates(
     candidates: list[CanonicalFoodSuggestionCandidate],
     *,
@@ -443,6 +647,7 @@ def rank_food_suggestion_candidates(
     return sorted(
         candidates,
         key=lambda candidate: (
+            _MACRO_PRIORITY.get(candidate.macro_gap_addressed, 99),
             -candidate.score,
             candidate.serving_grams,
             candidate.display_name,
@@ -452,6 +657,13 @@ def rank_food_suggestion_candidates(
 
 
 def _summary_for_candidate(candidate: CanonicalFoodSuggestionCandidate) -> str:
+    if candidate.macro_gap_addressed == "carbohydrate_g":
+        carbohydrate = candidate.carbohydrate_g or 0.0
+        return (
+            f"{candidate.serving_grams:g}g {candidate.display_name} adds about "
+            f"{carbohydrate:g}g carbohydrate."
+        )
+
     protein = candidate.protein_g or 0.0
     if "yogurt" in candidate.display_name.lower():
         return (
@@ -523,6 +735,28 @@ def _unsupported_v1_limitation(
     return f"Protein is not below target for this date. {gap_text.capitalize()} not enabled in this version."
 
 
+def _approved_suggestion_macros(
+    approved_suggestions: list[ApprovedFoodSuggestion],
+) -> set[str]:
+    return {suggestion.macro_gap_addressed for suggestion in approved_suggestions}
+
+
+def _primary_gap_for_suggestions(
+    approved_suggestions: list[ApprovedFoodSuggestion],
+) -> str | None:
+    if not approved_suggestions:
+        return None
+    return min(
+        (suggestion.macro_gap_addressed for suggestion in approved_suggestions),
+        key=lambda macro_name: _MACRO_PRIORITY.get(macro_name, 99),
+    )
+
+
+def _has_displayable_carbohydrate_gap(macro_gaps: list[NutritionMacroGap]) -> bool:
+    carbohydrate_gap = _macro_gap_by_name(macro_gaps, "carbohydrate_g")
+    return bool(carbohydrate_gap and _is_displayable_macro_gap(carbohydrate_gap))
+
+
 def approve_food_suggestions(
     *,
     user_id: int,
@@ -543,32 +777,65 @@ def approve_food_suggestions(
     reason_codes: list[str] = []
     limitations: list[str] = []
 
-    if protein_gap is None or not protein_gap.display_allowed:
+    if approved_suggestions:
+        suggestion_macros = _approved_suggestion_macros(approved_suggestions)
+        if "protein_g" in suggestion_macros:
+            reason_codes.extend(
+                ["protein_gap_available", "protein_suggestion_available"]
+            )
+        if "carbohydrate_g" in suggestion_macros:
+            reason_codes.extend(
+                ["carbohydrate_gap_available", "carbohydrate_suggestion_available"]
+            )
+    elif protein_gap is None or not protein_gap.display_allowed:
         reason_codes.append("target_not_approved")
         limitations.append(
             "Protein food suggestions require an approved protein target."
         )
     elif protein_gap.target_status != TARGET_STATUS_BELOW:
-        unsupported_gaps = _unsupported_v1_macro_gaps(macro_gaps)
-        if unsupported_gaps:
-            reason_codes.extend(
-                ["no_supported_suggestion_gap_available", "no_protein_gap_available"]
+        if _has_displayable_carbohydrate_gap(macro_gaps):
+            carb_reason_codes, carb_limitations = _carbohydrate_block_limitations(
+                macro_gaps,
+                logging_incomplete=logging_incomplete,
             )
-            reason_codes.extend(
-                _UNSUPPORTED_SUGGESTION_GAP_REASON_CODES[gap.macro_name]
-                for gap in unsupported_gaps
-            )
-            limitations.append(_unsupported_v1_limitation(unsupported_gaps))
+            reason_codes.extend(carb_reason_codes)
+            limitations.extend(carb_limitations)
+            if "carb_suggestion_limited" not in reason_codes:
+                reason_codes.append("no_suitable_canonical_food_found")
+                limitations.append(_SAFE_DEFAULT_LIMITATION)
         else:
-            reason_codes.append("no_macro_gap_detected")
-            limitations.append(
-                "No approved macro gap is available for food suggestions."
-            )
+            unsupported_gaps = _unsupported_v1_macro_gaps(macro_gaps)
+            if unsupported_gaps:
+                reason_codes.extend(
+                    [
+                        "no_supported_suggestion_gap_available",
+                        "no_protein_gap_available",
+                    ]
+                )
+                reason_codes.extend(
+                    _UNSUPPORTED_SUGGESTION_GAP_REASON_CODES[gap.macro_name]
+                    for gap in unsupported_gaps
+                )
+                limitations.append(_unsupported_v1_limitation(unsupported_gaps))
+            else:
+                reason_codes.append("no_macro_gap_detected")
+                limitations.append(
+                    "No approved macro gap is available for food suggestions."
+                )
+    elif _has_displayable_carbohydrate_gap(macro_gaps):
+        carb_reason_codes, carb_limitations = _carbohydrate_block_limitations(
+            macro_gaps,
+            logging_incomplete=logging_incomplete,
+        )
+        if carb_limitations and not candidates:
+            reason_codes.extend(carb_reason_codes)
+            limitations.extend(carb_limitations)
+        else:
+            reason_codes.append("no_suitable_canonical_food_found")
+            limitations.append(_SAFE_DEFAULT_LIMITATION)
     elif not approved_suggestions:
         reason_codes.append("no_suitable_canonical_food_found")
         limitations.append(_SAFE_DEFAULT_LIMITATION)
-    else:
-        reason_codes.extend(["protein_gap_available", "protein_suggestion_available"])
 
     if logging_incomplete:
         reason_codes.append("logging_incomplete_limits_suggestions")
@@ -588,7 +855,7 @@ def approve_food_suggestions(
     return ApprovedNutritionFoodSuggestions(
         user_id=user_id,
         suggestion_date=suggestion_date,
-        primary_gap="protein_g" if approved_suggestions else None,
+        primary_gap=_primary_gap_for_suggestions(approved_suggestions),
         macro_gaps=macro_gaps,
         suggestions=approved_suggestions,
         confidence=confidence,

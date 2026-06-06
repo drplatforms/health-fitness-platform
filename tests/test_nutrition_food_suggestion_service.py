@@ -246,34 +246,238 @@ def test_protein_above_target_with_calorie_gap_uses_supported_gap_semantics():
     assert any("Protein is not below target" in item for item in approved.limitations)
 
 
-def test_protein_above_target_with_carbohydrate_gap_uses_supported_gap_semantics():
-    macro_gaps = [
+def _carbohydrate_gap_macro_gaps(
+    *,
+    calorie_status: str = "below_target",
+    carbohydrate_display_allowed: bool = True,
+    calorie_display_allowed: bool = True,
+) -> list[NutritionMacroGap]:
+    return [
         _macro_gap("protein_g", target_status="above_target", gap_value=None),
-        _macro_gap("calories", target_status="near_target", gap_value=None),
+        _macro_gap(
+            "calories",
+            target_status=calorie_status,
+            display_allowed=calorie_display_allowed,
+            gap_value=(500 if calorie_status == "below_target" else None),
+            reason_codes=(
+                ["calorie_gap_available"] if calorie_status == "below_target" else []
+            ),
+        ),
         _macro_gap(
             "carbohydrate_g",
-            target_status="below_target",
-            gap_value=75,
-            reason_codes=["carbohydrate_gap_available"],
+            target_status=(
+                "below_target" if carbohydrate_display_allowed else "limited"
+            ),
+            display_allowed=carbohydrate_display_allowed,
+            gap_value=(75 if carbohydrate_display_allowed else None),
+            reason_codes=(
+                ["carbohydrate_gap_available"]
+                if carbohydrate_display_allowed
+                else ["target_not_approved"]
+            ),
+            limitations=(
+                [] if carbohydrate_display_allowed else ["Target is limited."]
+            ),
         ),
         _macro_gap("fat_g", target_status="near_target", gap_value=None),
     ]
+
+
+def test_approved_carbohydrate_gap_produces_canonical_suggestions(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+
+    # Build directly from approved macro gaps so this test focuses only on carb expansion.
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    assert approved.primary_gap == "carbohydrate_g"
+    assert approved.suggestions
+    assert "carbohydrate_gap_available" in approved.reason_codes
+    assert "carbohydrate_suggestion_available" in approved.reason_codes
+    assert all(
+        suggestion.macro_gap_addressed == "carbohydrate_g"
+        for suggestion in approved.suggestions
+    )
+
+
+def test_carbohydrate_suggestions_reference_canonical_food_and_nutrients(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    assert all(suggestion.canonical_food_id > 0 for suggestion in approved.suggestions)
+    assert all(
+        suggestion.estimated_carbohydrate_g is not None
+        and suggestion.estimated_carbohydrate_g > 0
+        for suggestion in approved.suggestions
+    )
+    assert all(
+        suggestion.estimated_calories is not None and suggestion.estimated_calories >= 0
+        for suggestion in approved.suggestions
+    )
+
+
+def test_carbohydrate_serving_grams_are_positive_and_practical(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    for suggestion in approved.suggestions:
+        assert suggestion.suggested_grams > 0
+        if "Rice" in suggestion.display_name or "Pasta" in suggestion.display_name:
+            assert 100 <= suggestion.suggested_grams <= 250
+        if suggestion.display_name == "Oats, Dry":
+            assert 30 <= suggestion.suggested_grams <= 80
+        if "Potato" in suggestion.display_name:
+            assert 100 <= suggestion.suggested_grams <= 300
+        if suggestion.display_name in {"Banana", "Apple"}:
+            assert 100 <= suggestion.suggested_grams <= 200
+
+
+def test_protein_above_target_with_carbohydrate_gap_no_longer_uses_unsupported_v1_semantics(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
 
     approved = approve_food_suggestions(
         user_id=1,
         suggestion_date="2026-06-06",
         macro_gaps=macro_gaps,
-        candidates=[],
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    assert approved.suggestions
+    assert "no_macro_gap_detected" not in approved.reason_codes
+    assert "no_supported_suggestion_gap_available" not in approved.reason_codes
+    assert "carbohydrate_gap_suggestions_not_enabled_v1" not in approved.reason_codes
+
+
+def test_carbohydrate_target_blocked_produces_no_carb_suggestions_with_limitations():
+    macro_gaps = _carbohydrate_gap_macro_gaps(carbohydrate_display_allowed=False)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
         summary_confidence="Moderate",
     )
 
     assert approved.suggestions == []
-    assert "no_macro_gap_detected" not in approved.reason_codes
-    assert "no_supported_suggestion_gap_available" in approved.reason_codes
-    assert "carbohydrate_gap_suggestions_not_enabled_v1" in approved.reason_codes
+    assert all(
+        suggestion.macro_gap_addressed != "carbohydrate_g"
+        for suggestion in approved.suggestions
+    )
+    assert approved.limitations
+
+
+def test_calorie_target_blocked_produces_no_carb_suggestions_with_limitations():
+    macro_gaps = _carbohydrate_gap_macro_gaps(calorie_display_allowed=False)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    assert approved.suggestions == []
+    assert "carb_suggestion_limited" in approved.reason_codes
+    assert any("calorie target" in limitation for limitation in approved.limitations)
+
+
+def test_incomplete_logging_limits_carbohydrate_suggestions():
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=True,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Low",
+        logging_incomplete=True,
+    )
+
+    assert approved.suggestions == []
+    assert "logging_incomplete_limits_suggestions" in approved.reason_codes
+    assert any("logging appears incomplete" in item for item in approved.limitations)
+
+
+def test_calorie_above_target_conflict_blocks_carbohydrate_suggestions():
+    macro_gaps = _carbohydrate_gap_macro_gaps(calorie_status="above_target")
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    assert approved.suggestions == []
+    assert "carb_suggestion_limited" in approved.reason_codes
+    assert "calorie_conflict_limits_carb_suggestions" in approved.reason_codes
     assert any(
-        "Carbohydrate food suggestions are not enabled" in item
-        for item in approved.limitations
+        "calories are already above target" in item for item in approved.limitations
     )
 
 
