@@ -5761,36 +5761,61 @@ def render_nutrition_section(user_id: int) -> None:
                     key="nutrition_selected_canonical_food",
                 )
                 selected_food = canonical_options[selected_food_label]
-                display_selected_canonical_food_summary(selected_food)
+                selected_food_name = selected_food.get("display_name", "Selected food")
+                selected_food_type = humanize_label(selected_food.get("food_type"))
+                selected_default_grams = selected_food.get("default_grams")
+                selected_nutrients = canonical_food_nutrient_summary_text(selected_food)
+
+                st.markdown(f"**{selected_food_name}**")
+
+                selected_meta = []
+                if selected_food_type and selected_food_type != "Unknown":
+                    selected_meta.append(selected_food_type)
+                if selected_default_grams is not None:
+                    selected_meta.append(f"default {selected_default_grams:g}g")
+                if selected_meta:
+                    st.caption(" · ".join(selected_meta))
+
+                if selected_nutrients and selected_nutrients != "Nutrients unavailable":
+                    st.caption(
+                        f"Per 100g: {selected_nutrients.replace(' per 100g', '')}"
+                    )
+
                 default_grams = float(selected_food.get("default_grams") or 100.0)
-                grams = st.number_input(
-                    "Amount in grams",
-                    min_value=1.0,
-                    value=default_grams,
-                    step=5.0,
-                    key="nutrition_canonical_grams",
-                )
                 try:
                     default_entry_date = datetime.fromisoformat(
                         selected_nutrition_summary_date_text(user_id)
                     ).date()
                 except ValueError:
                     default_entry_date = datetime.now().date()
-                entry_date = st.date_input(
-                    "Log date",
-                    value=default_entry_date,
-                    key=f"nutrition_canonical_log_date_{user_id}",
-                    help=(
-                        "Defaults to the Nutrition Today Summary date when available."
-                    ),
-                )
+
+                grams_col, date_col, action_col = st.columns([1, 1, 1])
+                with grams_col:
+                    grams = st.number_input(
+                        "Grams",
+                        min_value=1.0,
+                        value=default_grams,
+                        step=5.0,
+                        key="nutrition_canonical_grams",
+                    )
+                with date_col:
+                    entry_date = st.date_input(
+                        "Date",
+                        value=default_entry_date,
+                        key=f"nutrition_canonical_log_date_{user_id}",
+                        help=(
+                            "Defaults to the Nutrition Today Summary date when available."
+                        ),
+                    )
+                with action_col:
+                    st.write("")
+                    log_canonical_food = st.form_submit_button(
+                        "Log Food",
+                        type="primary",
+                    )
+
                 st.caption(
-                    "Nutrition values are estimates from the approved canonical food "
-                    "record. Weights are logged in grams for v1."
-                )
-                log_canonical_food = st.form_submit_button(
-                    "Save Clean Food Log",
-                    type="primary",
+                    "Nutrition values are estimates from the approved canonical food record."
                 )
 
             if log_canonical_food:
@@ -5808,8 +5833,7 @@ def render_nutrition_section(user_id: int) -> None:
                     st.error(f"Food logging failed: {extract_api_error_message(exc)}")
                 else:
                     if data.get("success", True):
-                        food_name = selected_food.get("display_name", "Selected food")
-                        st.success(f"Logged {food_name}.")
+                        st.success(f"Logged {selected_food_name}.")
                         st.session_state[canonical_results_key] = []
                         st.session_state[canonical_response_key] = {}
                         st.session_state[canonical_error_key] = None
