@@ -5806,6 +5806,152 @@ def render_food_suggestion_card(suggestion: dict, index: int) -> None:
                     st.caption(f"• {friendly}")
 
 
+def nutrition_runtime_debug_value(value: object) -> str:
+    """Format runtime debug values for compact Developer Mode display."""
+    if value is None or value == "":
+        return "Not available"
+    if isinstance(value, bool):
+        return "Yes" if value else "No"
+    if isinstance(value, (list | tuple | set)):
+        if not value:
+            return "None"
+        return ", ".join(str(item) for item in value)
+    return str(value)
+
+
+def render_nutrition_explanation_runtime_debug_view(user_id: int) -> None:
+    """Developer-only nutrition explanation runtime metadata inspection."""
+    if not st.session_state.get("developer_mode", False):
+        return
+
+    debug_date = selected_nutrition_summary_date_text(user_id)
+
+    with st.expander(
+        "Developer details: nutrition explanation runtime debug",
+        expanded=False,
+    ):
+        st.caption(
+            "Debug-only provider/runtime inspection. This section is hidden from "
+            "normal Nutrition UI."
+        )
+
+        try:
+            debug_response = api_get(
+                f"/nutrition/{user_id}/explanation/debug",
+                params={"date": debug_date},
+            )
+        except requests.RequestException as exc:
+            st.warning(
+                "Nutrition explanation runtime debug is not available: "
+                f"{extract_api_error_message(exc)}"
+            )
+            return
+
+        if not debug_response.get("success", True):
+            st.warning("Nutrition explanation runtime debug did not return success.")
+            st.json(debug_response)
+            return
+
+        approved_explanation = (
+            debug_response.get("approved_nutrition_explanation") or {}
+        )
+        runtime_metadata = (
+            debug_response.get("runtime_metadata")
+            or debug_response.get("explanation_runtime_metadata")
+            or {}
+        )
+
+        final_source = (
+            runtime_metadata.get("final_explanation_source")
+            or runtime_metadata.get("final_plan_source")
+            or "Not available"
+        )
+        fallback_used = runtime_metadata.get("fallback_used")
+        fallback_reason = runtime_metadata.get("fallback_reason")
+
+        top_cols = st.columns(3)
+        top_cols[0].metric(
+            "Final source",
+            nutrition_runtime_debug_value(final_source),
+        )
+        top_cols[1].metric(
+            "Fallback used",
+            nutrition_runtime_debug_value(fallback_used),
+        )
+        top_cols[2].metric(
+            "Candidate valid",
+            nutrition_runtime_debug_value(runtime_metadata.get("candidate_valid")),
+        )
+
+        provider_cols = st.columns(3)
+        provider_cols[0].metric(
+            "Configured provider",
+            nutrition_runtime_debug_value(runtime_metadata.get("configured_provider")),
+        )
+        provider_cols[1].metric(
+            "Selected provider",
+            nutrition_runtime_debug_value(runtime_metadata.get("selected_provider")),
+        )
+        provider_cols[2].metric(
+            "Provider attempted",
+            nutrition_runtime_debug_value(
+                runtime_metadata.get("provider_attempted")
+                if "provider_attempted" in runtime_metadata
+                else runtime_metadata.get("crewai_attempted")
+            ),
+        )
+
+        status_rows = [
+            {
+                "Field": "Fallback reason",
+                "Value": nutrition_runtime_debug_value(fallback_reason),
+            },
+            {
+                "Field": "Candidate parse status",
+                "Value": nutrition_runtime_debug_value(
+                    runtime_metadata.get("candidate_parse_status")
+                ),
+            },
+            {
+                "Field": "Validation status",
+                "Value": nutrition_runtime_debug_value(
+                    runtime_metadata.get("validation_status")
+                    if "validation_status" in runtime_metadata
+                    else runtime_metadata.get("candidate_validation_status")
+                ),
+            },
+            {
+                "Field": "Raw output length",
+                "Value": nutrition_runtime_debug_value(
+                    runtime_metadata.get("raw_output_length")
+                ),
+            },
+        ]
+        st.dataframe(pd.DataFrame(status_rows), width="stretch", hide_index=True)
+
+        validation_errors = runtime_metadata.get("validation_errors") or []
+        if validation_errors:
+            with st.expander("Validation errors", expanded=False):
+                for error in validation_errors:
+                    st.caption(f"• {nutrition_runtime_debug_value(error)}")
+        else:
+            st.caption("No validation errors reported.")
+
+        raw_output_preview = runtime_metadata.get("raw_output_preview_truncated")
+        if raw_output_preview:
+            with st.expander("Bounded raw output preview", expanded=False):
+                st.code(str(raw_output_preview))
+
+        with st.expander("Approved nutrition explanation", expanded=False):
+            st.json(approved_explanation)
+
+        with st.expander("Runtime metadata", expanded=False):
+            st.json(runtime_metadata)
+
+        with st.expander("Raw public-safe debug response", expanded=False):
+            st.json(debug_response)
+
+
 def render_nutrition_food_suggestions_card(user_id: int) -> None:
     st.subheader("Food Suggestions")
     st.caption(
@@ -5822,8 +5968,7 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
         )
     except requests.RequestException as exc:
         st.caption(
-            "Food suggestions are not available yet. "
-            f"{extract_api_error_message(exc)}"
+            f"Food suggestions are not available yet. {extract_api_error_message(exc)}"
         )
         return
 
@@ -6687,6 +6832,7 @@ def render_nutrition_section(user_id: int) -> None:
     render_nutrition_food_suggestions_card(user_id)
 
     render_nutrition_explanation_preview_card(user_id)
+    render_nutrition_explanation_runtime_debug_view(user_id)
 
     render_nutrition_formula_target_transparency_card(user_id)
 
