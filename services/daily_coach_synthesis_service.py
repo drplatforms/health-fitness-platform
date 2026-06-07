@@ -30,6 +30,10 @@ from models.workout_plan_models import (
 from services.nutrition_food_suggestion_service import (
     build_approved_nutrition_food_suggestions,
 )
+from services.nutrition_target_calibration_service import (
+    NutritionTargetCalibrationResult,
+    build_nutrition_target_calibration_result,
+)
 from services.nutrition_target_vs_actual_service import (
     build_approved_nutrition_guidance,
     build_target_vs_actual_nutrition_summary,
@@ -175,6 +179,15 @@ _FOOD_SUGGESTION_INTERNAL_TERMS = [
     "raw food suggestion",
 ]
 
+_CALIBRATION_INTERNAL_TERMS = [
+    "calibrated_targets",
+    "true maintenance is exactly",
+    "targets have been changed",
+    "metabolism is damaged",
+    "exact maintenance",
+    "active calibrated target",
+]
+
 _FOOD_SUGGESTION_GAP_LABELS = {
     "protein_g": "protein",
     "carbohydrate_g": "carbohydrate",
@@ -188,6 +201,17 @@ class _DailyCoachFoodSuggestionContext:
     has_approved_suggestions: bool
     confidence: str
     primary_gap: str | None
+    focus_text: str | None
+    limitation_text: str | None
+    reason_codes: list[str]
+    limitations: list[str]
+
+
+@dataclass(frozen=True)
+class _DailyCoachNutritionCalibrationContext:
+    confidence: str
+    readiness_level: str
+    recommended_action: str
     focus_text: str | None
     limitation_text: str | None
     reason_codes: list[str]
@@ -227,6 +251,10 @@ def build_daily_coach_synthesis(user_id: int) -> DailyCoachSynthesis:
         suggestion_date=suggestion_date,
         nutrition_summary=nutrition_summary,
     )
+    nutrition_calibration_result = _approved_nutrition_calibration_context(
+        user_id,
+        calibration_date=suggestion_date,
+    )
 
     synthesis = build_daily_coach_synthesis_from_components(
         health_state=health_state,
@@ -240,6 +268,7 @@ def build_daily_coach_synthesis(user_id: int) -> DailyCoachSynthesis:
         nutrition_target_vs_actual_summary=nutrition_summary,
         approved_nutrition_guidance=approved_nutrition_guidance,
         approved_food_suggestions=approved_food_suggestions,
+        nutrition_calibration_result=nutrition_calibration_result,
         synthesis_date=suggestion_date,
     )
 
@@ -271,16 +300,21 @@ def build_daily_coach_synthesis_from_components(
     nutrition_target_vs_actual_summary: TargetVsActualNutritionSummary | None = None,
     approved_nutrition_guidance: ApprovedNutritionGuidance | None = None,
     approved_food_suggestions: ApprovedNutritionFoodSuggestions | None = None,
+    nutrition_calibration_result: NutritionTargetCalibrationResult | None = None,
     synthesis_date: str | None = None,
 ) -> DailyCoachSynthesis:
     training_summary = training_execution_summary
     food_suggestion_context = _food_suggestion_context(approved_food_suggestions)
+    nutrition_calibration_context = _nutrition_calibration_context(
+        nutrition_calibration_result
+    )
     limitations = _build_limitations(
         health_state,
         recommendation_context,
         training_summary,
         nutrition_target_vs_actual_summary,
         food_suggestion_context,
+        nutrition_calibration_context,
     )
     reason_codes = _build_reason_codes(
         recommendation_context,
@@ -292,6 +326,7 @@ def build_daily_coach_synthesis_from_components(
         nutrition_target_vs_actual_summary,
         approved_nutrition_guidance,
         food_suggestion_context,
+        nutrition_calibration_context,
         limitations,
     )
 
@@ -309,6 +344,7 @@ def build_daily_coach_synthesis_from_components(
             approved_action_plan,
             nutrition_target_vs_actual_summary,
             food_suggestion_context,
+            nutrition_calibration_context,
         ),
         recovery_signal=_recovery_signal(health_state, recommendation_context),
         training_signal=_training_signal(
@@ -331,6 +367,7 @@ def build_daily_coach_synthesis_from_components(
             nutrition_target_vs_actual_summary,
             approved_nutrition_guidance,
             food_suggestion_context,
+            nutrition_calibration_context,
         ),
         plan_fit_note=_plan_fit_note(training_summary, latest_post_workout_review),
         recommended_focus=_recommended_focus(
@@ -339,6 +376,7 @@ def build_daily_coach_synthesis_from_components(
             nutrition_target_vs_actual_summary,
             approved_nutrition_guidance,
             food_suggestion_context,
+            nutrition_calibration_context,
         ),
         reason_codes=reason_codes,
         limitations=limitations,
@@ -375,6 +413,12 @@ def validate_daily_coach_synthesis(
         if term in all_text_lower:
             violations.append(
                 f"DailyCoachSynthesis must not expose food suggestion internals: {term}"
+            )
+
+    for term in _CALIBRATION_INTERNAL_TERMS:
+        if term in all_text_lower:
+            violations.append(
+                f"DailyCoachSynthesis must not expose calibration internals or certainty claims: {term}"
             )
 
     summary = training_execution_summary
@@ -498,6 +542,21 @@ def _approved_food_suggestion_context(
             suggestion_date,
             target_vs_actual_summary=nutrition_summary,
             limit=3,
+        )
+    except Exception:
+        return None
+
+
+def _approved_nutrition_calibration_context(
+    user_id: int,
+    *,
+    calibration_date: str,
+) -> NutritionTargetCalibrationResult | None:
+    try:
+        return build_nutrition_target_calibration_result(
+            user_id,
+            calibration_date=calibration_date,
+            window_days=28,
         )
     except Exception:
         return None
@@ -633,11 +692,97 @@ def _food_suggestion_limitation_text(
     return None
 
 
+def _nutrition_calibration_context(
+    result: NutritionTargetCalibrationResult | None,
+) -> _DailyCoachNutritionCalibrationContext | None:
+    if result is None:
+        return None
+
+    reason_codes = _unique(
+        list(result.reason_codes)
+        + [
+            "nutrition_calibration_context_available",
+            f"nutrition_calibration_readiness_{result.readiness_level}",
+            f"nutrition_calibration_action_{result.recommended_action}",
+        ]
+    )
+    limitations = list(result.limitations)
+    focus_text, limitation_text = _nutrition_calibration_context_text(result)
+
+    if limitation_text:
+        limitations.append(limitation_text)
+        reason_codes.append("nutrition_calibration_context_limited")
+    else:
+        reason_codes.append("nutrition_calibration_context_summarized")
+
+    return _DailyCoachNutritionCalibrationContext(
+        confidence=result.confidence,
+        readiness_level=result.readiness_level,
+        recommended_action=result.recommended_action,
+        focus_text=focus_text,
+        limitation_text=limitation_text,
+        reason_codes=_unique(reason_codes),
+        limitations=_unique(limitations),
+    )
+
+
+def _nutrition_calibration_context_text(
+    result: NutritionTargetCalibrationResult,
+) -> tuple[str | None, str | None]:
+    readiness = result.readiness_level
+    action = result.recommended_action
+
+    if action == "insufficient_data" or readiness == "not_ready":
+        return (
+            None,
+            "Calibration is not ready yet because more consistent logs or weigh-ins are needed.",
+        )
+
+    if readiness == "early_signal":
+        return (
+            None,
+            "Early trend evidence is available, but more data is needed before target calibration can be trusted.",
+        )
+
+    if action == "keep_current_targets":
+        return (
+            "Current evidence supports keeping formula-derived targets unchanged.",
+            None,
+        )
+
+    if action == "maintain_broad_range":
+        return (
+            None,
+            "Formula-derived targets remain broad because uncertainty still exists.",
+        )
+
+    if action == "eligible_for_future_refinement":
+        return (
+            "This trend window may support future target refinement, but targets are still formula-derived for now.",
+            None,
+        )
+
+    if readiness in {"usable", "strong"}:
+        return (
+            "Nutrition trend evidence is improving, but targets are still formula-derived for now.",
+            None,
+        )
+
+    if result.confidence in {"Limited", "Low"}:
+        return (
+            None,
+            "Nutrition calibration context is limited by the available trend evidence.",
+        )
+
+    return None, None
+
+
 def _today_summary(
     context: RecommendationContext,
     plan: ApprovedActionPlan,
     nutrition_summary: TargetVsActualNutritionSummary | None,
     food_suggestion_context: _DailyCoachFoodSuggestionContext | None,
+    nutrition_calibration_context: _DailyCoachNutritionCalibrationContext | None,
 ) -> str:
     if context.scenario == "recovery_limited":
         return "Today is best treated as a controlled training day with recovery signals kept in view."
@@ -649,6 +794,12 @@ def _today_summary(
         return "Today supports controlled training while the recent improvement trend continues to stabilize."
     if context.scenario == "data_quality_limited":
         return "Today should stay simple and focused on better logging because data quality limits stronger conclusions."
+    if (
+        nutrition_calibration_context is not None
+        and nutrition_calibration_context.focus_text
+        and nutrition_calibration_context.readiness_level in {"usable", "strong"}
+    ):
+        return "Nutrition trend evidence is improving, while today's coaching still uses formula-derived targets."
     return plan.daily_coaching_recommendation
 
 
@@ -734,6 +885,7 @@ def _logging_focus(
     nutrition_summary: TargetVsActualNutritionSummary | None,
     nutrition_guidance: ApprovedNutritionGuidance | None,
     food_suggestion_context: _DailyCoachFoodSuggestionContext | None,
+    nutrition_calibration_context: _DailyCoachNutritionCalibrationContext | None,
 ) -> str:
     if _nutrition_no_logs(nutrition_summary):
         return "No nutrition logs are available for today yet, so logging meals will make nutrition guidance more useful."
@@ -747,6 +899,13 @@ def _logging_focus(
         and food_suggestion_context.confidence in {"Limited", "Low"}
     ):
         return food_suggestion_context.limitation_text
+
+    if (
+        nutrition_calibration_context is not None
+        and nutrition_calibration_context.limitation_text
+        and nutrition_calibration_context.confidence in {"Limited", "Low"}
+    ):
+        return nutrition_calibration_context.limitation_text
 
     if not _has_recovery_checkin_data(health_state):
         return "Complete today's recovery check-in so sleep, energy, and soreness can improve the recommendation."
@@ -787,12 +946,19 @@ def _recommended_focus(
     nutrition_summary: TargetVsActualNutritionSummary | None,
     nutrition_guidance: ApprovedNutritionGuidance | None,
     food_suggestion_context: _DailyCoachFoodSuggestionContext | None,
+    nutrition_calibration_context: _DailyCoachNutritionCalibrationContext | None,
 ) -> str:
     if food_suggestion_context is not None:
         if food_suggestion_context.focus_text:
             return food_suggestion_context.focus_text
         if food_suggestion_context.limitation_text:
             return food_suggestion_context.limitation_text
+
+    if nutrition_calibration_context is not None:
+        if nutrition_calibration_context.focus_text:
+            return nutrition_calibration_context.focus_text
+        if nutrition_calibration_context.limitation_text:
+            return nutrition_calibration_context.limitation_text
 
     nutrition_focus = _nutrition_recommended_focus(
         nutrition_summary, nutrition_guidance
@@ -817,6 +983,7 @@ def _build_limitations(
     summary: TrainingExecutionSummary | None,
     nutrition_summary: TargetVsActualNutritionSummary | None,
     food_suggestion_context: _DailyCoachFoodSuggestionContext | None,
+    nutrition_calibration_context: _DailyCoachNutritionCalibrationContext | None,
 ) -> list[str]:
     limitations: list[str] = []
 
@@ -836,6 +1003,8 @@ def _build_limitations(
     limitations.extend(_nutrition_limitations(nutrition_summary))
     if food_suggestion_context is not None:
         limitations.extend(food_suggestion_context.limitations)
+    if nutrition_calibration_context is not None:
+        limitations.extend(nutrition_calibration_context.limitations)
 
     return list(dict.fromkeys(limitations))
 
@@ -850,6 +1019,7 @@ def _build_reason_codes(
     nutrition_summary: TargetVsActualNutritionSummary | None,
     nutrition_guidance: ApprovedNutritionGuidance | None,
     food_suggestion_context: _DailyCoachFoodSuggestionContext | None,
+    nutrition_calibration_context: _DailyCoachNutritionCalibrationContext | None,
     limitations: list[str],
 ) -> list[str]:
     reason_codes = [
@@ -870,6 +1040,8 @@ def _build_reason_codes(
     reason_codes.extend(_nutrition_reason_codes(nutrition_summary, nutrition_guidance))
     if food_suggestion_context is not None:
         reason_codes.extend(food_suggestion_context.reason_codes)
+    if nutrition_calibration_context is not None:
+        reason_codes.extend(nutrition_calibration_context.reason_codes)
     reason_codes.extend(limitations)
     return list(dict.fromkeys(code for code in reason_codes if code))
 

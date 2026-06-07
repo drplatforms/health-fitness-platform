@@ -46,6 +46,9 @@ from services.daily_coach_synthesis_service import (
     build_daily_coach_synthesis_from_components,
     validate_daily_coach_synthesis,
 )
+from services.nutrition_target_calibration_service import (
+    NutritionTargetCalibrationResult,
+)
 
 
 def _seed_test_db(tmp_path, monkeypatch) -> None:
@@ -530,6 +533,37 @@ def _food_suggestions(
             if suggestions
             else ["No approved supported suggestion gap is available."]
         ),
+    )
+
+
+def _calibration_result(
+    *,
+    readiness_level: str = "not_ready",
+    recommended_action: str = "insufficient_data",
+    confidence: str = "Limited",
+    calibration_allowed: bool = False,
+    reason_codes: list[str] | None = None,
+    limitations: list[str] | None = None,
+) -> NutritionTargetCalibrationResult:
+    return NutritionTargetCalibrationResult(
+        user_id=999,
+        calibration_date="2026-06-05",
+        window_days=28,
+        calibration_allowed=calibration_allowed,
+        readiness_level=readiness_level,
+        recommended_action=recommended_action,
+        calibrated_targets=None,
+        confidence=confidence,
+        reason_codes=reason_codes
+        or [
+            "calibration_assessment_created",
+            "target_mutation_not_performed",
+            recommended_action,
+        ],
+        limitations=limitations
+        or [
+            "Calibration assessment is read-only and does not mutate nutrition targets."
+        ],
     )
 
 
@@ -1233,3 +1267,155 @@ def test_daily_coach_synthesis_rejects_food_suggestion_internal_fields():
     violations = validate_daily_coach_synthesis(bad_synthesis)
 
     assert any("food suggestion internals" in violation for violation in violations)
+
+
+def test_daily_coach_synthesis_composes_not_ready_calibration_context():
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    components["nutrition_calibration_result"] = _calibration_result(
+        readiness_level="not_ready",
+        recommended_action="insufficient_data",
+        confidence="Limited",
+        calibration_allowed=False,
+        reason_codes=[
+            "calibration_assessment_created",
+            "target_mutation_not_performed",
+            "calibration_not_ready",
+        ],
+        limitations=["Calibration is not ready because trend evidence is incomplete."],
+    )
+
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    combined = str(synthesis.to_dict()).lower()
+
+    assert "calibration is not ready yet" in synthesis.recommended_focus.lower()
+    assert "more consistent logs or weigh-ins" in synthesis.logging_focus.lower()
+    assert "nutrition_calibration_context_limited" in synthesis.reason_codes
+    assert "target_mutation_not_performed" in synthesis.reason_codes
+    assert "targets have been changed" not in combined
+    assert "true maintenance" not in combined
+
+
+def test_daily_coach_synthesis_composes_early_signal_calibration_context():
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    components["nutrition_calibration_result"] = _calibration_result(
+        readiness_level="early_signal",
+        recommended_action="maintain_broad_range",
+        confidence="Low",
+        calibration_allowed=False,
+        reason_codes=[
+            "calibration_assessment_created",
+            "target_mutation_not_performed",
+            "calibration_early_signal",
+        ],
+        limitations=["Targets remain broad because trend evidence is limited."],
+    )
+
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    combined = str(synthesis.to_dict()).lower()
+
+    assert "early trend evidence is available" in synthesis.recommended_focus.lower()
+    assert "more data is needed" in synthesis.recommended_focus.lower()
+    assert "targets have been changed" not in combined
+    assert "must cut calories" not in combined
+
+
+@pytest.mark.parametrize(
+    ("readiness_level", "recommended_action", "confidence", "expected_phrase"),
+    [
+        (
+            "usable",
+            "keep_current_targets",
+            "Moderate",
+            "keeping formula-derived targets unchanged",
+        ),
+        (
+            "usable",
+            "maintain_broad_range",
+            "Moderate",
+            "targets remain broad",
+        ),
+        (
+            "strong",
+            "eligible_for_future_refinement",
+            "High",
+            "future target refinement",
+        ),
+    ],
+)
+def test_daily_coach_synthesis_summarizes_calibration_actions_safely(
+    readiness_level, recommended_action, confidence, expected_phrase
+):
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    components["nutrition_calibration_result"] = _calibration_result(
+        readiness_level=readiness_level,
+        recommended_action=recommended_action,
+        confidence=confidence,
+        calibration_allowed=(recommended_action == "eligible_for_future_refinement"),
+        reason_codes=[
+            "calibration_assessment_created",
+            "target_mutation_not_performed",
+            recommended_action,
+        ],
+    )
+
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    combined = str(synthesis.to_dict()).lower()
+
+    assert expected_phrase in combined
+    assert (
+        "targets are still formula-derived" in combined
+        or "formula-derived targets" in combined
+    )
+    assert "nutrition_calibration_context" in " ".join(synthesis.reason_codes)
+    assert "calibrated_targets" not in combined
+    assert "true maintenance" not in combined
+    assert "targets have been changed" not in combined
+
+
+def test_daily_coach_synthesis_preserves_food_suggestion_focus_with_calibration_context():
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    nutrition_summary, guidance = _nutrition_summary_and_guidance(
+        completeness="complete_enough_for_guidance",
+        confidence="Moderate",
+        protein_status=TARGET_STATUS_BELOW,
+        protein_available=True,
+    )
+    components = _with_nutrition(components, nutrition_summary, guidance)
+    components["approved_food_suggestions"] = _food_suggestions()
+    components["nutrition_calibration_result"] = _calibration_result(
+        readiness_level="strong",
+        recommended_action="eligible_for_future_refinement",
+        confidence="High",
+        calibration_allowed=True,
+        reason_codes=[
+            "calibration_assessment_created",
+            "target_mutation_not_performed",
+            "future_refinement_candidate",
+        ],
+    )
+
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    combined = str(synthesis.to_dict()).lower()
+
+    assert "protein-focused" in synthesis.recommended_focus
+    assert "nutrition_calibration_context_available" in synthesis.reason_codes
+    assert "canonical_food_id" not in combined
+    assert "calibrated_targets" not in combined
+
+
+def test_daily_coach_synthesis_rejects_calibration_internals_and_certainty_claims():
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    bad_synthesis = DailyCoachSynthesis(
+        **{
+            **synthesis.to_dict(),
+            "recommended_focus": (
+                "Use calibrated_targets because your true maintenance is exactly "
+                "2400 calories."
+            ),
+        }
+    )
+
+    violations = validate_daily_coach_synthesis(bad_synthesis)
+
+    assert any("calibration internals" in violation for violation in violations)
