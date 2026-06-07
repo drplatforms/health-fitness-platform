@@ -17,6 +17,7 @@ from api.routes.nutrition_target_formula import (
 from api.routes.nutrition_target_vs_actual import (
     router as nutrition_target_vs_actual_router,
 )
+from api.routes.nutrition_trend import router as nutrition_trend_router
 from api.routes.recommendations import router as recommendation_router
 from api.routes.recovery import router as recovery_router
 from api.routes.reports import router as report_router
@@ -37,6 +38,7 @@ app.include_router(recovery_router)
 app.include_router(nutrition_target_vs_actual_router)
 app.include_router(nutrition_target_formula_router)
 app.include_router(nutrition_food_suggestion_router)
+app.include_router(nutrition_trend_router)
 app.include_router(nutrition_router)
 app.include_router(recommendation_router)
 app.include_router(workout_plan_router)
