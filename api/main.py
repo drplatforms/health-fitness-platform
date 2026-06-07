@@ -4,6 +4,9 @@
 
 from fastapi import FastAPI
 
+from api.routes.ai_nutrition_explanation import (
+    router as ai_nutrition_explanation_router,
+)
 from api.routes.daily_coach import router as daily_coach_router
 from api.routes.equipment_profiles import router as equipment_profile_router
 from api.routes.food_canonical_search import router as food_canonical_search_router
@@ -39,6 +42,7 @@ app.include_router(food_canonical_search_router)
 app.include_router(report_router)
 app.include_router(recovery_router)
 app.include_router(nutrition_target_vs_actual_router)
+app.include_router(ai_nutrition_explanation_router)
 app.include_router(nutrition_target_formula_router)
 app.include_router(nutrition_target_calibration_router)
 app.include_router(nutrition_food_suggestion_router)
