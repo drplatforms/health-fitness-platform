@@ -1419,3 +1419,29 @@ def test_daily_coach_synthesis_rejects_calibration_internals_and_certainty_claim
     violations = validate_daily_coach_synthesis(bad_synthesis)
 
     assert any("calibration internals" in violation for violation in violations)
+
+
+@pytest.mark.parametrize(
+    "unsafe_phrase",
+    [
+        "calibration has been applied",
+        "calibration was applied",
+        "targets have been calibrated",
+        "calibrated targets are active",
+        "your targets were updated",
+        "your targets have changed",
+    ],
+)
+def test_daily_coach_synthesis_rejects_applied_calibration_language(unsafe_phrase):
+    components = _build_components(summary=_summary(completed_execution_count=0))
+    synthesis = build_daily_coach_synthesis_from_components(**components)
+    bad_synthesis = DailyCoachSynthesis(
+        **{
+            **synthesis.to_dict(),
+            "recommended_focus": f"Nutrition calibration update: {unsafe_phrase}.",
+        }
+    )
+
+    violations = validate_daily_coach_synthesis(bad_synthesis)
+
+    assert any("calibration internals" in violation for violation in violations)

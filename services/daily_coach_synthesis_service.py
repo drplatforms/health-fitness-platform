@@ -182,6 +182,12 @@ _FOOD_SUGGESTION_INTERNAL_TERMS = [
 _CALIBRATION_INTERNAL_TERMS = [
     "calibrated_targets",
     "true maintenance is exactly",
+    "calibration has been applied",
+    "calibration was applied",
+    "targets have been calibrated",
+    "calibrated targets are active",
+    "your targets were updated",
+    "your targets have changed",
     "targets have been changed",
     "metabolism is damaged",
     "exact maintenance",
