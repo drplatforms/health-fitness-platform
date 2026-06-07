@@ -1,17 +1,24 @@
 from __future__ import annotations
 
+import json
+import os
+import re
+from collections.abc import Callable
 from dataclasses import asdict, is_dataclass
 from datetime import date as date_cls
 from typing import Any
 
 from models.ai_nutrition_explanation_models import (
     ApprovedNutritionExplanation,
+    ApprovedNutritionExplanationResult,
     CandidateNutritionExplanation,
     NutritionExplanationContext,
+    NutritionExplanationRuntimeMetadata,
 )
 from services.ai_nutrition_explanation_validation_service import (
     approve_nutrition_explanation_candidate,
     build_deterministic_fallback_nutrition_explanation,
+    collect_nutrition_explanation_validation_errors,
     validate_approved_nutrition_explanation,
 )
 from services.nutrition_food_suggestion_service import (
@@ -35,12 +42,44 @@ from services.nutrition_trend_service import build_nutrition_trend_window
 from services.user_service import get_user_profile
 from services.user_state_service import build_user_health_state
 
+NUTRITION_EXPLANATION_PROVIDER_ENV = "NUTRITION_EXPLANATION_PROVIDER"
+NUTRITION_EXPLANATION_MODEL_ENV = "NUTRITION_EXPLANATION_MODEL"
+OLLAMA_BASE_URL_ENV = "OLLAMA_BASE_URL"
+NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC = "deterministic"
+NUTRITION_EXPLANATION_PROVIDER_CREWAI = "crewai"
+NUTRITION_EXPLANATION_DEFAULT_MODEL = "ollama/qwen3:8b"
+NUTRITION_EXPLANATION_DEFAULT_BASE_URL = "http://localhost:11434"
+RAW_OUTPUT_PREVIEW_LIMIT = 500
+
 _CONTEXT_REASON_CODE = "approved_nutrition_explanation_context_built"
 _FALLBACK_REASON_CODE = "deterministic_nutrition_explanation_service"
+_PROVIDER_REASON_CODE = "provider_nutrition_explanation_candidate"
 _CONTEXT_LIMITATION = (
     "Nutrition explanation is limited to approved backend nutrition context."
 )
 _CONFIDENCE_RANK = {"Limited": 0, "Low": 1, "Moderate": 2, "High": 3}
+
+FALLBACK_REASON_DETERMINISTIC_SELECTED = "deterministic_provider_selected"
+FALLBACK_REASON_INVALID_PROVIDER = "invalid_provider_config"
+FALLBACK_REASON_PROVIDER_EXCEPTION = "provider_exception"
+FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT = "provider_non_string_output"
+FALLBACK_REASON_CANDIDATE_PARSE_FAILURE = "candidate_parse_failure"
+FALLBACK_REASON_CANDIDATE_VALIDATION_FAILURE = "candidate_validation_failure"
+FALLBACK_REASON_DETERMINISTIC_VALIDATION_FAILURE = "deterministic_validation_failure"
+
+CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED = "not_attempted"
+CANDIDATE_PARSE_STATUS_SUCCESS = "success"
+CANDIDATE_PARSE_STATUS_FAILED = "failed"
+
+VALIDATION_STATUS_NOT_ATTEMPTED = "not_attempted"
+VALIDATION_STATUS_APPROVED = "approved"
+VALIDATION_STATUS_REJECTED = "rejected"
+
+FINAL_EXPLANATION_SOURCE_DETERMINISTIC = "deterministic"
+FINAL_EXPLANATION_SOURCE_PROVIDER_APPROVED = "provider_approved"
+FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
+
+NutritionExplanationCandidateProvider = Callable[[NutritionExplanationContext], Any]
 
 
 def build_nutrition_explanation_context(
@@ -216,6 +255,415 @@ def build_approved_nutrition_explanation(
         )
 
     return validate_approved_nutrition_explanation(approved)
+
+
+def approve_candidate_output_or_fallback_with_metadata(
+    provider_output: Any,
+    context: NutritionExplanationContext,
+    *,
+    configured_provider: str = NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+    selected_provider: str = NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+    provider_attempted: bool = False,
+) -> ApprovedNutritionExplanationResult:
+    """Approve a provider candidate or fall back to deterministic output.
+
+    Provider output is never trusted. It is parsed into CandidateNutritionExplanation,
+    validated against the approved context, and only then converted to an
+    ApprovedNutritionExplanation. Validation errors and raw output diagnostics remain
+    runtime/debug-only metadata.
+    """
+
+    raw_diagnostics = _raw_output_diagnostics(provider_output)
+    candidate, parse_error = _parse_provider_candidate(provider_output)
+
+    if candidate is None:
+        metadata = _runtime_metadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            provider_attempted=provider_attempted,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_CANDIDATE_PARSE_FAILURE,
+            candidate_valid=False,
+            validation_errors=[
+                parse_error or "Provider candidate could not be parsed."
+            ],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_FAILED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+            **raw_diagnostics,
+        )
+        return _deterministic_result(context, metadata)
+
+    validation_errors = collect_nutrition_explanation_validation_errors(
+        context,
+        candidate,
+    )
+    if validation_errors:
+        metadata = _runtime_metadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            provider_attempted=provider_attempted,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_CANDIDATE_VALIDATION_FAILURE,
+            candidate_valid=False,
+            validation_errors=validation_errors,
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+            validation_status=VALIDATION_STATUS_REJECTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+            **raw_diagnostics,
+        )
+        return _deterministic_result(context, metadata)
+
+    approved = approve_nutrition_explanation_candidate(context, candidate)
+    metadata = _runtime_metadata(
+        configured_provider=configured_provider,
+        selected_provider=selected_provider,
+        provider_attempted=provider_attempted,
+        fallback_used=False,
+        fallback_reason=None,
+        candidate_valid=True,
+        validation_errors=[],
+        candidate_parse_status=CANDIDATE_PARSE_STATUS_SUCCESS,
+        validation_status=VALIDATION_STATUS_APPROVED,
+        final_explanation_source=FINAL_EXPLANATION_SOURCE_PROVIDER_APPROVED,
+        **raw_diagnostics,
+    )
+    return ApprovedNutritionExplanationResult(
+        approved_nutrition_explanation=validate_approved_nutrition_explanation(
+            approved
+        ),
+        runtime_metadata=metadata,
+    )
+
+
+def approve_candidate_provider_or_fallback_with_metadata(
+    candidate_provider: NutritionExplanationCandidateProvider,
+    context: NutritionExplanationContext,
+    *,
+    configured_provider: str = NUTRITION_EXPLANATION_PROVIDER_CREWAI,
+    selected_provider: str = NUTRITION_EXPLANATION_PROVIDER_CREWAI,
+) -> ApprovedNutritionExplanationResult:
+    """Run a provider and safely fall back if it is unavailable or invalid."""
+
+    try:
+        provider_output = candidate_provider(context)
+    except Exception as exc:
+        metadata = _runtime_metadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            provider_attempted=True,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
+            candidate_valid=False,
+            validation_errors=[type(exc).__name__],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        return _deterministic_result(context, metadata)
+
+    if not isinstance(
+        provider_output,
+        (str | dict | CandidateNutritionExplanation),
+    ):
+        metadata = _runtime_metadata(
+            configured_provider=configured_provider,
+            selected_provider=selected_provider,
+            provider_attempted=True,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT,
+            candidate_valid=False,
+            validation_errors=[
+                "Nutrition explanation provider returned unsupported output."
+            ],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        return _deterministic_result(context, metadata)
+
+    return approve_candidate_output_or_fallback_with_metadata(
+        provider_output,
+        context,
+        configured_provider=configured_provider,
+        selected_provider=selected_provider,
+        provider_attempted=True,
+    )
+
+
+def build_crewai_nutrition_explanation_prompt(
+    context: NutritionExplanationContext,
+) -> str:
+    """Build the bounded nutrition explanation prompt for a local provider.
+
+    The provider must return JSON matching CandidateNutritionExplanation. Its output
+    remains untrusted until the backend validator approves it.
+    """
+
+    safe_context_json = json.dumps(context.to_dict(), sort_keys=True, default=str)
+    return f"""
+/no_think
+Return one raw JSON object only. Do not think aloud. No markdown. No commentary.
+The first character must be {{ and the last character must be }}.
+
+Use this exact top-level key set only:
+explanation_summary, macro_context, food_suggestion_context, trend_context,
+calibration_context, limitations_context, confidence, reason_codes
+
+Approved context JSON:
+{safe_context_json}
+
+Rules:
+- Use only the approved context JSON.
+- Do not invent nutrition targets, logged actuals, foods, servings, macros, or nutrient values.
+- Do not claim targets changed.
+- Do not say calibration has been applied.
+- Do not create meal plans.
+- Do not mention raw data, SQL, providers, CrewAI, Ollama, debug metadata, or validation metadata.
+- Keep copy concise and supportive.
+- Confidence must be one of: Limited, Low, Moderate, High.
+""".strip()
+
+
+def generate_crewai_nutrition_explanation_candidate_json(
+    context: NutritionExplanationContext,
+) -> str:
+    """Run the optional CrewAI/Ollama nutrition explanation provider.
+
+    This path is optional and disabled by default. The returned string is untrusted
+    and must be parsed/validated before it can become public output.
+    """
+
+    from crewai import LLM, Agent, Crew, Task
+
+    llm = LLM(
+        model=os.getenv(
+            NUTRITION_EXPLANATION_MODEL_ENV,
+            NUTRITION_EXPLANATION_DEFAULT_MODEL,
+        ),
+        base_url=os.getenv(OLLAMA_BASE_URL_ENV, NUTRITION_EXPLANATION_DEFAULT_BASE_URL),
+        temperature=0,
+    )
+    agent = Agent(
+        role="Bounded Nutrition Explanation Writer",
+        goal="Generate CandidateNutritionExplanation JSON from approved context only.",
+        backstory=(
+            "You explain approved backend nutrition facts without inventing targets, "
+            "foods, servings, macros, calibration state, or medical claims."
+        ),
+        llm=llm,
+        verbose=False,
+    )
+    task = Task(
+        description=build_crewai_nutrition_explanation_prompt(context),
+        expected_output="Raw CandidateNutritionExplanation JSON object only.",
+        agent=agent,
+    )
+    crew = Crew(agents=[agent], tasks=[task], verbose=False)
+    result = crew.kickoff()
+    raw = getattr(result, "raw", None)
+    return str(raw) if raw is not None else str(result)
+
+
+def build_configured_approved_nutrition_explanation_with_metadata(
+    user_id: int,
+    explanation_date: str | None = None,
+    *,
+    context: NutritionExplanationContext | None = None,
+    candidate_provider: NutritionExplanationCandidateProvider | None = None,
+) -> ApprovedNutritionExplanationResult:
+    """Build an approved nutrition explanation using configured provider settings.
+
+    Deterministic remains the default. Invalid provider settings, provider errors,
+    parse failures, and validator rejections all fall back to deterministic approved
+    output with debug-only runtime metadata.
+    """
+
+    resolved_context = context or build_nutrition_explanation_context(
+        user_id,
+        explanation_date,
+    )
+    configured_provider = _configured_nutrition_explanation_provider()
+
+    if configured_provider == NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC:
+        metadata = _runtime_metadata(
+            configured_provider=configured_provider,
+            selected_provider=NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+            provider_attempted=False,
+            fallback_used=False,
+            fallback_reason=FALLBACK_REASON_DETERMINISTIC_SELECTED,
+            candidate_valid=True,
+            validation_errors=[],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC,
+        )
+        return _deterministic_result(resolved_context, metadata)
+
+    if configured_provider == NUTRITION_EXPLANATION_PROVIDER_CREWAI:
+        return approve_candidate_provider_or_fallback_with_metadata(
+            candidate_provider or generate_crewai_nutrition_explanation_candidate_json,
+            resolved_context,
+            configured_provider=configured_provider,
+            selected_provider=NUTRITION_EXPLANATION_PROVIDER_CREWAI,
+        )
+
+    metadata = _runtime_metadata(
+        configured_provider=configured_provider,
+        selected_provider=NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+        provider_attempted=False,
+        fallback_used=True,
+        fallback_reason=FALLBACK_REASON_INVALID_PROVIDER,
+        candidate_valid=True,
+        validation_errors=[f"Unsupported provider: {configured_provider}"],
+        candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+        validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+        final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+    )
+    return _deterministic_result(resolved_context, metadata)
+
+
+def build_configured_approved_nutrition_explanation(
+    user_id: int,
+    explanation_date: str | None = None,
+    *,
+    context: NutritionExplanationContext | None = None,
+) -> ApprovedNutritionExplanation:
+    """Return only the public approved explanation for the configured provider."""
+
+    return build_configured_approved_nutrition_explanation_with_metadata(
+        user_id,
+        explanation_date,
+        context=context,
+    ).approved_nutrition_explanation
+
+
+def _deterministic_result(
+    context: NutritionExplanationContext,
+    metadata: NutritionExplanationRuntimeMetadata,
+) -> ApprovedNutritionExplanationResult:
+    try:
+        approved = build_approved_nutrition_explanation(
+            context.user_id,
+            context.explanation_date,
+            context=context,
+        )
+    except ValueError:
+        approved = build_deterministic_fallback_nutrition_explanation(context)
+        metadata = _runtime_metadata(
+            configured_provider=metadata.configured_provider or metadata.provider,
+            selected_provider=NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+            provider_attempted=metadata.provider_attempted,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_DETERMINISTIC_VALIDATION_FAILURE,
+            candidate_valid=False,
+            validation_errors=["Deterministic explanation validation failed."],
+            candidate_parse_status=metadata.candidate_parse_status,
+            validation_status=VALIDATION_STATUS_REJECTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+    return ApprovedNutritionExplanationResult(
+        approved_nutrition_explanation=validate_approved_nutrition_explanation(
+            approved
+        ),
+        runtime_metadata=metadata,
+    )
+
+
+def _runtime_metadata(
+    *,
+    configured_provider: str,
+    selected_provider: str,
+    provider_attempted: bool,
+    fallback_used: bool,
+    fallback_reason: str | None,
+    candidate_valid: bool,
+    validation_errors: list[str],
+    candidate_parse_status: str,
+    validation_status: str,
+    final_explanation_source: str,
+    raw_output_length: int | None = None,
+    raw_output_preview_truncated: str | None = None,
+) -> NutritionExplanationRuntimeMetadata:
+    return NutritionExplanationRuntimeMetadata(
+        provider=selected_provider,
+        fallback_used=fallback_used,
+        validation_status=validation_status,
+        validation_errors=list(validation_errors),
+        raw_output_preview_truncated=raw_output_preview_truncated,
+        raw_output_length=raw_output_length,
+        configured_provider=configured_provider,
+        selected_provider=selected_provider,
+        provider_attempted=provider_attempted,
+        fallback_reason=fallback_reason,
+        candidate_valid=candidate_valid,
+        candidate_parse_status=candidate_parse_status,
+        final_explanation_source=final_explanation_source,
+    )
+
+
+def _configured_nutrition_explanation_provider() -> str:
+    return (
+        os.getenv(
+            NUTRITION_EXPLANATION_PROVIDER_ENV,
+            NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC,
+        )
+        .strip()
+        .lower()
+    )
+
+
+def _parse_provider_candidate(
+    provider_output: Any,
+) -> tuple[CandidateNutritionExplanation | None, str | None]:
+    if isinstance(provider_output, CandidateNutritionExplanation):
+        return provider_output, None
+
+    try:
+        if isinstance(provider_output, dict):
+            return CandidateNutritionExplanation(**provider_output), None
+
+        if isinstance(provider_output, str):
+            candidate_payload = _parse_candidate_json_payload(provider_output)
+            return CandidateNutritionExplanation(**candidate_payload), None
+    except Exception as exc:
+        return None, str(exc)
+
+    return None, "Provider candidate output type is unsupported."
+
+
+def _parse_candidate_json_payload(raw_output: str) -> dict[str, Any]:
+    stripped = raw_output.strip()
+    if not stripped:
+        raise ValueError("Provider candidate output was empty.")
+    stripped = _strip_markdown_code_fence(stripped)
+    payload = json.loads(stripped)
+    if not isinstance(payload, dict):
+        raise ValueError("Provider candidate JSON must be an object.")
+    return payload
+
+
+def _strip_markdown_code_fence(text: str) -> str:
+    match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return text
+
+
+def _raw_output_diagnostics(provider_output: Any) -> dict[str, Any]:
+    if provider_output is None:
+        return {"raw_output_length": 0, "raw_output_preview_truncated": None}
+    if isinstance(provider_output, str):
+        raw = provider_output
+    elif isinstance(provider_output, CandidateNutritionExplanation):
+        raw = json.dumps(provider_output.to_dict(), sort_keys=True)
+    else:
+        raw = json.dumps(provider_output, sort_keys=True, default=str)
+    stripped = raw.strip()
+    return {
+        "raw_output_length": len(raw),
+        "raw_output_preview_truncated": stripped[:RAW_OUTPUT_PREVIEW_LIMIT] or None,
+    }
 
 
 def _build_approved_macro_targets(*, user_id: int, calculation_date: str) -> Any:

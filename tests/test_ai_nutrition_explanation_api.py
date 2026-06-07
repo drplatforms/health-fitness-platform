@@ -52,7 +52,7 @@ def _patch_user_and_service(monkeypatch, approved: ApprovedNutritionExplanation)
     )
     monkeypatch.setattr(
         explanation_route,
-        "build_approved_nutrition_explanation",
+        "build_configured_approved_nutrition_explanation",
         lambda user_id, explanation_date: approved,
     )
 
@@ -91,7 +91,7 @@ def test_preview_endpoint_defaults_date_to_today(monkeypatch):
 
     monkeypatch.setattr(
         explanation_route,
-        "build_approved_nutrition_explanation",
+        "build_configured_approved_nutrition_explanation",
         fake_build,
     )
 
@@ -118,7 +118,7 @@ def test_preview_endpoint_supports_explicit_date(monkeypatch):
 
     monkeypatch.setattr(
         explanation_route,
-        "build_approved_nutrition_explanation",
+        "build_configured_approved_nutrition_explanation",
         fake_build,
     )
 
@@ -182,7 +182,7 @@ def test_preview_endpoint_returns_safe_400_for_validation_failure(monkeypatch):
 
     monkeypatch.setattr(
         explanation_route,
-        "build_approved_nutrition_explanation",
+        "build_configured_approved_nutrition_explanation",
         fake_build,
     )
 
@@ -269,7 +269,7 @@ def test_preview_endpoint_does_not_call_ai_provider(monkeypatch):
 
     monkeypatch.setattr(
         explanation_route,
-        "build_approved_nutrition_explanation",
+        "build_configured_approved_nutrition_explanation",
         fake_build,
     )
 

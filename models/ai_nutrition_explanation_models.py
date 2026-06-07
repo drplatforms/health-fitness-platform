@@ -203,12 +203,26 @@ class NutritionExplanationRuntimeMetadata:
     validation_errors: list[str] = field(default_factory=list)
     raw_output_preview_truncated: str | None = None
     raw_output_length: int | None = None
+    configured_provider: str | None = None
+    selected_provider: str | None = None
+    provider_attempted: bool = False
+    fallback_reason: str | None = None
+    candidate_valid: bool = False
+    candidate_parse_status: str = "not_attempted"
+    final_explanation_source: str = "deterministic"
 
     def __post_init__(self) -> None:
         _validate_required_text("provider", self.provider)
         _validate_required_text("validation_status", self.validation_status)
         _validate_safe_text_list("validation_errors", self.validation_errors)
         _validate_optional_non_negative_int("raw_output_length", self.raw_output_length)
+        _validate_optional_text("configured_provider", self.configured_provider)
+        _validate_optional_text("selected_provider", self.selected_provider)
+        _validate_optional_text("fallback_reason", self.fallback_reason)
+        _validate_required_text("candidate_parse_status", self.candidate_parse_status)
+        _validate_required_text(
+            "final_explanation_source", self.final_explanation_source
+        )
         if self.raw_output_preview_truncated is not None and not isinstance(
             self.raw_output_preview_truncated, str
         ):
@@ -216,6 +230,18 @@ class NutritionExplanationRuntimeMetadata:
 
     def to_debug_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass
+class ApprovedNutritionExplanationResult:
+    approved_nutrition_explanation: ApprovedNutritionExplanation
+    runtime_metadata: NutritionExplanationRuntimeMetadata
+
+    def to_debug_dict(self) -> dict[str, Any]:
+        return {
+            "approved_nutrition_explanation": self.approved_nutrition_explanation.to_dict(),
+            "runtime_metadata": self.runtime_metadata.to_debug_dict(),
+        }
 
 
 def _validate_confidence(confidence: str) -> None:

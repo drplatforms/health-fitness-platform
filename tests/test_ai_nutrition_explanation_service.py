@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 import pytest
 
-from models.ai_nutrition_explanation_models import NutritionExplanationContext
+from models.ai_nutrition_explanation_models import (
+    CandidateNutritionExplanation,
+    NutritionExplanationContext,
+)
 from services import ai_nutrition_explanation_service as service
 
 
@@ -451,3 +454,201 @@ def test_no_ai_crewai_or_ollama_provider_is_called(monkeypatch, approved_context
     assert explanation.source == "deterministic_fallback"
     assert "crewai" not in str(explanation.to_dict()).lower()
     assert "ollama" not in str(explanation.to_dict()).lower()
+
+
+def _safe_provider_candidate() -> CandidateNutritionExplanation:
+    return CandidateNutritionExplanation(
+        explanation_summary=(
+            "Based on approved nutrition context, today can be reviewed cautiously."
+        ),
+        macro_context="Based on today’s logged meals, protein is below target.",
+        food_suggestion_context=(
+            "The Nutrition tab has approved food suggestions that may help close the gap."
+        ),
+        trend_context="Trend evidence is summarized from deterministic logged data.",
+        calibration_context="Targets are still formula-derived.",
+        limitations_context=(
+            "Use the Nutrition tab for approved target, logging, trend, and calibration detail."
+        ),
+        confidence="Moderate",
+        reason_codes=["provider_candidate_safe"],
+    )
+
+
+def test_configured_provider_defaults_to_deterministic(monkeypatch, approved_context):
+    monkeypatch.delenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, raising=False)
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.configured_provider == "deterministic"
+    assert result.runtime_metadata.selected_provider == "deterministic"
+    assert result.runtime_metadata.provider_attempted is False
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.final_explanation_source == "deterministic"
+
+
+def test_invalid_configured_provider_falls_back_to_deterministic(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "not-real")
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.configured_provider == "not-real"
+    assert result.runtime_metadata.selected_provider == "deterministic"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "invalid_provider_config"
+
+
+def test_provider_candidate_that_validates_returns_approved_explanation(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: _safe_provider_candidate(),
+    )
+
+    assert result.approved_nutrition_explanation.source == "ai_validated"
+    assert result.runtime_metadata.configured_provider == "crewai"
+    assert result.runtime_metadata.selected_provider == "crewai"
+    assert result.runtime_metadata.provider_attempted is True
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.candidate_valid is True
+    assert result.runtime_metadata.validation_status == "approved"
+    assert result.runtime_metadata.final_explanation_source == "provider_approved"
+
+
+def test_provider_json_candidate_that_validates_returns_approved_explanation(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    raw_json = _safe_provider_candidate().to_dict()
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: raw_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "ai_validated"
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.raw_output_length is not None
+    assert result.runtime_metadata.raw_output_preview_truncated
+
+
+def test_provider_candidate_with_invented_target_is_rejected_and_falls_back(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    unsafe = CandidateNutritionExplanation(
+        explanation_summary="Your targets have been changed based on this trend.",
+        confidence="Moderate",
+        reason_codes=["unsafe_provider_candidate"],
+    )
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: unsafe,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+    assert result.runtime_metadata.candidate_valid is False
+    assert result.runtime_metadata.validation_errors
+
+
+def test_provider_candidate_with_invented_food_serving_or_macro_falls_back(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    unsafe = CandidateNutritionExplanation(
+        explanation_summary="Add 999g dragonfruit for exactly 200 grams carbs.",
+        confidence="Moderate",
+        reason_codes=["unsafe_provider_candidate"],
+    )
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: unsafe,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+    assert result.runtime_metadata.final_explanation_source == "deterministic_fallback"
+
+
+def test_provider_candidate_with_calibration_applied_language_falls_back(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    unsafe = CandidateNutritionExplanation(
+        explanation_summary="Calibration has been applied and calibrated targets are active.",
+        confidence="Moderate",
+        reason_codes=["unsafe_provider_candidate"],
+    )
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: unsafe,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+
+
+def test_provider_unavailable_or_error_falls_back_safely(monkeypatch, approved_context):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+
+    def failing_provider(_context):
+        raise RuntimeError("provider unavailable")
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=failing_provider,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.provider_attempted is True
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "provider_exception"
+    assert result.runtime_metadata.validation_errors == ["RuntimeError"]
+
+
+def test_runtime_metadata_remains_debug_only_and_separate(approved_context):
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+    )
+
+    public_payload = result.approved_nutrition_explanation.to_dict()
+    debug_payload = result.runtime_metadata.to_debug_dict()
+
+    assert "configured_provider" not in public_payload
+    assert "selected_provider" not in public_payload
+    assert "raw_output_preview_truncated" not in public_payload
+    assert debug_payload["configured_provider"] == "deterministic"
+    assert "raw_output_preview_truncated" in debug_payload

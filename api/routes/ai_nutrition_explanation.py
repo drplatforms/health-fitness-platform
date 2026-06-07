@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from models.ai_nutrition_explanation_models import ApprovedNutritionExplanation
 from services.ai_nutrition_explanation_service import (
-    build_approved_nutrition_explanation,
+    build_configured_approved_nutrition_explanation,
 )
 from services.user_service import get_user_profile
 
@@ -25,7 +25,7 @@ def nutrition_explanation_preview_endpoint(
     _get_user_profile_or_404(user_id)
 
     try:
-        approved_explanation = build_approved_nutrition_explanation(
+        approved_explanation = build_configured_approved_nutrition_explanation(
             user_id=user_id,
             explanation_date=resolved_date,
         )
