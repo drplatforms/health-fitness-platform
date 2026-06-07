@@ -5879,6 +5879,373 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
     )
 
 
+TREND_CALIBRATION_LABELS = {
+    "not_ready": "Not ready",
+    "early_signal": "Early signal",
+    "usable": "Usable",
+    "strong": "Strong",
+    "insufficient_data": "More data needed",
+    "keep_current_targets": "Keep current formula targets",
+    "maintain_broad_range": "Maintain broad range",
+    "eligible_for_future_refinement": "Eligible for future refinement",
+    "no_logs": "No nutrition logs are available in this window.",
+    "partial_day": "Some days may only have partial nutrition logging.",
+    "likely_incomplete": "Nutrition logging may be incomplete for this window.",
+    "reasonably_complete": "Nutrition logging is reasonably complete.",
+    "complete_enough_for_guidance": "Logging is complete enough for guidance.",
+    "insufficient": "More consistent logging is needed.",
+    "inconsistent": "Logging consistency is still developing.",
+    "usable_logging": "Logging consistency is usable.",
+    "strong_logging": "Logging consistency is strong.",
+    "decreasing": "Decreasing",
+    "stable": "Stable",
+    "increasing": "Increasing",
+    "unavailable": "Unavailable",
+    "minimum_window_not_met": "More days are needed before calibration readiness can be assessed.",
+    "logging_quality_not_met": "More consistent nutrition logging is needed.",
+    "bodyweight_trend_unavailable": (
+        "More weigh-ins are needed to understand the bodyweight trend."
+    ),
+    "goal_context_missing": "Goal context is needed before calibration can be considered.",
+    "training_context_missing": "Training context is limited for this window.",
+    "target_mutation_not_performed": (
+        "Targets are still formula-derived; no target changes were applied."
+    ),
+    "calibration_assessment_read_only": (
+        "Calibration assessment is read-only and does not change targets."
+    ),
+    "read_only_calibration": "Calibration assessment is read-only and does not change targets.",
+}
+
+
+def trend_calibration_public_text(value: object) -> str:
+    """Humanize public-safe trend/calibration values without exposing raw codes."""
+    if value is None or value == "":
+        return ""
+
+    if isinstance(value, dict):
+        for key in ("message", "label", "description", "text", "reason", "code"):
+            if value.get(key):
+                return trend_calibration_public_text(value.get(key))
+        return humanize_label(str(value))
+
+    text_value = str(value).strip()
+    if not text_value:
+        return ""
+
+    if text_value in TREND_CALIBRATION_LABELS:
+        return TREND_CALIBRATION_LABELS[text_value]
+
+    if " " in text_value and "_" not in text_value:
+        return text_value if text_value.endswith((".", "!", "?")) else f"{text_value}."
+
+    return humanize_label(text_value).rstrip(".") + "."
+
+
+def trend_calibration_metric_text(value: object, fallback: str = "Unknown") -> str:
+    if value is None or value == "":
+        return fallback
+    friendly = trend_calibration_public_text(value)
+    return friendly.rstrip(".") if friendly else fallback
+
+
+def trend_calibration_number_text(
+    value: object,
+    suffix: str = "",
+    fallback: str = "Unavailable",
+) -> str:
+    if value is None or value == "":
+        return fallback
+
+    if isinstance(value, float):
+        value = round(value, 1)
+        if value.is_integer():
+            value = int(value)
+
+    return f"{value}{suffix}"
+
+
+def trend_calibration_rate_text(value: object) -> str:
+    if value is None or value == "":
+        return "Unavailable"
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return trend_calibration_metric_text(value)
+
+    if 0 <= numeric_value <= 1:
+        numeric_value *= 100
+
+    return f"{round(numeric_value, 1):g}%"
+
+
+def render_trend_window_summary(trend_response: dict) -> None:
+    st.markdown("#### Trend Window Summary")
+
+    summary_cols = st.columns(4)
+    summary_cols[0].metric(
+        "Window",
+        f"{trend_response.get('window_days', 'Unknown')} days",
+    )
+    summary_cols[1].metric(
+        "Logged days",
+        trend_calibration_number_text(trend_response.get("logged_day_count")),
+    )
+    summary_cols[2].metric(
+        "Complete days",
+        trend_calibration_number_text(trend_response.get("complete_logging_day_count")),
+    )
+    summary_cols[3].metric(
+        "Confidence",
+        trend_response.get("confidence", "Unknown"),
+    )
+
+    detail_cols = st.columns(3)
+    detail_cols[0].caption(
+        f"Partial logging days: "
+        f"{trend_calibration_number_text(trend_response.get('partial_logging_day_count'))}"
+    )
+    detail_cols[1].caption(
+        f"No-log days: "
+        f"{trend_calibration_number_text(trend_response.get('no_log_day_count'))}"
+    )
+
+    intake_summary = trend_response.get("intake_trend_summary") or {}
+    detail_cols[2].caption(
+        "Complete logging rate: "
+        + trend_calibration_rate_text(intake_summary.get("complete_logging_rate"))
+    )
+
+    start_date = trend_response.get("start_date")
+    end_date = trend_response.get("end_date")
+    if start_date or end_date:
+        st.caption(f"Window: {start_date or 'Unknown'} through {end_date or 'Unknown'}")
+
+    consistency = intake_summary.get("logging_consistency_status")
+    if consistency:
+        st.caption("Logging consistency: " + trend_calibration_metric_text(consistency))
+
+
+def render_bodyweight_trend_summary(trend_response: dict) -> None:
+    st.markdown("#### Bodyweight Trend")
+
+    bodyweight_summary = trend_response.get("bodyweight_trend_summary") or {}
+    direction = bodyweight_summary.get("trend_direction")
+    weekly_rate = bodyweight_summary.get("weekly_rate_lb")
+
+    cols = st.columns(4)
+    cols[0].metric(
+        "Direction",
+        trend_calibration_metric_text(direction, fallback="Unavailable"),
+    )
+    cols[1].metric(
+        "Weigh-ins",
+        trend_calibration_number_text(
+            bodyweight_summary.get("weigh_in_count"),
+            fallback="0",
+        ),
+    )
+    cols[2].metric(
+        "Weekly rate",
+        (
+            trend_calibration_number_text(weekly_rate, " lb/wk")
+            if weekly_rate is not None
+            else "Unavailable"
+        ),
+    )
+    cols[3].metric(
+        "Confidence",
+        bodyweight_summary.get("confidence", "Unknown"),
+    )
+
+    if direction in {None, "", "unavailable"}:
+        st.caption(
+            "Bodyweight trend is limited until there are enough consistent weigh-ins."
+        )
+
+
+def render_calibration_readiness_summary(
+    trend_response: dict,
+    calibration_response: dict,
+) -> None:
+    st.markdown("#### Calibration Readiness")
+
+    readiness = trend_response.get("calibration_readiness") or {}
+    readiness_level = calibration_response.get("readiness_level") or readiness.get(
+        "readiness_level"
+    )
+    recommended_action = calibration_response.get("recommended_action")
+    calibration_allowed = calibration_response.get("calibration_allowed")
+    confidence = calibration_response.get("confidence", "Unknown")
+
+    cols = st.columns(4)
+    cols[0].metric(
+        "Readiness",
+        trend_calibration_metric_text(readiness_level),
+    )
+    cols[1].metric(
+        "Action",
+        trend_calibration_metric_text(recommended_action),
+    )
+    cols[2].metric(
+        "Calibration allowed",
+        "Yes" if calibration_allowed else "No",
+    )
+    cols[3].metric("Confidence", confidence)
+
+    st.caption(
+        "Targets are still formula-derived. This calibration view is read-only and "
+        "does not apply target changes."
+    )
+
+    if calibration_response.get("calibrated_targets") is not None:
+        st.caption(
+            "Calibration target payloads are intentionally not displayed as active targets."
+        )
+
+
+def trend_calibration_limitations(
+    trend_response: dict,
+    calibration_response: dict,
+) -> list[str]:
+    raw_values = []
+
+    raw_values.extend(trend_response.get("limitations") or [])
+    raw_values.extend(calibration_response.get("limitations") or [])
+
+    intake_summary = trend_response.get("intake_trend_summary") or {}
+    bodyweight_summary = trend_response.get("bodyweight_trend_summary") or {}
+    readiness = trend_response.get("calibration_readiness") or {}
+
+    raw_values.extend(intake_summary.get("limitations") or [])
+    raw_values.extend(bodyweight_summary.get("limitations") or [])
+    raw_values.extend(readiness.get("limitations") or [])
+
+    if bodyweight_summary.get("trend_direction") == "unavailable":
+        raw_values.append("bodyweight_trend_unavailable")
+
+    if readiness:
+        if not readiness.get("minimum_window_met", True):
+            raw_values.append("minimum_window_not_met")
+        if not readiness.get("logging_quality_met", True):
+            raw_values.append("logging_quality_not_met")
+        if not readiness.get("bodyweight_trend_available", True):
+            raw_values.append("bodyweight_trend_unavailable")
+        if not readiness.get("goal_context_available", True):
+            raw_values.append("goal_context_missing")
+        if not readiness.get("training_context_available", True):
+            raw_values.append("training_context_missing")
+
+    friendly_values = []
+    for raw_value in raw_values:
+        friendly = trend_calibration_public_text(raw_value)
+        if friendly and friendly not in friendly_values:
+            friendly_values.append(friendly)
+
+    return friendly_values
+
+
+def render_trend_calibration_limitations(
+    trend_response: dict,
+    calibration_response: dict,
+) -> None:
+    limitations = trend_calibration_limitations(trend_response, calibration_response)
+
+    with st.expander("Why calibration may be limited", expanded=False):
+        if limitations:
+            for limitation in limitations:
+                st.caption(f"• {limitation}")
+        else:
+            st.caption(
+                "No major limitations were reported for this trend window. "
+                "This still does not mean targets were changed."
+            )
+
+        st.caption(
+            "Calibration readiness is informational only. It does not estimate exact "
+            "maintenance calories or mutate nutrition targets."
+        )
+
+
+def render_nutrition_trend_calibration_card(user_id: int) -> None:
+    with st.expander("Trend & Calibration Readiness", expanded=False):
+        st.caption(
+            "Review nutrition trend evidence and calibration readiness. Targets remain "
+            "formula-derived unless a future backend flow explicitly changes them."
+        )
+
+        end_date = selected_nutrition_summary_date_text(user_id)
+        window_days = st.selectbox(
+            "Trend window",
+            options=[28, 14],
+            index=0,
+            key=f"nutrition_trend_calibration_window_days_{user_id}",
+            format_func=lambda value: f"{value} days",
+            help="Seeded QA scenarios use 2026-06-06 as the reference end date.",
+        )
+
+        try:
+            trend_response = api_get(
+                f"/nutrition/{user_id}/trend-window",
+                params={"end_date": end_date, "window_days": window_days},
+            )
+        except requests.RequestException as exc:
+            st.caption(
+                "Nutrition trend window is not available yet. "
+                f"{extract_api_error_message(exc)}"
+            )
+            return
+
+        try:
+            calibration_response = api_get(
+                f"/nutrition/{user_id}/target-calibration",
+                params={"end_date": end_date, "window_days": window_days},
+            )
+        except requests.RequestException as exc:
+            st.caption(
+                "Nutrition calibration readiness is not available yet. "
+                f"{extract_api_error_message(exc)}"
+            )
+            developer_details(
+                "Developer details: nutrition trend-window response",
+                trend_response,
+            )
+            return
+
+        if not trend_response.get("success"):
+            st.caption("Nutrition trend window is not available for this date.")
+            developer_details(
+                "Developer details: nutrition trend-window response",
+                trend_response,
+            )
+            return
+
+        if not calibration_response.get("success"):
+            st.caption(
+                "Nutrition calibration readiness is not available for this date."
+            )
+            developer_details(
+                "Developer details: nutrition target-calibration response",
+                calibration_response,
+            )
+            return
+
+        render_trend_window_summary(trend_response)
+        render_bodyweight_trend_summary(trend_response)
+        render_calibration_readiness_summary(trend_response, calibration_response)
+        render_trend_calibration_limitations(trend_response, calibration_response)
+
+        developer_details(
+            "Developer details: nutrition trend-window response",
+            trend_response,
+        )
+        developer_details(
+            "Developer details: nutrition target-calibration response",
+            calibration_response,
+        )
+
+
 def render_nutrition_section(user_id: int) -> None:
     st.header("Nutrition")
     st.caption(
@@ -6166,6 +6533,8 @@ def render_nutrition_section(user_id: int) -> None:
     render_nutrition_food_suggestions_card(user_id)
 
     render_nutrition_formula_target_transparency_card(user_id)
+
+    render_nutrition_trend_calibration_card(user_id)
 
     with st.expander("Logged nutrient details", expanded=False):
         today = datetime.now().strftime("%Y-%m-%d")
