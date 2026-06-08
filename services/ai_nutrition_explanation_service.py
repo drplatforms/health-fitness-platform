@@ -394,21 +394,52 @@ def approve_candidate_provider_or_fallback_with_metadata(
 def build_crewai_nutrition_explanation_prompt(
     context: NutritionExplanationContext,
 ) -> str:
-    """Build the bounded nutrition explanation prompt for a local provider.
+    """Build the compressed bounded nutrition explanation prompt for a provider.
 
-    The provider must return strict JSON matching CandidateNutritionExplanation. Its
-    output remains untrusted until the backend parser and validator approve it.
+    The provider receives only concise approved explanatory facts. Display-control
+    metadata, formula metadata, dates, provider/debug/runtime fields, and raw reason-code
+    dumps are intentionally omitted. Provider output remains untrusted until the strict
+    parser and validator approve it.
     """
 
-    safe_context_json = json.dumps(context.to_dict(), sort_keys=True, default=str)
+    provider_context_json = json.dumps(
+        _compressed_provider_context_projection(context),
+        sort_keys=True,
+        default=str,
+    )
+    valid_example_json = json.dumps(
+        _candidate_nutrition_explanation_example(),
+        sort_keys=True,
+    )
     return f"""
 /no_think
-Return JSON only. Return one raw JSON object and nothing else.
-Do not include markdown. Do not include code fences. Do not include comments.
-Do not include prose outside JSON.
-The first character must be {{ and the last character must be }}.
+Task: explain the approved nutrition context in concise, supportive language.
 
-CandidateNutritionExplanation allowed output schema. Include exactly these top-level keys and no others:
+Strict output rules:
+- Return JSON only: one raw JSON object and nothing else.
+- Do not include markdown.
+- Do not include code fences.
+- Do not include comments.
+- Do not include prose outside JSON.
+- The first character must be {{ and the last character must be }}.
+- Include exactly these top-level keys and no others.
+- Do not include any keys not listed in the schema.
+- Do not include display flags.
+- Do not include display_flags.
+- Do not include displayFlags.
+- Do not include explanationDate.
+- Do not include explanation_date.
+- Do not include dates unless the schema explicitly requires them.
+- Do not include target metadata.
+- Do not include formula metadata.
+- Do not include raw context fields.
+- Do not include provider fields.
+- Do not include runtime fields.
+- Do not include validation fields.
+- Do not include debug fields.
+- Do not copy keys from the approved context into the output unless they are explicitly listed in the schema.
+
+CandidateNutritionExplanation allowed output schema:
 {{
   "explanation_summary": "string",
   "macro_context": "string or null",
@@ -420,35 +451,19 @@ CandidateNutritionExplanation allowed output schema. Include exactly these top-l
   "reason_codes": ["string"]
 }}
 
-Do not include any keys not listed in the schema.
-Do not include display flags.
-Do not include display_flags.
-Do not include displayFlags.
-Do not include explanationDate.
-Do not include explanation_date.
-Do not include dates unless the schema explicitly requires them.
-Do not include target metadata.
-Do not include formula metadata.
-Do not include raw context fields.
-Do not include provider fields.
-Do not include runtime fields.
-Do not include validation fields.
-Do not include debug fields.
-Do not copy keys from the approved context into the output unless they are explicitly listed in the schema above.
+One valid JSON example:
+{valid_example_json}
 
 Approved context JSON:
-{safe_context_json}
+{provider_context_json}
 
-Rules:
-- Use only the approved context JSON.
-- Explain limitations instead of inventing details when context is limited.
+Forbidden language and behavior:
 - Do not invent nutrition targets, logged actuals, foods, servings, macros, or nutrient values.
-- Do not include target values, actual values, foods, servings, or macros unless present in the approved context and allowed by the schema.
-- Do not claim targets changed.
-- Do not say calibration has been applied.
+- Do not claim targets changed or calibration was applied.
 - Do not create meal plans.
 - Do not mention raw data, SQL, providers, CrewAI, Ollama, debug metadata, or validation metadata.
-- Keep copy concise and supportive.
+- Explain limitations instead of inventing details when context is limited.
+- Keep each field concise.
 - Confidence must be one of: Limited, Low, Moderate, High.
 """.strip()
 
@@ -680,6 +695,167 @@ def _reject_markdown_or_code_fence(text: str) -> None:
         raise ValueError(
             "Provider candidate output must not include markdown code fences."
         )
+
+
+def _compressed_provider_context_projection(
+    context: NutritionExplanationContext,
+) -> dict[str, Any]:
+    """Return the compact approved context exposed to optional AI providers.
+
+    This intentionally differs from NutritionExplanationContext.to_dict(). The provider
+    does not need backend display controls, dates, formula metadata, debug/runtime data,
+    raw reason-code dumps, raw source records, or unbounded nested service payloads.
+    """
+
+    return {
+        "confidence": context.confidence,
+        "macro_context": _compressed_macro_context(context),
+        "food_suggestion_context": _compressed_food_suggestion_context(context),
+        "trend_context": _compressed_trend_context(context),
+        "calibration_context": _compressed_calibration_context(context),
+        "limitations_context": _compressed_limitations_context(context),
+    }
+
+
+def _candidate_nutrition_explanation_example() -> dict[str, Any]:
+    return {
+        "explanation_summary": (
+            "Approved nutrition context is available, but it should be interpreted "
+            "within the current confidence limits."
+        ),
+        "macro_context": "Logged macro context is available from backend calculations.",
+        "food_suggestion_context": (
+            "The Nutrition tab may have approved food suggestions if a supported gap exists."
+        ),
+        "trend_context": "Trend context is available only from deterministic logged data.",
+        "calibration_context": (
+            "Targets remain formula-derived until backend calibration is approved."
+        ),
+        "limitations_context": (
+            "Use the Nutrition tab for approved target, logging, trend, and calibration detail."
+        ),
+        "confidence": "Moderate",
+        "reason_codes": ["provider_candidate_from_approved_context"],
+    }
+
+
+def _compressed_macro_context(context: NutritionExplanationContext) -> dict[str, Any]:
+    target_summary = context.target_vs_actual_summary
+    logging_summary = target_summary.get("logging_summary") or {}
+    comparisons = target_summary.get("comparisons") or {}
+    return _compact_dict(
+        {
+            "confidence": target_summary.get("confidence"),
+            "logging_completeness": target_summary.get("logging_completeness")
+            or logging_summary.get("logging_completeness"),
+            "logged_meal_count": logging_summary.get("logged_meal_count"),
+            "entry_count": logging_summary.get("entry_count"),
+            "macro_statuses": {
+                macro: _compact_dict(
+                    {
+                        "target_status": comparison.get("target_status"),
+                        "comparison_available": comparison.get("comparison_available"),
+                        "confidence": comparison.get("confidence"),
+                    }
+                )
+                for macro, comparison in comparisons.items()
+                if macro in {"calories", "protein", "carbs", "fat"}
+                and isinstance(comparison, dict)
+            },
+            "limitations": _bounded_strings(target_summary.get("limitations", [])),
+        }
+    )
+
+
+def _compressed_food_suggestion_context(
+    context: NutritionExplanationContext,
+) -> dict[str, Any]:
+    payload = context.approved_food_suggestions
+    suggestions = payload.get("suggestions") or []
+    macro_gaps = payload.get("macro_gaps") or []
+    return _compact_dict(
+        {
+            "confidence": payload.get("confidence"),
+            "primary_gap": payload.get("primary_gap"),
+            "approved_suggestion_count": (
+                len(suggestions) if isinstance(suggestions, list) else 0
+            ),
+            "supported_gap_statuses": [
+                _compact_dict(
+                    {
+                        "macro_name": gap.get("macro_name"),
+                        "target_status": gap.get("target_status"),
+                        "confidence": gap.get("confidence"),
+                    }
+                )
+                for gap in macro_gaps
+                if isinstance(gap, dict)
+            ],
+            "limitations": _bounded_strings(payload.get("limitations", [])),
+        }
+    )
+
+
+def _compressed_trend_context(context: NutritionExplanationContext) -> dict[str, Any]:
+    payload = context.trend_summary
+    intake_summary = payload.get("intake_trend_summary") or {}
+    bodyweight_summary = payload.get("bodyweight_trend_summary") or {}
+    readiness = payload.get("calibration_readiness") or {}
+    return _compact_dict(
+        {
+            "confidence": payload.get("confidence"),
+            "window_days": payload.get("window_days"),
+            "logged_day_count": payload.get("logged_day_count"),
+            "complete_logging_day_count": payload.get("complete_logging_day_count"),
+            "partial_logging_day_count": payload.get("partial_logging_day_count"),
+            "no_log_day_count": payload.get("no_log_day_count"),
+            "logging_consistency_status": intake_summary.get(
+                "logging_consistency_status"
+            ),
+            "bodyweight_trend_direction": bodyweight_summary.get("trend_direction"),
+            "bodyweight_trend_confidence": bodyweight_summary.get("confidence"),
+            "calibration_readiness_level": readiness.get("readiness_level"),
+            "limitations": _bounded_strings(payload.get("limitations", [])),
+        }
+    )
+
+
+def _compressed_calibration_context(
+    context: NutritionExplanationContext,
+) -> dict[str, Any]:
+    payload = context.calibration_summary
+    return _compact_dict(
+        {
+            "confidence": payload.get("confidence"),
+            "calibration_allowed": payload.get("calibration_allowed"),
+            "readiness_level": payload.get("readiness_level"),
+            "recommended_action": payload.get("recommended_action"),
+            "limitations": _bounded_strings(payload.get("limitations", [])),
+        }
+    )
+
+
+def _compressed_limitations_context(
+    context: NutritionExplanationContext,
+) -> dict[str, Any]:
+    return _compact_dict(
+        {
+            "confidence": context.confidence,
+            "limitations": _bounded_strings(context.limitations),
+        }
+    )
+
+
+def _compact_dict(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        key: value for key, value in payload.items() if value not in (None, "", [], {})
+    }
+
+
+def _bounded_strings(values: Any, *, limit: int = 5) -> list[str]:
+    if not isinstance(values, list):
+        return []
+    return [value for value in values if isinstance(value, str) and value][:limit]
 
 
 def _raw_output_diagnostics(provider_output: Any) -> dict[str, Any]:

@@ -698,6 +698,100 @@ def test_provider_prompt_forbids_explanation_date_and_markdown(approved_context)
     assert "Do not include prose outside JSON" in prompt
 
 
+def _approved_context_json_from_prompt(prompt: str) -> dict:
+    context_marker = "Approved context JSON:\n"
+    forbidden_marker = "\n\nForbidden language and behavior:"
+    assert context_marker in prompt
+    assert forbidden_marker in prompt
+    context_json = prompt.split(context_marker, 1)[1].split(forbidden_marker, 1)[0]
+    return json.loads(context_json)
+
+
+def test_compressed_provider_context_excludes_display_flags_and_target_booleans(
+    approved_context,
+):
+    provider_context = service._compressed_provider_context_projection(approved_context)
+    provider_context_text = json.dumps(provider_context, sort_keys=True)
+
+    forbidden_terms = [
+        "display_flags",
+        "displayFlags",
+        "allow_calorie_targets",
+        "allow_carbohydrate_targets",
+        "allow_fat_targets",
+        "allow_protein_targets",
+        "display_allowed",
+    ]
+    assert not any(term in provider_context_text for term in forbidden_terms)
+
+
+def test_compressed_provider_context_excludes_dates_formula_and_debug_metadata(
+    approved_context,
+):
+    provider_context = service._compressed_provider_context_projection(approved_context)
+    provider_context_text = json.dumps(provider_context, sort_keys=True)
+
+    forbidden_terms = [
+        "explanation_date",
+        "explanationDate",
+        "calculation_date",
+        "suggestion_date",
+        "start_date",
+        "end_date",
+        "calibration_date",
+        "formula_metadata",
+        "formula_name",
+        "formula_version",
+        "provider_metadata",
+        "runtime_metadata",
+        "raw_food_entries",
+        "raw_daily_checkins",
+        "raw_sql",
+    ]
+    assert not any(term in provider_context_text for term in forbidden_terms)
+
+
+def test_provider_prompt_uses_compressed_context_not_full_context(approved_context):
+    prompt = service.build_crewai_nutrition_explanation_prompt(approved_context)
+    provider_context = _approved_context_json_from_prompt(prompt)
+    provider_context_text = json.dumps(provider_context, sort_keys=True)
+
+    assert set(provider_context) == {
+        "confidence",
+        "macro_context",
+        "food_suggestion_context",
+        "trend_context",
+        "calibration_context",
+        "limitations_context",
+    }
+    assert "display_flags" not in provider_context_text
+    assert "formula_metadata" not in provider_context_text
+    assert "reason_codes" not in provider_context_text
+    assert "raw_" not in provider_context_text
+
+
+def test_provider_prompt_includes_one_compact_valid_json_example(approved_context):
+    prompt = service.build_crewai_nutrition_explanation_prompt(approved_context)
+
+    assert "One valid JSON example:" in prompt
+    example_text = prompt.split("One valid JSON example:\n", 1)[1].split(
+        "\n\nApproved context JSON:",
+        1,
+    )[0]
+    example = json.loads(example_text)
+    assert set(example) == {
+        "explanation_summary",
+        "macro_context",
+        "food_suggestion_context",
+        "trend_context",
+        "calibration_context",
+        "limitations_context",
+        "confidence",
+        "reason_codes",
+    }
+    assert example["confidence"] in {"Limited", "Low", "Moderate", "High"}
+
+
 def test_provider_output_with_exact_schema_parses_successfully(
     monkeypatch,
     approved_context,
