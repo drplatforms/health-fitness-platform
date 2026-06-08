@@ -364,7 +364,7 @@ def approve_candidate_provider_or_fallback_with_metadata(
 
     if not isinstance(
         provider_output,
-        (str | dict | CandidateNutritionExplanation),
+        str | dict | CandidateNutritionExplanation,
     ):
         metadata = _runtime_metadata(
             configured_provider=configured_provider,
@@ -396,26 +396,54 @@ def build_crewai_nutrition_explanation_prompt(
 ) -> str:
     """Build the bounded nutrition explanation prompt for a local provider.
 
-    The provider must return JSON matching CandidateNutritionExplanation. Its output
-    remains untrusted until the backend validator approves it.
+    The provider must return strict JSON matching CandidateNutritionExplanation. Its
+    output remains untrusted until the backend parser and validator approve it.
     """
 
     safe_context_json = json.dumps(context.to_dict(), sort_keys=True, default=str)
     return f"""
 /no_think
-Return one raw JSON object only. Do not think aloud. No markdown. No commentary.
+Return JSON only. Return one raw JSON object and nothing else.
+Do not include markdown. Do not include code fences. Do not include comments.
+Do not include prose outside JSON.
 The first character must be {{ and the last character must be }}.
 
-Use this exact top-level key set only:
-explanation_summary, macro_context, food_suggestion_context, trend_context,
-calibration_context, limitations_context, confidence, reason_codes
+CandidateNutritionExplanation allowed output schema. Include exactly these top-level keys and no others:
+{{
+  "explanation_summary": "string",
+  "macro_context": "string or null",
+  "food_suggestion_context": "string or null",
+  "trend_context": "string or null",
+  "calibration_context": "string or null",
+  "limitations_context": "string or null",
+  "confidence": "Limited | Low | Moderate | High",
+  "reason_codes": ["string"]
+}}
+
+Do not include any keys not listed in the schema.
+Do not include display flags.
+Do not include display_flags.
+Do not include displayFlags.
+Do not include explanationDate.
+Do not include explanation_date.
+Do not include dates unless the schema explicitly requires them.
+Do not include target metadata.
+Do not include formula metadata.
+Do not include raw context fields.
+Do not include provider fields.
+Do not include runtime fields.
+Do not include validation fields.
+Do not include debug fields.
+Do not copy keys from the approved context into the output unless they are explicitly listed in the schema above.
 
 Approved context JSON:
 {safe_context_json}
 
 Rules:
 - Use only the approved context JSON.
+- Explain limitations instead of inventing details when context is limited.
 - Do not invent nutrition targets, logged actuals, foods, servings, macros, or nutrient values.
+- Do not include target values, actual values, foods, servings, or macros unless present in the approved context and allowed by the schema.
 - Do not claim targets changed.
 - Do not say calibration has been applied.
 - Do not create meal plans.
@@ -636,18 +664,22 @@ def _parse_candidate_json_payload(raw_output: str) -> dict[str, Any]:
     stripped = raw_output.strip()
     if not stripped:
         raise ValueError("Provider candidate output was empty.")
-    stripped = _strip_markdown_code_fence(stripped)
+    _reject_markdown_or_code_fence(stripped)
     payload = json.loads(stripped)
     if not isinstance(payload, dict):
         raise ValueError("Provider candidate JSON must be an object.")
     return payload
 
 
-def _strip_markdown_code_fence(text: str) -> str:
-    match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", text, flags=re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    return text
+def _reject_markdown_or_code_fence(text: str) -> None:
+    if re.fullmatch(r"```(?:json)?\s*.*?\s*```", text, flags=re.DOTALL):
+        raise ValueError(
+            "Provider candidate output must be raw JSON without markdown or code fences."
+        )
+    if text.startswith("```") or text.endswith("```"):
+        raise ValueError(
+            "Provider candidate output must not include markdown code fences."
+        )
 
 
 def _raw_output_diagnostics(provider_output: Any) -> dict[str, Any]:

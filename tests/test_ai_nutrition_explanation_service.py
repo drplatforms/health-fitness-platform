@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 import pytest
@@ -652,3 +653,179 @@ def test_runtime_metadata_remains_debug_only_and_separate(approved_context):
     assert "raw_output_preview_truncated" not in public_payload
     assert debug_payload["configured_provider"] == "deterministic"
     assert "raw_output_preview_truncated" in debug_payload
+
+
+def test_provider_prompt_includes_exact_schema_only_instruction(approved_context):
+    prompt = service.build_crewai_nutrition_explanation_prompt(approved_context)
+
+    assert "Return JSON only" in prompt
+    assert "CandidateNutritionExplanation allowed output schema" in prompt
+    assert "Include exactly these top-level keys and no others" in prompt
+    for key in [
+        "explanation_summary",
+        "macro_context",
+        "food_suggestion_context",
+        "trend_context",
+        "calibration_context",
+        "limitations_context",
+        "confidence",
+        "reason_codes",
+    ]:
+        assert f'"{key}"' in prompt
+
+
+def test_provider_prompt_forbids_extra_keys_and_display_flags(approved_context):
+    prompt = service.build_crewai_nutrition_explanation_prompt(approved_context)
+
+    assert "Do not include any keys not listed in the schema" in prompt
+    assert "Do not include display flags" in prompt
+    assert "Do not include display_flags" in prompt
+    assert "Do not include displayFlags" in prompt
+    assert "Do not include target metadata" in prompt
+    assert "Do not include raw context fields" in prompt
+    assert "Do not include provider fields" in prompt
+    assert "Do not include runtime fields" in prompt
+
+
+def test_provider_prompt_forbids_explanation_date_and_markdown(approved_context):
+    prompt = service.build_crewai_nutrition_explanation_prompt(approved_context)
+
+    assert "Do not include explanationDate" in prompt
+    assert "Do not include explanation_date" in prompt
+    assert "Do not include dates unless the schema explicitly requires them" in prompt
+    assert "Do not include markdown" in prompt
+    assert "Do not include code fences" in prompt
+    assert "Do not include prose outside JSON" in prompt
+
+
+def test_provider_output_with_exact_schema_parses_successfully(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    provider_json = {
+        "explanation_summary": (
+            "Based on approved nutrition context, today can be reviewed cautiously."
+        ),
+        "macro_context": "Based on today’s logged meals, protein is below target.",
+        "food_suggestion_context": (
+            "The Nutrition tab has approved food suggestions that may help close the gap."
+        ),
+        "trend_context": "Trend evidence is summarized from deterministic logged data.",
+        "calibration_context": "Targets are still formula-derived.",
+        "limitations_context": (
+            "Use the Nutrition tab for approved target, logging, trend, and calibration detail."
+        ),
+        "confidence": "Moderate",
+        "reason_codes": ["provider_candidate_safe"],
+    }
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: provider_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "ai_validated"
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.final_explanation_source == "provider_approved"
+
+
+def test_provider_output_with_extra_display_flags_fails_parse(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    provider_json = _safe_provider_candidate().to_dict()
+    provider_json["display_flags"] = {"allow_protein_targets": True}
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: provider_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_parse_failure"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+    assert result.runtime_metadata.final_explanation_source == "deterministic_fallback"
+
+
+def test_provider_output_with_extra_display_flags_alias_fails_parse(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    provider_json = _safe_provider_candidate().to_dict()
+    provider_json["displayFlags"] = {"allowProteinTargets": True}
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: provider_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_reason == "candidate_parse_failure"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+
+
+def test_provider_output_with_explanation_date_fails_parse(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    provider_json = _safe_provider_candidate().to_dict()
+    provider_json["explanationDate"] = "2026-06-07"
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: provider_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_reason == "candidate_parse_failure"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+
+
+def test_provider_output_with_markdown_code_fence_fails_parse(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    raw_json = _safe_provider_candidate().to_dict()
+    raw_output = f"```json\n{json.dumps(raw_json)}\n```"
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: raw_output,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_parse_failure"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+
+
+def test_parseable_provider_output_with_unsafe_language_still_fails_validation(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_PROVIDER_ENV, "crewai")
+    provider_json = _safe_provider_candidate().to_dict()
+    provider_json["calibration_context"] = "Calibration has been applied."
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        candidate_provider=lambda _context: provider_json,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.validation_status == "rejected"
