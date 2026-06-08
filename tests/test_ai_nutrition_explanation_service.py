@@ -989,3 +989,190 @@ def test_parseable_provider_output_with_unsafe_language_still_fails_validation(
     assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
     assert result.runtime_metadata.candidate_parse_status == "success"
     assert result.runtime_metadata.validation_status == "rejected"
+
+
+def test_direct_ollama_configured_provider_selects_direct_provider(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(
+        service.NUTRITION_EXPLANATION_PROVIDER_ENV,
+        service.NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+    )
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_MODEL_ENV, "ollama/qwen2.5:3b")
+    monkeypatch.setenv(service.OLLAMA_BASE_URL_ENV, "http://ollama.test:11434")
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV, "12")
+    captured: dict[str, object] = {}
+
+    def fake_generate(
+        base_url, selected_model, prompt, response_schema, timeout_seconds
+    ):
+        captured["base_url"] = base_url
+        captured["selected_model"] = selected_model
+        captured["prompt"] = prompt
+        captured["response_schema"] = response_schema
+        captured["timeout_seconds"] = timeout_seconds
+        return json.dumps(_safe_provider_candidate().to_dict())
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.approved_nutrition_explanation.source == "ai_validated"
+    assert result.runtime_metadata.configured_provider == "direct_ollama"
+    assert result.runtime_metadata.selected_provider == "direct_ollama"
+    assert result.runtime_metadata.configured_model == "ollama/qwen2.5:3b"
+    assert result.runtime_metadata.selected_model == "qwen2.5:3b"
+    assert result.runtime_metadata.provider_attempted is True
+    assert result.runtime_metadata.fallback_used is False
+    assert result.runtime_metadata.fallback_reason is None
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "success"
+    assert result.runtime_metadata.validation_status == "approved"
+    assert result.runtime_metadata.final_explanation_source == "provider_approved"
+    assert captured["base_url"] == "http://ollama.test:11434"
+    assert captured["selected_model"] == "qwen2.5:3b"
+    assert (
+        captured["response_schema"]
+        == service.CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA
+    )
+    assert captured["timeout_seconds"] == 12
+    assert "CandidateNutritionExplanation allowed output schema" in str(
+        captured["prompt"]
+    )
+
+
+@pytest.mark.parametrize(
+    ("fallback_reason", "message"),
+    [
+        (service.FALLBACK_REASON_DIRECT_OLLAMA_TIMEOUT, "request timed out"),
+        (
+            service.FALLBACK_REASON_DIRECT_OLLAMA_CONNECTION_ERROR,
+            "connection failed",
+        ),
+        (service.FALLBACK_REASON_DIRECT_OLLAMA_HTTP_ERROR, "500 server error"),
+        (
+            service.FALLBACK_REASON_DIRECT_OLLAMA_MALFORMED_RESPONSE,
+            "malformed response",
+        ),
+        (
+            service.FALLBACK_REASON_DIRECT_OLLAMA_MISSING_RESPONSE_TEXT,
+            "missing response text",
+        ),
+    ],
+)
+def test_direct_ollama_transport_failures_fall_back_deterministically(
+    monkeypatch,
+    approved_context,
+    fallback_reason,
+    message,
+):
+    monkeypatch.setenv(
+        service.NUTRITION_EXPLANATION_PROVIDER_ENV,
+        service.NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+    )
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_MODEL_ENV, "ollama/qwen2.5:3b")
+
+    def failing_generate(*_args, **_kwargs):
+        raise service.DirectOllamaProviderError(fallback_reason, message)
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        direct_ollama_generate=failing_generate,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.configured_provider == "direct_ollama"
+    assert result.runtime_metadata.selected_provider == "direct_ollama"
+    assert result.runtime_metadata.provider_attempted is True
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == fallback_reason
+    assert result.runtime_metadata.final_explanation_source == "deterministic_fallback"
+    assert result.runtime_metadata.candidate_parse_status == "not_attempted"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert result.runtime_metadata.validation_status == "not_attempted"
+    assert result.runtime_metadata.validation_errors == [message]
+
+
+def test_direct_ollama_parse_failure_falls_back_deterministically(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(
+        service.NUTRITION_EXPLANATION_PROVIDER_ENV,
+        service.NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+    )
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_MODEL_ENV, "ollama/gemma3n:e4b")
+
+    def fake_generate(*_args, **_kwargs):
+        return '```json\n{"explanation": {"bad": true}}\n```'
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_parse_failure"
+    assert result.runtime_metadata.candidate_parse_status == "failed"
+    assert result.runtime_metadata.candidate_validation_status == "not_attempted"
+    assert result.runtime_metadata.markdown_wrapper_detected is True
+    assert result.runtime_metadata.raw_output_length is not None
+
+
+def test_direct_ollama_validation_failure_falls_back_deterministically(
+    monkeypatch,
+    approved_context,
+):
+    monkeypatch.setenv(
+        service.NUTRITION_EXPLANATION_PROVIDER_ENV,
+        service.NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+    )
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_MODEL_ENV, "ollama/hermes3:3b")
+    unsafe_candidate = _safe_provider_candidate().to_dict()
+    unsafe_candidate["calibration_context"] = "Calibration has been applied."
+
+    def fake_generate(*_args, **_kwargs):
+        return json.dumps(unsafe_candidate)
+
+    result = service.build_configured_approved_nutrition_explanation_with_metadata(
+        1,
+        context=approved_context,
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.approved_nutrition_explanation.source == "deterministic_fallback"
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+    assert result.runtime_metadata.candidate_parse_status == "success"
+    assert result.runtime_metadata.candidate_validation_status == "failed"
+    assert result.runtime_metadata.validation_status == "rejected"
+    assert result.runtime_metadata.final_explanation_source == "deterministic_fallback"
+
+
+def test_configured_direct_ollama_timeout_uses_default_for_invalid_values(monkeypatch):
+    monkeypatch.delenv(
+        service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV,
+        raising=False,
+    )
+    assert (
+        service._configured_direct_ollama_timeout_seconds()
+        == service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+    )
+
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV, "bad")
+    assert (
+        service._configured_direct_ollama_timeout_seconds()
+        == service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+    )
+
+    monkeypatch.setenv(service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV, "0")
+    assert (
+        service._configured_direct_ollama_timeout_seconds()
+        == service.NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+    )

@@ -8,6 +8,9 @@ from dataclasses import asdict, is_dataclass
 from datetime import date as date_cls
 from typing import Any
 
+import requests
+from requests import RequestException, Timeout
+
 from models.ai_nutrition_explanation_models import (
     ApprovedNutritionExplanation,
     ApprovedNutritionExplanationResult,
@@ -45,11 +48,16 @@ from services.user_state_service import build_user_health_state
 NUTRITION_EXPLANATION_PROVIDER_ENV = "NUTRITION_EXPLANATION_PROVIDER"
 NUTRITION_EXPLANATION_MODEL_ENV = "NUTRITION_EXPLANATION_MODEL"
 OLLAMA_BASE_URL_ENV = "OLLAMA_BASE_URL"
+NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV = (
+    "NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_SECONDS"
+)
 NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC = "deterministic"
 NUTRITION_EXPLANATION_PROVIDER_CREWAI = "crewai"
+NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA = "direct_ollama"
 NUTRITION_EXPLANATION_DEFAULT_MODEL = "ollama/qwen3:8b"
 NUTRITION_EXPLANATION_DEFAULT_BASE_URL = "http://localhost:11434"
 RAW_OUTPUT_PREVIEW_LIMIT = 500
+NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS = 60.0
 
 _CONTEXT_REASON_CODE = "approved_nutrition_explanation_context_built"
 _FALLBACK_REASON_CODE = "deterministic_nutrition_explanation_service"
@@ -62,6 +70,13 @@ _CONFIDENCE_RANK = {"Limited": 0, "Low": 1, "Moderate": 2, "High": 3}
 FALLBACK_REASON_DETERMINISTIC_SELECTED = "deterministic_provider_selected"
 FALLBACK_REASON_INVALID_PROVIDER = "invalid_provider_config"
 FALLBACK_REASON_PROVIDER_EXCEPTION = "provider_exception"
+FALLBACK_REASON_DIRECT_OLLAMA_TIMEOUT = "direct_ollama_timeout"
+FALLBACK_REASON_DIRECT_OLLAMA_CONNECTION_ERROR = "direct_ollama_connection_error"
+FALLBACK_REASON_DIRECT_OLLAMA_HTTP_ERROR = "direct_ollama_http_error"
+FALLBACK_REASON_DIRECT_OLLAMA_MALFORMED_RESPONSE = "direct_ollama_malformed_response"
+FALLBACK_REASON_DIRECT_OLLAMA_MISSING_RESPONSE_TEXT = (
+    "direct_ollama_missing_response_text"
+)
 FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT = "provider_non_string_output"
 FALLBACK_REASON_CANDIDATE_PARSE_FAILURE = "candidate_parse_failure"
 FALLBACK_REASON_CANDIDATE_VALIDATION_FAILURE = "candidate_validation_failure"
@@ -84,6 +99,54 @@ FINAL_EXPLANATION_SOURCE_PROVIDER_APPROVED = "provider_approved"
 FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK = "deterministic_fallback"
 
 NutritionExplanationCandidateProvider = Callable[[NutritionExplanationContext], Any]
+DirectOllamaGenerateCallable = Callable[[str, str, str, dict[str, Any], float], str]
+
+CANDIDATE_NUTRITION_EXPLANATION_ALLOWED_KEYS = {
+    "explanation_summary",
+    "macro_context",
+    "food_suggestion_context",
+    "trend_context",
+    "calibration_context",
+    "limitations_context",
+    "confidence",
+    "reason_codes",
+}
+
+CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": [
+        "explanation_summary",
+        "macro_context",
+        "food_suggestion_context",
+        "trend_context",
+        "calibration_context",
+        "limitations_context",
+        "confidence",
+        "reason_codes",
+    ],
+    "properties": {
+        "explanation_summary": {"type": "string"},
+        "macro_context": {"type": ["string", "null"]},
+        "food_suggestion_context": {"type": ["string", "null"]},
+        "trend_context": {"type": ["string", "null"]},
+        "calibration_context": {"type": ["string", "null"]},
+        "limitations_context": {"type": ["string", "null"]},
+        "confidence": {
+            "type": "string",
+            "enum": ["Limited", "Low", "Moderate", "High"],
+        },
+        "reason_codes": {"type": "array", "items": {"type": "string"}},
+    },
+}
+
+
+class DirectOllamaProviderError(RuntimeError):
+    """Classified direct Ollama provider failure used for fallback metadata."""
+
+    def __init__(self, fallback_reason: str, message: str) -> None:
+        super().__init__(message)
+        self.fallback_reason = fallback_reason
 
 
 def build_nutrition_explanation_context(
@@ -545,12 +608,168 @@ def generate_crewai_nutrition_explanation_candidate_json(
     return str(raw) if raw is not None else str(result)
 
 
+def normalize_ollama_model_name(model: str) -> str:
+    """Normalize a CrewAI-style Ollama model name for direct Ollama REST calls."""
+
+    stripped = model.strip()
+    if stripped.startswith("ollama/"):
+        return stripped.removeprefix("ollama/")
+    return stripped
+
+
+def call_direct_ollama_generate(
+    base_url: str,
+    selected_model: str,
+    prompt: str,
+    response_schema: dict[str, Any],
+    timeout_seconds: float,
+) -> str:
+    """Call Ollama /api/generate with JSON-schema structured output.
+
+    The raw response remains untrusted until the existing parser and validator
+    approve it. This function only handles transport and response-shape errors.
+    """
+
+    endpoint = f"{base_url.rstrip('/')}/api/generate"
+    payload = {
+        "model": selected_model,
+        "prompt": prompt,
+        "format": response_schema,
+        "stream": False,
+        "options": {"temperature": 0},
+    }
+
+    try:
+        response = requests.post(endpoint, json=payload, timeout=timeout_seconds)
+        response.raise_for_status()
+    except Timeout as exc:
+        raise DirectOllamaProviderError(
+            FALLBACK_REASON_DIRECT_OLLAMA_TIMEOUT,
+            f"Direct Ollama request timed out after {timeout_seconds:g} seconds.",
+        ) from exc
+    except RequestException as exc:
+        fallback_reason = (
+            FALLBACK_REASON_DIRECT_OLLAMA_HTTP_ERROR
+            if getattr(exc, "response", None) is not None
+            else FALLBACK_REASON_DIRECT_OLLAMA_CONNECTION_ERROR
+        )
+        raise DirectOllamaProviderError(fallback_reason, str(exc)) from exc
+
+    try:
+        body = response.json()
+    except ValueError as exc:
+        raise DirectOllamaProviderError(
+            FALLBACK_REASON_DIRECT_OLLAMA_MALFORMED_RESPONSE,
+            "Direct Ollama response body was not valid JSON.",
+        ) from exc
+
+    if not isinstance(body, dict):
+        raise DirectOllamaProviderError(
+            FALLBACK_REASON_DIRECT_OLLAMA_MALFORMED_RESPONSE,
+            "Direct Ollama response payload was not a JSON object.",
+        )
+
+    raw_output = body.get("response")
+    if not isinstance(raw_output, str) or not raw_output.strip():
+        raise DirectOllamaProviderError(
+            FALLBACK_REASON_DIRECT_OLLAMA_MISSING_RESPONSE_TEXT,
+            "Direct Ollama response did not include a non-empty text response field.",
+        )
+    return raw_output
+
+
+def generate_direct_ollama_nutrition_explanation_candidate_json(
+    context: NutritionExplanationContext,
+    *,
+    generate: DirectOllamaGenerateCallable = call_direct_ollama_generate,
+) -> str:
+    """Run direct Ollama structured output for nutrition explanations.
+
+    This provider is optional and disabled by default. The returned string is
+    untrusted and must still pass the strict parser and validator before approval.
+    """
+
+    configured_model = _configured_nutrition_explanation_model()
+    selected_model = normalize_ollama_model_name(configured_model)
+    base_url = os.getenv(OLLAMA_BASE_URL_ENV, NUTRITION_EXPLANATION_DEFAULT_BASE_URL)
+    timeout_seconds = _configured_direct_ollama_timeout_seconds()
+    return generate(
+        base_url,
+        selected_model,
+        build_crewai_nutrition_explanation_prompt(context),
+        CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA,
+        timeout_seconds,
+    )
+
+
+def approve_direct_ollama_provider_or_fallback_with_metadata(
+    context: NutritionExplanationContext,
+    *,
+    generate: DirectOllamaGenerateCallable = call_direct_ollama_generate,
+) -> ApprovedNutritionExplanationResult:
+    """Run the direct Ollama provider with classified deterministic fallback."""
+
+    configured_model = _configured_nutrition_explanation_model()
+    selected_model = normalize_ollama_model_name(configured_model)
+
+    try:
+        provider_output = generate_direct_ollama_nutrition_explanation_candidate_json(
+            context,
+            generate=generate,
+        )
+    except DirectOllamaProviderError as exc:
+        metadata = _runtime_metadata(
+            configured_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+            selected_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+            configured_model=configured_model,
+            selected_model=selected_model,
+            provider_attempted=True,
+            fallback_used=True,
+            fallback_reason=exc.fallback_reason,
+            candidate_valid=False,
+            validation_errors=[str(exc)],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        return _deterministic_result(context, metadata)
+    except Exception as exc:
+        metadata = _runtime_metadata(
+            configured_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+            selected_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+            configured_model=configured_model,
+            selected_model=selected_model,
+            provider_attempted=True,
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_PROVIDER_EXCEPTION,
+            candidate_valid=False,
+            validation_errors=[type(exc).__name__],
+            candidate_parse_status=CANDIDATE_PARSE_STATUS_NOT_ATTEMPTED,
+            candidate_validation_status=CANDIDATE_VALIDATION_STATUS_NOT_ATTEMPTED,
+            validation_status=VALIDATION_STATUS_NOT_ATTEMPTED,
+            final_explanation_source=FINAL_EXPLANATION_SOURCE_DETERMINISTIC_FALLBACK,
+        )
+        return _deterministic_result(context, metadata)
+
+    return approve_candidate_output_or_fallback_with_metadata(
+        provider_output,
+        context,
+        configured_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+        selected_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+        configured_model=configured_model,
+        selected_model=selected_model,
+        provider_attempted=True,
+    )
+
+
 def build_configured_approved_nutrition_explanation_with_metadata(
     user_id: int,
     explanation_date: str | None = None,
     *,
     context: NutritionExplanationContext | None = None,
     candidate_provider: NutritionExplanationCandidateProvider | None = None,
+    direct_ollama_generate: DirectOllamaGenerateCallable | None = None,
 ) -> ApprovedNutritionExplanationResult:
     """Build an approved nutrition explanation using configured provider settings.
 
@@ -591,6 +810,23 @@ def build_configured_approved_nutrition_explanation_with_metadata(
             selected_provider=NUTRITION_EXPLANATION_PROVIDER_CREWAI,
             configured_model=_configured_nutrition_explanation_model(),
             selected_model=_configured_nutrition_explanation_model(),
+        )
+
+    if configured_provider == NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA:
+        if candidate_provider is not None:
+            configured_model = _configured_nutrition_explanation_model()
+            selected_model = normalize_ollama_model_name(configured_model)
+            return approve_candidate_provider_or_fallback_with_metadata(
+                candidate_provider,
+                resolved_context,
+                configured_provider=configured_provider,
+                selected_provider=NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+                configured_model=configured_model,
+                selected_model=selected_model,
+            )
+        return approve_direct_ollama_provider_or_fallback_with_metadata(
+            resolved_context,
+            generate=direct_ollama_generate or call_direct_ollama_generate,
         )
 
     metadata = _runtime_metadata(
@@ -721,10 +957,28 @@ def _configured_nutrition_explanation_model() -> str:
     ).strip()
 
 
+def _configured_direct_ollama_timeout_seconds() -> float:
+    raw_timeout = os.getenv(NUTRITION_EXPLANATION_DIRECT_OLLAMA_TIMEOUT_ENV)
+    if raw_timeout is None or not raw_timeout.strip():
+        return NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+
+    try:
+        timeout_seconds = float(raw_timeout)
+    except ValueError:
+        return NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+
+    if timeout_seconds <= 0:
+        return NUTRITION_EXPLANATION_DIRECT_OLLAMA_DEFAULT_TIMEOUT_SECONDS
+    return timeout_seconds
+
+
 def _resolved_metadata_model(model: str | None, provider: str | None) -> str:
     if model:
         return model
-    if provider == NUTRITION_EXPLANATION_PROVIDER_CREWAI:
+    if provider in {
+        NUTRITION_EXPLANATION_PROVIDER_CREWAI,
+        NUTRITION_EXPLANATION_PROVIDER_DIRECT_OLLAMA,
+    }:
         return _configured_nutrition_explanation_model()
     return NUTRITION_EXPLANATION_PROVIDER_DETERMINISTIC
 

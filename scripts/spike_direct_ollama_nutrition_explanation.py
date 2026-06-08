@@ -5,13 +5,10 @@ import json
 import os
 import sys
 import time
-from collections.abc import Callable
 from contextlib import redirect_stdout
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
-
-import requests
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -29,46 +26,15 @@ DIRECT_OLLAMA_DEFAULT_BASE_URL = (
 )
 DIRECT_OLLAMA_RESPONSE_PREVIEW_LIMIT = 500
 
-CANDIDATE_NUTRITION_EXPLANATION_ALLOWED_KEYS = {
-    "explanation_summary",
-    "macro_context",
-    "food_suggestion_context",
-    "trend_context",
-    "calibration_context",
-    "limitations_context",
-    "confidence",
-    "reason_codes",
-}
-
-CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA: dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "required": [
-        "explanation_summary",
-        "macro_context",
-        "food_suggestion_context",
-        "trend_context",
-        "calibration_context",
-        "limitations_context",
-        "confidence",
-        "reason_codes",
-    ],
-    "properties": {
-        "explanation_summary": {"type": "string"},
-        "macro_context": {"type": ["string", "null"]},
-        "food_suggestion_context": {"type": ["string", "null"]},
-        "trend_context": {"type": ["string", "null"]},
-        "calibration_context": {"type": ["string", "null"]},
-        "limitations_context": {"type": ["string", "null"]},
-        "confidence": {
-            "type": "string",
-            "enum": ["Limited", "Low", "Moderate", "High"],
-        },
-        "reason_codes": {"type": "array", "items": {"type": "string"}},
-    },
-}
-
-DirectOllamaGenerateCallable = Callable[[str, str, str, dict[str, Any], float], str]
+CANDIDATE_NUTRITION_EXPLANATION_ALLOWED_KEYS = (
+    explanation_service.CANDIDATE_NUTRITION_EXPLANATION_ALLOWED_KEYS
+)
+CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA = (
+    explanation_service.CANDIDATE_NUTRITION_EXPLANATION_JSON_SCHEMA
+)
+DirectOllamaGenerateCallable = explanation_service.DirectOllamaGenerateCallable
+normalize_ollama_model_name = explanation_service.normalize_ollama_model_name
+call_direct_ollama_generate = explanation_service.call_direct_ollama_generate
 
 
 @dataclass
@@ -100,51 +66,12 @@ class DirectOllamaSpikeResult:
         return asdict(self)
 
 
-def normalize_ollama_model_name(model: str) -> str:
-    """Normalize a CrewAI-style Ollama model name for direct Ollama REST calls."""
-
-    stripped = model.strip()
-    if stripped.startswith("ollama/"):
-        return stripped.removeprefix("ollama/")
-    return stripped
-
-
 def build_direct_ollama_nutrition_explanation_prompt(
     context: NutritionExplanationContext,
 ) -> str:
     """Reuse the approved compressed provider prompt for the direct Ollama spike."""
 
     return explanation_service.build_crewai_nutrition_explanation_prompt(context)
-
-
-def call_direct_ollama_generate(
-    base_url: str,
-    selected_model: str,
-    prompt: str,
-    response_schema: dict[str, Any],
-    timeout_seconds: float,
-) -> str:
-    """Call Ollama /api/generate with a JSON schema format payload.
-
-    This is spike-only code. The output remains untrusted and must still pass the
-    existing strict parser and validator before it can be considered usable.
-    """
-
-    endpoint = f"{base_url.rstrip('/')}/api/generate"
-    payload = {
-        "model": selected_model,
-        "prompt": prompt,
-        "format": response_schema,
-        "stream": False,
-        "options": {"temperature": 0},
-    }
-    response = requests.post(endpoint, json=payload, timeout=timeout_seconds)
-    response.raise_for_status()
-    body = response.json()
-    raw_output = body.get("response")
-    if not isinstance(raw_output, str):
-        raise ValueError("Ollama response did not include a text response field.")
-    return raw_output
 
 
 def run_direct_ollama_nutrition_explanation_spike(

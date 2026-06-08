@@ -519,6 +519,47 @@ def test_debug_endpoint_returns_provider_approved_metadata(monkeypatch):
     assert runtime["final_explanation_source"] == "provider_approved"
 
 
+def test_debug_endpoint_returns_direct_ollama_provider_metadata(monkeypatch):
+    approved = _approved_explanation(
+        reason_codes=["provider_candidate_safe"],
+        limitations=[],
+    )
+    metadata = _runtime_metadata(
+        configured_provider="direct_ollama",
+        selected_provider="direct_ollama",
+        configured_model="ollama/qwen2.5:3b",
+        selected_model="qwen2.5:3b",
+        provider_attempted=True,
+        fallback_used=False,
+        fallback_reason=None,
+        candidate_valid=True,
+        validation_errors=[],
+        candidate_parse_status="success",
+        candidate_validation_status="success",
+        validation_status="approved",
+        final_explanation_source="provider_approved",
+        raw_output_length=250,
+        raw_output_preview_truncated='{"explanation_summary": "safe"}',
+    )
+    _patch_user_and_result(monkeypatch, _approved_result(approved, metadata))
+
+    client = TestClient(app)
+    response = client.get("/nutrition/1/explanation/debug?date=2026-06-07")
+
+    assert response.status_code == 200
+    runtime = response.json()["runtime_metadata"]
+    assert runtime["configured_provider"] == "direct_ollama"
+    assert runtime["selected_provider"] == "direct_ollama"
+    assert runtime["configured_model"] == "ollama/qwen2.5:3b"
+    assert runtime["selected_model"] == "qwen2.5:3b"
+    assert runtime["provider_attempted"] is True
+    assert runtime["fallback_used"] is False
+    assert runtime["candidate_parse_status"] == "success"
+    assert runtime["candidate_validation_status"] == "success"
+    assert runtime["validation_status"] == "approved"
+    assert runtime["final_explanation_source"] == "provider_approved"
+
+
 def test_preview_endpoint_remains_without_runtime_metadata(monkeypatch):
     _patch_user_and_service(monkeypatch, _approved_explanation())
 
