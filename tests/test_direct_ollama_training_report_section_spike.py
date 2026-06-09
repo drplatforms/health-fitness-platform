@@ -103,9 +103,9 @@ def _valid_raw_section() -> str:
     "The final Dumbbell Bench Press set was logged at 1 RIR."
   ],
   "performance_interpretation": "Upper Body Strength has one approved Dumbbell Bench Press set for cautious review.",
-  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation should stay limited to approved quote context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press effort review should stay limited to the logged 1 RIR set.",
   "suggested_focus": "Keep logging Upper Body Strength details so the next review has more than 1 completed execution.",
-  "limitations_context": "Upper Body Strength context only uses approved planned-vs-actual training facts.",
+  "limitations_context": "Upper Body Strength review uses only Dumbbell Bench Press planned-vs-actual details.",
   "confidence": "Low",
   "reason_codes": ["direct_ollama_training_report_section_candidate"]
 }
@@ -771,3 +771,217 @@ def test_direct_ollama_training_section_spike_each_narrative_field_requires_name
 
     assert result.success is False
     assert any("narrative fields" in error for error in result.validation_errors)
+
+
+def test_model_facing_quote_payload_includes_required_fact_anchors_and_count():
+    payload = build_training_report_section_model_quote_context(
+        APPROVED_CONTEXT
+    ).to_dict()
+
+    assert payload["required_quote_name"] == "Upper Body Strength"
+    assert payload["required_anchor_count"] == 2
+    assert payload["required_fact_anchors"][:3] == [
+        "Upper Body Strength",
+        "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+        "The final Dumbbell Bench Press set was logged at 1 RIR.",
+    ]
+    assert "forbidden_meta_terms" in payload
+
+
+def test_required_fact_anchors_prefer_concrete_facts_over_completion_fact():
+    payload = build_training_report_section_model_quote_context(
+        APPROVED_CONTEXT
+    ).to_dict()
+
+    assert "Upper Body Strength was completed." not in payload["required_fact_anchors"]
+    assert payload["required_fact_anchors"].index(
+        "Dumbbell Bench Press was logged at 50 lb for 10 reps."
+    ) < payload["required_fact_anchors"].index(
+        "Dumbbell Bench Press was logged in Upper Body Strength for 1 set."
+    )
+
+
+def test_required_anchor_count_is_zero_when_no_anchors_exist():
+    payload = build_training_report_section_model_quote_context(
+        {"approved_training_quote_context": {}}
+    ).to_dict()
+
+    assert payload["required_quote_name"] is None
+    assert payload["required_fact_anchors"] == []
+    assert payload["required_anchor_count"] == 0
+
+
+def test_required_anchor_count_is_one_when_one_anchor_exists():
+    payload = build_training_report_section_model_quote_context(
+        {
+            "approved_training_quote_context": {
+                "approved_workout_names": ["Single Anchor Session"],
+                "approved_exercise_names": [],
+                "approved_training_numbers": [],
+                "approved_set_rep_load_rir_values": [],
+                "approved_training_summary_facts": [],
+            }
+        }
+    ).to_dict()
+
+    assert payload["required_fact_anchors"] == ["Single Anchor Session"]
+    assert payload["required_anchor_count"] == 1
+
+
+def test_prompt_includes_required_fact_anchors_and_anchor_count():
+    prompt = build_direct_ollama_training_report_section_prompt(APPROVED_CONTEXT)
+
+    assert "Required fact anchors" in prompt
+    assert "at least 2 exact fact anchor" in prompt
+    assert "Dumbbell Bench Press was logged at 50 lb for 10 reps." in prompt
+    assert "The final Dumbbell Bench Press set was logged at 1 RIR." in prompt
+    assert "Forbidden meta-language" in prompt
+    assert "approved quote facts" in prompt
+
+
+def test_direct_ollama_training_section_spike_one_anchor_fails_when_two_required():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength gives a useful but narrow signal.",
+  "key_observations": ["Upper Body Strength should stay grounded in the logged detail."],
+  "performance_interpretation": "Upper Body Strength is the main approved name in this section.",
+  "fatigue_recovery_interpretation": "Upper Body Strength should be interpreted cautiously.",
+  "suggested_focus": "Keep logging Upper Body Strength details before changing direction.",
+  "limitations_context": "Upper Body Strength has limited detail for this section.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any(
+        "exact required fact anchor" in error for error in result.validation_errors
+    )
+
+
+def test_direct_ollama_training_section_spike_fuzzy_anchor_fails():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength gives a useful Dumbbell Bench Press signal.",
+  "key_observations": ["Dumbbell Bench Press used 50 lb for 10 reps."],
+  "performance_interpretation": "Dumbbell Bench Press is the clearest detail from Upper Body Strength.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press effort should be reviewed cautiously.",
+  "suggested_focus": "Use Upper Body Strength details before changing direction.",
+  "limitations_context": "Upper Body Strength has limited Dumbbell Bench Press detail.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any(
+        "exact required fact anchor" in error for error in result.validation_errors
+    )
+
+
+def test_direct_ollama_training_section_spike_meta_copy_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength is based on the provided facts.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press should be interpreted from approved quote facts.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press review should avoid extra claims.",
+  "suggested_focus": "Use Upper Body Strength details before changing direction.",
+  "limitations_context": "Upper Body Strength has a bounded training summary.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("meta-copy" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_completed_as_planned_fails_with_anchors():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength was completed as planned.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press is the clearest approved performance detail.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press effort should stay tied to the logged 1 RIR set.",
+  "suggested_focus": "Use Upper Body Strength details before changing direction.",
+  "limitations_context": "Upper Body Strength has limited Dumbbell Bench Press execution detail.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("completion-count" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_approved_anchors_and_coach_interpretation_passes():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength gives a specific effort signal because Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press is the clearest performance anchor from Upper Body Strength, so the review should stay focused on that logged work.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press reached 1 RIR on the final logged set, so effort should be reviewed without adding recovery claims.",
+  "suggested_focus": "Use Upper Body Strength logging quality as the next focus before changing training direction.",
+  "limitations_context": "Upper Body Strength has limited Dumbbell Bench Press execution detail, so this section avoids broader claims.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is True
+    assert result.candidate_validation_status == "success"
