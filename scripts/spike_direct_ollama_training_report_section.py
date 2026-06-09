@@ -626,10 +626,13 @@ Allowed numbers:
 
 Coaching-language requirement:
 - Do not merely list details in every field.
+- section_summary should synthesize the main training signal; do not restate exact load, rep, set, or RIR values there. Save exact numbers for key_observations.
+- fatigue_recovery_interpretation must name the required quote and clearly say the session does not prove a recovery or fatigue pattern.
 - Use the required observations, allowed interpretations, and approved semantic coaching moves to write concise coaching interpretation in your own words.
 - The section should feel personal, practical, and specific while staying fully grounded.
 - Use the coaching moves as ingredients; do not repeat them like templates.
 - Avoid safe-but-stiff phrases such as concrete checkpoint, logged session, centered on the logged lifts, and concrete load and rep detail.
+- Avoid unsupported quality judgments such as strong execution, solid execution, good execution, strong performance, quality work, or well-executed.
 - suggested_focus must give the user a practical next step, not tell them to review data or interpret details.
 - You may prioritize, phrase, and connect exact details naturally.
 
@@ -681,6 +684,9 @@ Bad examples:
 - "concrete checkpoint from the logged session"
 - "centered on the logged lifts with concrete load and rep detail"
 - "controlled execution"
+- "strong execution"
+- "strong performance"
+- "quality work"
 
 Good when these exact details are available:
 {training_detail_examples}
@@ -969,6 +975,12 @@ def validate_candidate_training_report_section(
 
     user_facing_copy_errors = _unsupported_user_facing_copy_errors(lowered)
     errors.extend(user_facing_copy_errors)
+
+    section_summary_errors = _section_summary_quality_errors(
+        candidate.section_summary,
+        approved_context=approved_context,
+    )
+    errors.extend(section_summary_errors)
 
     suggested_focus_errors = _suggested_focus_quality_errors(candidate.suggested_focus)
     errors.extend(suggested_focus_errors)
@@ -2072,6 +2084,20 @@ def _unsupported_user_facing_copy_errors(lowered_text: str) -> list[str]:
     ]
 
 
+def _section_summary_quality_errors(
+    section_summary: str,
+    *,
+    approved_context: dict[str, Any],
+) -> list[str]:
+    if not _approved_training_names_from_context(approved_context):
+        return []
+    if re.search(r"\d", section_summary):
+        return [
+            "Training report section section_summary should synthesize the main training signal, not restate exact load, rep, set, or RIR data."
+        ]
+    return []
+
+
 def _suggested_focus_quality_errors(suggested_focus: str) -> list[str]:
     lowered_focus = suggested_focus.lower()
     weak_patterns = [
@@ -2373,8 +2399,17 @@ def _unsupported_interpretation_claim_errors(
                 "movement quality",
                 "movement quality was good",
                 "execution quality",
-                "clean execution",
+                "strong execution",
                 "solid execution",
+                "good execution",
+                "clean execution",
+                "well-executed",
+                "well executed",
+                "strong performance",
+                "solid performance",
+                "quality work",
+                "quality performance",
+                "strong lift quality",
                 "control and form",
             ],
         ),

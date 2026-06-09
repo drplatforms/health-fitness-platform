@@ -445,7 +445,7 @@ def test_direct_ollama_training_section_spike_grounded_coach_like_output_approve
     def fake_generate(*_args, **_kwargs):
         return """
 {
-  "section_summary": "Upper Body Strength gives a narrow but useful signal because Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+  "section_summary": "Upper Body Strength gives a narrow but useful signal through Dumbbell Bench Press.",
   "key_observations": [
     "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
     "The final Dumbbell Bench Press set was logged at 1 RIR."
@@ -967,7 +967,7 @@ def test_direct_ollama_training_section_spike_approved_anchors_and_coach_interpr
     def fake_generate(*_args, **_kwargs):
         return """
 {
-  "section_summary": "Upper Body Strength gives a specific effort signal because Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+  "section_summary": "Upper Body Strength gives a specific effort signal through Dumbbell Bench Press.",
   "key_observations": [
     "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
     "The final Dumbbell Bench Press set was logged at 1 RIR."
@@ -1615,5 +1615,81 @@ def test_direct_ollama_training_section_spike_finished_coaching_frame_copy_fails
     assert result.success is False
     assert any(
         "copies backend coaching guidance" in error
+        for error in result.validation_errors
+    )
+
+
+def test_prompt_requires_summary_synthesis_and_recovery_scope_name():
+    prompt = build_direct_ollama_training_report_section_prompt(APPROVED_CONTEXT)
+
+    assert "section_summary should synthesize the main training signal" in prompt
+    assert "Save exact numbers for key_observations" in prompt
+    assert "fatigue_recovery_interpretation must name the required quote" in prompt
+    assert "does not prove a recovery or fatigue pattern" in prompt
+    assert "strong execution" in prompt
+
+
+def test_direct_ollama_training_section_spike_section_summary_data_recap_fails():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Key observations from Upper Body Strength include Dumbbell Bench Press at 50 lb for 10 reps.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press is the reference point for the next Upper Body Strength choice.",
+  "fatigue_recovery_interpretation": "Upper Body Strength can guide the next session without proving a recovery or fatigue pattern.",
+  "suggested_focus": "Use Dumbbell Bench Press as a reference point and keep the next session measured.",
+  "limitations_context": "Upper Body Strength is one workout, not a full trend or recovery picture.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any(
+        "section_summary should synthesize" in error
+        for error in result.validation_errors
+    )
+
+
+def test_direct_ollama_training_section_spike_unsupported_execution_quality_fails():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength included strong execution on Dumbbell Bench Press.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press is the reference point for the next Upper Body Strength choice.",
+  "fatigue_recovery_interpretation": "Upper Body Strength can guide the next session without proving a recovery or fatigue pattern.",
+  "suggested_focus": "Use Dumbbell Bench Press as a reference point and keep the next session measured.",
+  "limitations_context": "Upper Body Strength is one workout, not a full trend or recovery picture.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any(
+        "form or control" in error or "quality" in error
         for error in result.validation_errors
     )
