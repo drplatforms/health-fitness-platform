@@ -461,11 +461,35 @@ def build_direct_ollama_training_report_section_prompt(
 ) -> str:
     """Build the strict direct Ollama prompt for one training report section."""
 
+    quote_context = _approved_training_quote_context_from_context(approved_context)
+    approved_workout_names = [
+        name
+        for name in quote_context.get("approved_workout_names", [])
+        if isinstance(name, str) and name.strip()
+    ]
+    approved_exercise_names = [
+        name
+        for name in quote_context.get("approved_exercise_names", [])
+        if isinstance(name, str) and name.strip()
+    ]
+    required_quote_name = _required_training_quote_name(quote_context)
     approved_context_json = json.dumps(approved_context, sort_keys=True, default=str)
     valid_example_json = json.dumps(_candidate_training_report_section_example())
     return f"""
 /no_think
-Task: write one concise training report section from approved backend context.
+Task: write one concise training report section from approved backend quote facts.
+
+Quote-first rule:
+- You must quote at least one exact approved workout or exercise name.
+- Required exact approved name to include at least once: {required_quote_name or "None available"}
+- If approved names are available, every narrative field should mention an exact approved workout or exercise name.
+- Use approved_training_summary_facts as your source text.
+
+Approved workout names you may quote:
+{json.dumps(approved_workout_names)}
+
+Approved exercise names you may quote:
+{json.dumps(approved_exercise_names)}
 
 Strict output rules:
 - Return JSON only: one raw JSON object and nothing else.
@@ -478,15 +502,16 @@ Strict output rules:
 - Do not include provider fields, runtime fields, debug fields, validation fields, or raw context keys.
 - Do not copy backend context keys into the output unless they are explicitly listed in the schema.
 - Use only approved_training_quote_context for exact names, numbers, and training facts.
-- If approved workout or exercise names exist, mention at least one exact approved name.
 - Quote only workout names from approved_workout_names.
 - Quote only exercise names from approved_exercise_names.
 - Quote only numbers from approved_training_numbers or approved_training_summary_facts.
 - You may restate facts from approved_training_summary_facts.
 - Do not calculate or infer volume load, average RIR, percentages, week-over-week change, progression, fatigue, or recovery status unless the exact fact is listed in approved_training_summary_facts.
+- Do not summarize adherence, trends, skipped exercises, completion counts, progression, fatigue, or recovery status unless the exact claim is listed in approved_training_summary_facts.
+- Do not mention user_id, user number, user metadata, report date, provider metadata, or runtime metadata unless the exact wording appears in approved_training_summary_facts.
 - Do not invent workouts, exercises, sets, reps, loads, weights, RIR, progression, fatigue, recovery status, or health metrics.
 - Do not prescribe a new workout plan or mutate backend recommendations.
-- If detailed execution data is limited, say that training detail is limited.
+- If detailed execution data is limited, say that training detail is limited using an approved workout or exercise name.
 
 CandidateTrainingReportSection allowed output schema:
 {{
@@ -502,6 +527,21 @@ CandidateTrainingReportSection allowed output schema:
 
 One valid JSON example:
 {valid_example_json}
+
+Model-facing anti-patterns:
+Bad:
+- "Training Execution Summary for User 102"
+- "4 out of 5 workouts were completed"
+- "training is progressing well"
+- "adherence is high"
+- "one exercise was skipped"
+- "there was a trend toward lower effort"
+
+Good when these exact facts are approved:
+- "Romanian Deadlift was logged at 135 lb for 7, 7, 7 reps."
+- "The final Dumbbell Floor Press set was logged at 0 RIR."
+- "Gradual Progression Strength Session was completed."
+- "One-Arm Dumbbell Row was logged at 78 lb for 7, 7 reps."
 
 Approved context JSON:
 {approved_context_json}
@@ -750,6 +790,16 @@ def validate_candidate_training_report_section(
                 "Training report section must mention at least one approved workout or exercise name when detailed training context exists."
             )
 
+        missing_quote_fields = _candidate_fields_missing_approved_name(
+            candidate,
+            approved_names=approved_names,
+        )
+        if missing_quote_fields:
+            errors.append(
+                "Training report section narrative fields must each mention an approved workout or exercise name when quote context exists: "
+                + ", ".join(missing_quote_fields)
+            )
+
         if _contains_generic_training_copy(lowered):
             errors.append(
                 "Training report section must not use vague training copy when approved training details exist."
@@ -764,6 +814,11 @@ def validate_candidate_training_report_section(
                 "Training report section mentions unapproved workout or exercise names: "
                 + ", ".join(sorted(unapproved_known_names))
             )
+
+    metadata_errors = _unsupported_metadata_leakage_errors(
+        lowered, approved_context=approved_context
+    )
+    errors.extend(metadata_errors)
 
     unsupported_claims = _unsupported_training_claim_errors(
         lowered, approved_context=approved_context
@@ -1130,6 +1185,39 @@ def _text_mentions_any_approved_name(text: str, approved_names: set[str]) -> boo
     return any(name in normalized_text for name in approved_names)
 
 
+def _required_training_quote_name(quote_context: dict[str, Any]) -> str | None:
+    for key in ("approved_workout_names", "approved_exercise_names"):
+        for value in quote_context.get(key, []):
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    return None
+
+
+def _candidate_fields_missing_approved_name(
+    candidate: CandidateTrainingReportSection,
+    *,
+    approved_names: set[str],
+) -> list[str]:
+    missing: list[str] = []
+    field_values: list[tuple[str, str]] = [
+        ("section_summary", candidate.section_summary),
+        ("performance_interpretation", candidate.performance_interpretation),
+        (
+            "fatigue_recovery_interpretation",
+            candidate.fatigue_recovery_interpretation,
+        ),
+        ("suggested_focus", candidate.suggested_focus),
+        ("limitations_context", candidate.limitations_context),
+    ]
+    for index, observation in enumerate(candidate.key_observations, start=1):
+        field_values.append((f"key_observations[{index}]", observation))
+
+    for field_name, value in field_values:
+        if not _text_mentions_any_approved_name(value, approved_names):
+            missing.append(field_name)
+    return missing
+
+
 def _contains_generic_training_copy(lowered_text: str) -> bool:
     generic_phrases = [
         "training data is available",
@@ -1145,6 +1233,12 @@ def _contains_generic_training_copy(lowered_text: str) -> bool:
         "performance is stable",
         "continue gradual progression",
         "consistent volume",
+        "training is progressing well",
+        "progressing well",
+        "effort is appropriate",
+        "training load is moderate",
+        "balanced approach",
+        "high level",
     ]
     return any(phrase in lowered_text for phrase in generic_phrases)
 
@@ -1180,6 +1274,35 @@ def _unapproved_known_training_names(
     return unapproved
 
 
+def _unsupported_metadata_leakage_errors(
+    lowered_text: str,
+    *,
+    approved_context: dict[str, Any],
+) -> list[str]:
+    quote_context = _approved_training_quote_context_from_context(approved_context)
+    approved_facts_text = "\n".join(
+        str(fact).lower()
+        for fact in quote_context.get("approved_training_summary_facts", [])
+    )
+    metadata_patterns = [
+        r"\buser[_\s-]?id\b",
+        r"\buser\s+#?\d+\b",
+        r"\bfor\s+user\b",
+        r"\bthis\s+user\b",
+        r"\breport\s+date\b",
+        r"\bon\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?\b",
+        r"\b\d{4}-\d{2}-\d{2}\b",
+    ]
+    if any(re.search(pattern, lowered_text) for pattern in metadata_patterns):
+        if not any(
+            re.search(pattern, approved_facts_text) for pattern in metadata_patterns
+        ):
+            return [
+                "Training report section must not mention user metadata or report dates unless explicitly approved."
+            ]
+    return []
+
+
 def _unsupported_training_claim_errors(
     lowered_text: str,
     *,
@@ -1211,6 +1334,8 @@ def _unsupported_training_claim_errors(
                 "load increased",
                 "week over week",
                 "performance improved",
+                "progressing well",
+                "training is progressing",
             ],
         ),
         (
@@ -1222,6 +1347,44 @@ def _unsupported_training_claim_errors(
                 "high fatigue",
                 "low fatigue risk",
                 "high readiness",
+                "recovery is improving",
+            ],
+        ),
+        (
+            "Training report section must not invent completion-count or adherence claims.",
+            [
+                "out of",
+                "completed as planned",
+                "completion rate",
+                "completion trend",
+                "adherence",
+                "high adherence",
+                "followed plan",
+                "finished all",
+            ],
+        ),
+        (
+            "Training report section must not invent skipped-exercise claims.",
+            [
+                "skipped",
+                "missed",
+                "not completed",
+                "left out",
+                "omitted",
+            ],
+        ),
+        (
+            "Training report section must not invent trend or consistency claims.",
+            [
+                "trend",
+                "trending",
+                "lower effort",
+                "increasing",
+                "improving",
+                "declining",
+                "stable",
+                "consistent",
+                "consistency",
             ],
         ),
     ]

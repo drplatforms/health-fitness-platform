@@ -20,10 +20,10 @@ Accepted pattern remains:
 
 ```text
 approved backend context
-→ direct structured AI candidate
-→ strict parser
-→ validator
-→ approved output or deterministic fallback
+â†’ direct structured AI candidate
+â†’ strict parser
+â†’ validator
+â†’ approved output or deterministic fallback
 ```
 
 ## ApprovedTrainingQuoteContext
@@ -176,3 +176,18 @@ If live runtime still falls back:
 - inspect `approved_training_quote_context`
 - tighten context/prompt before provider promotion
 - do not loosen validation just to approve generic training copy
+
+
+## Follow-up runtime QA result
+
+After Grounding Context v1, runtime QA with `ollama/qwen2.5:3b` confirmed that `approved_training_quote_context` was present and rich, but the model still wrote generic/user-metadata training summary copy instead of quote-first approved facts.
+
+Rejected examples included:
+
+- `Training Execution Summary for User 102 on June 6th`
+- `4 out of 5 workouts were completed as planned`
+- `trend towards lower effort`
+- `One exercise was skipped`
+- `adherence at High level`
+
+This result routed the next milestone to `Direct Ollama Training Report Section Prompt Tightening v2`.

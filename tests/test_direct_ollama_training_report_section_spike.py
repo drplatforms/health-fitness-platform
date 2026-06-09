@@ -102,9 +102,9 @@ def _valid_raw_section() -> str:
     "The final Dumbbell Bench Press set was logged at 1 RIR."
   ],
   "performance_interpretation": "Upper Body Strength has one approved Dumbbell Bench Press set for cautious review.",
-  "fatigue_recovery_interpretation": "Recovery interpretation should stay limited to the approved training quote context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation should stay limited to approved quote context.",
   "suggested_focus": "Keep logging Upper Body Strength details so the next review has more than 1 completed execution.",
-  "limitations_context": "This section only uses approved planned-vs-actual training context.",
+  "limitations_context": "Upper Body Strength context only uses approved planned-vs-actual training facts.",
   "confidence": "Low",
   "reason_codes": ["direct_ollama_training_report_section_candidate"]
 }
@@ -133,8 +133,14 @@ def test_prompt_contains_strict_json_and_training_grounding_rules():
     assert "Return JSON only" in prompt
     assert "CandidateTrainingReportSection allowed output schema" in prompt
     assert "Approved context JSON" in prompt
+    assert "Approved workout names you may quote" in prompt
+    assert "Approved exercise names you may quote" in prompt
+    assert "Required exact approved name" in prompt
+    assert "Do not mention user_id" in prompt
     assert "Use only approved_training_quote_context" in prompt
-    assert "mention at least one exact approved name" in prompt
+    assert (
+        "You must quote at least one exact approved workout or exercise name" in prompt
+    )
     assert "Do not calculate or infer volume load" in prompt
     assert "Do not invent workouts" in prompt
     assert (
@@ -460,3 +466,205 @@ def test_diagnostics_detect_wrapper_and_extra_keys():
 
     assert diagnostics["wrapper_object_detected"] is True
     assert diagnostics["extra_keys_detected"] == ["extra", "response"]
+
+
+def test_prompt_places_approved_names_before_broader_context():
+    prompt = build_direct_ollama_training_report_section_prompt(APPROVED_CONTEXT)
+
+    assert prompt.index("Approved workout names you may quote") < prompt.index(
+        "Approved context JSON"
+    )
+    assert prompt.index("Approved exercise names you may quote") < prompt.index(
+        "Approved context JSON"
+    )
+    assert "Upper Body Strength" in prompt
+    assert "Dumbbell Bench Press" in prompt
+
+
+def test_direct_ollama_training_section_spike_user_metadata_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Training Execution Summary for User 102 uses Upper Body Strength.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength has approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("user metadata" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_report_date_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength on June 6th included approved training context.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength has approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("report dates" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_completion_count_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength had 4 out of 5 workouts completed as planned.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength has approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("completion-count" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_adherence_claim_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength shows high adherence.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength adherence is high with approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("adherence" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_skipped_claim_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength had one skipped exercise.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength has approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("skipped-exercise" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_trend_claim_fails_validation():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength had a trend toward lower effort.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "Upper Body Strength is trending with approved Dumbbell Bench Press context.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("trend" in error for error in result.validation_errors)
+
+
+def test_direct_ollama_training_section_spike_each_narrative_field_requires_name():
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength has approved context.",
+  "key_observations": ["Dumbbell Bench Press was logged at 50 lb for 10 reps."],
+  "performance_interpretation": "This interpretation omits the exact name.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press recovery interpretation is bounded.",
+  "suggested_focus": "Keep logging Upper Body Strength details.",
+  "limitations_context": "Upper Body Strength context uses approved facts only.",
+  "confidence": "Low",
+  "reason_codes": ["unsafe_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any("narrative fields" in error for error in result.validation_errors)
