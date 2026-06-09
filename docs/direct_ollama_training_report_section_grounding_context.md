@@ -217,3 +217,15 @@ Anchor-First Payload v4.1 solved required anchor placement in at least one live 
 Claim-Safe Interpretation v4.2 keeps quote-only context and anchor-first observations, then adds backend-approved interpretation claims plus conservative validation for unsupported consistency, progression, form/control, fatigue/recovery, planned-alignment, adherence, and completion claims.
 
 Exact anchors are now necessary but not sufficient. The interpretation fields must stay within backend-approved claim boundaries or fall back deterministically.
+
+## Coach-Quality Copy v4.3
+
+Coach-Quality Copy v4.3 keeps the quote-only, anchor-first, claim-safe training section design and adds a user-facing style-safety layer.
+
+This pass does not promote the provider and does not integrate the section into full reports. It closes the validator gap where structurally approved output could still include product-weak language or unsupported form/control phrasing such as `controlled execution`.
+
+The model-facing payload now includes backend-authored `approved_coaching_frames`. These frames are approved language moves, not new facts. They help the model sound more like a coach while the backend continues to own factual claims.
+
+The validator now rejects debug/internal copy such as `execution data`, `exact training details`, `provided details`, `payload`, `contract`, `validator`, and `this report section`. It also rejects additional form/control claims unless explicitly approved.
+
+The expected result is not looser output. The expected result is stricter product-quality approval: exact anchors plus claim-safe, coach-like language.

@@ -160,6 +160,7 @@ class TrainingReportSectionModelQuoteContext:
     approved_training_numbers: list[int | float]
     supporting_training_details: list[str]
     approved_interpretation_claims: list[str]
+    approved_coaching_frames: list[str]
     coaching_intent: str
     tone_guidance: str
     section_contract_reminder: str
@@ -513,6 +514,11 @@ def build_training_report_section_model_quote_context(
         required_fact_anchors=required_fact_anchors,
         approved_quote_facts=approved_quote_facts,
     )
+    approved_coaching_frames = _approved_training_coaching_frames(
+        required_quote_name=required_quote_name,
+        required_fact_anchors=required_fact_anchors,
+        approved_quote_facts=approved_quote_facts,
+    )
 
     return TrainingReportSectionModelQuoteContext(
         required_quote_name=required_quote_name,
@@ -523,6 +529,7 @@ def build_training_report_section_model_quote_context(
         approved_training_numbers=approved_training_numbers,
         supporting_training_details=approved_quote_facts,
         approved_interpretation_claims=approved_interpretation_claims,
+        approved_coaching_frames=approved_coaching_frames,
         coaching_intent=(
             "Explain what the exact training details suggest about performance, "
             "effort, and the next training focus without inventing additional facts."
@@ -553,6 +560,7 @@ def build_direct_ollama_training_report_section_prompt(
     approved_interpretation_claims = model_quote_context[
         "approved_interpretation_claims"
     ]
+    approved_coaching_frames = model_quote_context["approved_coaching_frames"]
     required_quote_name = model_quote_context["required_quote_name"]
     required_anchor_count = model_quote_context["required_anchor_count"]
     required_fact_anchors = model_quote_context["required_fact_anchors"]
@@ -584,10 +592,15 @@ Required detail placement:
 Allowed interpretation claims:
 {_numbered_lines(approved_interpretation_claims)}
 
-Interpretation rules:
-- Interpretation fields may only explain or rephrase the allowed interpretation claims.
+Approved coaching frames:
+{_numbered_lines(approved_coaching_frames)}
+
+Interpretation and style rules:
+- Interpretation fields may only explain or rephrase the allowed interpretation claims and approved coaching frames.
 - Do not create new conclusions from the exact training details.
-- Do not claim consistency, progression, form quality, recovery status, fatigue status, planned-work alignment, or adherence unless that exact interpretation appears in the allowed interpretation claims.
+- Do not claim consistency, progression, form quality, control quality, recovery status, fatigue status, planned-work alignment, or adherence unless that exact interpretation appears above.
+- Sound like a coach speaking to the user, not a debug report or validation summary.
+- Do not use internal wording such as data for review, exact training details, provided details, allowed names, payload, contract, report section, validator, or debug.
 
 Required quote:
 - Include this exact name at least once: {required_quote_name or "None available"}
@@ -607,8 +620,9 @@ Allowed numbers:
 
 Coaching-language requirement:
 - Do not merely list details in every field.
-- Use the exact details to write concise coaching interpretation.
+- Use the required observations, allowed interpretations, and approved coaching frames to write concise coaching interpretation.
 - The section should feel personal, practical, and specific while staying fully grounded.
+- suggested_focus must give the user a practical next step, not tell them to review data or interpret details.
 - You may prioritize, phrase, and connect exact details naturally.
 
 Strict output rules:
@@ -631,7 +645,7 @@ Strict output rules:
 - Do not mention user ID, user number, user metadata, report date, provider metadata, or runtime metadata unless the exact wording is listed above.
 - Do not invent workouts, exercises, sets, reps, loads, weights, RIR, progression, fatigue, recovery status, or health metrics.
 - Do not prescribe a new workout plan or mutate backend recommendations.
-- If detailed execution data is limited, say that training detail is limited using an allowed workout or exercise name.
+- If workout detail is limited, keep the language practical and conservative using an allowed workout or exercise name.
 
 CandidateTrainingReportSection allowed output schema:
 {{
@@ -655,6 +669,8 @@ Bad examples:
 - "adherence is high"
 - "one exercise was skipped"
 - "there was a trend toward lower effort"
+- "execution data for review"
+- "controlled execution"
 
 Good when these exact details are available:
 {training_detail_examples}
@@ -940,6 +956,12 @@ def validate_candidate_training_report_section(
         approved_context=approved_context,
     )
     errors.extend(interpretation_claim_errors)
+
+    user_facing_copy_errors = _unsupported_user_facing_copy_errors(lowered)
+    errors.extend(user_facing_copy_errors)
+
+    suggested_focus_errors = _suggested_focus_quality_errors(candidate.suggested_focus)
+    errors.extend(suggested_focus_errors)
 
     approved_names = _approved_training_names_from_context(approved_context)
     if approved_names:
@@ -1341,19 +1363,19 @@ def _candidate_training_report_section_example(
     if second_observation == first_observation:
         second_observation = quote_name
     return {
-        "section_summary": f"{quote_name} gives a specific training signal for review.",
+        "section_summary": f"{quote_name} gives you a concrete checkpoint from the logged session.",
         "key_observations": [
             first_observation,
             second_observation,
         ],
         "performance_interpretation": (
-            f"{quote_name} should be interpreted from the exact logged training details."
+            f"{quote_name} should stay centered on the logged lifts with concrete load and rep detail."
         ),
         "fatigue_recovery_interpretation": (
-            f"{quote_name} effort should be discussed without adding recovery claims."
+            f"{quote_name} does not provide enough recovery context for broad fatigue conclusions."
         ),
-        "suggested_focus": f"Use {quote_name} logging detail before changing training direction.",
-        "limitations_context": f"{quote_name} has limited execution detail, so broader claims are avoided.",
+        "suggested_focus": f"Use {quote_name} as a reference point and keep the next session measured.",
+        "limitations_context": f"{quote_name} supports a narrow training review, not broad recovery or progression claims.",
         "confidence": "Moderate",
         "reason_codes": ["direct_ollama_training_report_section_candidate"],
     }
@@ -1509,7 +1531,7 @@ def _approved_training_interpretation_claims(
     if concrete_anchors:
         _append_unique_string(
             claims,
-            f"{quote_name} has exact logged performance details for bounded review.",
+            f"{quote_name} has logged performance anchors with concrete load and rep detail.",
         )
     if final_rir_facts:
         _append_unique_string(
@@ -1518,16 +1540,16 @@ def _approved_training_interpretation_claims(
         )
         _append_unique_string(
             claims,
-            "The next training focus should stay controlled rather than adding more intensity immediately.",
+            "The next training focus should stay measured rather than adding more intensity immediately.",
         )
     else:
         _append_unique_string(
             claims,
-            "The next training focus should be to keep logging sets, reps, load, and RIR consistently.",
+            "The next training focus should be to keep logging sets, reps, load, and RIR.",
         )
     _append_unique_string(
         claims,
-        "Recovery interpretation should remain limited because this section only has bounded workout execution facts.",
+        "Recovery and fatigue conclusions should stay conservative because available facts are limited to workout execution details.",
     )
     _append_unique_string(
         claims,
@@ -1538,6 +1560,55 @@ def _approved_training_interpretation_claims(
         "No conclusion about planned-work alignment should be made unless planned-versus-actual status is explicitly approved.",
     )
     return claims[:8]
+
+
+def _approved_training_coaching_frames(
+    *,
+    required_quote_name: str | None,
+    required_fact_anchors: list[str],
+    approved_quote_facts: list[str],
+) -> list[str]:
+    """Build backend-authored coach-like frames that are safe to use."""
+
+    frames: list[str] = []
+    quote_name = required_quote_name or "Training details"
+    concrete_anchors = [
+        anchor
+        for anchor in required_fact_anchors
+        if _is_concrete_logged_performance_fact(anchor)
+    ]
+    final_rir_facts = [
+        fact for fact in approved_quote_facts if _is_final_rir_fact(fact)
+    ]
+
+    if concrete_anchors:
+        _append_unique_string(
+            frames,
+            "The clearest training signals are the logged lifts with concrete load and rep detail.",
+        )
+        _append_unique_string(
+            frames,
+            "Use these logged lifts as reference points before increasing intensity.",
+        )
+    if final_rir_facts:
+        _append_unique_string(
+            frames,
+            "Keep the next session measured and continue logging load, reps, and RIR.",
+        )
+        _append_unique_string(
+            frames,
+            "Avoid chasing more intensity immediately; use the logged lifts as checkpoints first.",
+        )
+    else:
+        _append_unique_string(
+            frames,
+            "Continue logging load, reps, and RIR so the next training choice has clearer support.",
+        )
+    _append_unique_string(
+        frames,
+        f"{quote_name} can guide the next training choice, but not broad claims about recovery or progression.",
+    )
+    return frames[:6]
 
 
 def _required_anchor_count(required_fact_anchors: list[str]) -> int:
@@ -1569,6 +1640,8 @@ def _forbidden_training_report_meta_terms() -> list[str]:
         "context provided",
         "based on the context",
         "based on the provided facts",
+        "allowed facts",
+        "source fact",
     ]
 
 
@@ -1771,10 +1844,75 @@ def _unsupported_meta_copy_errors(
     ]
 
 
+def _forbidden_user_facing_copy_terms() -> list[str]:
+    return [
+        "execution data",
+        "data for review",
+        "details are provided",
+        "exact logged training details",
+        "exact training details",
+        "provided details",
+        "allowed names",
+        "allowed numbers",
+        "payload",
+        "contract",
+        "validator",
+        "debug",
+        "this section",
+        "this report section",
+        "schema",
+        "provider-approved",
+        "cautious review",
+        "should be interpreted from",
+        "discussed without additional",
+        "based on exact details",
+        "use the exact details",
+        "use the available data for review",
+    ]
+
+
+def _unsupported_user_facing_copy_errors(lowered_text: str) -> list[str]:
+    matched_terms = [
+        term for term in _forbidden_user_facing_copy_terms() if term in lowered_text
+    ]
+    if not matched_terms:
+        return []
+    return [
+        "Training report section must not use debug-style or product-weak copy such as: "
+        + ", ".join(sorted(set(matched_terms)))
+    ]
+
+
+def _suggested_focus_quality_errors(suggested_focus: str) -> list[str]:
+    lowered_focus = suggested_focus.lower()
+    weak_patterns = [
+        "review the execution data",
+        "interpret the details cautiously",
+        "use the exact details for guidance",
+        "continue reviewing the provided details",
+        "use the available data for review",
+        "review the provided details",
+    ]
+    if any(pattern in lowered_focus for pattern in weak_patterns):
+        return [
+            "Training report section suggested_focus must be practical and user-facing."
+        ]
+    return []
+
+
 def _approved_interpretation_claims_text(approved_context: dict[str, Any]) -> str:
     model_quote_context = _model_quote_context_from_context(approved_context)
     claims = _string_list(model_quote_context.get("approved_interpretation_claims", []))
     return "\n".join(claim.lower() for claim in claims)
+
+
+def _approved_training_style_text(approved_context: dict[str, Any]) -> str:
+    model_quote_context = _model_quote_context_from_context(approved_context)
+    values = [
+        *_string_list(model_quote_context.get("approved_interpretation_claims", [])),
+        *_string_list(model_quote_context.get("approved_coaching_frames", [])),
+    ]
+    return "\n".join(value.lower() for value in values)
 
 
 def _matched_approved_interpretation_claims(
@@ -1826,11 +1964,23 @@ def _unsupported_interpretation_claim_errors(
             [
                 "strong control",
                 "good control",
+                "controlled execution",
+                "controlled reps",
+                "controlled movement",
+                "technical control",
                 "controlled form",
                 "strong form",
+                "good form",
+                "solid form",
+                "clean form",
                 "form quality",
                 "technique was solid",
+                "technique quality",
+                "movement quality",
                 "movement quality was good",
+                "execution quality",
+                "clean execution",
+                "solid execution",
                 "control and form",
             ],
         ),
@@ -1912,6 +2062,8 @@ def _unsupported_training_claim_errors(
 ) -> list[str]:
     quote_context = _approved_training_quote_context_from_context(approved_context)
     approved_facts_text = _approved_quote_facts_text(quote_context)
+    approved_style_text = _approved_training_style_text(approved_context)
+    approved_claims_text = f"{approved_facts_text}\n{approved_style_text}"
     errors: list[str] = []
 
     unsupported_claim_groups = [
@@ -1988,9 +2140,13 @@ def _unsupported_training_claim_errors(
         ),
     ]
     for message, phrases in unsupported_claim_groups:
-        if any(phrase in lowered_text for phrase in phrases) and not any(
-            phrase in approved_facts_text for phrase in phrases
-        ):
+        matched_phrases = [phrase for phrase in phrases if phrase in lowered_text]
+        if not matched_phrases:
+            continue
+        unapproved_phrases = [
+            phrase for phrase in matched_phrases if phrase not in approved_claims_text
+        ]
+        if unapproved_phrases:
             errors.append(message)
 
     return errors
@@ -2017,6 +2173,9 @@ def _unapproved_numbers_in_candidate(
             "approved_interpretation_claims": _model_quote_context_from_context(
                 approved_context
             ).get("approved_interpretation_claims", []),
+            "approved_coaching_frames": _model_quote_context_from_context(
+                approved_context
+            ).get("approved_coaching_frames", []),
         }
     )
     found_numbers = _number_tokens_from_object(candidate_payload)
