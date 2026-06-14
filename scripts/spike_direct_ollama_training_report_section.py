@@ -20,6 +20,10 @@ if str(PROJECT_ROOT) not in sys.path:
 with redirect_stdout(sys.stderr):
     from database import get_connection
     from services import ai_nutrition_explanation_service as explanation_service
+    from services.training_evidence_claim_service import (
+        build_training_evidence_context_from_quote_context,
+        derive_approved_training_claim_dicts,
+    )
     from services.training_execution_summary_service import (
         build_training_execution_summary,
     )
@@ -1743,143 +1747,19 @@ def _approved_bounded_training_claims(
     required_quote_name: str | None,
     required_fact_anchors: list[str],
 ) -> list[dict[str, Any]]:
-    """Derive narrow, single-session coaching claims from backend-approved facts."""
+    """Derive narrow, single-session coaching claims from backend-approved facts.
 
-    claims: list[dict[str, Any]] = []
-    set_payloads = [
-        payload
-        for payload in quote_context.get("approved_set_rep_load_rir_values", [])
-        if isinstance(payload, dict)
-    ]
-    signal_names = _training_signal_name_list(required_fact_anchors)
+    The reusable Training Evidence Claim Service owns the bounded-claim
+    derivation. This wrapper preserves the existing provider/spike payload
+    shape while keeping evidence logic out of the direct-Ollama path.
+    """
 
-    for payload in set_payloads:
-        exercise_name = _safe_nonempty_string(payload.get("exercise_name"))
-        if not exercise_name:
-            continue
-
-        reps = [
-            value
-            for value in payload.get("actual_reps", [])
-            if isinstance(value, int | float)
-        ]
-        rir_values = [
-            value
-            for value in payload.get("actual_rir", [])
-            if isinstance(value, int | float)
-        ]
-
-        if len(reps) >= 2 and len(set(reps)) == 1:
-            claims.append(
-                {
-                    "claim_id": f"same_rep_pattern_{_claim_id_slug(exercise_name)}",
-                    "claim_type": "single_session_rep_pattern",
-                    "approved_meaning": (
-                        f"{exercise_name} used the same rep count across all logged sets in this session."
-                    ),
-                    "required_names": [exercise_name],
-                    "required_terms": ["this session"],
-                    "allowed_terms": [
-                        "same rep count",
-                        "steady reps",
-                        "consistent rep counts",
-                        "logged sets",
-                        "this session",
-                    ],
-                    "forbidden_scope": [
-                        "trend",
-                        "progression",
-                        "consistency over time",
-                        "consistent performance",
-                    ],
-                }
-            )
-
-        if rir_values and rir_values[-1] <= 1:
-            final_rir = _format_number(rir_values[-1])
-            claims.append(
-                {
-                    "claim_id": f"high_effort_from_rir_{_claim_id_slug(exercise_name)}",
-                    "claim_type": "single_session_effort",
-                    "approved_meaning": (
-                        f"{exercise_name} finished with a final set at {final_rir} RIR, so effort was high within this logged session."
-                    ),
-                    "required_names": [exercise_name],
-                    "required_terms": ["RIR", "this session"],
-                    "allowed_terms": [
-                        "close to failure",
-                        "high effort",
-                        "effort context",
-                        "logged RIR",
-                        "this session",
-                    ],
-                    "forbidden_scope": [
-                        "recovery",
-                        "fatigue pattern",
-                        "overall effort trend",
-                        "consistent effort",
-                    ],
-                }
-            )
-
-    complete_reference_names = _complete_reference_lift_names(
-        set_payloads,
-        preferred_names=signal_names,
+    evidence_context = build_training_evidence_context_from_quote_context(
+        quote_context,
+        required_quote_name=required_quote_name,
+        required_fact_anchors=required_fact_anchors,
     )
-    if complete_reference_names:
-        joined_names = _join_name_list(complete_reference_names)
-        claims.append(
-            {
-                "claim_id": "complete_reference_lifts",
-                "claim_type": "complete_reference_lift",
-                "approved_meaning": (
-                    f"{joined_names} are the strongest reference lifts in this session because they have complete logged training details."
-                ),
-                "required_names": complete_reference_names,
-                "allowed_terms": [
-                    "reference lifts",
-                    "clearest signal",
-                    "training decision",
-                    "complete logged training details",
-                ],
-                "forbidden_scope": [
-                    "progression",
-                    "plan worked",
-                    "recovery is good",
-                    "form is strong",
-                ],
-            }
-        )
-
-    quote_name = required_quote_name or _first_workout_name_from_set_payloads(
-        set_payloads
-    )
-    if quote_name:
-        claims.append(
-            {
-                "claim_id": "single_session_scope",
-                "claim_type": "scope_limit",
-                "approved_meaning": (
-                    f"{quote_name} is a single-session observation and should not be treated as a trend."
-                ),
-                "required_names": [quote_name],
-                "required_terms": ["single-session", "trend"],
-                "allowed_terms": [
-                    "reference point",
-                    "not enough to prove",
-                    "one workout",
-                    "single-session",
-                    "not a trend",
-                ],
-                "forbidden_scope": [
-                    "progression confirmed",
-                    "recovery pattern",
-                    "fatigue pattern",
-                ],
-            }
-        )
-
-    return claims[:12]
+    return derive_approved_training_claim_dicts(evidence_context)
 
 
 def _complete_reference_lift_names(
