@@ -1934,3 +1934,81 @@ def test_direct_ollama_training_section_spike_broad_consistency_still_fails_with
         "trend or consistency" in error or "effort or consistency" in error
         for error in result.validation_errors
     )
+
+
+def test_prompt_includes_scope_limit_product_voice_examples() -> None:
+    prompt = build_direct_ollama_training_report_section_prompt(
+        _bounded_claims_context()
+    )
+
+    assert "Example fatigue/recovery shape" in prompt
+    assert "does not prove a broader fatigue or recovery pattern" in prompt
+    assert "Example limitation shape" in prompt
+    assert "one workout should not be read as a trend" in prompt
+
+
+def test_direct_ollama_training_section_spike_qwen3_scope_limited_product_voice_passes() -> (
+    None
+):
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength gives a useful Dumbbell Bench Press signal without turning one workout into a trend.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10, 10, 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 0 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press held the same rep count across the logged sets and finished close to failure based on the 0 RIR log.",
+  "fatigue_recovery_interpretation": "Upper Body Strength shows high-effort work from logged RIR, but it does not prove a broader fatigue or recovery pattern.",
+  "suggested_focus": "Use Dumbbell Bench Press as the next training reference and keep logging load, reps, and RIR before making a bigger adjustment.",
+  "limitations_context": "Upper Body Strength can guide the next training choice, but one workout should not be read as a trend.",
+  "confidence": "Moderate",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen3:8b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=_bounded_claims_context(),
+        generate=fake_generate,
+    )
+
+    assert result.success is True
+    assert result.validation_errors == []
+
+
+def test_direct_ollama_training_section_spike_qwen3_broad_recovery_trend_still_fails() -> (
+    None
+):
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "Upper Body Strength gives a useful Dumbbell Bench Press signal without turning one workout into a trend.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10, 10, 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 0 RIR."
+  ],
+  "performance_interpretation": "Dumbbell Bench Press held the same rep count across the logged sets and finished close to failure based on the 0 RIR log.",
+  "fatigue_recovery_interpretation": "Upper Body Strength shows recovery is trending well after this workout.",
+  "suggested_focus": "Use Dumbbell Bench Press as the next training reference and keep logging load, reps, and RIR before making a bigger adjustment.",
+  "limitations_context": "Upper Body Strength suggests a broader recovery trend from this training signal.",
+  "confidence": "Moderate",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen3:8b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=_bounded_claims_context(),
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert any(
+        "recovery" in error or "fatigue" in error or "trend" in error
+        for error in result.validation_errors
+    )

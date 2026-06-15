@@ -96,18 +96,34 @@ The service result exposes debug metadata separately from the approved public se
 
 Optional future polish may rename this field to `required_minimum_anchor_count` and add `matched_anchor_count`, with no behavior change.
 
+## Expanded runtime QA matrix
+
+Expanded Training Evidence Runtime QA Matrix v1 is accepted as PASS.
+
+qwen2.5:3b was tested across seeded users 101-105. It approved the scenarios where exact-anchor, validator-compatible provider output was available and fell back safely for scenarios where provider output was not acceptable.
+
+Accepted matrix result:
+
+- User 101: rejected safely, deterministic fallback used
+- User 102: provider approved
+- User 103: provider approved
+- User 104: provider approved
+- User 105: rejected safely, deterministic fallback used
+
+This is the desired behavior. The provider does not need to approve every scenario. It must either validate cleanly or fall back safely.
+
+## Product voice compatibility
+
+qwen3:8b remains experimental/product-voice probe only. It showed stronger product-language potential than qwen2.5:3b, but it was not promoted because its output was not consistently validator-compatible.
+
+Training Report Section Product Voice Compatibility v1 adds prompt examples for scope-limited coaching language while preserving strict validation.
+
+qwen2.5:3b remains the supported direct-Ollama training report section model.
+
+qwen3 must not be made supported/default without a separate Architecture approval.
+
 ## Next recommended milestone
 
-After Provider Promotion v1, run Expanded Training Evidence Runtime QA Matrix v1 before full report integration.
+After Product Voice Compatibility v1, run qwen3 runtime QA again for seeded users 101-105.
 
-Suggested matrix areas:
-
-- recovery_limited user
-- nutrition_training_mismatch user
-- data_quality_limited user
-- incomplete actual-set logging
-- plan-vs-actual substitutions
-- missing/partial training evidence
-- low-confidence training evidence
-
-The purpose is not to make every model output pass. The purpose is to confirm the provider either validates cleanly or falls back safely while exact anchors remain mandatory.
+Full report integration should remain separate and should not start until the provider boundary continues to validate cleanly or fall back safely across the expanded matrix.

@@ -67,6 +67,22 @@ This milestone does not:
 - change workout generation
 - change nutrition/recovery/report systems
 
+## Expanded runtime QA matrix
+
+Expanded Training Evidence Runtime QA Matrix v1 is accepted as PASS.
+
+qwen2.5:3b matrix result:
+
+- User 101: rejected safely, deterministic fallback used
+- User 102: provider approved
+- User 103: provider approved
+- User 104: provider approved
+- User 105: rejected safely, deterministic fallback used
+
+This confirms that the provider boundary works beyond the original known-good user 102 scenario. Provider approval is not required for every scenario; safe deterministic fallback is an accepted outcome.
+
 ## Follow-up
 
-Run Expanded Training Evidence Runtime QA Matrix v1 before any full report integration.
+Proceed through Product Voice Compatibility v1 before considering any qwen3 premium-provider trial.
+
+Run full report integration design as a separate milestone only after the provider boundary remains strict across runtime QA.

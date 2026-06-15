@@ -652,6 +652,8 @@ Coaching-language requirement:
 - Do not merely list details in every field.
 - section_summary should synthesize the main training signal; do not restate exact load, rep, set, or RIR values there. Save exact numbers for key_observations.
 - fatigue_recovery_interpretation must name the required quote and clearly say the session does not prove a recovery or fatigue pattern.
+- Example fatigue/recovery shape: "<Approved workout or exercise name> shows high-effort work from logged RIR, but it does not prove a broader fatigue or recovery pattern."
+- Example limitation shape: "<Approved workout or exercise name> can guide the next training choice, but one workout should not be read as a trend."
 - Use the required observations, allowed interpretations, and approved semantic coaching moves to write concise coaching interpretation in your own words.
 - The section should feel personal, practical, and specific while staying fully grounded.
 - Use the coaching moves as ingredients; do not repeat them like templates.
