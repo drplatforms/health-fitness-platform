@@ -2012,3 +2012,81 @@ def test_direct_ollama_training_section_spike_qwen3_broad_recovery_trend_still_f
         "recovery" in error or "fatigue" in error or "trend" in error
         for error in result.validation_errors
     )
+
+
+def test_direct_ollama_training_section_spike_empty_evidence_falls_back_before_provider() -> (
+    None
+):
+    provider_called = False
+    empty_context = {
+        "section": "training",
+        "approved_training_quote_context": {
+            "approved_workout_names": [],
+            "approved_exercise_names": [],
+            "approved_training_numbers": [0],
+            "approved_set_rep_load_rir_values": [],
+            "approved_training_summary_facts": [],
+        },
+    }
+
+    def fake_generate(*_args, **_kwargs):
+        nonlocal provider_called
+        provider_called = True
+        raise AssertionError("provider should not be called with empty evidence")
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=empty_context,
+        generate=fake_generate,
+    )
+
+    assert provider_called is False
+    assert result.success is False
+    assert result.provider_attempted is False
+    assert result.fallback_used is True
+    assert result.fallback_reason == "approved_context_missing_training_evidence"
+    assert result.validation_status == "rejected"
+    assert result.candidate_validation_status == "failed"
+    assert any("approved quote name" in error for error in result.validation_errors)
+    assert any(
+        "exact required fact anchors" in error for error in result.validation_errors
+    )
+
+
+def test_direct_ollama_training_section_spike_placeholder_text_falls_back() -> None:
+    def fake_generate(*_args, **_kwargs):
+        return """
+{
+  "section_summary": "None available can guide the next training choice.",
+  "key_observations": [
+    "Dumbbell Bench Press was logged at 50 lb for 10 reps.",
+    "The final Dumbbell Bench Press set was logged at 1 RIR."
+  ],
+  "performance_interpretation": "Use Dumbbell Bench Press from Upper Body Strength as the next reference point.",
+  "fatigue_recovery_interpretation": "Dumbbell Bench Press can guide the next session without proving a recovery or fatigue pattern.",
+  "suggested_focus": "Use Dumbbell Bench Press as a reference point and keep the next session measured.",
+  "limitations_context": "Upper Body Strength is one workout, not a full trend or recovery picture.",
+  "confidence": "Low",
+  "reason_codes": ["direct_ollama_training_report_section_candidate"]
+}
+""".strip()
+
+    result = run_direct_ollama_training_report_section_spike(
+        model="ollama/qwen2.5:3b",
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        generate=fake_generate,
+    )
+
+    assert result.success is False
+    assert result.provider_attempted is True
+    assert result.fallback_used is True
+    assert result.fallback_reason == "candidate_validation_failure"
+    assert result.candidate_parse_status == "success"
+    assert result.candidate_validation_status == "failed"
+    assert any(
+        "placeholder training context" in error for error in result.validation_errors
+    )

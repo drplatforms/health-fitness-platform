@@ -62,6 +62,15 @@ FALLBACK_REASON_PROVIDER_EXCEPTION = "provider_exception"
 FALLBACK_REASON_PROVIDER_NON_STRING_OUTPUT = "provider_non_string_output"
 FALLBACK_REASON_CANDIDATE_PARSE_FAILURE = "candidate_parse_failure"
 FALLBACK_REASON_CANDIDATE_VALIDATION_FAILURE = "candidate_validation_failure"
+FALLBACK_REASON_APPROVED_CONTEXT_MISSING_TRAINING_EVIDENCE = (
+    "approved_context_missing_training_evidence"
+)
+
+PLACEHOLDER_TRAINING_CONTEXT_TERMS = (
+    "none available",
+    "<none available>",
+    "training detail",
+)
 
 CONFIDENCE_VALUES = {"Limited", "Low", "Moderate", "High"}
 
@@ -580,6 +589,9 @@ def build_direct_ollama_training_report_section_prompt(
         "approved_bounded_training_claims"
     ]
     required_quote_name = model_quote_context["required_quote_name"]
+    required_quote_display = (
+        required_quote_name or "No backend-approved quote name is available."
+    )
     required_anchor_count = model_quote_context["required_anchor_count"]
     required_fact_anchors = model_quote_context["required_fact_anchors"]
     valid_example_json = json.dumps(
@@ -632,7 +644,7 @@ Interpretation and style rules:
 - Do not use internal or stiff wording such as concrete checkpoint, logged session, centered on the logged lifts, concrete load and rep detail, data for review, exact training details, provided details, allowed names, payload, contract, report section, validator, or debug.
 
 Required quote:
-- Include this exact name at least once: {required_quote_name or "None available"}
+- Include this exact name at least once: {required_quote_display}
 - If names are available, every narrative field should mention an allowed workout or exercise name.
 - limitations_context must mention the required workout name or at least one approved exercise name while explaining the single-session limit.
 
@@ -753,6 +765,25 @@ def run_direct_ollama_training_report_section_spike(
         user_id=user_id,
         report_date=report_date,
     )
+    context_errors = _approved_context_missing_training_evidence_errors(
+        resolved_context
+    )
+    if context_errors:
+        return _fallback_result(
+            configured_model=configured_model,
+            selected_model=selected_model,
+            user_id=user_id,
+            report_date=report_date,
+            ollama_base_url=resolved_base_url,
+            elapsed_seconds=0.0,
+            fallback_reason=FALLBACK_REASON_APPROVED_CONTEXT_MISSING_TRAINING_EVIDENCE,
+            validation_errors=context_errors,
+            approved_context=resolved_context,
+            candidate_validation_status=TRAINING_SECTION_VALIDATION_STATUS_FAILED,
+            validation_status=TRAINING_SECTION_STATUS_REJECTED,
+            provider_attempted=False,
+        )
+
     prompt = build_direct_ollama_training_report_section_prompt(resolved_context)
 
     start = time.perf_counter()
@@ -901,6 +932,13 @@ def validate_candidate_training_report_section(
     text_fields = _candidate_text_fields(candidate)
     combined_text = "\n".join(text_fields)
     lowered = combined_text.lower()
+
+    errors.extend(_approved_context_missing_training_evidence_errors(approved_context))
+
+    if _contains_placeholder_training_context(lowered):
+        errors.append(
+            "Training report section must not render placeholder training context."
+        )
 
     for field_name in [
         "section_summary",
@@ -1287,6 +1325,36 @@ def _detect_markdown_wrapper(text: str) -> bool:
     )
 
 
+def _approved_context_missing_training_evidence_errors(
+    approved_context: dict[str, Any],
+) -> list[str]:
+    model_context = _model_quote_context_from_context(approved_context)
+    required_quote_name = model_context.get("required_quote_name")
+    required_fact_anchors = _string_list(model_context.get("required_fact_anchors"))
+    approved_workout_names = _string_list(model_context.get("approved_workout_names"))
+    approved_exercise_names = _string_list(model_context.get("approved_exercise_names"))
+
+    errors: list[str] = []
+    if not isinstance(required_quote_name, str) or not required_quote_name.strip():
+        errors.append(
+            "Training report section provider requires an approved quote name before model generation."
+        )
+    if not required_fact_anchors:
+        errors.append(
+            "Training report section provider requires exact required fact anchors before model generation."
+        )
+    if not approved_workout_names and not approved_exercise_names:
+        errors.append(
+            "Training report section provider requires at least one approved workout or exercise name before model generation."
+        )
+
+    return errors
+
+
+def _contains_placeholder_training_context(lowered_text: str) -> bool:
+    return any(term in lowered_text for term in PLACEHOLDER_TRAINING_CONTEXT_TERMS)
+
+
 def _fallback_result(
     *,
     configured_model: str,
@@ -1303,6 +1371,7 @@ def _fallback_result(
     candidate_validation_status: str = TRAINING_SECTION_VALIDATION_STATUS_NOT_ATTEMPTED,
     validation_status: str = TRAINING_SECTION_STATUS_NOT_ATTEMPTED,
     diagnostics: dict[str, Any] | None = None,
+    provider_attempted: bool = True,
 ) -> DirectOllamaTrainingReportSectionSpikeResult:
     if diagnostics is None:
         diagnostics = (
@@ -1337,7 +1406,7 @@ def _fallback_result(
         report_date=report_date,
         ollama_base_url=ollama_base_url,
         elapsed_seconds=elapsed_seconds,
-        provider_attempted=True,
+        provider_attempted=provider_attempted,
         candidate_parse_status=candidate_parse_status,
         candidate_validation_status=candidate_validation_status,
         validation_status=validation_status,
@@ -1397,7 +1466,7 @@ def _deterministic_fallback_section() -> CandidateTrainingReportSection:
 
 def _numbered_lines(values: list[str]) -> str:
     if not values:
-        return "- None available"
+        return "- No backend-approved training details are available."
     return "\n".join(f"{index}. {value}" for index, value in enumerate(values, start=1))
 
 
