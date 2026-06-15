@@ -13,12 +13,15 @@ Current accepted baseline:
 - `Direct Ollama Training Report Section Provider v1`
 - `Bounded Coaching Claims v1`
 - `Bounded Coaching Claims v1.1`
+- `Training Evidence Claim Service v1`
+- `Training Evidence Claim Runtime QA v1`
 
 Runtime QA showed:
 
 - `qwen2.5:3b` can produce approved, bounded, usable training-section copy.
-- `qwen3:8b` remains more natural but still over-infers and should stay experimental.
-- The validator correctly rejects qwen3 when it turns single-session evidence into broader effort, consistency, recovery, or trend claims.
+- `qwen2.5:3b` preserved exact required anchors after TrainingEvidenceClaim extraction in the known-good seeded scenario.
+- `qwen3:8b` remains experimental/product-voice probe only.
+- The validator correctly rejects provider output when it turns single-session evidence into broader effort, consistency, recovery, or trend claims.
 - Deterministic fallback remains mandatory.
 
 ## Current implementation shape
@@ -40,6 +43,16 @@ backend-approved training context
 → strict parser/validator
 → ApprovedTrainingReportSection
 → TrainingReportSectionRuntimeMetadata
+```
+
+The accepted evidence-layer boundary is:
+
+```text
+approved workout/training facts
+→ TrainingEvidenceContext
+→ ApprovedTrainingClaim[]
+→ model-facing quote context
+→ strict section validator
 ```
 
 The current full report path does **not** consume `ApprovedTrainingReportSection` yet. Full reports currently include:
@@ -71,6 +84,12 @@ Approved readiness position:
 ## Integration recommendation
 
 Recommended next implementation milestone:
+
+```text
+Expanded Training Evidence Runtime QA Matrix v1
+```
+
+After that passes, route:
 
 ```text
 Training Report Section Full Report Integration Design v1
@@ -172,35 +191,29 @@ Do not persist:
 - unapproved candidate text
 - full validation internals in user-facing report records
 
-## Service boundary concern
+## Service boundary status
 
-The current bounded claim derivation lives in the Direct Ollama training report section spike/provider path.
+Training Evidence Claim Service v1 has now been implemented and accepted as the backend evidence-layer baseline. Bounded claim derivation no longer lives as provider-owned logic.
 
-That is acceptable for the current baseline, but probably not the long-term home.
-
-Recommended follow-up milestone after integration decision:
+The current accepted shape is:
 
 ```text
-Training Evidence Claim Service v1
-```
-
-Potential future shape:
-
-```text
-completed workout / execution data
+approved workout/training facts
 → TrainingEvidenceContext
 → ApprovedTrainingClaim[]
 → model-facing training context
 → section validator
 ```
 
-This would make bounded training evidence reusable by:
+The Direct Ollama provider consumes service-derived `ApprovedTrainingClaim[]` while exact required anchors remain the higher-priority validation contract.
 
-- Direct Ollama training report section
-- deterministic training report fallback
-- future full report rendering
-- future TrainingExecutionSummary integration
-- later recommendation/training feedback flows
+Runtime QA after claim extraction validated the known-good qwen2.5:3b path for user 102 on 2026-06-06.
+
+Recommended follow-up before full report integration:
+
+```text
+Expanded Training Evidence Runtime QA Matrix v1
+```
 
 ## TrainingExecutionSummary relationship
 
@@ -280,19 +293,21 @@ Do not:
 
 ## Final architecture position
 
-Bounded Coaching Claims v1.1 is accepted as the current baseline.
+Training Evidence Claim Service v1 is accepted as the backend evidence-layer baseline.
 
-The direct-Ollama training section is ready for **conservative integration planning**, not default production behavior.
+Training Evidence Claim Runtime QA v1 is accepted as FULL PASS for the known-good qwen2.5:3b seeded scenario.
+
+The direct-Ollama training section is ready for **expanded runtime QA matrix**, then conservative integration planning, not default production behavior.
 
 The safest path is:
 
 1. Keep current provider baseline.
-2. Design full-report integration as a distinct Training Review section.
-3. Keep deterministic default and direct_ollama opt-in.
-4. Store/render only approved section fields.
-5. Keep metadata debug-only and sanitized.
-6. Later extract bounded claim logic into a reusable Training Evidence Claim Service.
-7. Later connect TrainingExecutionSummary to that evidence layer.
+2. Keep deterministic default and direct_ollama opt-in.
+3. Run Expanded Training Evidence Runtime QA Matrix v1.
+4. Design full-report integration as a distinct Training Review section.
+5. Store/render only approved section fields.
+6. Keep metadata debug-only and sanitized.
+7. Later connect TrainingExecutionSummary to the TrainingEvidenceContext layer.
 
 Backend owns truth.
 AI explains approved truth.
