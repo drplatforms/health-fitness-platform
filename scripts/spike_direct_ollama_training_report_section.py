@@ -664,8 +664,8 @@ Coaching-language requirement:
 - Do not merely list details in every field.
 - section_summary should synthesize the main training signal; do not restate exact load, rep, set, or RIR values there. Save exact numbers for key_observations.
 - fatigue_recovery_interpretation must name the required quote and clearly say the session does not prove a recovery or fatigue pattern.
-- Example fatigue/recovery shape: "<Approved workout or exercise name> shows high-effort work from logged RIR, but it does not prove a broader fatigue or recovery pattern."
-- Example limitation shape: "<Approved workout or exercise name> can guide the next training choice, but one workout should not be read as a trend."
+- Example fatigue/recovery shape: "Upper Body Strength shows high-effort work from logged RIR, but it does not prove a broader fatigue or recovery pattern."
+- Example limitation shape: "Upper Body Strength can guide the next training choice, but one workout should not be read as a trend."
 - Use the required observations, allowed interpretations, and approved semantic coaching moves to write concise coaching interpretation in your own words.
 - The section should feel personal, practical, and specific while staying fully grounded.
 - Use the coaching moves as ingredients; do not repeat them like templates.
@@ -686,6 +686,7 @@ Strict output rules:
 - Quote only workout names from the allowed workout names list.
 - Quote only exercise names from the allowed exercise names list.
 - Quote only numbers from the allowed numbers list or allowed supporting training details.
+- Do not wrap workout or exercise names in angle brackets, placeholder brackets, or template markers.
 - You may restate or explain allowed supporting training details.
 - You may explain or rephrase allowed interpretation claims, but do not add new conclusions.
 - Do not calculate or infer volume load, average RIR, percentages, week-over-week change, progression, fatigue, or recovery status unless the exact detail or allowed interpretation is listed above.
@@ -990,6 +991,11 @@ def validate_candidate_training_report_section(
             errors.append(
                 f"Training report section must not expose internal term: {term}."
             )
+
+    if re.search(r"<[^>\n]{2,120}>", combined_text):
+        errors.append(
+            "Training report section must not include angle-bracket template artifacts."
+        )
 
     medical_patterns = [
         r"\bdiagnos(?:e|is|ed)\b",
