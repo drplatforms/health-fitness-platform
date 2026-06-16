@@ -8,11 +8,11 @@ from models.training_report_section_models import (
     ApprovedTrainingReportSectionResult,
     TrainingReportSectionRuntimeMetadata,
 )
-from scripts.spike_direct_ollama_training_report_section import (
+from services.training_report_section_direct_ollama_provider import (
     DirectOllamaGenerateCallable,
     build_training_report_section_context,
     call_direct_ollama_generate,
-    run_direct_ollama_training_report_section_spike,
+    run_direct_ollama_training_report_section_provider,
 )
 
 TRAINING_REPORT_SECTION_PROVIDER_ENV = "TRAINING_REPORT_SECTION_PROVIDER"
@@ -65,6 +65,8 @@ def build_configured_training_report_section_with_metadata(
 
     if configured_provider == TRAINING_REPORT_SECTION_PROVIDER_DETERMINISTIC:
         metadata = _runtime_metadata(
+            user_id=user_id,
+            report_date=report_date,
             configured_provider=configured_provider,
             selected_provider=TRAINING_REPORT_SECTION_PROVIDER_DETERMINISTIC,
             configured_model=TRAINING_REPORT_SECTION_PROVIDER_DETERMINISTIC,
@@ -94,6 +96,8 @@ def build_configured_training_report_section_with_metadata(
         )
 
     metadata = _runtime_metadata(
+        user_id=user_id,
+        report_date=report_date,
         configured_provider=configured_provider,
         selected_provider=TRAINING_REPORT_SECTION_PROVIDER_DETERMINISTIC,
         configured_model=TRAINING_REPORT_SECTION_PROVIDER_DETERMINISTIC,
@@ -137,7 +141,7 @@ def build_direct_ollama_training_report_section_or_fallback(
 ) -> ApprovedTrainingReportSectionResult:
     """Run the opt-in direct Ollama training provider and convert to service result."""
 
-    spike_result = run_direct_ollama_training_report_section_spike(
+    provider_result = run_direct_ollama_training_report_section_provider(
         model=_configured_training_report_section_model(),
         user_id=user_id,
         report_date=report_date,
@@ -147,17 +151,17 @@ def build_direct_ollama_training_report_section_or_fallback(
     )
     source = (
         FINAL_SECTION_SOURCE_DIRECT_OLLAMA_APPROVED
-        if spike_result.success
+        if provider_result.success
         else FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
     )
-    metadata = _metadata_from_spike_result(
-        spike_result,
+    metadata = _metadata_from_provider_result(
+        provider_result,
         configured_provider=TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
         selected_provider=TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
         final_section_source=source,
     )
     return _result_from_section_payload(
-        spike_result.approved_section,
+        provider_result.approved_section,
         metadata=metadata,
         source=source,
     )
@@ -192,43 +196,47 @@ def _configured_direct_ollama_timeout_seconds() -> float:
     return value if value > 0 else TRAINING_REPORT_SECTION_DEFAULT_TIMEOUT_SECONDS
 
 
-def _metadata_from_spike_result(
-    spike_result: Any,
+def _metadata_from_provider_result(
+    provider_result: Any,
     *,
     configured_provider: str,
     selected_provider: str,
     final_section_source: str,
 ) -> TrainingReportSectionRuntimeMetadata:
     return _runtime_metadata(
+        user_id=provider_result.user_id,
+        report_date=provider_result.report_date,
         configured_provider=configured_provider,
         selected_provider=selected_provider,
-        configured_model=spike_result.configured_model,
-        selected_model=spike_result.selected_model,
-        provider_attempted=spike_result.provider_attempted,
-        fallback_used=spike_result.fallback_used,
-        fallback_reason=spike_result.fallback_reason,
-        candidate_valid=spike_result.candidate_valid,
-        validation_errors=list(spike_result.validation_errors),
-        candidate_parse_status=spike_result.candidate_parse_status,
-        candidate_validation_status=spike_result.candidate_validation_status,
-        validation_status=spike_result.validation_status,
+        configured_model=provider_result.configured_model,
+        selected_model=provider_result.selected_model,
+        provider_attempted=provider_result.provider_attempted,
+        fallback_used=provider_result.fallback_used,
+        fallback_reason=provider_result.fallback_reason,
+        candidate_valid=provider_result.candidate_valid,
+        validation_errors=list(provider_result.validation_errors),
+        candidate_parse_status=provider_result.candidate_parse_status,
+        candidate_validation_status=provider_result.candidate_validation_status,
+        validation_status=provider_result.validation_status,
         final_section_source=final_section_source,
-        raw_output_length=spike_result.raw_output_length,
-        raw_output_preview_truncated=spike_result.raw_output_preview_truncated,
-        markdown_wrapper_detected=spike_result.markdown_wrapper_detected,
-        extra_keys_detected=list(spike_result.extra_keys_detected),
-        wrapper_object_detected=spike_result.wrapper_object_detected,
-        elapsed_seconds=spike_result.elapsed_seconds,
-        provider_latency_ms=_provider_latency_ms(spike_result.elapsed_seconds),
-        required_anchor_count=spike_result.required_anchor_count,
-        matched_required_fact_anchors=list(spike_result.matched_required_fact_anchors),
-        missing_required_anchor_count=spike_result.missing_required_anchor_count,
-        matched_approved_interpretation_claims=list(
-            spike_result.matched_approved_interpretation_claims
+        raw_output_length=provider_result.raw_output_length,
+        raw_output_preview_truncated=provider_result.raw_output_preview_truncated,
+        markdown_wrapper_detected=provider_result.markdown_wrapper_detected,
+        extra_keys_detected=list(provider_result.extra_keys_detected),
+        wrapper_object_detected=provider_result.wrapper_object_detected,
+        elapsed_seconds=provider_result.elapsed_seconds,
+        provider_latency_ms=_provider_latency_ms(provider_result.elapsed_seconds),
+        required_anchor_count=provider_result.required_anchor_count,
+        matched_required_fact_anchors=list(
+            provider_result.matched_required_fact_anchors
         ),
-        model_facing_quote_context=dict(spike_result.model_facing_quote_context),
+        missing_required_anchor_count=provider_result.missing_required_anchor_count,
+        matched_approved_interpretation_claims=list(
+            provider_result.matched_approved_interpretation_claims
+        ),
+        model_facing_quote_context=dict(provider_result.model_facing_quote_context),
         approved_training_quote_context=dict(
-            spike_result.approved_training_quote_context
+            provider_result.approved_training_quote_context
         ),
     )
 

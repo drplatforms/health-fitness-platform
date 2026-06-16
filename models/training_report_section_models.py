@@ -43,6 +43,8 @@ class ApprovedTrainingReportSection:
 
 @dataclass(frozen=True)
 class TrainingReportSectionRuntimeMetadata:
+    user_id: int
+    report_date: str
     configured_provider: str
     selected_provider: str
     configured_model: str

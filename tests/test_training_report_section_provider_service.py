@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from services import training_report_section_provider_service as provider_service
+from services.training_report_section_direct_ollama_provider import (
+    run_direct_ollama_training_report_section_provider,
+)
 from services.training_report_section_provider_service import (
     FALLBACK_REASON_APPROVED_CONTEXT_MISSING_TRAINING_EVIDENCE,
     FALLBACK_REASON_CANDIDATE_VALIDATION_FAILURE,
@@ -85,6 +89,8 @@ def test_training_report_section_provider_defaults_to_deterministic(monkeypatch)
 
     assert result.approved_section.section == "training"
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC
+    assert result.runtime_metadata.user_id == 102
+    assert result.runtime_metadata.report_date == "2026-06-06"
     assert result.runtime_metadata.configured_provider == "deterministic"
     assert result.runtime_metadata.selected_provider == "deterministic"
     assert result.runtime_metadata.provider_attempted is False
@@ -121,6 +127,8 @@ def test_training_report_section_invalid_provider_falls_back(monkeypatch):
     )
 
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
+    assert result.runtime_metadata.user_id == 102
+    assert result.runtime_metadata.report_date == "2026-06-06"
     assert result.runtime_metadata.selected_provider == "deterministic"
     assert result.runtime_metadata.fallback_used is True
     assert result.runtime_metadata.fallback_reason == FALLBACK_REASON_INVALID_PROVIDER
@@ -153,6 +161,8 @@ def test_training_report_section_direct_ollama_valid_output_approves(monkeypatch
 
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DIRECT_OLLAMA_APPROVED
     assert "Upper Body Strength" in result.approved_section.section_summary
+    assert result.runtime_metadata.user_id == 102
+    assert result.runtime_metadata.report_date == "2026-06-06"
     assert result.runtime_metadata.configured_provider == "direct_ollama"
     assert result.runtime_metadata.selected_provider == "direct_ollama"
     assert result.runtime_metadata.configured_model == "ollama/qwen2.5:3b"
@@ -244,6 +254,8 @@ def test_training_report_section_direct_ollama_exception_falls_back(monkeypatch)
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
     assert result.runtime_metadata.fallback_used is True
     assert result.runtime_metadata.fallback_reason == FALLBACK_REASON_PROVIDER_EXCEPTION
+    assert result.runtime_metadata.user_id == 102
+    assert result.runtime_metadata.report_date == "2026-06-06"
     assert result.runtime_metadata.provider_attempted is True
     assert result.runtime_metadata.candidate_valid is False
 
@@ -285,6 +297,8 @@ def test_training_report_section_direct_ollama_empty_evidence_does_not_call_prov
     assert provider_calls["count"] == 0
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
     assert result.runtime_metadata.provider_attempted is False
+    assert result.runtime_metadata.user_id == 105
+    assert result.runtime_metadata.report_date == "2026-06-06"
     assert result.runtime_metadata.fallback_used is True
     assert (
         result.runtime_metadata.fallback_reason
@@ -428,3 +442,62 @@ def test_training_report_section_public_section_does_not_include_raw_output(
     assert "model_facing_quote_context" not in public_payload
     assert result.runtime_metadata.raw_output_length is not None
     assert result.runtime_metadata.provider_latency_ms is not None
+
+
+def test_training_report_section_service_uses_formal_direct_ollama_provider_module():
+    assert (
+        provider_service.run_direct_ollama_training_report_section_provider
+        is run_direct_ollama_training_report_section_provider
+    )
+    assert (
+        provider_service.run_direct_ollama_training_report_section_provider.__module__
+        == "services.training_report_section_direct_ollama_provider"
+    )
+
+
+def test_training_report_section_runtime_metadata_is_self_contained_on_approved_provider(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        TRAINING_REPORT_SECTION_PROVIDER_ENV,
+        TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    result = build_configured_training_report_section_with_metadata(
+        user_id=102,
+        report_date="2026-06-06",
+        approved_context=APPROVED_CONTEXT,
+        direct_ollama_generate=lambda *_args, **_kwargs: _valid_raw_section(),
+    )
+
+    payload = result.runtime_metadata.to_debug_dict()
+
+    assert payload["user_id"] == 102
+    assert payload["report_date"] == "2026-06-06"
+    assert payload["provider_attempted"] is True
+    assert payload["fallback_used"] is False
+    assert payload["final_section_source"] == "direct_ollama_approved"
+
+
+def test_training_report_section_runtime_metadata_is_self_contained_on_fallback(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        TRAINING_REPORT_SECTION_PROVIDER_ENV,
+        TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    result = build_configured_training_report_section_with_metadata(
+        user_id=105,
+        report_date="2026-06-06",
+        approved_context=EMPTY_EVIDENCE_CONTEXT,
+        direct_ollama_generate=lambda *_args, **_kwargs: _valid_raw_section(),
+    )
+
+    payload = result.runtime_metadata.to_debug_dict()
+
+    assert payload["user_id"] == 105
+    assert payload["report_date"] == "2026-06-06"
+    assert payload["provider_attempted"] is False
+    assert payload["fallback_used"] is True
+    assert payload["final_section_source"] == "deterministic_fallback"
