@@ -162,3 +162,66 @@ Deterministic remains default and fallback.
 qwen2.5:3b remains the supported practical opt-in model.
 
 qwen3 remains experimental only.
+
+## Runtime Acceptance Addendum — Async / Report Job Integration v1
+
+Runtime date: 2026-06-16
+
+Runtime QA was executed through the async report job API path:
+
+- `POST /reports/generate/{user_id}?date=2026-06-14`
+- `GET /reports/status/{job_id}`
+
+This confirms provider-backed full report generation runs through the background report job path and exposes safe job-status metadata.
+
+### Deterministic Default Smoke
+
+Provider env vars unset.
+
+Observed:
+
+- report job completed
+- provider was not attempted
+- selected provider was deterministic
+- public report rendered successfully
+- no debug/raw provider terms appeared in the report
+
+### qwen2.5:3b Async Report Job Sweep
+
+Environment:
+
+- `AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED=true`
+- `TRAINING_REPORT_SECTION_PROVIDER=direct_ollama`
+- `TRAINING_REPORT_SECTION_MODEL=ollama/qwen2.5:3b`
+- `TRAINING_REPORT_SECTION_DIRECT_OLLAMA_TIMEOUT_SECONDS=300`
+- report date: `2026-06-14`
+- users: `101, 102, 103, 104, 105`
+
+Results:
+
+| User | Job Status | Elapsed sec | Provider Enabled | Attempted | Provider | Model | Fallback | Source | Latency ms | Validation | Errors | Angle Brackets | Forbidden Terms | Debug Terms |
+|---:|---|---:|---:|---:|---|---|---:|---|---:|---|---:|---:|---:|---|
+| 101 | completed | 136.92 | true | true | direct_ollama | qwen2.5:3b | false | direct_ollama_approved | 127780 | approved | 0 | false | false | none |
+| 102 | completed | 128.95 | true | true | direct_ollama | qwen2.5:3b | false | direct_ollama_approved | 124575 | approved | 0 | false | false | none |
+| 103 | completed | 128.06 | true | true | direct_ollama | qwen2.5:3b | false | direct_ollama_approved | 123786 | approved | 0 | false | false | none |
+| 104 | completed | 126.28 | true | true | direct_ollama | qwen2.5:3b | false | direct_ollama_approved | 122188 | approved | 0 | false | false | none |
+| 105 | completed | 96.16 | true | true | direct_ollama | qwen2.5:3b | false | direct_ollama_approved | 91918 | approved | 0 | false | false | none |
+
+### Runtime Acceptance Decision
+
+`Async / Report Job Integration v1` is runtime accepted.
+
+Accepted because:
+
+- async report jobs completed successfully for users 101–105
+- provider-backed full report generation ran through the report job path
+- qwen2.5:3b was attempted only with explicit opt-in env vars
+- training section source was `direct_ollama_approved` for all five users
+- deterministic fallback remains available
+- public reports contained no raw/debug provider terms
+- no angle-bracket artifacts appeared
+- no forbidden QA/Seeded/Test/Placeholder terms appeared
+- job status exposed safe provider metadata
+- no validator loosening was required
+
+Latency remains high and confirms this path should stay async/background only.
