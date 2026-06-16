@@ -2,6 +2,7 @@
 # Imports
 # =====================================
 
+import os
 import threading
 import time
 import uuid
@@ -10,7 +11,11 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
-from services.coordinator_service import generate_health_report
+from services.coordinator_service import (
+    AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV,
+    generate_health_report,
+    training_section_provider_job_metadata,
+)
 from services.health_report_section_service import (
     build_configured_nutrition_health_report_section_with_metadata,
 )
@@ -49,6 +54,12 @@ def _current_timestamp() -> str:
     return datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
 
 
+def _full_report_provider_enabled() -> bool:
+    return os.getenv(
+        AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, ""
+    ).strip().lower() in {"1", "true", "yes", "on", "enabled"}
+
+
 def _calculate_elapsed_seconds(job: dict) -> float | None:
     started_monotonic = job.get("started_monotonic")
 
@@ -74,7 +85,14 @@ def run_report_job(job_id, user_id):
 
         print("\n=== CALLING COORDINATOR SERVICE ===\n")
 
-        report = generate_health_report(user_id)
+        report_date = report_jobs[job_id].get("report_date")
+        provider_enabled = _full_report_provider_enabled()
+        report_result = generate_health_report(
+            user_id,
+            report_date=report_date,
+            allow_training_section_provider=True,
+            return_training_section_result=True,
+        )
 
         print("\n=== COORDINATOR SERVICE COMPLETED ===\n")
 
@@ -84,7 +102,24 @@ def run_report_job(job_id, user_id):
         report_jobs[job_id]["elapsed_seconds"] = _calculate_elapsed_seconds(
             report_jobs[job_id]
         )
-        report_jobs[job_id]["report"] = report
+        if hasattr(report_result, "report_text"):
+            report_jobs[job_id]["report"] = report_result.report_text
+            report_jobs[job_id]["training_section_provider"] = (
+                training_section_provider_job_metadata(
+                    report_result.training_report_section_result,
+                    report_job_id=job_id,
+                    provider_enabled=provider_enabled,
+                )
+            )
+        else:
+            report_jobs[job_id]["report"] = report_result
+            report_jobs[job_id]["training_section_provider"] = (
+                training_section_provider_job_metadata(
+                    None,
+                    report_job_id=job_id,
+                    provider_enabled=provider_enabled,
+                )
+            )
 
     except Exception as e:
         print("\n=== REPORT JOB FAILED ===\n")
@@ -132,6 +167,7 @@ def report_status(job_id: str):
         "started_at": job.get("started_at"),
         "completed_at": job.get("completed_at"),
         "elapsed_seconds": elapsed_seconds,
+        "training_section_provider": job.get("training_section_provider"),
     }
 
 
@@ -141,7 +177,10 @@ def report_status(job_id: str):
 
 
 @router.post("/reports/generate/{user_id}")
-def generate_report(user_id: int):
+def generate_report(
+    user_id: int,
+    report_date: str | None = Query(default=None, alias="date"),
+):
     print("\n=== GENERATE REPORT ENDPOINT HIT === \n")
     if user_id in active_jobs:
         existing_job_id = active_jobs[user_id]
@@ -169,6 +208,8 @@ def generate_report(user_id: int):
         "elapsed_seconds": None,
         "started_monotonic": None,
         "completed_monotonic": None,
+        "report_date": report_date,
+        "training_section_provider": None,
     }
 
     thread = threading.Thread(

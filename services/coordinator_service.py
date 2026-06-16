@@ -1,5 +1,6 @@
 import os
 import re
+from dataclasses import dataclass
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -23,6 +24,7 @@ from services.training_report_section_direct_ollama_provider import (
 from services.training_report_section_provider_service import (
     FALLBACK_REASON_FULL_REPORT_PROVIDER_DISABLED,
     FINAL_SECTION_SOURCE_DETERMINISTIC,
+    FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK,
     build_configured_training_report_section_with_metadata,
     build_deterministic_training_report_section_with_metadata,
 )
@@ -36,7 +38,19 @@ AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV = (
     "AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED"
 )
 
+FALLBACK_REASON_FULL_REPORT_PROVIDER_REQUIRES_BACKGROUND_JOB = (
+    "provider_requires_async_report_job"
+)
+
+
 _TRUTHY_ENV_VALUES = {"1", "true", "yes", "on", "enabled"}
+
+
+@dataclass(frozen=True)
+class FullHealthReportGenerationResult:
+    report_text: str
+    training_report_section_result: object | None = None
+
 
 _FORBIDDEN_REPORT_PATTERNS = [
     (
@@ -718,12 +732,15 @@ def build_full_report_training_section_result(
     report_date: str,
     approved_context: dict | None = None,
     direct_ollama_generate: DirectOllamaGenerateCallable | None = None,
+    allow_training_section_provider: bool = False,
 ):
     """Build the training section used by full report rendering.
 
     The full report has its own explicit opt-in gate. When disabled, it returns a
     deterministic training section without attempting direct Ollama even if the
-    lower-level training section provider env is set to direct_ollama.
+    lower-level training section provider env is set to direct_ollama. When the
+    gate is enabled, direct Ollama is still attempted only from an approved
+    async/background report job context.
     """
 
     if not _full_report_training_section_provider_enabled():
@@ -734,6 +751,16 @@ def build_full_report_training_section_result(
             fallback_used=False,
             fallback_reason=FALLBACK_REASON_FULL_REPORT_PROVIDER_DISABLED,
             final_section_source=FINAL_SECTION_SOURCE_DETERMINISTIC,
+        )
+
+    if not allow_training_section_provider:
+        return build_deterministic_training_report_section_with_metadata(
+            user_id=user_id,
+            report_date=report_date,
+            configured_provider="full_report_requires_background_job",
+            fallback_used=True,
+            fallback_reason=FALLBACK_REASON_FULL_REPORT_PROVIDER_REQUIRES_BACKGROUND_JOB,
+            final_section_source=FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK,
         )
 
     return build_configured_training_report_section_with_metadata(
@@ -812,6 +839,8 @@ def generate_health_report(
     user_id,
     report_date: str | None = None,
     direct_ollama_generate=None,
+    allow_training_section_provider: bool = False,
+    return_training_section_result: bool = False,
 ):
     from crewai import LLM, Agent, Crew, Task
 
@@ -823,6 +852,7 @@ def generate_health_report(
         user_id=user_id,
         report_date=resolved_report_date,
         direct_ollama_generate=direct_ollama_generate,
+        allow_training_section_provider=allow_training_section_provider,
     )
 
     # -----------------------------
@@ -1198,6 +1228,12 @@ def generate_health_report(
             model_summary="ollama/qwen3:8b",
         )
 
+        if return_training_section_result:
+            return FullHealthReportGenerationResult(
+                report_text=final_report,
+                training_report_section_result=training_report_section_result,
+            )
+
         return final_report
 
     except Exception as e:
@@ -1209,7 +1245,50 @@ def generate_health_report(
 
         traceback.print_exc()
 
-        return str(e)
+        error_report = str(e)
+        if return_training_section_result:
+            return FullHealthReportGenerationResult(
+                report_text=error_report,
+                training_report_section_result=locals().get(
+                    "training_report_section_result"
+                ),
+            )
+
+        return error_report
+
+
+def training_section_provider_job_metadata(
+    training_report_section_result,
+    *,
+    report_job_id: str | None = None,
+    provider_enabled: bool | None = None,
+) -> dict:
+    """Return safe report-job metadata for training section provider behavior."""
+
+    if training_report_section_result is None:
+        return {
+            "report_job_id": report_job_id,
+            "provider_enabled": provider_enabled,
+            "provider_attempted": False,
+        }
+
+    metadata = training_report_section_result.runtime_metadata
+    approved_section = training_report_section_result.approved_section
+    return {
+        "report_job_id": report_job_id,
+        "user_id": metadata.user_id,
+        "report_date": metadata.report_date,
+        "provider_enabled": provider_enabled,
+        "provider_attempted": metadata.provider_attempted,
+        "selected_provider": metadata.selected_provider,
+        "selected_model": metadata.selected_model,
+        "fallback_used": metadata.fallback_used,
+        "fallback_reason": metadata.fallback_reason,
+        "training_section_source": approved_section.source,
+        "provider_latency_ms": metadata.provider_latency_ms,
+        "validation_status": metadata.validation_status,
+        "validation_errors_count": len(metadata.validation_errors),
+    }
 
 
 if __name__ == "__main__":

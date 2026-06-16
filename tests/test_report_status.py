@@ -5,6 +5,10 @@ from fastapi.testclient import TestClient
 
 import api.routes.reports as reports_route
 from api.main import app
+from services.coordinator_service import FullHealthReportGenerationResult
+from services.training_report_section_provider_service import (
+    build_deterministic_training_report_section_with_metadata,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +36,7 @@ def _wait_for_status(client: TestClient, job_id: str, expected_status: str, time
 
 
 def test_report_status_returns_timing_metadata_with_mocked_report(monkeypatch):
-    def fake_generate_health_report(user_id):
+    def fake_generate_health_report(user_id, **_kwargs):
         return "Fake QA report"
 
     monkeypatch.setattr(
@@ -55,10 +59,44 @@ def test_report_status_returns_timing_metadata_with_mocked_report(monkeypatch):
     assert completed_data["completed_at"] is not None
     assert completed_data["elapsed_seconds"] is not None
     assert completed_data["elapsed_seconds"] >= 0
+    assert completed_data["training_section_provider"]["provider_attempted"] is False
+
+
+def test_report_status_returns_safe_training_section_provider_metadata(monkeypatch):
+    def fake_generate_health_report(user_id, report_date=None, **_kwargs):
+        section_result = build_deterministic_training_report_section_with_metadata(
+            user_id=user_id,
+            report_date=report_date or "2026-06-14",
+        )
+        return FullHealthReportGenerationResult(
+            report_text="Fake QA report with provider metadata",
+            training_report_section_result=section_result,
+        )
+
+    monkeypatch.setattr(
+        reports_route, "generate_health_report", fake_generate_health_report
+    )
+
+    client = TestClient(app)
+
+    response = client.post("/reports/generate/102?date=2026-06-14")
+    assert response.status_code == 200
+
+    completed_data = _wait_for_status(client, response.json()["job_id"], "completed")
+    provider_metadata = completed_data["training_section_provider"]
+
+    assert provider_metadata["report_job_id"] == response.json()["job_id"]
+    assert provider_metadata["user_id"] == 102
+    assert provider_metadata["report_date"] == "2026-06-14"
+    assert provider_metadata["provider_attempted"] is False
+    assert provider_metadata["selected_provider"] == "deterministic"
+    assert provider_metadata["validation_errors_count"] == 0
+    assert "raw_output" not in str(provider_metadata)
+    assert "model_facing_quote_context" not in str(provider_metadata)
 
 
 def test_duplicate_report_generation_while_running_returns_409(monkeypatch):
-    def slow_fake_generate_health_report(user_id):
+    def slow_fake_generate_health_report(user_id, **_kwargs):
         time.sleep(0.3)
         return "Slow fake QA report"
 

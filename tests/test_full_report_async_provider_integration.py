@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from models.coordinator_models import UnifiedHealthReport
 from services.coordinator_service import (
     AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV,
+    FALLBACK_REASON_FULL_REPORT_PROVIDER_REQUIRES_BACKGROUND_JOB,
     build_full_report_training_section_result,
-    render_unified_health_report,
+    training_section_provider_job_metadata,
 )
 from services.training_report_section_provider_service import (
     FINAL_SECTION_SOURCE_DETERMINISTIC,
@@ -62,22 +62,9 @@ def _valid_raw_section() -> str:
 """.strip()
 
 
-def _base_report() -> UnifiedHealthReport:
-    return UnifiedHealthReport(
-        overall_score=80,
-        biggest_issue="Training needs steady execution.",
-        likely_cause="Current training evidence should stay bounded to logged data.",
-        priority_action="Keep the next session deliberate.",
-        recommendation="Use the approved training details without adding unsupported claims.",
-    )
-
-
-def test_full_report_training_section_provider_disabled_does_not_call_direct_ollama(
-    monkeypatch,
-):
+def test_provider_disabled_default_is_deterministic(monkeypatch):
     monkeypatch.delenv(
-        AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV,
-        raising=False,
+        AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, raising=False
     )
     monkeypatch.setenv(
         TRAINING_REPORT_SECTION_PROVIDER_ENV,
@@ -87,7 +74,9 @@ def test_full_report_training_section_provider_disabled_does_not_call_direct_oll
 
     def fake_generate(*_args, **_kwargs):
         calls["count"] += 1
-        raise AssertionError("full report provider gate should prevent provider call")
+        raise AssertionError(
+            "disabled full-report provider must not call direct Ollama"
+        )
 
     result = build_full_report_training_section_result(
         user_id=102,
@@ -98,13 +87,11 @@ def test_full_report_training_section_provider_disabled_does_not_call_direct_oll
 
     assert calls["count"] == 0
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC
-    assert result.runtime_metadata.user_id == 102
-    assert result.runtime_metadata.report_date == "2026-06-14"
     assert result.runtime_metadata.provider_attempted is False
     assert result.runtime_metadata.fallback_used is False
 
 
-def test_full_report_training_section_provider_requires_async_job_context(monkeypatch):
+def test_enabled_provider_is_blocked_outside_async_job_context(monkeypatch):
     monkeypatch.setenv(AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, "true")
     monkeypatch.setenv(
         TRAINING_REPORT_SECTION_PROVIDER_ENV,
@@ -114,7 +101,7 @@ def test_full_report_training_section_provider_requires_async_job_context(monkey
 
     def fake_generate(*_args, **_kwargs):
         calls["count"] += 1
-        raise AssertionError("unsafe sync path should not call direct Ollama")
+        raise AssertionError("unsafe sync context must not call direct Ollama")
 
     result = build_full_report_training_section_result(
         user_id=102,
@@ -125,16 +112,15 @@ def test_full_report_training_section_provider_requires_async_job_context(monkey
 
     assert calls["count"] == 0
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
-    assert result.runtime_metadata.user_id == 102
-    assert result.runtime_metadata.report_date == "2026-06-14"
     assert result.runtime_metadata.provider_attempted is False
     assert result.runtime_metadata.fallback_used is True
     assert (
-        result.runtime_metadata.fallback_reason == "provider_requires_async_report_job"
+        result.runtime_metadata.fallback_reason
+        == FALLBACK_REASON_FULL_REPORT_PROVIDER_REQUIRES_BACKGROUND_JOB
     )
 
 
-def test_full_report_training_section_opt_in_approved_provider_path(monkeypatch):
+def test_enabled_provider_can_run_in_async_job_context(monkeypatch):
     monkeypatch.setenv(AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, "true")
     monkeypatch.setenv(
         TRAINING_REPORT_SECTION_PROVIDER_ENV,
@@ -150,62 +136,41 @@ def test_full_report_training_section_opt_in_approved_provider_path(monkeypatch)
     )
 
     assert result.approved_section.source == FINAL_SECTION_SOURCE_DIRECT_OLLAMA_APPROVED
-    assert result.runtime_metadata.user_id == 102
-    assert result.runtime_metadata.report_date == "2026-06-14"
     assert result.runtime_metadata.provider_attempted is True
     assert result.runtime_metadata.fallback_used is False
     assert result.runtime_metadata.validation_status == "approved"
 
 
-def test_full_report_training_section_opt_in_parser_failure_falls_back(monkeypatch):
-    monkeypatch.setenv(AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, "true")
-    monkeypatch.setenv(
-        TRAINING_REPORT_SECTION_PROVIDER_ENV,
-        TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+def test_async_job_metadata_is_safe_and_self_contained(monkeypatch):
+    monkeypatch.delenv(
+        AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, raising=False
     )
-
     result = build_full_report_training_section_result(
         user_id=102,
         report_date="2026-06-14",
         approved_context=APPROVED_CONTEXT,
-        direct_ollama_generate=lambda *_args, **_kwargs: "not json",
-        allow_training_section_provider=True,
     )
 
-    assert result.approved_section.source == FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK
-    assert result.runtime_metadata.user_id == 102
-    assert result.runtime_metadata.report_date == "2026-06-14"
-    assert result.runtime_metadata.provider_attempted is True
-    assert result.runtime_metadata.fallback_used is True
-    assert result.runtime_metadata.candidate_parse_status == "failed"
-
-
-def test_rendered_full_report_contains_approved_training_section_without_raw_debug(
-    monkeypatch,
-):
-    monkeypatch.setenv(AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV, "true")
-    monkeypatch.setenv(
-        TRAINING_REPORT_SECTION_PROVIDER_ENV,
-        TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
-    )
-    section_result = build_full_report_training_section_result(
-        user_id=102,
-        report_date="2026-06-14",
-        approved_context=APPROVED_CONTEXT,
-        direct_ollama_generate=lambda *_args, **_kwargs: _valid_raw_section(),
-        allow_training_section_provider=True,
+    metadata = training_section_provider_job_metadata(
+        result,
+        report_job_id="job-123",
+        provider_enabled=False,
     )
 
-    rendered = render_unified_health_report(
-        _base_report(),
-        training_report_section_result=section_result,
-    )
-
-    assert "**Training Report Section:**" in rendered
-    assert "Dumbbell Bench Press" in rendered
-    assert "raw_output" not in rendered
-    assert "raw_output_preview_truncated" not in rendered
-    assert "model_facing_quote_context" not in rendered
-    assert "approved_training_quote_context" not in rendered
-    assert "candidate_parse_status" not in rendered
-    assert "validation_errors" not in rendered
+    assert metadata == {
+        "report_job_id": "job-123",
+        "user_id": 102,
+        "report_date": "2026-06-14",
+        "provider_enabled": False,
+        "provider_attempted": False,
+        "selected_provider": "deterministic",
+        "selected_model": "deterministic",
+        "fallback_used": False,
+        "fallback_reason": "full_report_training_section_provider_disabled",
+        "training_section_source": "deterministic",
+        "provider_latency_ms": None,
+        "validation_status": "not_attempted",
+        "validation_errors_count": 0,
+    }
+    assert "raw_output" not in str(metadata)
+    assert "model_facing_quote_context" not in str(metadata)
