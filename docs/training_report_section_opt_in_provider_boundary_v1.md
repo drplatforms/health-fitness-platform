@@ -49,3 +49,55 @@ Raw provider output is not approved content. The public `ApprovedTrainingReportS
 ## Non-Goals
 
 This milestone does not integrate the provider into the full AI Health Report by default, promote qwen3, loosen validators, change Streamlit, change report persistence, add foods, add exercises, add meal planning, or add CrewAI changes.
+
+## Runtime Acceptance Addendum — Service Boundary
+
+Runtime date: 2026-06-16
+
+Formal service-boundary runtime QA was executed through:
+
+`build_configured_training_report_section_with_metadata(...)`
+
+This confirms the provider boundary path, not only the spike CLI.
+
+### qwen2.5:3b Service-Boundary Sweep
+
+Environment:
+
+- `TRAINING_REPORT_SECTION_PROVIDER=direct_ollama`
+- `TRAINING_REPORT_SECTION_MODEL=ollama/qwen2.5:3b`
+- `TRAINING_REPORT_SECTION_DIRECT_OLLAMA_TIMEOUT_SECONDS=300`
+- report date: `2026-06-14`
+- users: `101, 102, 103, 104, 105`
+
+Results:
+
+| User | Source | Provider | Model | Attempted | Fallback | Validation | Errors | Anchors | Artifact Leaks | Raw/Public Leak |
+|---:|---|---|---|---:|---:|---|---|---:|---:|---:|
+| 101 | direct_ollama_approved | direct_ollama | qwen2.5:3b | true | false | approved | none | 3 / 2 | false | false |
+| 102 | direct_ollama_approved | direct_ollama | qwen2.5:3b | true | false | approved | none | 3 / 2 | false | false |
+| 103 | direct_ollama_approved | direct_ollama | qwen2.5:3b | true | false | approved | none | 3 / 2 | false | false |
+| 104 | direct_ollama_approved | direct_ollama | qwen2.5:3b | true | false | approved | none | 3 / 2 | false | false |
+| 105 | direct_ollama_approved | direct_ollama | qwen2.5:3b | true | false | approved | none | 3 / 2 | false | false |
+
+Observed latency:
+
+- user 101: 118617 ms
+- user 102: 118512 ms
+- user 103: 121813 ms
+- user 104: 116681 ms
+- user 105: 91598 ms
+
+### Runtime Acceptance Decision
+
+`Training Report Section Opt-In Provider Boundary v1` is runtime accepted if the deterministic-default smoke also confirms provider is not attempted when opt-in env vars are unset.
+
+qwen2.5:3b remains the practical opt-in candidate.
+
+Direct Ollama remains opt-in only.
+
+Deterministic remains default and fallback.
+
+qwen3 remains experimental only.
+
+No validator loosening is recommended.
