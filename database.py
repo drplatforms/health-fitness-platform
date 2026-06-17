@@ -589,6 +589,8 @@ def initialize_database():
 
         report_text TEXT NOT NULL,
         model_summary TEXT,
+        report_date TEXT,
+        report_metadata_json TEXT,
 
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 

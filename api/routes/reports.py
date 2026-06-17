@@ -92,6 +92,7 @@ def run_report_job(job_id, user_id):
             report_date=report_date,
             allow_training_section_provider=True,
             return_training_section_result=True,
+            report_job_id=job_id,
         )
 
         print("\n=== COORDINATOR SERVICE COMPLETED ===\n")

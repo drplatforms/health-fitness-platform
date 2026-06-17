@@ -841,6 +841,7 @@ def generate_health_report(
     direct_ollama_generate=None,
     allow_training_section_provider: bool = False,
     return_training_section_result: bool = False,
+    report_job_id: str | None = None,
 ):
     from crewai import LLM, Agent, Crew, Task
 
@@ -1226,6 +1227,19 @@ def generate_health_report(
             user_id=user_id,
             report_text=final_report,
             model_summary="ollama/qwen3:8b",
+            report_date=resolved_report_date,
+            report_metadata=build_health_report_persistence_metadata(
+                training_report_section_result,
+                report_job_id=report_job_id,
+                report_status="completed",
+                report_generation_mode=(
+                    "async_report_job"
+                    if allow_training_section_provider
+                    else "synchronous"
+                ),
+                async_job_used=allow_training_section_provider,
+                provider_enabled=_full_report_training_section_provider_enabled(),
+            ),
         )
 
         if return_training_section_result:
@@ -1255,6 +1269,37 @@ def generate_health_report(
             )
 
         return error_report
+
+
+def build_health_report_persistence_metadata(
+    training_report_section_result,
+    *,
+    report_job_id: str | None = None,
+    report_status: str = "completed",
+    report_generation_mode: str = "synchronous",
+    async_job_used: bool = False,
+    provider_enabled: bool | None = None,
+) -> dict:
+    """Return safe metadata intended for persisted report history.
+
+    This mirrors the async job status boundary: summary-level provider/fallback
+    facts are allowed, while raw model output, quote context, parser details, and
+    validator internals stay out of persisted public report content.
+    """
+
+    metadata = training_section_provider_job_metadata(
+        training_report_section_result,
+        report_job_id=report_job_id,
+        provider_enabled=provider_enabled,
+    )
+    metadata.update(
+        {
+            "report_status": report_status,
+            "report_generation_mode": report_generation_mode,
+            "async_job_used": async_job_used,
+        }
+    )
+    return metadata
 
 
 def training_section_provider_job_metadata(
