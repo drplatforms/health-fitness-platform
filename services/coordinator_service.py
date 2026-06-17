@@ -835,6 +835,59 @@ def render_unified_health_report(
     )
 
 
+def _report_generation_mode(allow_training_section_provider: bool) -> str:
+    return "async_report_job" if allow_training_section_provider else "synchronous"
+
+
+def _persist_final_health_report(
+    *,
+    user_id: int,
+    report_text: str,
+    resolved_report_date: str,
+    training_report_section_result,
+    report_job_id: str | None,
+    allow_training_section_provider: bool,
+    provider_enabled: bool,
+    model_summary: str = "ollama/qwen3:8b",
+    report_status: str = "completed",
+) -> None:
+    save_health_report(
+        user_id=user_id,
+        report_text=report_text,
+        model_summary=model_summary,
+        report_date=resolved_report_date,
+        report_metadata=build_health_report_persistence_metadata(
+            training_report_section_result,
+            report_job_id=report_job_id,
+            report_status=report_status,
+            report_generation_mode=_report_generation_mode(
+                allow_training_section_provider
+            ),
+            async_job_used=allow_training_section_provider,
+            provider_enabled=provider_enabled,
+        ),
+    )
+
+
+def _build_deterministic_fallback_full_report_text(
+    *,
+    health_state,
+    coaching_decision: CoachingDecision,
+    approved_action_plan,
+    training_report_section_result,
+) -> str:
+    structured_report = _build_fallback_unified_report(health_state, coaching_decision)
+    timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
+    return render_unified_health_report(
+        report=structured_report,
+        timestamp=timestamp,
+        health_state=health_state,
+        coaching_decision=coaching_decision,
+        approved_action_plan=approved_action_plan,
+        training_report_section_result=training_report_section_result,
+    )
+
+
 def generate_health_report(
     user_id,
     report_date: str | None = None,
@@ -846,6 +899,7 @@ def generate_health_report(
     from crewai import LLM, Agent, Crew, Task
 
     resolved_report_date = report_date or datetime.now().date().isoformat()
+    provider_enabled = _full_report_training_section_provider_enabled()
     health_state = build_user_health_state(user_id)
     coaching_decision = build_coaching_decision(health_state)
     approved_action_plan = build_configured_approved_action_plan(health_state)
@@ -1223,23 +1277,14 @@ def generate_health_report(
                 + "; ".join(language_violations)
             )
 
-        save_health_report(
+        _persist_final_health_report(
             user_id=user_id,
             report_text=final_report,
-            model_summary="ollama/qwen3:8b",
-            report_date=resolved_report_date,
-            report_metadata=build_health_report_persistence_metadata(
-                training_report_section_result,
-                report_job_id=report_job_id,
-                report_status="completed",
-                report_generation_mode=(
-                    "async_report_job"
-                    if allow_training_section_provider
-                    else "synchronous"
-                ),
-                async_job_used=allow_training_section_provider,
-                provider_enabled=_full_report_training_section_provider_enabled(),
-            ),
+            resolved_report_date=resolved_report_date,
+            training_report_section_result=training_report_section_result,
+            report_job_id=report_job_id,
+            allow_training_section_provider=allow_training_section_provider,
+            provider_enabled=provider_enabled,
         )
 
         if return_training_section_result:
@@ -1259,16 +1304,31 @@ def generate_health_report(
 
         traceback.print_exc()
 
-        error_report = str(e)
+        fallback_report = _build_deterministic_fallback_full_report_text(
+            health_state=health_state,
+            coaching_decision=coaching_decision,
+            approved_action_plan=approved_action_plan,
+            training_report_section_result=training_report_section_result,
+        )
+        _persist_final_health_report(
+            user_id=user_id,
+            report_text=fallback_report,
+            resolved_report_date=resolved_report_date,
+            training_report_section_result=training_report_section_result,
+            report_job_id=report_job_id,
+            allow_training_section_provider=allow_training_section_provider,
+            provider_enabled=provider_enabled,
+            model_summary="deterministic_fallback_after_crewai_error",
+            report_status="completed_with_full_report_fallback",
+        )
+
         if return_training_section_result:
             return FullHealthReportGenerationResult(
-                report_text=error_report,
-                training_report_section_result=locals().get(
-                    "training_report_section_result"
-                ),
+                report_text=fallback_report,
+                training_report_section_result=training_report_section_result,
             )
 
-        return error_report
+        return fallback_report
 
 
 def build_health_report_persistence_metadata(

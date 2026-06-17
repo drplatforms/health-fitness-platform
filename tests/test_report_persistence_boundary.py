@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import sys
+import types
 
 import pytest
 
 import database
-from services import report_service
+from services import coordinator_service, report_service
 from services.coordinator_service import build_health_report_persistence_metadata
 from services.training_report_section_provider_service import (
     FINAL_SECTION_SOURCE_DETERMINISTIC_FALLBACK,
@@ -285,3 +287,99 @@ def test_report_history_keeps_metadata_separate_from_public_text(temp_database):
         json.loads(report["report_metadata_json"])["selected_provider"]
         == "direct_ollama"
     )
+
+
+def test_crewai_failure_persists_safe_fallback_report_with_provider_metadata(
+    temp_database,
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        coordinator_service.AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV,
+        "true",
+    )
+    monkeypatch.setenv(
+        TRAINING_REPORT_SECTION_PROVIDER_ENV,
+        TRAINING_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    class FakeLLM:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+    class FakeAgent:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+    class FakeTask:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+    class FakeCrew:
+        def __init__(self, *_args, **_kwargs):
+            pass
+
+        def kickoff(self):
+            raise RuntimeError("simulated crew failure should not persist")
+
+    fake_crewai = types.SimpleNamespace(
+        LLM=FakeLLM,
+        Agent=FakeAgent,
+        Task=FakeTask,
+        Crew=FakeCrew,
+    )
+    monkeypatch.setitem(sys.modules, "crewai", fake_crewai)
+
+    approved_training_section_result = (
+        build_configured_training_report_section_with_metadata(
+            user_id=102,
+            report_date="2026-06-14",
+            approved_context=APPROVED_CONTEXT,
+            direct_ollama_generate=lambda *_args, **_kwargs: _valid_raw_section(),
+        )
+    )
+
+    def fake_build_training_section_result(**_kwargs):
+        return approved_training_section_result
+
+    monkeypatch.setattr(
+        coordinator_service,
+        "build_full_report_training_section_result",
+        fake_build_training_section_result,
+    )
+
+    result = coordinator_service.generate_health_report(
+        102,
+        report_date="2026-06-14",
+        allow_training_section_provider=True,
+        return_training_section_result=True,
+        report_job_id="job-crewai-fail",
+    )
+
+    report = _latest_report_payload()
+    persisted_metadata = report["report_metadata"]
+
+    assert result.training_report_section_result.approved_section.source == (
+        FINAL_SECTION_SOURCE_DIRECT_OLLAMA_APPROVED
+    )
+    assert report["report_date"] == "2026-06-14"
+    assert report["model_summary"] == "deterministic_fallback_after_crewai_error"
+    assert "simulated crew failure" not in report["report_text"]
+    assert "raw_output" not in report["report_text"]
+    assert "validation_errors" not in report["report_text"]
+    assert persisted_metadata["report_job_id"] == "job-crewai-fail"
+    assert persisted_metadata["report_status"] == (
+        "completed_with_full_report_fallback"
+    )
+    assert persisted_metadata["report_generation_mode"] == "async_report_job"
+    assert persisted_metadata["async_job_used"] is True
+    assert persisted_metadata["provider_enabled"] is True
+    assert persisted_metadata["provider_attempted"] is True
+    assert persisted_metadata["selected_provider"] == "direct_ollama"
+    assert persisted_metadata["selected_model"] == "qwen2.5:3b"
+    assert persisted_metadata["fallback_used"] is False
+    assert persisted_metadata["training_section_source"] == "direct_ollama_approved"
+    assert persisted_metadata["validation_status"] == "approved"
+    assert persisted_metadata["validation_errors_count"] == 0
+    assert "raw_output" not in report["report_metadata_json"]
+    assert "model_facing_quote_context" not in report["report_metadata_json"]
+    assert '"validation_errors"' not in report["report_metadata_json"]
