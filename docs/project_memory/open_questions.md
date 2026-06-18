@@ -9,8 +9,8 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Is Nutrition Report Section Boundary v1 sufficient for Nutrition Provider Readiness Review v1?
-- What exact approved nutrition claim types should be supported before provider voice?
+- Is Nutrition Provider Readiness Review v1 sufficient to approve Nutrition Provider Contract Design v1?
+- What exact approved nutrition claim gating should be required before provider voice?
 - How should food suggestions be phrased without becoming meal planning?
 
 ## Recovery

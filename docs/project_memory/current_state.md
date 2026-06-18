@@ -16,13 +16,13 @@ AI Health Coach / fitness-ai
 
 ## Current provisional milestone
 
-`Lightweight Project Memory Layer v1` is approved to implement.
+`Nutrition Provider Readiness Review v1` is approved to begin review/design only.
 
-## Next recommended milestone after Memory Layer v1
+## Next recommended milestone after Nutrition Provider Readiness Review v1
 
-`Nutrition Provider Readiness Review v1`
+`Nutrition Provider Contract Design v1` if Architecture accepts the readiness review.
 
-Do not implement nutrition provider voice during the memory-layer milestone.
+Do not implement nutrition provider voice during the readiness-review milestone.
 
 ## Current model/provider status
 
@@ -51,9 +51,9 @@ Provider-integrated report sections: `training` only.
 
 ## What is safe to build next
 
-- Repo-native project memory and handoffs.
 - Nutrition Provider Readiness Review v1.
 - Additional documentation of nutrition evidence and claim boundaries.
+- Nutrition Provider Contract Design v1 after Architecture acceptance.
 - Developer workflow cleanup that does not change runtime behavior.
 
 ## What must not be changed casually
@@ -69,7 +69,7 @@ Provider-integrated report sections: `training` only.
 
 ## Expected validation/tests
 
-For docs-only memory updates:
+For docs-only memory/review updates:
 
 - Verify required docs exist.
 - Verify headings are present and accurate.
