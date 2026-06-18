@@ -65,3 +65,12 @@ Secondary demo user: QA 105 — Messy/incomplete logging
 ## Final acceptance label
 
 STREAMLIT_PORTFOLIO_VISUALIZATION_POLISH_V2_READY_FOR_QA
+
+
+## Portfolio visual tightening v3 notes
+
+- Target band cards should be compact enough for a single screenshot.
+- Food suggestion cards should use color chips but remain optional, not meal-plan language.
+- Workout preview cards should avoid oversized metric blocks.
+- Today page should make Recovery Check-In visible as the first coaching input.
+- Developer Mode should remain off for normal screenshots.

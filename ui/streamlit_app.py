@@ -241,6 +241,40 @@ def format_equipment_required(exercise: dict) -> str:
     )
 
 
+def portfolio_chip_class(tone: str | None = None) -> str:
+    if tone == "green":
+        return "portfolio-chip portfolio-chip-green"
+    if tone == "amber":
+        return "portfolio-chip portfolio-chip-amber"
+    if tone == "purple":
+        return "portfolio-chip portfolio-chip-purple"
+    return "portfolio-chip"
+
+
+def portfolio_chip(label: object, tone: str | None = None) -> str:
+    text = escape(str(label or "Unknown"))
+    return f'<span class="{portfolio_chip_class(tone)}">{text}</span>'
+
+
+def portfolio_card_html(
+    eyebrow: object,
+    title: object,
+    body: object = "",
+    chips: list[str] | None = None,
+    accent_class: str = "portfolio-card-accent",
+) -> str:
+    chip_html = " ".join(chips or [])
+    body_html = f'<div class="portfolio-body">{escape(str(body))}</div>' if body else ""
+    return (
+        f'<div class="portfolio-card {accent_class}">'
+        f'<div class="portfolio-eyebrow">{escape(str(eyebrow or ""))}</div>'
+        f'<div class="portfolio-title">{escape(str(title or ""))}</div>'
+        f"{body_html}"
+        f"<div>{chip_html}</div>"
+        f"</div>"
+    )
+
+
 def display_workout_plan_preview(
     workout_plan: dict, user_id: int | None = None
 ) -> None:
@@ -255,50 +289,67 @@ def display_workout_plan_preview(
     exercises = workout_plan.get("exercises") or []
 
     st.subheader("Plan Summary")
-
-    with st.container(border=True):
-        st.markdown(f"### {title}")
-        st.caption(session_focus)
-
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Duration", f"{duration_minutes} min")
-        col2.metric("Confidence", confidence)
-        col3.metric("Exercises", len(exercises))
+    summary_chips = [
+        portfolio_chip(f"{duration_minutes} min", "green"),
+        portfolio_chip(f"{len(exercises)} exercises", "purple"),
+        portfolio_chip(f"Confidence: {confidence}"),
+    ]
+    st.markdown(
+        portfolio_card_html(
+            "Backend-approved workout preview",
+            title,
+            session_focus,
+            summary_chips,
+            "portfolio-card-purple",
+        ),
+        unsafe_allow_html=True,
+    )
 
     if user_id is not None:
         display_workout_plan_explanation(user_id)
 
-    st.subheader("Workout Exercises")
+    st.markdown("#### Exercises")
 
     if not exercises:
         st.warning("No exercises are available for this workout preview.")
     else:
-        for index, exercise in enumerate(exercises):
-            role = workout_exercise_role_label(index, exercise)
-            exercise_name = exercise.get("name", "Unknown")
-            reps = format_workout_range(
-                exercise.get("reps_min"),
-                exercise.get("reps_max"),
-            )
-            rir = format_workout_range(
-                exercise.get("rir_min"),
-                exercise.get("rir_max"),
-            )
-            equipment = format_equipment_required(exercise)
-            notes = exercise.get("notes")
+        for row_start in range(0, len(exercises), 2):
+            columns = st.columns(2)
+            for offset, (column, exercise) in enumerate(
+                zip(columns, exercises[row_start : row_start + 2], strict=False)
+            ):
+                index = row_start + offset
+                role = workout_exercise_role_label(index, exercise)
+                exercise_name = exercise.get("name", "Unknown")
+                reps = format_workout_range(
+                    exercise.get("reps_min"),
+                    exercise.get("reps_max"),
+                )
+                rir = format_workout_range(
+                    exercise.get("rir_min"),
+                    exercise.get("rir_max"),
+                )
+                equipment = format_equipment_required(exercise)
+                sets = exercise.get("sets", "Unknown")
+                notes = exercise.get("notes")
 
-            with st.container(border=True):
-                st.markdown(f"**{role}**")
-                st.markdown(f"### {exercise_name}")
-
-                metric_cols = st.columns(4)
-                metric_cols[0].metric("Sets", exercise.get("sets", "Unknown"))
-                metric_cols[1].metric("Reps", reps)
-                metric_cols[2].metric("RIR", rir)
-                metric_cols[3].metric("Equipment", equipment)
-
-                if notes:
-                    st.caption(notes)
+                chips = [
+                    portfolio_chip(f"{sets} sets", "green"),
+                    portfolio_chip(f"{reps} reps"),
+                    portfolio_chip(f"RIR {rir}", "amber"),
+                    portfolio_chip(equipment, "purple"),
+                ]
+                with column:
+                    st.markdown(
+                        portfolio_card_html(
+                            role,
+                            exercise_name,
+                            notes or "Approved plan exercise.",
+                            chips,
+                            "portfolio-card-accent",
+                        ),
+                        unsafe_allow_html=True,
+                    )
 
     with st.expander("Why this plan", expanded=False):
         if rationale:
@@ -3142,6 +3193,90 @@ st.markdown(
     "**Portfolio view:** start with QA 102 for the happy path, then QA 105 for "
     "limited-confidence safety boundaries."
 )
+# Portfolio visual tightening v3
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.025);
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        border-radius: 0.7rem;
+        padding: 0.55rem 0.65rem;
+    }
+    div[data-testid="stMetricLabel"] p {
+        font-size: 0.78rem;
+        color: #a7b0bd;
+    }
+    div[data-testid="stMetricValue"] {
+        font-size: 1.15rem;
+    }
+    .portfolio-card {
+        border: 1px solid rgba(148, 163, 184, 0.24);
+        border-radius: 0.85rem;
+        padding: 0.72rem 0.82rem;
+        background: linear-gradient(180deg, rgba(15, 23, 42, 0.74), rgba(15, 23, 42, 0.42));
+        margin-bottom: 0.55rem;
+    }
+    .portfolio-card-accent { border-left: 4px solid #38bdf8; }
+    .portfolio-card-green { border-left: 4px solid #22c55e; }
+    .portfolio-card-amber { border-left: 4px solid #f59e0b; }
+    .portfolio-card-purple { border-left: 4px solid #a78bfa; }
+    .portfolio-eyebrow {
+        color: #93c5fd;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .portfolio-title {
+        font-size: 1.02rem;
+        font-weight: 750;
+        line-height: 1.2;
+        margin-bottom: 0.28rem;
+        color: #f8fafc;
+    }
+    .portfolio-body {
+        font-size: 0.86rem;
+        line-height: 1.35;
+        color: #cbd5e1;
+        margin-bottom: 0.26rem;
+    }
+    .portfolio-chip {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 0.12rem 0.45rem;
+        margin: 0.08rem 0.15rem 0.08rem 0;
+        font-size: 0.72rem;
+        font-weight: 650;
+        color: #dbeafe;
+        background: rgba(59, 130, 246, 0.14);
+        border: 1px solid rgba(96, 165, 250, 0.28);
+    }
+    .portfolio-chip-green {
+        color: #dcfce7;
+        background: rgba(34, 197, 94, 0.13);
+        border-color: rgba(74, 222, 128, 0.30);
+    }
+    .portfolio-chip-amber {
+        color: #fef3c7;
+        background: rgba(245, 158, 11, 0.13);
+        border-color: rgba(251, 191, 36, 0.30);
+    }
+    .portfolio-chip-purple {
+        color: #ede9fe;
+        background: rgba(167, 139, 250, 0.13);
+        border-color: rgba(196, 181, 253, 0.30);
+    }
+    .portfolio-muted {
+        color: #94a3b8;
+        font-size: 0.78rem;
+        margin-top: 0.2rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 # Public UI Polish for Portfolio Screenshot Capture v1
 
 # =====================================
@@ -4042,9 +4177,20 @@ def render_today_workout_panel(user_id: int) -> None:
 
 def render_recovery_checkin_card(user_id: int) -> None:
     st.subheader("Recovery Check-In")
-    st.caption(
-        "Quick check-in: improves today's workout and nutrition guidance without "
-        "changing anything until you save it."
+    st.markdown(
+        portfolio_card_html(
+            "Start here",
+            "Recovery drives today's coaching read",
+            "Sleep, energy, soreness, and body weight help the backend adjust today's workout and nutrition guidance safely.",
+            [
+                portfolio_chip("Sleep", "purple"),
+                portfolio_chip("Energy", "green"),
+                portfolio_chip("Soreness", "amber"),
+                portfolio_chip("Body weight"),
+            ],
+            "portfolio-card-amber",
+        ),
+        unsafe_allow_html=True,
     )
 
     with st.expander("Complete recovery check-in", expanded=False):
@@ -4215,22 +4361,23 @@ def render_recent_workout_reflection_card(user_id: int) -> None:
 def render_today_section(user_id: int) -> None:
     st.header("Today")
     st.caption(
-        "Start here: review the coach's read, check in, and run today's workout."
+        "Start with recovery, then review the backend-approved coach read and today's workout."
     )
 
-    render_daily_coach_synthesis_card(user_id)
-
-    with st.expander("Daily Grounded Recommendation", expanded=True):
-        render_daily_recommendation_snapshot(user_id)
+    top_recovery_col, top_coach_col = st.columns([1, 1.25])
+    with top_recovery_col:
+        render_recovery_checkin_card(user_id)
+    with top_coach_col:
+        render_daily_coach_synthesis_card(user_id)
+        with st.expander("Daily Grounded Recommendation", expanded=True):
+            render_daily_recommendation_snapshot(user_id)
 
     st.divider()
 
-    recovery_col, nutrition_col = st.columns([1, 1])
-    with recovery_col:
-        render_recovery_checkin_card(user_id)
+    nutrition_col, reflection_col = st.columns([1, 1])
     with nutrition_col:
         render_quick_nutrition_status(user_id)
-        st.divider()
+    with reflection_col:
         render_recent_workout_reflection_card(user_id)
 
     st.divider()
@@ -4989,8 +5136,6 @@ def nutrition_comparison_rows_from_summary(summary: dict) -> list[dict]:
 def nutrition_target_band_target_bounds(
     comparison: dict,
 ) -> tuple[float | None, float | None]:
-    """Return approved numeric target bounds for visual display only."""
-
     target_min = numeric_nutrition_amount(comparison.get("target_min"))
     target_max = numeric_nutrition_amount(comparison.get("target_max"))
 
@@ -5020,6 +5165,15 @@ def nutrition_target_band_status_label(comparison: dict, unit: str | None) -> st
         or "Available"
     )
     return nutrition_public_text(status).rstrip(".") or "Available"
+
+
+def nutrition_target_band_status_tone(status_label: str) -> str:
+    normalized = status_label.lower()
+    if "within" in normalized or "on target" in normalized:
+        return "green"
+    if "below" in normalized or "above" in normalized:
+        return "amber"
+    return "purple"
 
 
 def nutrition_target_band_specs(summary: dict) -> list[dict]:
@@ -5074,6 +5228,7 @@ def nutrition_target_band_specs(summary: dict) -> list[dict]:
                     "actual_label": format_nutrition_value(actual, unit),
                     "target_label": "Limited",
                     "status_label": status_label,
+                    "tone": "purple",
                 }
             )
             continue
@@ -5098,6 +5253,7 @@ def nutrition_target_band_specs(summary: dict) -> list[dict]:
                     else f"{format_nutrition_value(target_min, unit)}–{format_nutrition_value(target_max, unit)}"
                 ),
                 "status_label": status_label,
+                "tone": nutrition_target_band_status_tone(status_label),
                 "actual_pct": actual_pct,
                 "target_start_pct": target_start_pct,
                 "target_end_pct": target_end_pct,
@@ -5112,38 +5268,57 @@ def render_nutrition_target_band(spec: dict) -> None:
     actual_label = escape(str(spec.get("actual_label") or "Not available"))
     target_label = escape(str(spec.get("target_label") or "Limited"))
     status_label = escape(str(spec.get("status_label") or "Limited"))
+    tone = spec.get("tone") or "purple"
+    accent_class = (
+        "portfolio-card-green"
+        if tone == "green"
+        else "portfolio-card-amber"
+        if tone == "amber"
+        else "portfolio-card-purple"
+    )
 
-    with st.container(border=True):
-        st.markdown(f"**{label}**")
-        top_cols = st.columns([1, 1, 1])
-        top_cols[0].caption(f"Logged: {actual_label}")
-        top_cols[1].caption(f"Target: {target_label}")
-        top_cols[2].caption(f"Status: {status_label}")
-
-        if spec.get("limited"):
-            st.caption(
-                "Target band is limited because the backend did not approve this "
-                "target for visual display."
-            )
-            return
-
-        actual_pct = float(spec.get("actual_pct") or 0)
-        target_start_pct = float(spec.get("target_start_pct") or 0)
-        target_end_pct = float(spec.get("target_end_pct") or 0)
-        target_width_pct = max(1.0, target_end_pct - target_start_pct)
-
+    if spec.get("limited"):
         st.markdown(
-            f"""
-            <div style="position: relative; height: 16px; border-radius: 999px; background: #1f2937; overflow: hidden; border: 1px solid #374151;">
-                <div title="Approved target band" style="position: absolute; left: {target_start_pct:.2f}%; width: {target_width_pct:.2f}%; height: 100%; background: rgba(34, 197, 94, 0.38);"></div>
-                <div title="Logged actual" style="position: absolute; left: {actual_pct:.2f}%; width: 4px; height: 100%; background: #f8fafc;"></div>
-            </div>
-            <div style="font-size: 0.78rem; color: #9ca3af; margin-top: 0.25rem;">
-                green band = approved target range · white marker = logged actual
-            </div>
-            """,
+            portfolio_card_html(
+                label,
+                "Target band limited",
+                "The backend did not approve this target for numeric visual display.",
+                [
+                    portfolio_chip(f"Logged: {actual_label}"),
+                    portfolio_chip("Limited", "purple"),
+                ],
+                accent_class,
+            ),
             unsafe_allow_html=True,
         )
+        return
+
+    actual_pct = float(spec.get("actual_pct") or 0)
+    target_start_pct = float(spec.get("target_start_pct") or 0)
+    target_end_pct = float(spec.get("target_end_pct") or 0)
+    target_width_pct = max(1.0, target_end_pct - target_start_pct)
+    chip_html = " ".join(
+        [
+            portfolio_chip(f"Logged: {actual_label}", "green"),
+            portfolio_chip(f"Target: {target_label}"),
+            portfolio_chip(status_label, tone),
+        ]
+    )
+
+    st.markdown(
+        f"""
+        <div class="portfolio-card {accent_class}">
+            <div class="portfolio-eyebrow">{label}</div>
+            <div style="position: relative; height: 12px; border-radius: 999px; background: #111827; overflow: hidden; border: 1px solid rgba(148, 163, 184, 0.22); margin: 0.28rem 0 0.48rem 0;">
+                <div title="Approved target band" style="position: absolute; left: {target_start_pct:.2f}%; width: {target_width_pct:.2f}%; height: 100%; background: rgba(34, 197, 94, 0.46);"></div>
+                <div title="Logged actual" style="position: absolute; left: {actual_pct:.2f}%; width: 3px; height: 100%; background: #f8fafc;"></div>
+            </div>
+            <div>{chip_html}</div>
+            <div class="portfolio-muted">target band = approved range · marker = logged actual</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def display_nutrition_target_band_chart(summary: dict) -> None:
@@ -5972,25 +6147,31 @@ def render_food_suggestion_card(suggestion: dict, index: int) -> None:
     suggestion_summary = suggestion.get("suggestion_summary")
     limitations = suggestion.get("limitations") or []
 
-    with st.container(border=True):
-        st.markdown(
-            f"**{food_suggestion_amount(suggested_grams, 'g')} {display_name}**"
-        )
+    chips = [
+        portfolio_chip(f"{food_suggestion_amount(suggested_grams, 'g')}", "green"),
+        portfolio_chip(f"Focus: {macro_gap}", "purple"),
+        portfolio_chip(f"Confidence: {confidence}"),
+    ]
+    st.markdown(
+        portfolio_card_html(
+            "Approved food suggestion",
+            display_name,
+            food_suggestion_estimate_text(suggestion),
+            chips,
+            "portfolio-card-green",
+        ),
+        unsafe_allow_html=True,
+    )
 
-        chip_cols = st.columns(3)
-        chip_cols[0].caption(f"Focus: {macro_gap}")
-        chip_cols[1].caption(f"Confidence: {confidence}")
-        chip_cols[2].caption(food_suggestion_estimate_text(suggestion))
+    if suggestion_summary:
+        st.caption(food_suggestion_public_text(suggestion_summary))
 
-        if suggestion_summary:
-            st.caption(food_suggestion_public_text(suggestion_summary))
-
-        if limitations:
-            with st.expander(f"Suggestion limitations #{index + 1}", expanded=False):
-                for limitation in limitations:
-                    friendly = food_suggestion_public_text(limitation)
-                    if friendly:
-                        st.caption(f"• {friendly}")
+    if limitations:
+        with st.expander(f"Suggestion limitations #{index + 1}", expanded=False):
+            for limitation in limitations:
+                friendly = food_suggestion_public_text(limitation)
+                if friendly:
+                    st.caption(f"• {friendly}")
 
 
 def nutrition_runtime_debug_value(value: object) -> str:
@@ -6185,15 +6366,23 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
     primary_gap = suggestions_response.get("primary_gap")
     limitations = suggestions_response.get("limitations") or []
 
-    with st.container(border=True):
-        metric_cols = st.columns(3)
-        metric_cols[0].metric(
-            "Date", suggestions_response.get("suggestion_date", suggestion_date)
-        )
-        metric_cols[1].metric("Primary gap", food_suggestion_macro_label(primary_gap))
-        metric_cols[2].metric("Confidence", confidence)
-
-        st.caption(food_suggestion_primary_gap_summary(suggestions_response))
+    summary_chips = [
+        portfolio_chip(suggestions_response.get("suggestion_date", suggestion_date)),
+        portfolio_chip(
+            f"Primary gap: {food_suggestion_macro_label(primary_gap)}", "purple"
+        ),
+        portfolio_chip(f"Confidence: {confidence}", "green"),
+    ]
+    st.markdown(
+        portfolio_card_html(
+            "Food suggestion context",
+            "Approved canonical options",
+            food_suggestion_primary_gap_summary(suggestions_response),
+            summary_chips,
+            "portfolio-card-green",
+        ),
+        unsafe_allow_html=True,
+    )
 
     if limitations:
         with st.expander("Why suggestions may be limited", expanded=False):
@@ -6214,13 +6403,18 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
         return
 
     st.markdown("#### Suggested canonical foods")
-    for row_start in range(0, len(suggestions), 2):
-        columns = st.columns(2)
+    for row_start in range(0, len(suggestions), 3):
+        columns = st.columns(3)
         for offset, (column, suggestion) in enumerate(
-            zip(columns, suggestions[row_start : row_start + 2], strict=False)
+            zip(columns, suggestions[row_start : row_start + 3], strict=False)
         ):
             with column:
                 render_food_suggestion_card(suggestion, row_start + offset)
+
+    st.caption(
+        "Next UI idea: make these selectable for logging once Architecture approves "
+        "a click-to-log interaction."
+    )
 
     developer_details(
         "Developer details: nutrition food suggestions response",
