@@ -9,11 +9,13 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Should Architecture approve `Nutrition Provider Opt-In Runtime QA v1` next?
-- Should Nutrition provider execution be tested first as section-only runtime QA before any full-report integration?
+- Should Architecture approve `Nutrition Full Report Opt-In Integration v1` after the design review?
+- Should full-report Nutrition integration use a separate full-report integration gate in addition to the existing section provider gate?
+- What exact safe Nutrition metadata keys should be added to persisted full-report history during implementation?
+- Should the initial full-report Nutrition integration render a distinct Nutrition Report Section below Nutrition Target Display?
 - What exact runtime QA matrix is required before Nutrition can move from Level 4 to Level 5?
-- What additional negative validator cases are required after observing real qwen2.5 output?
-- When should Nutrition provider metadata be allowed into persisted full-report history, if ever?
+- What additional negative validator cases are required after observing real qwen2.5 output in section-only runtime QA?
+- When should Nutrition provider metadata be allowed into persisted full-report history, and at what level of detail?
 
 ## Recovery
 
