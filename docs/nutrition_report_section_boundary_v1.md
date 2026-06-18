@@ -25,11 +25,11 @@ nutrition voice section.
 ## Current section status
 
 - `nutrition_target_display` remains Level 2 derived-evidence display.
-- `nutrition_report_section` is registered as a distinct Level 3 approved-claims
-  boundary.
-- `training` remains the only Level 5 provider-integrated full-report section.
-- Nutrition does not call `direct_ollama` in this milestone.
-- Nutrition is not provider-integrated in the full report.
+- `nutrition_report_section` is registered as a distinct provider-integrated
+  boundary after Nutrition Provider Level 5 Promotion v1.
+- `training` remains a separate Level 5 provider-integrated full-report section.
+- Nutrition still calls `direct_ollama` only through explicit opt-in gates.
+- Nutrition provider-approved output is tracked separately from fallback or disabled-gate deterministic output.
 
 ## New model boundary
 
@@ -163,8 +163,8 @@ This milestone did not:
 Runtime QA can remain light unless full report behavior changes materially.
 Expected behavior:
 
-- Training remains the only provider-integrated full-report section.
-- Nutrition remains deterministic/non-provider.
+- Training remains a provider-integrated full-report section.
+- Nutrition Report Section is provider-integrated only when approved provider Nutrition content rendered for that report.
+- Fallback and disabled-gate Nutrition reports do not imply provider-approved Nutrition content.
 - Section registry metadata includes `nutrition_report_section`.
-- `provider_integrated_report_sections` remains `training` only.
 - No raw/debug/provider output is public or persisted publicly.

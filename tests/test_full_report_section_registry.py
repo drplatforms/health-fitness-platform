@@ -9,7 +9,10 @@ import database
 from services import coordinator_service, report_service
 from services.full_report_section_registry_service import (
     FULL_REPORT_SECTION_REGISTRY_VERSION,
+    PROVIDER_STATUS_NONE,
     PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED,
+    SECTION_ID_NUTRITION_REPORT,
+    SECTION_ID_NUTRITION_TARGET_DISPLAY,
     SECTION_ID_TRAINING,
     get_full_report_section_definition,
     get_full_report_section_ids,
@@ -122,23 +125,31 @@ def test_full_report_section_registry_defines_current_public_sections():
         assert 0 <= section.maturity_level <= 5
 
 
-def test_training_is_only_full_report_provider_integrated_section():
+def test_training_and_nutrition_are_level_5_provider_integrated_sections():
     provider_integrated_sections = get_provider_integrated_full_report_section_ids()
     training = get_full_report_section_definition(SECTION_ID_TRAINING)
+    nutrition = get_full_report_section_definition(SECTION_ID_NUTRITION_REPORT)
+    nutrition_target_display = get_full_report_section_definition(
+        SECTION_ID_NUTRITION_TARGET_DISPLAY
+    )
 
-    assert provider_integrated_sections == ["training"]
+    assert provider_integrated_sections == ["nutrition_report_section", "training"]
     assert training is not None
     assert training.provider_status == PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED
     assert training.maturity_level == 5
     assert "direct_ollama remains opt-in" in training.notes
     assert "training_section_source" in training.metadata_fields
 
-    for section in get_full_report_section_registry():
-        if section.section_id != SECTION_ID_TRAINING:
-            assert (
-                section.provider_status != PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED
-            )
-            assert section.maturity_level < 5
+    assert nutrition is not None
+    assert nutrition.provider_status == PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED
+    assert nutrition.maturity_level == 5
+    assert "explicitly gated" in nutrition.notes
+    assert "deterministic fallback remains mandatory" in nutrition.notes
+    assert "nutrition_section_source" in nutrition.metadata_fields
+
+    assert nutrition_target_display is not None
+    assert nutrition_target_display.provider_status == PROVIDER_STATUS_NONE
+    assert nutrition_target_display.maturity_level == 2
 
 
 def test_section_registry_metadata_is_safe_and_allowlisted(tmp_path, monkeypatch):

@@ -12,21 +12,19 @@ AI Health Coach / fitness-ai
 
 ## Latest accepted milestone
 
-`Nutrition Provider Approved Suggestion Runtime QA v1`
+`Nutrition Provider Level 5 Promotion Readiness Review v1`
 
-Runtime result: `PASS_PROVIDER_APPROVED_MATRIX`. Users 101-105 all completed through the full-report opt-in Nutrition provider path with direct_ollama/qwen2.5:3b, parser success, validation approved, fallback false, and `nutrition_section_source=direct_ollama_approved`. Public/persisted leakage checks remained clean.
+Readiness result: `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH`. Architecture accepted proceeding to a separate controlled Nutrition Provider Level 5 Promotion v1 patch after Nutrition Provider Approved Suggestion Runtime QA v1 passed with users 101-105 all provider-approved through direct_ollama/qwen2.5:3b.
 
 ## Current provisional milestone
 
-`Nutrition Provider Level 5 Promotion Readiness Review v1` is implemented as a docs-only readiness review and pending Architecture review.
+`Nutrition Provider Level 5 Promotion v1` is implemented and pending Architecture/QA review.
 
-## Next recommended milestone after Nutrition Provider Level 5 Promotion Readiness Review v1
+## Next recommended milestone after Nutrition Provider Level 5 Promotion v1
 
-If Architecture accepts this readiness review, the next recommended milestone is:
+`Nutrition Level 5 Promotion Runtime QA v1`
 
-`Nutrition Provider Level 5 Promotion v1`
-
-This should be a separate explicit promotion patch. It should not make direct_ollama default, remove deterministic fallback, remove provider gates, run/promote qwen3, or merge Nutrition Target Display with the Nutrition Report Section.
+QA should rerun users 101-105 through the full-report opt-in Nutrition provider matrix with direct_ollama/qwen2.5:3b, verify `provider_integrated_report_sections` semantics, verify fallback/disabled gates do not falsely imply provider approval, verify Nutrition Target Display remains separate Level 2, and verify public/persisted leakage remains clean.
 
 ## Current model/provider status
 
@@ -40,7 +38,7 @@ This should be a separate explicit promotion patch. It should not make direct_ol
 - Nutrition practical food focus runtime QA passed with `PASS_WITH_IMPROVED_DIAGNOSTICS`: user 105 is now provider-approved and the no-approved-suggestion path appears fixed.
 - Nutrition approved suggestion context inspection/tuning added backend-approved `practical_food_focus` option lists and requires direct-Ollama to copy one exact backend-approved option sentence.
 - Nutrition approved suggestion runtime QA passed with `PASS_PROVIDER_APPROVED_MATRIX`: users 101-105 were all provider-approved, practical_food_focus failures dropped to 0, fallback false for all users, and public/persisted leakage checks remained clean.
-- Nutrition Provider Level 5 Promotion Readiness Review v1 recommends `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH`, but Nutrition remains Level 4 until a separate promotion patch is accepted.
+- Nutrition Provider Level 5 Promotion v1 promotes `nutrition_report_section` to Level 5 provider-integrated status while preserving opt-in gates, deterministic fallback, strict validation, and public/persisted sanitizer boundaries.
 - Full-report provider execution is async/background only.
 - `qwen3` remains experimental only and is not promoted.
 - The old CrewAI full-report coordinator can fail; deterministic fallback composition protects public report output.
@@ -51,7 +49,7 @@ This should be a separate explicit promotion patch. It should not make direct_ol
 |---|---|---|
 | training | Provider-integrated full-report section, opt-in direct_ollama/qwen2.5 path | Level 5 |
 | nutrition_target_display | Backend-approved target display contract; input to Nutrition Report Section | Level 2 |
-| nutrition_report_section | Backend-owned evidence/claims/fallback boundary plus isolated opt-in provider implementation; full-report runtime matrix/retry matrix accepted; diagnostic QA retry passed; practical_food_focus no-suggestion and approved-suggestion paths resolved in runtime QA; ready for Level 5 promotion patch review but not promoted yet | Level 4 |
+| nutrition_report_section | Provider-integrated full-report section with opt-in direct_ollama/qwen2.5 path, strict parser/validator boundary, backend-approved practical_food_focus options, report-specific provider-integrated metadata, and deterministic fallback | Level 5 |
 | grounded_recommendation | Strong approved contract but cross-domain; not next provider voice section | Level 3 |
 | overall_score | Deterministic/coordinator-structured | Level 1 |
 | profile_context | Deterministic/coordinator-structured | Level 1 |
@@ -60,13 +58,13 @@ This should be a separate explicit promotion patch. It should not make direct_ol
 | priority_action | Deterministic/coordinator-structured | Level 1 |
 | best_recommendation | Deterministic/coordinator-structured | Level 1 |
 
-Provider-integrated report sections: `training` only until a separate Nutrition Level 5 promotion patch is accepted.
+Provider-integrated section maturity: `training` and `nutrition_report_section`. Per-report `provider_integrated_report_sections` metadata still lists Nutrition only when approved provider output actually rendered; fallback and disabled-gate Nutrition reports remain explicit.
 
 ## What is safe to build next
 
-- Nutrition Provider Level 5 Promotion v1 as a separate explicit promotion patch if Architecture accepts the readiness review.
+- Nutrition Level 5 Promotion Runtime QA v1.
 - Keep deterministic fallback, provider gates, strict parser/validator behavior, and public/persisted sanitizer boundaries unchanged.
-- Update registry/project-memory semantics carefully so Nutrition can be treated as Level 5 only after explicit promotion acceptance.
+- Verify report-specific provider-integrated metadata for approved, fallback, and disabled-gate Nutrition paths.
 - Preserve the distinction between `nutrition_target_display` and `nutrition_report_section`.
 - Preserve qwen2.5:3b as the only accepted Nutrition provider model; qwen3 remains experimental only.
 
@@ -79,7 +77,7 @@ Provider-integrated report sections: `training` only until a separate Nutrition 
 - Full-report composition fallback boundary.
 - Training evidence/claim validator rules.
 - Nutrition boundary rule that provider execution and full-report integration remain explicitly config-gated.
-- The rule that Training is the only provider-integrated full-report section.
+- The rule that provider-integrated metadata must not imply provider-approved Nutrition content when Nutrition falls back or is not attempted.
 - The debug endpoint clarification: `validation_errors=[]` and `raw_output_preview_truncated=null` are acceptable only in explicit debug endpoint metadata and remain forbidden in public/user-facing/persisted output.
 
 ## Expected validation/tests
@@ -103,9 +101,9 @@ For code/tooling changes:
 
 1. Context loss across long chat sessions.
 2. Accidentally treating qwen3 as promoted or default.
-3. Accidentally expanding provider ownership beyond Training.
-4. Nutrition provider approval matrix success being mistaken for automatic Level 5 promotion before the separate promotion patch is accepted.
-5. Promotion semantics accidentally implying direct_ollama is default instead of opt-in.
+3. Accidentally expanding provider ownership beyond Training and Nutrition Report Section.
+4. Nutrition Level 5 promotion being mistaken for direct_ollama default approval.
+5. Promotion semantics accidentally marking fallback or disabled-gate Nutrition reports as provider-approved.
 6. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
 7. Generic coaching language degrading product quality even when technically safe.
 8. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during runtime QA or future promotion work.

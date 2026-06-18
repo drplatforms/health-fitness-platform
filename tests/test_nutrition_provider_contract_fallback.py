@@ -172,5 +172,8 @@ def test_fallback_result_uses_deterministic_section_and_safe_metadata_only():
     assert "raw_output" not in result.safe_metadata
 
 
-def test_nutrition_contract_scaffolding_does_not_promote_provider_integration():
-    assert get_provider_integrated_full_report_section_ids() == ["training"]
+def test_nutrition_level_5_promotion_preserves_provider_integration_registry():
+    assert get_provider_integrated_full_report_section_ids() == [
+        "nutrition_report_section",
+        "training",
+    ]

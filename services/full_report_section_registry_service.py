@@ -32,8 +32,7 @@ def get_full_report_section_registry() -> tuple[FullReportSectionDefinition, ...
 
     The registry is intentionally static for v1. It documents the current public
     report sections rendered by services.coordinator_service.render_unified_health_report
-    and separates the mature training provider path from deterministic/current-state
-    sections that are not yet provider-owned in the full report.
+    and separates provider-ready section maturity from per-report provider approval.
     """
 
     return (
@@ -119,9 +118,9 @@ def get_full_report_section_registry() -> tuple[FullReportSectionDefinition, ...
         FullReportSectionDefinition(
             section_id=SECTION_ID_NUTRITION_REPORT,
             public_display_name="Nutrition Report Section",
-            current_source="ApprovedNutritionReportSection boundary with isolated opt-in provider execution path; not full-report integrated",
+            current_source="ApprovedNutritionReportSection boundary with opt-in full-report provider integration and deterministic fallback",
             deterministic_fallback_owner="services.nutrition_report_section_provider_service.build_deterministic_nutrition_report_section_with_metadata",
-            provider_status=PROVIDER_STATUS_NOT_FULL_REPORT_INTEGRATED,
+            provider_status=PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED,
             evidence_source="TargetVsActualNutritionSummary, ApprovedNutritionGuidance, and ApprovedNutritionFoodSuggestions",
             approved_claim_source="ApprovedNutritionClaim objects plus nutrition provider parser/validator contract tied to backend-owned evidence",
             render_fields=[
@@ -148,11 +147,12 @@ def get_full_report_section_registry() -> tuple[FullReportSectionDefinition, ...
                 "nutrition_section_source",
                 "provider_latency_ms",
             ],
-            maturity_level=SECTION_MATURITY_PROVIDER_EXPLANATION,
+            maturity_level=SECTION_MATURITY_FULL_REPORT_INTEGRATED,
             notes=(
-                "Nutrition has an isolated opt-in provider execution path with fake-provider "
-                "tests, strict parser/validator, and deterministic fallback. It is not "
-                "full-report provider-integrated and must not be treated as Level 5."
+                "Nutrition is a mature opt-in provider-integrated full-report section "
+                "after accepted qwen2.5 seeded runtime QA. direct_ollama remains "
+                "explicitly gated, provider output is parsed/validated before rendering, "
+                "and deterministic fallback remains mandatory."
             ),
         ),
         FullReportSectionDefinition(
@@ -284,13 +284,36 @@ def get_provider_integrated_full_report_section_ids() -> list[str]:
     ]
 
 
-def get_full_report_section_registry_metadata() -> dict[str, str]:
+def get_report_provider_integrated_section_ids(
+    *,
+    nutrition_provider_approved: bool = False,
+) -> list[str]:
+    """Return provider-integrated sections for a specific report run.
+
+    Training remains the established Level 5 provider-integrated section. Nutrition
+    is Level 5 provider-capable after promotion, but per-report metadata should
+    list it only when approved provider output actually rendered. Fallback or
+    disabled-gate Nutrition output must not imply provider approval.
+    """
+
+    section_ids = [SECTION_ID_TRAINING]
+    if nutrition_provider_approved:
+        section_ids.append(SECTION_ID_NUTRITION_REPORT)
+    return section_ids
+
+
+def get_full_report_section_registry_metadata(
+    *,
+    nutrition_provider_approved: bool = False,
+) -> dict[str, str]:
     """Return safe summary metadata for persisted report history."""
 
     return {
         "full_report_section_registry_version": FULL_REPORT_SECTION_REGISTRY_VERSION,
         "full_report_section_ids": ",".join(get_full_report_section_ids()),
         "provider_integrated_report_sections": ",".join(
-            get_provider_integrated_full_report_section_ids()
+            get_report_provider_integrated_section_ids(
+                nutrition_provider_approved=nutrition_provider_approved
+            )
         ),
     }

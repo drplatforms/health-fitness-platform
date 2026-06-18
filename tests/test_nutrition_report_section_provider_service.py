@@ -8,6 +8,7 @@ from services.full_report_section_registry_service import (
     SECTION_ID_NUTRITION_REPORT,
     get_full_report_section_definition,
     get_provider_integrated_full_report_section_ids,
+    get_report_provider_integrated_section_ids,
 )
 from services.nutrition_report_section_provider_service import (
     AI_HEALTH_REPORT_NUTRITION_SECTION_PROVIDER_ENABLED_ENV,
@@ -102,17 +103,25 @@ def test_invalid_provider_falls_back_and_metadata_stays_allowlisted(monkeypatch)
     assert "validation_errors" not in result.safe_metadata
 
 
-def test_nutrition_opt_in_implementation_does_not_promote_full_report_provider_integration():
-    assert get_provider_integrated_full_report_section_ids() == ["training"]
+def test_nutrition_level_5_promotion_updates_provider_integrated_registry():
+    assert get_provider_integrated_full_report_section_ids() == [
+        "nutrition_report_section",
+        "training",
+    ]
 
 
-def test_nutrition_provider_opt_in_path_is_level_four_not_level_five():
+def test_nutrition_provider_path_is_level_five_but_report_metadata_is_conditional():
     nutrition = get_full_report_section_definition(SECTION_ID_NUTRITION_REPORT)
 
     assert nutrition is not None
-    assert nutrition.maturity_level == 4
-    assert nutrition.provider_status == "not_full_report_integrated"
-    assert get_provider_integrated_full_report_section_ids() == ["training"]
+    assert nutrition.maturity_level == 5
+    assert nutrition.provider_status == "opt_in_full_report_integrated"
+    assert get_report_provider_integrated_section_ids(
+        nutrition_provider_approved=False
+    ) == ["training"]
+    assert get_report_provider_integrated_section_ids(
+        nutrition_provider_approved=True
+    ) == ["training", "nutrition_report_section"]
 
 
 def test_configured_nutrition_provider_preserves_debug_diagnostics_on_rejection(

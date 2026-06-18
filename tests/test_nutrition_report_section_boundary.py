@@ -359,10 +359,13 @@ def test_nutrition_report_section_is_distinct_from_target_display_in_registry():
     assert target_display is not None
     assert training is not None
     assert nutrition_section.section_id != target_display.section_id
-    assert nutrition_section.maturity_level == 4
+    assert nutrition_section.maturity_level == 5
     assert target_display.maturity_level == 2
-    assert nutrition_section.provider_status == "not_full_report_integrated"
-    assert get_provider_integrated_full_report_section_ids() == ["training"]
+    assert nutrition_section.provider_status == "opt_in_full_report_integrated"
+    assert get_provider_integrated_full_report_section_ids() == [
+        "nutrition_report_section",
+        "training",
+    ]
     assert training.provider_status == PROVIDER_STATUS_OPT_IN_FULL_REPORT_INTEGRATED
 
 

@@ -1531,10 +1531,17 @@ def build_health_report_persistence_metadata(
         report_job_id=report_job_id,
         provider_enabled=provider_enabled,
     )
-    metadata.update(get_full_report_section_registry_metadata())
-    metadata.update(
-        nutrition_section_provider_job_metadata(nutrition_report_section_result)
+    nutrition_metadata = nutrition_section_provider_job_metadata(
+        nutrition_report_section_result
     )
+    metadata.update(
+        get_full_report_section_registry_metadata(
+            nutrition_provider_approved=_nutrition_provider_approved_for_integrated_metadata(
+                nutrition_metadata
+            )
+        )
+    )
+    metadata.update(nutrition_metadata)
     metadata.update(
         {
             "report_status": report_status,
@@ -1591,6 +1598,27 @@ def nutrition_section_provider_job_metadata(nutrition_report_section_result) -> 
         ),
         "nutrition_provider_latency_ms": safe_metadata.get("provider_latency_ms"),
     }
+
+
+def _nutrition_provider_approved_for_integrated_metadata(
+    nutrition_metadata: dict,
+) -> bool:
+    """Return whether Nutrition should be listed as provider-integrated for a report.
+
+    Nutrition is now Level 5 provider-capable, but per-report metadata should list
+    it as provider-integrated only when the approved provider path actually
+    rendered. Disabled gates and deterministic fallback remain explicit.
+    """
+
+    return (
+        nutrition_metadata.get("nutrition_full_report_integration_enabled") is True
+        and nutrition_metadata.get("nutrition_provider_attempted") is True
+        and nutrition_metadata.get("nutrition_candidate_valid") is True
+        and nutrition_metadata.get("nutrition_validation_status") == "approved"
+        and nutrition_metadata.get("nutrition_fallback_used") is False
+        and nutrition_metadata.get("nutrition_section_source")
+        == "direct_ollama_approved"
+    )
 
 
 def nutrition_section_provider_debug_metadata(nutrition_report_section_result) -> dict:

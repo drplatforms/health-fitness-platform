@@ -9,8 +9,9 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Should Architecture accept `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH` after Nutrition Provider Level 5 Promotion Readiness Review v1?
-- In the future promotion patch, should `provider_integrated_report_sections` list Nutrition only when a provider-approved Nutrition section is actually rendered, or should it represent section maturity independently of a specific report run?
+- Will Nutrition Level 5 Promotion Runtime QA v1 confirm users 101-105 remain provider-approved after registry/metadata promotion?
+- Will runtime QA confirm `provider_integrated_report_sections` includes `nutrition_report_section` only when approved provider Nutrition content actually rendered?
+- What fallback-forced runtime case should QA use to confirm fallback Nutrition output is not falsely represented as provider-approved?
 - Should Nutrition remain opt-in after Level 5 promotion until a separate default-provider decision is made?
 - What additional non-seeded runtime cases are required after Level 5 promotion, if any?
 - What additional negative validator cases are required after observing real qwen2.5 approved output in matrix runtime QA?

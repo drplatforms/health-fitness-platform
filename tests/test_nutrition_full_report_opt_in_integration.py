@@ -214,13 +214,118 @@ def test_full_report_persistence_stores_nutrition_prefixed_safe_metadata(
     assert persisted["nutrition_selected_provider"] == "direct_ollama"
     assert persisted["nutrition_validation_errors_count"] == 0
     assert persisted["nutrition_section_source"] == "direct_ollama_approved"
-    assert persisted["provider_integrated_report_sections"] == "training"
+    assert persisted["provider_integrated_report_sections"] == (
+        "training,nutrition_report_section"
+    )
     assert "raw_output" not in metadata_json
     assert '"validation_errors"' not in metadata_json
     assert "nutrition_validation_error_categories" not in metadata_json
     assert "nutrition_validation_error_fields" not in metadata_json
     assert "nutrition_first_validation_error_category" not in metadata_json
     assert "nutrition_first_validation_error_field" not in metadata_json
+
+
+def test_fallback_nutrition_section_is_not_marked_provider_integrated(
+    temp_database,
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        coordinator_service.AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED_ENV,
+        "true",
+    )
+    monkeypatch.setenv(AI_HEALTH_REPORT_NUTRITION_SECTION_PROVIDER_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        NUTRITION_REPORT_SECTION_PROVIDER_ENV,
+        NUTRITION_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    nutrition_result = build_configured_nutrition_report_section_with_metadata(
+        user_id=102,
+        report_date="2026-06-14",
+        evidence_context=build_complete_nutrition_provider_evidence(),
+        direct_ollama_generate=lambda *_args: "not-json",
+    )
+    training_result = coordinator_service.build_full_report_training_section_result(
+        user_id=102,
+        report_date="2026-06-14",
+    )
+
+    metadata = coordinator_service.build_health_report_persistence_metadata(
+        training_result,
+        nutrition_report_section_result=nutrition_result,
+        report_job_id="job-nutrition-fallback",
+        report_generation_mode="async_report_job",
+        async_job_used=True,
+        provider_enabled=False,
+    )
+
+    report_service.save_health_report(
+        user_id=102,
+        report_text="Safe fallback report with deterministic Nutrition content.",
+        model_summary="deterministic_test",
+        report_date="2026-06-14",
+        report_metadata=metadata,
+    )
+
+    persisted = _latest_report_payload()["report_metadata"]
+
+    assert persisted["nutrition_candidate_valid"] is None
+    assert persisted["nutrition_validation_status"] is None
+    assert persisted["nutrition_fallback_used"] is True
+    assert persisted["nutrition_fallback_reason"] == "nutrition_provider_parse_failed"
+    assert persisted["nutrition_section_source"] == (
+        "deterministic_nutrition_report_section_fallback"
+    )
+    assert persisted["provider_integrated_report_sections"] == "training"
+
+
+def test_disabled_nutrition_provider_gate_is_not_marked_provider_integrated(
+    temp_database,
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        coordinator_service.AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED_ENV,
+        raising=False,
+    )
+    monkeypatch.setenv(AI_HEALTH_REPORT_NUTRITION_SECTION_PROVIDER_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        NUTRITION_REPORT_SECTION_PROVIDER_ENV,
+        NUTRITION_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    nutrition_result = coordinator_service.build_full_report_nutrition_section_result(
+        user_id=102,
+        report_date="2026-06-14",
+        evidence_context=build_complete_nutrition_provider_evidence(),
+        direct_ollama_generate=lambda *_args: valid_provider_candidate_json(),
+    )
+    training_result = coordinator_service.build_full_report_training_section_result(
+        user_id=102,
+        report_date="2026-06-14",
+    )
+
+    metadata = coordinator_service.build_health_report_persistence_metadata(
+        training_result,
+        nutrition_report_section_result=nutrition_result,
+        report_job_id="job-nutrition-disabled",
+        report_generation_mode="async_report_job",
+        async_job_used=True,
+        provider_enabled=False,
+    )
+
+    report_service.save_health_report(
+        user_id=102,
+        report_text="Safe report with deterministic Nutrition content.",
+        model_summary="deterministic_test",
+        report_date="2026-06-14",
+        report_metadata=metadata,
+    )
+
+    persisted = _latest_report_payload()["report_metadata"]
+
+    assert persisted["nutrition_provider_attempted"] is False
+    assert persisted["nutrition_section_source"] == "deterministic"
+    assert persisted["provider_integrated_report_sections"] == "training"
 
 
 def test_approved_nutrition_section_survives_crewai_coordinator_failure(
