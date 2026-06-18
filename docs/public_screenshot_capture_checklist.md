@@ -1,6 +1,6 @@
 # Public Screenshot Capture Checklist
 
-Status: UI_POLISH_READY_FOR_SCREENSHOT_CAPTURE candidate
+Status: STREAMLIT_PORTFOLIO_VISUALIZATION_POLISH_V2_READY_FOR_QA candidate
 
 Branch: chore/public-ui-polish
 
@@ -16,14 +16,14 @@ Secondary demo user: QA 105 — Messy/incomplete logging
 - `pytest tests/test_report_persistence_boundary.py -q`
 - If anything beyond Streamlit/docs changed: `scripts/dev_commit_check.ps1 -Mode code`
 
-## Mandatory screenshot set
+## Required visualization-ready screenshot candidates
 
 1. User 102 Today / Daily Coach Overview
-2. User 102 Nutrition Target Transparency
-3. User 102 Canonical Food Search / Logging
-4. User 102 Workout Plan Preview
-5. User 102 Nutrition Report Section or Training Report Section
-6. Terminal test suite passing or sanitized Developer Debug Metadata
+2. User 102 Nutrition Target Band / Target-vs-Actual
+3. User 102 Canonical Food Logging or Food Suggestion Cards
+4. User 102 Workout Preview Card Layout
+5. User 102 Nutrition Report Section
+6. Terminal validation passing
 
 ## Optional screenshots
 
@@ -42,16 +42,26 @@ Secondary demo user: QA 105 — Messy/incomplete logging
 - Avoid huge raw tables and unexpanded debug JSON.
 - Keep direct_ollama described as opt-in/experimental where visible; do not present it as default.
 - Do not show qwen3 as approved.
+- Let Streamlit finish rerendering before capture.
+- Move the cursor away from headings to avoid hover/link icons.
+
+## Visualization-specific checks
+
+- Nutrition target bands use approved Target-vs-Actual data only.
+- Limited targets remain hidden and do not become numeric goals.
+- Food suggestion cards show only backend-approved canonical foods, serving grams, and nutrient estimates.
+- Workout preview cards use only the existing approved workout plan preview response.
+- Normal UI does not expose provider/runtime metadata.
 
 ## Recommended capture order
 
 1. Today tab, QA 102, Daily Grounded Recommendation expanded.
-2. Nutrition tab, QA 102, target-vs-actual plus Formula-Derived Targets.
-3. Nutrition tab, QA 102, canonical food search results for `chicken breast`, `rice`, or `egg`.
-4. Workout tab, QA 102, Plan step with Workout Plan Preview.
+2. Nutrition tab, QA 102, target bands plus Target-vs-Actual table.
+3. Nutrition tab, QA 102, canonical food search results or Food Suggestions cards.
+4. Workout tab, QA 102, Plan step with Workout Preview Card Layout.
 5. Reports tab, QA 102, latest sectionized Nutrition or Training report section.
 6. Terminal validation screenshot after checks pass.
 
 ## Final acceptance label
 
-UI_POLISH_READY_FOR_SCREENSHOT_CAPTURE
+STREAMLIT_PORTFOLIO_VISUALIZATION_POLISH_V2_READY_FOR_QA

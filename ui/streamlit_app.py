@@ -3,6 +3,7 @@
 # =====================================
 
 from datetime import datetime
+from html import escape
 
 import pandas as pd
 import requests
@@ -255,15 +256,14 @@ def display_workout_plan_preview(
 
     st.subheader("Plan Summary")
 
-    st.markdown(f"### {title}")
+    with st.container(border=True):
+        st.markdown(f"### {title}")
+        st.caption(session_focus)
 
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("Duration", f"{duration_minutes} min")
-    col2.metric("Confidence", confidence)
-    col3.metric("Exercises", len(exercises))
-
-    st.write(f"**Session focus:** {session_focus}")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Duration", f"{duration_minutes} min")
+        col2.metric("Confidence", confidence)
+        col3.metric("Exercises", len(exercises))
 
     if user_id is not None:
         display_workout_plan_explanation(user_id)
@@ -273,10 +273,9 @@ def display_workout_plan_preview(
     if not exercises:
         st.warning("No exercises are available for this workout preview.")
     else:
-        exercise_rows = []
-
         for index, exercise in enumerate(exercises):
             role = workout_exercise_role_label(index, exercise)
+            exercise_name = exercise.get("name", "Unknown")
             reps = format_workout_range(
                 exercise.get("reps_min"),
                 exercise.get("reps_max"),
@@ -285,51 +284,21 @@ def display_workout_plan_preview(
                 exercise.get("rir_min"),
                 exercise.get("rir_max"),
             )
+            equipment = format_equipment_required(exercise)
+            notes = exercise.get("notes")
 
-            exercise_rows.append(
-                {
-                    "Slot": role,
-                    "Exercise": exercise.get("name", "Unknown"),
-                    "Sets": exercise.get("sets", "Unknown"),
-                    "Reps": reps,
-                    "RIR Range": rir,
-                    "Equipment": format_equipment_required(exercise),
-                }
-            )
+            with st.container(border=True):
+                st.markdown(f"**{role}**")
+                st.markdown(f"### {exercise_name}")
 
-        st.dataframe(
-            pd.DataFrame(exercise_rows),
-            width="stretch",
-            hide_index=True,
-        )
+                metric_cols = st.columns(4)
+                metric_cols[0].metric("Sets", exercise.get("sets", "Unknown"))
+                metric_cols[1].metric("Reps", reps)
+                metric_cols[2].metric("RIR", rir)
+                metric_cols[3].metric("Equipment", equipment)
 
-        for index, exercise in enumerate(exercises):
-            role = workout_exercise_role_label(index, exercise)
-            exercise_name = exercise.get("name", "Unknown")
-
-            with st.expander(f"{role}: {exercise_name}", expanded=False):
-                col1, col2, col3, col4 = st.columns(4)
-
-                col1.metric("Sets", exercise.get("sets", "Unknown"))
-                col2.metric(
-                    "Reps",
-                    format_workout_range(
-                        exercise.get("reps_min"),
-                        exercise.get("reps_max"),
-                    ),
-                )
-                col3.metric(
-                    "RIR",
-                    format_workout_range(
-                        exercise.get("rir_min"),
-                        exercise.get("rir_max"),
-                    ),
-                )
-                col4.metric("Equipment", format_equipment_required(exercise))
-
-                notes = exercise.get("notes")
                 if notes:
-                    st.write(f"**Notes:** {notes}")
+                    st.caption(notes)
 
     with st.expander("Why this plan", expanded=False):
         if rationale:
@@ -5017,9 +4986,187 @@ def nutrition_comparison_rows_from_summary(summary: dict) -> list[dict]:
     return rows
 
 
-def display_target_vs_actual_table(summary: dict) -> None:
-    st.markdown("#### Target vs Actual")
+def nutrition_target_band_target_bounds(
+    comparison: dict,
+) -> tuple[float | None, float | None]:
+    """Return approved numeric target bounds for visual display only."""
 
+    target_min = numeric_nutrition_amount(comparison.get("target_min"))
+    target_max = numeric_nutrition_amount(comparison.get("target_max"))
+
+    if target_min is not None and target_max is not None:
+        return target_min, target_max
+
+    target = target_comparison_value(
+        comparison,
+        ["target", "target_amount", "target_value", "approved_target"],
+    )
+    target_value = numeric_nutrition_amount(target)
+    if target_value is not None:
+        return target_value, target_value
+
+    return None, None
+
+
+def nutrition_target_band_status_label(comparison: dict, unit: str | None) -> str:
+    status_text = nutrition_difference_text(comparison, unit)
+    if status_text and status_text != "Not available":
+        return status_text.rstrip(".")
+
+    status = (
+        comparison.get("status")
+        or comparison.get("guidance")
+        or comparison.get("target_status")
+        or "Available"
+    )
+    return nutrition_public_text(status).rstrip(".") or "Available"
+
+
+def nutrition_target_band_specs(summary: dict) -> list[dict]:
+    if not summary:
+        return []
+
+    macro_specs = [
+        ("Calories", ["calories", "calorie", "energy", "kcal"], "kcal"),
+        ("Protein", ["protein", "protein_g", "protein_grams"], "g"),
+        (
+            "Carbs",
+            [
+                "carbs",
+                "carbohydrate",
+                "carbohydrates",
+                "carbohydrate_g",
+                "carbohydrate_grams",
+            ],
+            "g",
+        ),
+        ("Fat", ["fat", "fat_g", "fat_grams"], "g"),
+    ]
+
+    specs = []
+    for label, keys, unit in macro_specs:
+        comparison = macro_comparison_from_summary(summary, keys)
+        if not comparison:
+            continue
+
+        actual = target_comparison_value(
+            comparison,
+            ["actual", "actual_amount", "actual_value", "logged", "logged_amount"],
+        )
+        actual_value = numeric_nutrition_amount(actual)
+        displayable = comparison_is_displayable(comparison)
+        target_min, target_max = nutrition_target_band_target_bounds(comparison)
+        status_label = nutrition_target_band_status_label(comparison, unit)
+
+        target_available = (
+            displayable
+            and actual_value is not None
+            and target_min is not None
+            and target_max is not None
+        )
+
+        if not target_available:
+            specs.append(
+                {
+                    "label": label,
+                    "unit": unit,
+                    "limited": True,
+                    "actual_label": format_nutrition_value(actual, unit),
+                    "target_label": "Limited",
+                    "status_label": status_label,
+                }
+            )
+            continue
+
+        scale = max(actual_value, target_max, 1) * 1.15
+        actual_pct = max(0.0, min(100.0, (actual_value / scale) * 100))
+        target_start_pct = max(0.0, min(100.0, (target_min / scale) * 100))
+        target_end_pct = max(0.0, min(100.0, (target_max / scale) * 100))
+        if target_end_pct < target_start_pct:
+            target_start_pct, target_end_pct = target_end_pct, target_start_pct
+
+        specs.append(
+            {
+                "label": label,
+                "unit": unit,
+                "limited": False,
+                "actual_value": actual_value,
+                "actual_label": format_nutrition_value(actual, unit),
+                "target_label": (
+                    format_nutrition_value(target_min, unit)
+                    if target_min == target_max
+                    else f"{format_nutrition_value(target_min, unit)}–{format_nutrition_value(target_max, unit)}"
+                ),
+                "status_label": status_label,
+                "actual_pct": actual_pct,
+                "target_start_pct": target_start_pct,
+                "target_end_pct": target_end_pct,
+            }
+        )
+
+    return specs
+
+
+def render_nutrition_target_band(spec: dict) -> None:
+    label = escape(str(spec.get("label", "Target")))
+    actual_label = escape(str(spec.get("actual_label") or "Not available"))
+    target_label = escape(str(spec.get("target_label") or "Limited"))
+    status_label = escape(str(spec.get("status_label") or "Limited"))
+
+    with st.container(border=True):
+        st.markdown(f"**{label}**")
+        top_cols = st.columns([1, 1, 1])
+        top_cols[0].caption(f"Logged: {actual_label}")
+        top_cols[1].caption(f"Target: {target_label}")
+        top_cols[2].caption(f"Status: {status_label}")
+
+        if spec.get("limited"):
+            st.caption(
+                "Target band is limited because the backend did not approve this "
+                "target for visual display."
+            )
+            return
+
+        actual_pct = float(spec.get("actual_pct") or 0)
+        target_start_pct = float(spec.get("target_start_pct") or 0)
+        target_end_pct = float(spec.get("target_end_pct") or 0)
+        target_width_pct = max(1.0, target_end_pct - target_start_pct)
+
+        st.markdown(
+            f"""
+            <div style="position: relative; height: 16px; border-radius: 999px; background: #1f2937; overflow: hidden; border: 1px solid #374151;">
+                <div title="Approved target band" style="position: absolute; left: {target_start_pct:.2f}%; width: {target_width_pct:.2f}%; height: 100%; background: rgba(34, 197, 94, 0.38);"></div>
+                <div title="Logged actual" style="position: absolute; left: {actual_pct:.2f}%; width: 4px; height: 100%; background: #f8fafc;"></div>
+            </div>
+            <div style="font-size: 0.78rem; color: #9ca3af; margin-top: 0.25rem;">
+                green band = approved target range · white marker = logged actual
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def display_nutrition_target_band_chart(summary: dict) -> None:
+    specs = nutrition_target_band_specs(summary)
+    if not specs:
+        return
+
+    st.markdown("#### Target Bands")
+    st.caption(
+        "Visual comparison of logged actuals against backend-approved target ranges. "
+        "Limited targets stay hidden."
+    )
+
+    for row_start in range(0, len(specs), 2):
+        columns = st.columns(2)
+        for column, spec in zip(
+            columns, specs[row_start : row_start + 2], strict=False
+        ):
+            with column:
+                render_nutrition_target_band(spec)
+
+
+def display_target_vs_actual_table(summary: dict) -> None:
     rows = nutrition_comparison_rows_from_summary(summary)
     if not rows:
         st.caption(
@@ -5028,6 +5175,9 @@ def display_target_vs_actual_table(summary: dict) -> None:
         )
         return
 
+    display_nutrition_target_band_chart(summary)
+
+    st.markdown("#### Target vs Actual")
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
     limited_rows = [row for row in rows if row.get("Target") == "Limited"]
@@ -5452,7 +5602,8 @@ def render_nutrition_target_vs_actual_card(user_id: int) -> None:
     limitations = nutrition_response.get("limitations") or []
 
     with confidence_col:
-        st.metric("Confidence", confidence)
+        st.markdown("**Confidence**")
+        st.write(trend_calibration_metric_text(confidence))
     logging_status_text = (
         nutrition_public_text(logging_completeness)
         if logging_completeness
@@ -5491,10 +5642,13 @@ def render_nutrition_target_vs_actual_card(user_id: int) -> None:
         logging_caption = logging_status_text
 
     with logging_col:
-        st.metric("Logging", logging_metric_label)
+        st.markdown("**Logging**")
+        st.write(logging_metric_label)
 
     if logging_caption:
         st.caption(logging_caption)
+
+    st.divider()
 
     st.markdown("#### Approved Guidance")
     display_approved_nutrition_guidance(approved_guidance)
@@ -5576,36 +5730,50 @@ def canonical_food_default_serving_text(food: dict) -> str:
 
 
 def display_canonical_food_matches(canonical_foods: list[dict]) -> None:
-    """Display canonical search results as compact rows instead of a dense table."""
+    """Display canonical search results as a screenshot-friendly clean table."""
     if not canonical_foods:
         return
 
     st.markdown("#### Clean food matches")
-    st.caption("Top clean matches from the canonical food catalog.")
+    st.caption("Top app-facing foods from the approved canonical catalog.")
 
+    rows = []
     for index, food in enumerate(canonical_foods[:5], start=1):
         display_name = food.get("display_name") or "Unknown food"
         food_type = humanize_label(food.get("food_type"))
-        nutrient_summary = canonical_food_nutrient_summary_text(food)
         default_serving = canonical_food_default_serving_text(food)
+        nutrient_summary = canonical_food_nutrient_summary_text(food)
 
-        with st.container():
-            left_col, right_col = st.columns([3, 2])
-            left_col.markdown(f"**{index}. {display_name}**")
-            type_text = "" if food_type == "Unknown" else f"{food_type} · "
-            left_col.caption(f"{type_text}{default_serving}")
-            right_col.caption(nutrient_summary)
+        rows.append(
+            {
+                "Match": f"{index}. {display_name}",
+                "Type": "" if food_type == "Unknown" else food_type,
+                "Default": default_serving.replace("Default: ", ""),
+                "Per 100g": nutrient_summary.replace(" per 100g", ""),
+            }
+        )
+
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
     if len(canonical_foods) > 5:
         with st.expander("Show additional clean matches", expanded=False):
+            extra_rows = []
             for food in canonical_foods[5:]:
                 display_name = food.get("display_name") or "Unknown food"
                 food_type = humanize_label(food.get("food_type"))
-                nutrient_summary = canonical_food_nutrient_summary_text(food)
                 default_serving = canonical_food_default_serving_text(food)
-                type_text = "" if food_type == "Unknown" else f"{food_type} · "
-                st.markdown(f"**{display_name}**")
-                st.caption(f"{type_text}{default_serving} · {nutrient_summary}")
+                nutrient_summary = canonical_food_nutrient_summary_text(food)
+                extra_rows.append(
+                    {
+                        "Food": display_name,
+                        "Type": "" if food_type == "Unknown" else food_type,
+                        "Default": default_serving.replace("Default: ", ""),
+                        "Per 100g": nutrient_summary.replace(" per 100g", ""),
+                    }
+                )
+
+            if extra_rows:
+                st.dataframe(pd.DataFrame(extra_rows), width="stretch", hide_index=True)
 
 
 def display_selected_canonical_food_summary(food: dict) -> None:
@@ -5804,22 +5972,25 @@ def render_food_suggestion_card(suggestion: dict, index: int) -> None:
     suggestion_summary = suggestion.get("suggestion_summary")
     limitations = suggestion.get("limitations") or []
 
-    st.markdown(f"**{food_suggestion_amount(suggested_grams, 'g')} {display_name}**")
+    with st.container(border=True):
+        st.markdown(
+            f"**{food_suggestion_amount(suggested_grams, 'g')} {display_name}**"
+        )
 
-    cols = st.columns([2, 1, 1])
-    cols[0].caption(food_suggestion_estimate_text(suggestion))
-    cols[1].caption(f"Focus: {macro_gap}")
-    cols[2].caption(f"Confidence: {confidence}")
+        chip_cols = st.columns(3)
+        chip_cols[0].caption(f"Focus: {macro_gap}")
+        chip_cols[1].caption(f"Confidence: {confidence}")
+        chip_cols[2].caption(food_suggestion_estimate_text(suggestion))
 
-    if suggestion_summary:
-        st.caption(food_suggestion_public_text(suggestion_summary))
+        if suggestion_summary:
+            st.caption(food_suggestion_public_text(suggestion_summary))
 
-    if limitations:
-        with st.expander(f"Suggestion limitations #{index + 1}", expanded=False):
-            for limitation in limitations:
-                friendly = food_suggestion_public_text(limitation)
-                if friendly:
-                    st.caption(f"• {friendly}")
+        if limitations:
+            with st.expander(f"Suggestion limitations #{index + 1}", expanded=False):
+                for limitation in limitations:
+                    friendly = food_suggestion_public_text(limitation)
+                    if friendly:
+                        st.caption(f"• {friendly}")
 
 
 def nutrition_runtime_debug_value(value: object) -> str:
@@ -6014,14 +6185,15 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
     primary_gap = suggestions_response.get("primary_gap")
     limitations = suggestions_response.get("limitations") or []
 
-    metric_cols = st.columns(3)
-    metric_cols[0].metric(
-        "Date", suggestions_response.get("suggestion_date", suggestion_date)
-    )
-    metric_cols[1].metric("Primary gap", food_suggestion_macro_label(primary_gap))
-    metric_cols[2].metric("Confidence", confidence)
+    with st.container(border=True):
+        metric_cols = st.columns(3)
+        metric_cols[0].metric(
+            "Date", suggestions_response.get("suggestion_date", suggestion_date)
+        )
+        metric_cols[1].metric("Primary gap", food_suggestion_macro_label(primary_gap))
+        metric_cols[2].metric("Confidence", confidence)
 
-    st.caption(food_suggestion_primary_gap_summary(suggestions_response))
+        st.caption(food_suggestion_primary_gap_summary(suggestions_response))
 
     if limitations:
         with st.expander("Why suggestions may be limited", expanded=False):
@@ -6042,10 +6214,13 @@ def render_nutrition_food_suggestions_card(user_id: int) -> None:
         return
 
     st.markdown("#### Suggested canonical foods")
-    for index, suggestion in enumerate(suggestions):
-        render_food_suggestion_card(suggestion, index)
-        if index < len(suggestions) - 1:
-            st.divider()
+    for row_start in range(0, len(suggestions), 2):
+        columns = st.columns(2)
+        for offset, (column, suggestion) in enumerate(
+            zip(columns, suggestions[row_start : row_start + 2], strict=False)
+        ):
+            with column:
+                render_food_suggestion_card(suggestion, row_start + offset)
 
     developer_details(
         "Developer details: nutrition food suggestions response",
