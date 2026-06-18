@@ -294,7 +294,6 @@ def display_workout_plan_preview(
                     "Reps": reps,
                     "RIR Range": rir,
                     "Equipment": format_equipment_required(exercise),
-                    "Notes": exercise.get("notes", ""),
                 }
             )
 
@@ -3164,9 +3163,17 @@ st.set_page_config(
     layout="wide",
 )
 
-st.title("🏋️ Fitness AI Platform")
-st.caption("Daily workout flow, logging, history, and AI coaching in one place.")
-# Streamlit Today + Workout UX Consolidation v3
+st.title("AI Health Coach")
+st.caption(
+    "Backend-grounded coaching across training, nutrition, and recovery. "
+    "The backend owns facts, AI explains approved context, and validators decide "
+    "what reaches the user."
+)
+st.markdown(
+    "**Portfolio view:** start with QA 102 for the happy path, then QA 105 for "
+    "limited-confidence safety boundaries."
+)
+# Public UI Polish for Portfolio Screenshot Capture v1
 
 # =====================================
 # Session State Initialization
@@ -3305,9 +3312,10 @@ with st.sidebar:
     st.header("Controls")
 
     selected_user_label = st.selectbox(
-        "User",
+        "Demo user",
         options=list(USER_OPTIONS.keys()),
-        index=0,
+        index=list(USER_OPTIONS.keys()).index("QA 102 — Well-recovered baseline"),
+        help="QA 102 is the primary portfolio screenshot user.",
     )
 
     user_id = USER_OPTIONS[selected_user_label]
@@ -3885,7 +3893,11 @@ def render_daily_coach_synthesis_card(user_id: int) -> None:
 
 
 def render_daily_recommendation_snapshot(user_id: int) -> None:
-    st.subheader("Daily Coaching")
+    st.subheader("Daily Coaching Recommendation")
+    st.caption(
+        "Approved backend recommendation rendered from the deterministic coaching "
+        "pipeline."
+    )
 
     recommendation_data = get_daily_recommendation_for_user(user_id)
     recommendation_error = st.session_state.daily_recommendation_error_by_user.get(
@@ -4239,7 +4251,7 @@ def render_today_section(user_id: int) -> None:
 
     render_daily_coach_synthesis_card(user_id)
 
-    with st.expander("Daily Grounded Recommendation", expanded=False):
+    with st.expander("Daily Grounded Recommendation", expanded=True):
         render_daily_recommendation_snapshot(user_id)
 
     st.divider()
@@ -4301,7 +4313,11 @@ def render_workout_plan_section(user_id: int) -> None:
         with st.expander("Equipment Profile", expanded=False):
             render_equipment_profile_editor(user_id)
 
-        st.subheader("Workout Preview")
+        st.subheader("Workout Plan Preview")
+        st.caption(
+            "Deterministic workout plan built from the approved coaching scenario, "
+            "training constraints, equipment profile, and validator boundaries."
+        )
         try:
             workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
         except requests.RequestException as exc:
@@ -5926,6 +5942,18 @@ def render_nutrition_explanation_runtime_debug_view(user_id: int) -> None:
                     runtime_metadata.get("raw_output_length")
                 ),
             },
+            {
+                "Field": "Raw preview present",
+                "Value": nutrition_runtime_debug_value(
+                    bool(runtime_metadata.get("raw_output_preview_truncated"))
+                ),
+            },
+            {
+                "Field": "Markdown wrapper detected",
+                "Value": nutrition_runtime_debug_value(
+                    runtime_metadata.get("markdown_wrapper_detected")
+                ),
+            },
         ]
         st.dataframe(pd.DataFrame(status_rows), width="stretch", hide_index=True)
 
@@ -5937,10 +5965,11 @@ def render_nutrition_explanation_runtime_debug_view(user_id: int) -> None:
         else:
             st.caption("No validation errors reported.")
 
-        raw_output_preview = runtime_metadata.get("raw_output_preview_truncated")
-        if raw_output_preview:
-            with st.expander("Bounded raw output preview", expanded=False):
-                st.code(str(raw_output_preview))
+        if runtime_metadata.get("raw_output_preview_truncated"):
+            st.caption(
+                "A bounded provider-output preview exists in the debug payload, but it "
+                "is intentionally not rendered in this portfolio UI view."
+            )
 
         with st.expander("Approved nutrition explanation", expanded=False):
             st.json(approved_explanation)
@@ -6552,10 +6581,10 @@ def render_nutrition_section(user_id: int) -> None:
         "and target comparison."
     )
 
-    st.subheader("Log Food")
+    st.subheader("Canonical Food Search / Logging")
     st.caption(
-        "Canonical foods are searched first. Existing raw/source foods remain "
-        "available as a fallback."
+        "Search clean app-facing foods first, log grams, and keep noisy source "
+        "records behind the advanced fallback path."
     )
 
     canonical_results_key = "canonical_food_search_results"
@@ -6829,12 +6858,12 @@ def render_nutrition_section(user_id: int) -> None:
 
     render_nutrition_target_vs_actual_card(user_id)
 
+    render_nutrition_formula_target_transparency_card(user_id)
+
     render_nutrition_food_suggestions_card(user_id)
 
     render_nutrition_explanation_preview_card(user_id)
     render_nutrition_explanation_runtime_debug_view(user_id)
-
-    render_nutrition_formula_target_transparency_card(user_id)
 
     render_nutrition_trend_calibration_card(user_id)
 
@@ -7080,7 +7109,10 @@ def poll_report_status(user_id: int) -> None:
 
 def render_reports_section(user_id: int) -> None:
     st.header("Reports")
-    st.caption("Run the slower full report when you want a complete AI health summary.")
+    st.caption(
+        "Run the full sectionized report when you want the complete validated health "
+        "summary. Deterministic fallback and provider gates remain mandatory."
+    )
 
     col1, col2 = st.columns(2)
 
