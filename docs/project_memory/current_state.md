@@ -12,19 +12,20 @@ AI Health Coach / fitness-ai
 
 ## Latest accepted milestone
 
-`Nutrition Provider Level 5 Promotion Readiness Review v1`
+`Nutrition Level 5 Promotion Runtime QA v1`
 
-Readiness result: `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH`. Architecture accepted proceeding to a separate controlled Nutrition Provider Level 5 Promotion v1 patch after Nutrition Provider Approved Suggestion Runtime QA v1 passed with users 101-105 all provider-approved through direct_ollama/qwen2.5:3b.
+Final milestone status: `NUTRITION_REPORT_SECTION_LEVEL_5_RUNTIME_VALIDATED`. Architecture accepted Nutrition Report Section as a Level 5 provider-integrated full-report section under explicit opt-in provider gates after users 101-105 all passed provider-approved Level 5 runtime QA with direct_ollama/qwen2.5:3b.
 
 ## Current provisional milestone
 
-`Nutrition Provider Level 5 Promotion v1` is implemented and pending Architecture/QA review.
+No active implementation milestone. The branch is ready for merge planning after closeout docs are committed and a snapshot is created.
 
-## Next recommended milestone after Nutrition Provider Level 5 Promotion v1
+## Next recommended milestone options
 
-`Nutrition Level 5 Promotion Runtime QA v1`
-
-QA should rerun users 101-105 through the full-report opt-in Nutrition provider matrix with direct_ollama/qwen2.5:3b, verify `provider_integrated_report_sections` semantics, verify fallback/disabled gates do not falsely imply provider approval, verify Nutrition Target Display remains separate Level 2, and verify public/persisted leakage remains clean.
+- UI polish / screenshot capture pass.
+- GitHub README / portfolio update pass.
+- Optional Nutrition Provider Forced-Fallback Runtime QA Harness v1.
+- Next provider-quality section milestone.
 
 ## Current model/provider status
 
@@ -38,7 +39,9 @@ QA should rerun users 101-105 through the full-report opt-in Nutrition provider 
 - Nutrition practical food focus runtime QA passed with `PASS_WITH_IMPROVED_DIAGNOSTICS`: user 105 is now provider-approved and the no-approved-suggestion path appears fixed.
 - Nutrition approved suggestion context inspection/tuning added backend-approved `practical_food_focus` option lists and requires direct-Ollama to copy one exact backend-approved option sentence.
 - Nutrition approved suggestion runtime QA passed with `PASS_PROVIDER_APPROVED_MATRIX`: users 101-105 were all provider-approved, practical_food_focus failures dropped to 0, fallback false for all users, and public/persisted leakage checks remained clean.
-- Nutrition Provider Level 5 Promotion v1 promotes `nutrition_report_section` to Level 5 provider-integrated status while preserving opt-in gates, deterministic fallback, strict validation, and public/persisted sanitizer boundaries.
+- Nutrition Provider Level 5 Promotion v1 promoted `nutrition_report_section` to Level 5 provider-integrated status while preserving opt-in gates, deterministic fallback, strict validation, and public/persisted sanitizer boundaries.
+- Nutrition Level 5 Promotion Runtime QA v1 passed with users 101-105 all provider-approved at Level 5, `provider_integrated_report_sections=training,nutrition_report_section` on approved provider output, disabled-gate semantics preserved for user 101, and safety/leakage checks clean.
+- Fallback runtime semantics were not tested during Level 5 promotion QA because no safe QA-only forced-invalid provider mode was used; this is accepted as an honest coverage note and should not be represented as completed runtime fallback coverage.
 - Full-report provider execution is async/background only.
 - `qwen3` remains experimental only and is not promoted.
 - The old CrewAI full-report coordinator can fail; deterministic fallback composition protects public report output.
@@ -62,9 +65,12 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 
 ## What is safe to build next
 
-- Nutrition Level 5 Promotion Runtime QA v1.
+- Branch merge planning for the Level 5 Training + Nutrition provider work.
+- UI polish / screenshot capture pass.
+- GitHub README / portfolio update pass.
+- Optional Nutrition Provider Forced-Fallback Runtime QA Harness v1 to validate fallback metadata semantics at runtime without relying on live model failure.
+- Next provider-quality section milestone.
 - Keep deterministic fallback, provider gates, strict parser/validator behavior, and public/persisted sanitizer boundaries unchanged.
-- Verify report-specific provider-integrated metadata for approved, fallback, and disabled-gate Nutrition paths.
 - Preserve the distinction between `nutrition_target_display` and `nutrition_report_section`.
 - Preserve qwen2.5:3b as the only accepted Nutrition provider model; qwen3 remains experimental only.
 
@@ -102,11 +108,12 @@ For code/tooling changes:
 1. Context loss across long chat sessions.
 2. Accidentally treating qwen3 as promoted or default.
 3. Accidentally expanding provider ownership beyond Training and Nutrition Report Section.
-4. Nutrition Level 5 promotion being mistaken for direct_ollama default approval.
-5. Promotion semantics accidentally marking fallback or disabled-gate Nutrition reports as provider-approved.
-6. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
-7. Generic coaching language degrading product quality even when technically safe.
-8. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during runtime QA or future promotion work.
+4. Nutrition Level 5 runtime validation being mistaken for direct_ollama default approval.
+5. Fallback runtime semantics being overstated; fallback was not runtime-tested in Level 5 promotion QA because no safe forced-invalid provider mode was used.
+6. Future changes accidentally marking fallback or disabled-gate Nutrition reports as provider-approved.
+7. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
+8. Generic coaching language degrading product quality even when technically safe.
+9. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during future runtime QA or provider work.
 
 ## What a new AI assistant should read first
 

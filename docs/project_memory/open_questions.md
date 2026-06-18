@@ -9,10 +9,9 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Will Nutrition Level 5 Promotion Runtime QA v1 confirm users 101-105 remain provider-approved after registry/metadata promotion?
-- Will runtime QA confirm `provider_integrated_report_sections` includes `nutrition_report_section` only when approved provider Nutrition content actually rendered?
+- Should Architecture approve a safe QA-only forced-invalid provider mode for Nutrition Provider Forced-Fallback Runtime QA Harness v1?
 - What fallback-forced runtime case should QA use to confirm fallback Nutrition output is not falsely represented as provider-approved?
-- Should Nutrition remain opt-in after Level 5 promotion until a separate default-provider decision is made?
+- Should Nutrition remain opt-in indefinitely after Level 5 runtime validation, or should a separate future default-provider readiness review be planned?
 - What additional non-seeded runtime cases are required after Level 5 promotion, if any?
 - What additional negative validator cases are required after observing real qwen2.5 approved output in matrix runtime QA?
 - When should Nutrition provider metadata be allowed into persisted full-report history, and at what level of detail?
