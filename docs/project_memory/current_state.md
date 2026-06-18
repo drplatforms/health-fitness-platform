@@ -8,20 +8,25 @@ AI Health Coach / fitness-ai
 
 ## Current branch
 
-`test/nutrition-forced-invalid-provider-mode`
+`feature/daily-coaching-product-loop-v1`
 
 ## Latest accepted milestone
 
-`Nutrition Level 5 Forced-Fallback Runtime QA v1`
+`Daily Coaching Product Loop v1` planning was accepted.
 
-Final status: `NUTRITION_LEVEL_5_RUNTIME_SEMANTICS_COMPLETE`. The QA-only forced-invalid Nutrition provider mode was runtime-tested and accepted. Forced-invalid users 101-105 all fell back deterministically without live model calls, and control user 102 still followed the normal provider-approved path when forced-invalid mode was disabled.
+Planning status: `DAILY_COACHING_PRODUCT_LOOP_V1_PLAN_ACCEPTED`.
 
-## Current provisional milestone
+## Current implementation milestone
 
-Recommended next milestone: choose between `Demo / Deployment Packaging Design v1`, `Nutrition Explanation Value-Aware Copy v1`, or a separate product/portfolio polish pass.
+`Daily Next Action Panel v1` is implemented and pending QA.
+
+Implementation status: `DAILY_NEXT_ACTION_PANEL_V1_IMPLEMENTED_PENDING_QA`.
+
+The first product-loop slice adds a deterministic backend next-action service and Today-page action card. Backend owns the action decision; Streamlit renders one primary action; no provider output controls navigation or invents food, calorie, macro, workout, fatigue, or recovery claims.
 
 ## Next recommended milestone options
 
+- Daily Next Action Panel v1 QA.
 - Demo / Deployment Packaging Design v1.
 - Nutrition Explanation Value-Aware Copy v1.
 - UI polish / screenshot capture pass.
@@ -67,6 +72,8 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 
 ## What is safe to build next
 
+- Daily Coaching Product Loop v1 planning/design.
+- Daily Next Action Panel v1 as a narrow deterministic Today-page implementation slice.
 - Demo / Deployment Packaging Design v1.
 - Nutrition Explanation Value-Aware Copy v1.
 - UI polish / screenshot capture pass.
@@ -76,6 +83,27 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 - Keep deterministic fallback, provider gates, strict parser/validator behavior, and public/persisted sanitizer boundaries unchanged.
 - Preserve the distinction between `nutrition_target_display` and `nutrition_report_section`.
 - Preserve qwen2.5:3b as the only accepted Nutrition provider model; qwen3 remains experimental only.
+
+## Current product loop direction
+
+The next product development priority is daily usefulness: help the user answer “What should I do today?” from the Today page without reopening provider safety or Level 5 semantics.
+
+Daily Coaching Product Loop v1 should connect existing backend-approved state into a practical loop:
+
+```text
+recovery check-in
+→ current recovery/training/nutrition state
+→ nutrition target-vs-actual and logging completeness
+→ workout preview / workout execution
+→ report guidance
+→ one backend-approved next action
+```
+
+Daily Next Action Panel v1 is implemented pending QA. The deterministic service returns exactly one action from the approved v1 action set, with backend-owned reason and workflow target. The Today page renders this card near the top without exposing raw provider/debug metadata.
+
+Approved v1 action set: Complete recovery check-in, Keep training conservative, Log a meal or snack, Review nutrition target progress, Review today’s workout, Review today’s report guidance.
+
+The panel remains backend-truth-owned. It surfaces one primary action, a short backend-supported reason, and a workflow pointer, but does not allow AI/provider output to invent navigation, food, calorie, macro, workout, fatigue, or recovery claims.
 
 ## What must not be changed casually
 

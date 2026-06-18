@@ -2,6 +2,22 @@
 
 Last updated: 2026-06-18
 
+## Daily Coaching Product Loop
+
+Resolved for v1:
+
+- Daily Next Action Panel v1 uses a deterministic backend service and stable API route before Streamlit renders it.
+- Priority order is recovery/safety, missing recovery input, nutrition logging completeness, workout readiness, report guidance, then data-quality/nutrition-target progress.
+- Workflow targets are limited to existing surfaces: Today recovery check-in, Today workout, Nutrition quick log, Nutrition target-vs-actual, Workout preview, and Reports guidance.
+- Seeded QA classes are defined for users 101, 102, and 105.
+
+Open after v1 implementation:
+
+- Should future versions support a secondary action, or should Today remain strictly one primary action?
+- Should workflow targets become real Streamlit navigation anchors after UI navigation is formalized?
+- Should action availability be persisted for analytics, or remain read-only/computed at request time?
+- How should the panel behave once catalog expansion and food logging usability improve?
+
 ## Product voice
 
 - When should qwen3 be re-tested for Training product voice?
