@@ -9,11 +9,11 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Does Nutrition Provider Approved Suggestion Runtime QA v1 reduce or resolve users 101-104 approved-suggestion-present `practical_food_focus` failures?
-- Does user 105 remain provider-approved, or safely fallback, without no-approved-suggestion availability regression?
-- If qwen2.5 still fails after approved suggestion context tuning, what exact provider wording or diagnostic category remains?
-- What additional runtime cases are needed before Architecture considers Level 5 promotion?
-- What additional negative validator cases are required after observing real qwen2.5 output in matrix runtime QA?
+- Should Architecture accept `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH` after Nutrition Provider Level 5 Promotion Readiness Review v1?
+- In the future promotion patch, should `provider_integrated_report_sections` list Nutrition only when a provider-approved Nutrition section is actually rendered, or should it represent section maturity independently of a specific report run?
+- Should Nutrition remain opt-in after Level 5 promotion until a separate default-provider decision is made?
+- What additional non-seeded runtime cases are required after Level 5 promotion, if any?
+- What additional negative validator cases are required after observing real qwen2.5 approved output in matrix runtime QA?
 - When should Nutrition provider metadata be allowed into persisted full-report history, and at what level of detail?
 - Should debug/QA-only Nutrition validation diagnostic categories remain limited to `/reports/status/{job_id}/debug`, or should Architecture define a broader debug-only QA surface later?
 

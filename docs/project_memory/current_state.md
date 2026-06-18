@@ -12,21 +12,21 @@ AI Health Coach / fitness-ai
 
 ## Latest accepted milestone
 
-`Nutrition Provider Diagnostic Matrix QA Retry v1`
+`Nutrition Provider Approved Suggestion Runtime QA v1`
 
-Runtime result: `PASS_DIAGNOSTICS_WITH_SAFE_FALLBACKS`. Rejected candidates now expose safe diagnostic categories through `/reports/status/{job_id}/debug`, while diagnostics remain absent from normal status output, persisted history, and provider safe metadata. The repeated failure field is `practical_food_focus`.
+Runtime result: `PASS_PROVIDER_APPROVED_MATRIX`. Users 101-105 all completed through the full-report opt-in Nutrition provider path with direct_ollama/qwen2.5:3b, parser success, validation approved, fallback false, and `nutrition_section_source=direct_ollama_approved`. Public/persisted leakage checks remained clean.
 
 ## Current provisional milestone
 
-`Nutrition Provider Practical Food Focus Contract Fix v1` is implemented and pending Architecture review.
+`Nutrition Provider Level 5 Promotion Readiness Review v1` is implemented as a docs-only readiness review and pending Architecture review.
 
-## Next recommended milestone after Nutrition Provider Practical Food Focus Contract Fix v1
+## Next recommended milestone after Nutrition Provider Level 5 Promotion Readiness Review v1
 
-If Architecture accepts this contract fix, the next recommended milestone is:
+If Architecture accepts this readiness review, the next recommended milestone is:
 
-`Nutrition Provider Practical Food Focus Runtime QA v1`
+`Nutrition Provider Level 5 Promotion v1`
 
-This should rerun users 101-105 through the opt-in Nutrition full-report runtime matrix with qwen2.5:3b, capture diagnostics from `/reports/status/{job_id}/debug`, compare approval/fallback distribution, verify `practical_food_focus` failures are reduced or changed, and verify public/persisted surfaces remain clean. It should not run qwen3 and should not promote Nutrition to Level 5.
+This should be a separate explicit promotion patch. It should not make direct_ollama default, remove deterministic fallback, remove provider gates, run/promote qwen3, or merge Nutrition Target Display with the Nutrition Report Section.
 
 ## Current model/provider status
 
@@ -38,8 +38,9 @@ This should rerun users 101-105 through the opt-in Nutrition full-report runtime
 - Nutrition full-report retry matrix passed as `PASS_MATRIX_WITH_SAFE_FALLBACKS`: all seeded users safely fell back; approval quality did not improve.
 - Nutrition diagnostic matrix retry passed with `PASS_DIAGNOSTICS_WITH_SAFE_FALLBACKS`; diagnostic propagation is working.
 - Nutrition practical food focus runtime QA passed with `PASS_WITH_IMPROVED_DIAGNOSTICS`: user 105 is now provider-approved and the no-approved-suggestion path appears fixed.
-- Remaining repeated diagnostics are limited to users 101-104 on the approved-suggestion-present path: `unsupported_food_suggestion` on `practical_food_focus` with approved food suggestions available.
-- Nutrition approved suggestion context inspection/tuning now adds backend-approved `practical_food_focus` option lists and requires direct-Ollama to copy one exact backend-approved option sentence.
+- Nutrition approved suggestion context inspection/tuning added backend-approved `practical_food_focus` option lists and requires direct-Ollama to copy one exact backend-approved option sentence.
+- Nutrition approved suggestion runtime QA passed with `PASS_PROVIDER_APPROVED_MATRIX`: users 101-105 were all provider-approved, practical_food_focus failures dropped to 0, fallback false for all users, and public/persisted leakage checks remained clean.
+- Nutrition Provider Level 5 Promotion Readiness Review v1 recommends `READY_FOR_NUTRITION_LEVEL_5_PROMOTION_PATCH`, but Nutrition remains Level 4 until a separate promotion patch is accepted.
 - Full-report provider execution is async/background only.
 - `qwen3` remains experimental only and is not promoted.
 - The old CrewAI full-report coordinator can fail; deterministic fallback composition protects public report output.
@@ -50,7 +51,7 @@ This should rerun users 101-105 through the opt-in Nutrition full-report runtime
 |---|---|---|
 | training | Provider-integrated full-report section, opt-in direct_ollama/qwen2.5 path | Level 5 |
 | nutrition_target_display | Backend-approved target display contract; input to Nutrition Report Section | Level 2 |
-| nutrition_report_section | Backend-owned evidence/claims/fallback boundary plus isolated opt-in provider implementation; full-report runtime matrix/retry matrix accepted with safe fallbacks; diagnostic QA retry passed; no-approved-suggestion practical_food_focus path improved; approved-suggestion context tuning implemented; not Level 5 | Level 4 |
+| nutrition_report_section | Backend-owned evidence/claims/fallback boundary plus isolated opt-in provider implementation; full-report runtime matrix/retry matrix accepted; diagnostic QA retry passed; practical_food_focus no-suggestion and approved-suggestion paths resolved in runtime QA; ready for Level 5 promotion patch review but not promoted yet | Level 4 |
 | grounded_recommendation | Strong approved contract but cross-domain; not next provider voice section | Level 3 |
 | overall_score | Deterministic/coordinator-structured | Level 1 |
 | profile_context | Deterministic/coordinator-structured | Level 1 |
@@ -59,17 +60,15 @@ This should rerun users 101-105 through the opt-in Nutrition full-report runtime
 | priority_action | Deterministic/coordinator-structured | Level 1 |
 | best_recommendation | Deterministic/coordinator-structured | Level 1 |
 
-Provider-integrated report sections: `training` only.
+Provider-integrated report sections: `training` only until a separate Nutrition Level 5 promotion patch is accepted.
 
 ## What is safe to build next
 
-- Nutrition Provider Approved Suggestion Runtime QA v1.
-- Rerun users 101-105 full opt-in Nutrition full-report runtime matrix with qwen2.5:3b.
-- Capture safe validation diagnostic categories/fields from `/reports/status/{job_id}/debug`.
-- Verify users 101-104 approved-suggestion-present `practical_food_focus` failures reduce or resolve.
-- Verify user 105 remains approved or safely falls back without no-suggestion availability regression.
-- Verify diagnostics do not leak into normal `/reports/status/{job_id}`, public report text, or persisted report history.
-- Use diagnostic categories to choose the next smallest safe provider-quality improvement.
+- Nutrition Provider Level 5 Promotion v1 as a separate explicit promotion patch if Architecture accepts the readiness review.
+- Keep deterministic fallback, provider gates, strict parser/validator behavior, and public/persisted sanitizer boundaries unchanged.
+- Update registry/project-memory semantics carefully so Nutrition can be treated as Level 5 only after explicit promotion acceptance.
+- Preserve the distinction between `nutrition_target_display` and `nutrition_report_section`.
+- Preserve qwen2.5:3b as the only accepted Nutrition provider model; qwen3 remains experimental only.
 
 ## What must not be changed casually
 
@@ -105,10 +104,11 @@ For code/tooling changes:
 1. Context loss across long chat sessions.
 2. Accidentally treating qwen3 as promoted or default.
 3. Accidentally expanding provider ownership beyond Training.
-4. Nutrition full-report runtime safety or matrix safety being mistaken for Level 5 promotion before Architecture approval.
-5. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
-6. Generic coaching language degrading product quality even when technically safe.
-7. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during runtime QA or future promotion work.
+4. Nutrition provider approval matrix success being mistaken for automatic Level 5 promotion before the separate promotion patch is accepted.
+5. Promotion semantics accidentally implying direct_ollama is default instead of opt-in.
+6. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
+7. Generic coaching language degrading product quality even when technically safe.
+8. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during runtime QA or future promotion work.
 
 ## What a new AI assistant should read first
 
