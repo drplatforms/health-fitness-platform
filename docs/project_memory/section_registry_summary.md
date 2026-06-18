@@ -40,8 +40,8 @@ Nutrition Level 5 Promotion Runtime QA v1 passed with `NUTRITION_REPORT_SECTION_
 - Nutrition Target Display remained separate Level 2 with `provider_status=none`
 - public/persisted leakage checks were clean
 
-Fallback runtime semantics were not tested because no safe QA-only forced-invalid provider mode was used. This is accepted as an honest coverage note and should not be represented as completed runtime fallback coverage.
+Fallback runtime semantics were not tested in the Level 5 promotion QA because no safe QA-only forced-invalid provider mode existed then. QA-Only Forced Invalid Provider Mode v1 now provides a disabled-by-default forced-invalid flag for the next runtime QA pass; until that QA passes, fallback runtime coverage should still be described as pending.
 
 ## Next likely section path
 
-After closeout, this branch is a candidate for merge planning. Reasonable next product-facing milestones are UI polish / screenshot capture, GitHub README / portfolio update, optional forced-fallback runtime QA harness, or the next provider-quality section milestone.
+Next recommended milestone is Nutrition Level 5 Forced-Fallback Runtime QA v1. Product-facing polish, README/portfolio work, and future provider-quality section work should remain separate.
