@@ -9,10 +9,10 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Is Nutrition Provider Contract Design v1 sufficient to approve parser/validator scaffolding without provider execution?
-- What exact approved nutrition claim gating should be implemented first?
+- Is Nutrition Provider Contract Scaffolding v1 strict enough to approve a future provider implementation milestone?
+- What additional negative validator cases are required before provider execution?
 - How should food suggestions be validated without becoming meal planning?
-- Should nutrition provider metadata use section-prefixed fields only?
+- Should nutrition provider metadata use section-prefixed fields only, and which fields should be persisted once provider execution exists?
 - What runtime QA cases are required before Nutrition can become opt-in provider-integrated?
 
 ## Recovery

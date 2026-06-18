@@ -12,17 +12,17 @@ AI Health Coach / fitness-ai
 
 ## Latest accepted milestone
 
-`Developer Commit Workflow Cleanup v1`
+`Nutrition Provider Contract Design v1`
 
 ## Current provisional milestone
 
-`Nutrition Provider Contract Design v1` is approved to begin design only.
+`Nutrition Provider Contract Scaffolding v1` is implemented locally and pending Architecture review.
 
-## Next recommended milestone after Nutrition Provider Contract Design v1
+## Next recommended milestone after Nutrition Provider Contract Scaffolding v1
 
-`Nutrition Provider Contract Scaffolding v1` if Architecture accepts the contract design.
+Architecture should review whether the parser/validator/fallback scaffolding is strict enough to approve a future Nutrition provider implementation milestone.
 
-Do not implement nutrition provider execution during the contract-design milestone.
+Do not implement nutrition provider execution until Architecture explicitly approves it.
 
 ## Current model/provider status
 
@@ -51,10 +51,10 @@ Provider-integrated report sections: `training` only.
 
 ## What is safe to build next
 
-- Nutrition Provider Contract Design v1.
-- Provider-safe nutrition context/schema documentation.
-- Nutrition parser/validator design documentation.
-- Additional docs-only contract review work that does not call a provider.
+- Nutrition Provider Contract Scaffolding v1 review and hardening.
+- Additional parser/validator negative tests.
+- Provider implementation design review that does not call a provider yet.
+- Safe metadata review for a future Nutrition provider attempt.
 
 ## What must not be changed casually
 
@@ -64,7 +64,7 @@ Provider-integrated report sections: `training` only.
 - Report persistence safety boundary.
 - Full-report composition fallback boundary.
 - Training evidence/claim validator rules.
-- Nutrition boundary rule that no provider voice exists yet.
+- Nutrition boundary rule that parser/validator scaffolding exists but provider execution does not exist yet.
 - The rule that Training is the only provider-integrated full-report section.
 
 ## Expected validation/tests
@@ -77,8 +77,7 @@ For docs-only memory/review updates:
 
 For code/tooling changes:
 
-- `ruff check . --fix`
-- `black .`
+- `powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code`
 - Relevant focused tests.
 - Full `pytest` when practical.
 - No live Ollama calls in pytest.
@@ -88,7 +87,7 @@ For code/tooling changes:
 1. Context loss across long chat sessions.
 2. Accidentally treating qwen3 as promoted or default.
 3. Accidentally expanding provider ownership beyond Training.
-4. Nutrition voice moving too fast before readiness review.
+4. Nutrition provider execution moving too fast before parser/validator scaffolding is accepted.
 5. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
 6. Generic coaching language degrading product quality even when technically safe.
 
