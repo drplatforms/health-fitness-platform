@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Query
 from services.coordinator_service import (
     AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV,
     generate_health_report,
+    nutrition_section_provider_debug_metadata,
+    nutrition_section_provider_job_metadata,
     training_section_provider_job_metadata,
 )
 from services.health_report_section_service import (
@@ -112,6 +114,16 @@ def run_report_job(job_id, user_id):
                     provider_enabled=provider_enabled,
                 )
             )
+            report_jobs[job_id]["nutrition_section_provider"] = (
+                nutrition_section_provider_job_metadata(
+                    report_result.nutrition_report_section_result
+                )
+            )
+            report_jobs[job_id]["nutrition_section_provider_debug"] = (
+                nutrition_section_provider_debug_metadata(
+                    report_result.nutrition_report_section_result
+                )
+            )
         else:
             report_jobs[job_id]["report"] = report_result
             report_jobs[job_id]["training_section_provider"] = (
@@ -120,6 +132,12 @@ def run_report_job(job_id, user_id):
                     report_job_id=job_id,
                     provider_enabled=provider_enabled,
                 )
+            )
+            report_jobs[job_id]["nutrition_section_provider"] = (
+                nutrition_section_provider_job_metadata(None)
+            )
+            report_jobs[job_id]["nutrition_section_provider_debug"] = (
+                nutrition_section_provider_debug_metadata(None)
             )
 
     except Exception as e:
@@ -169,6 +187,33 @@ def report_status(job_id: str):
         "completed_at": job.get("completed_at"),
         "elapsed_seconds": elapsed_seconds,
         "training_section_provider": job.get("training_section_provider"),
+        "nutrition_section_provider": job.get("nutrition_section_provider"),
+    }
+
+
+@router.get("/reports/status/{job_id}/debug")
+def report_status_debug(job_id: str):
+    job = report_jobs.get(job_id)
+
+    if not job:
+        return {"success": False, "message": "Job not found."}
+
+    elapsed_seconds = job.get("elapsed_seconds")
+
+    if elapsed_seconds is None:
+        elapsed_seconds = _calculate_elapsed_seconds(job)
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "status": job["status"],
+        "report": job["report"],
+        "started_at": job.get("started_at"),
+        "completed_at": job.get("completed_at"),
+        "elapsed_seconds": elapsed_seconds,
+        "training_section_provider": job.get("training_section_provider"),
+        "nutrition_section_provider": job.get("nutrition_section_provider"),
+        "nutrition_section_provider_debug": job.get("nutrition_section_provider_debug"),
     }
 
 
@@ -211,6 +256,8 @@ def generate_report(
         "completed_monotonic": None,
         "report_date": report_date,
         "training_section_provider": None,
+        "nutrition_section_provider": None,
+        "nutrition_section_provider_debug": None,
     }
 
     thread = threading.Thread(

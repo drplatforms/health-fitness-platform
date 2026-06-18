@@ -118,3 +118,57 @@ def test_duplicate_report_generation_while_running_returns_409(monkeypatch):
     assert second_data["detail"]["job_id"] == first_response.json()["job_id"]
 
     _wait_for_status(client, first_response.json()["job_id"], "completed")
+
+
+def test_report_status_debug_returns_nutrition_provider_diagnostics(monkeypatch):
+    def fake_generate_health_report(user_id, report_date=None, **_kwargs):
+        class FakeNutritionResult:
+            safe_metadata = {
+                "provider_enabled": True,
+                "provider_attempted": True,
+                "selected_provider": "direct_ollama",
+                "selected_model": "qwen2.5:3b",
+                "parse_status": "success",
+                "candidate_valid": False,
+                "validation_status": "rejected",
+                "validation_errors_count": 1,
+                "fallback_used": True,
+                "fallback_reason": "nutrition_provider_validation_failed",
+                "fallback_source": "nutrition_provider_contract_fallback",
+                "nutrition_section_source": "deterministic_nutrition_report_section_fallback",
+                "provider_latency_ms": 123,
+            }
+            approved_section = None
+            validation_error_categories = ["unsupported_numeric_value"]
+            validation_error_fields = ["target_alignment"]
+
+        return FullHealthReportGenerationResult(
+            report_text="Fake QA report with Nutrition diagnostics",
+            nutrition_report_section_result=FakeNutritionResult(),
+        )
+
+    monkeypatch.setattr(
+        reports_route, "generate_health_report", fake_generate_health_report
+    )
+
+    client = TestClient(app)
+    response = client.post("/reports/generate/102?date=2026-06-14")
+    assert response.status_code == 200
+    job_id = response.json()["job_id"]
+
+    completed_data = _wait_for_status(client, job_id, "completed")
+    assert "nutrition_section_provider_debug" not in completed_data
+
+    debug_data = client.get(f"/reports/status/{job_id}/debug").json()
+    nutrition_debug = debug_data["nutrition_section_provider_debug"]
+
+    assert nutrition_debug["nutrition_validation_errors_count"] == 1
+    assert nutrition_debug["validation_error_categories"] == [
+        "unsupported_numeric_value"
+    ]
+    assert nutrition_debug["validation_error_fields"] == ["target_alignment"]
+    assert (
+        nutrition_debug["first_validation_error_category"]
+        == "unsupported_numeric_value"
+    )
+    assert nutrition_debug["first_validation_error_field"] == "target_alignment"

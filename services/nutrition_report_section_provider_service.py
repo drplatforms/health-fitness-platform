@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from models.nutrition_provider_contract_models import (
@@ -56,11 +56,29 @@ NUTRITION_SECTION_SOURCE_DETERMINISTIC_FALLBACK = (
 class NutritionReportSectionProviderResult:
     approved_section: ApprovedNutritionReportSection
     safe_metadata: dict[str, Any]
+    validation_error_categories: list[str] = field(default_factory=list)
+    validation_error_fields: list[str] = field(default_factory=list)
+
+    @property
+    def first_validation_error_category(self) -> str | None:
+        return (
+            self.validation_error_categories[0]
+            if self.validation_error_categories
+            else None
+        )
+
+    @property
+    def first_validation_error_field(self) -> str | None:
+        return self.validation_error_fields[0] if self.validation_error_fields else None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "approved_section": self.approved_section.to_dict(),
             "safe_metadata": dict(self.safe_metadata),
+            "validation_error_categories": list(self.validation_error_categories),
+            "validation_error_fields": list(self.validation_error_fields),
+            "first_validation_error_category": self.first_validation_error_category,
+            "first_validation_error_field": self.first_validation_error_field,
         }
 
 
@@ -119,6 +137,10 @@ def build_configured_nutrition_report_section_with_metadata(
         return NutritionReportSectionProviderResult(
             approved_section=provider_result.approved_section,
             safe_metadata=dict(provider_result.safe_metadata),
+            validation_error_categories=list(
+                provider_result.validation_error_categories
+            ),
+            validation_error_fields=list(provider_result.validation_error_fields),
         )
 
     return build_deterministic_nutrition_report_section_with_metadata(

@@ -113,3 +113,34 @@ def test_nutrition_provider_opt_in_path_is_level_four_not_level_five():
     assert nutrition.maturity_level == 4
     assert nutrition.provider_status == "not_full_report_integrated"
     assert get_provider_integrated_full_report_section_ids() == ["training"]
+
+
+def test_configured_nutrition_provider_preserves_debug_diagnostics_on_rejection(
+    monkeypatch,
+):
+    monkeypatch.setenv(AI_HEALTH_REPORT_NUTRITION_SECTION_PROVIDER_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        NUTRITION_REPORT_SECTION_PROVIDER_ENV,
+        NUTRITION_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+    evidence = build_complete_nutrition_provider_evidence()
+
+    def fake_generate(*_args):
+        return valid_provider_candidate_json(
+            target_alignment="Protein appears below the approved target with a 40 g gap."
+        )
+
+    result = build_configured_nutrition_report_section_with_metadata(
+        user_id=102,
+        report_date="2026-06-14",
+        evidence_context=evidence,
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.safe_metadata["validation_status"] == "rejected"
+    assert result.safe_metadata["validation_errors_count"] > 0
+    assert result.validation_error_categories
+    assert result.first_validation_error_category is not None
+    assert "target_alignment" in result.validation_error_fields
+    assert "validation_error_categories" not in result.safe_metadata
+    assert "validation_error_fields" not in result.safe_metadata

@@ -296,3 +296,74 @@ def test_approved_nutrition_section_survives_crewai_coordinator_failure(
     assert persisted["nutrition_provider_attempted"] is True
     assert persisted["coordinator_fallback_used"] is True
     assert "raw coordinator exception" not in report["report_metadata_json"]
+
+
+def test_full_report_nutrition_debug_metadata_exposes_diagnostics_not_persistence(
+    temp_database,
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        coordinator_service.AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED_ENV,
+        "true",
+    )
+    monkeypatch.setenv(AI_HEALTH_REPORT_NUTRITION_SECTION_PROVIDER_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        NUTRITION_REPORT_SECTION_PROVIDER_ENV,
+        NUTRITION_REPORT_SECTION_PROVIDER_DIRECT_OLLAMA,
+    )
+
+    nutrition_result = build_configured_nutrition_report_section_with_metadata(
+        user_id=102,
+        report_date="2026-06-14",
+        evidence_context=build_complete_nutrition_provider_evidence(),
+        direct_ollama_generate=lambda *_args: valid_provider_candidate_json(
+            target_alignment="Protein appears below the approved target with a 40 g gap."
+        ),
+    )
+    debug_metadata = coordinator_service.nutrition_section_provider_debug_metadata(
+        nutrition_result
+    )
+    safe_metadata = coordinator_service.nutrition_section_provider_job_metadata(
+        nutrition_result
+    )
+
+    assert debug_metadata["nutrition_validation_errors_count"] > 0
+    assert debug_metadata["validation_error_categories"]
+    assert debug_metadata["first_validation_error_category"] is not None
+    assert "validation_error_categories" not in safe_metadata
+    assert "first_validation_error_category" not in safe_metadata
+
+    report_service.save_health_report(
+        user_id=102,
+        report_text="Safe full report with diagnostic metadata excluded from history.",
+        model_summary="deterministic_test",
+        report_date="2026-06-14",
+        report_metadata=debug_metadata,
+    )
+
+    report = _latest_report_payload()
+    metadata_json = report["report_metadata_json"]
+    assert "validation_error_categories" not in metadata_json
+    assert "validation_error_fields" not in metadata_json
+    assert "first_validation_error_category" not in metadata_json
+    assert "first_validation_error_field" not in metadata_json
+
+
+def test_debug_metadata_uses_validation_failure_when_category_mapping_is_empty():
+    class FakeNutritionResult:
+        safe_metadata = {
+            "validation_errors_count": 1,
+            "validation_status": "rejected",
+            "nutrition_section_source": "deterministic_nutrition_report_section_fallback",
+        }
+        approved_section = None
+        validation_error_categories = []
+        validation_error_fields = []
+
+    debug_metadata = coordinator_service.nutrition_section_provider_debug_metadata(
+        FakeNutritionResult()
+    )
+
+    assert debug_metadata["validation_error_categories"] == ["validation_failure"]
+    assert debug_metadata["first_validation_error_category"] == "validation_failure"
+    assert debug_metadata["validation_error_fields"] == []

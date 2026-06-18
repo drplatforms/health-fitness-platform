@@ -1593,6 +1593,51 @@ def nutrition_section_provider_job_metadata(nutrition_report_section_result) -> 
     }
 
 
+def nutrition_section_provider_debug_metadata(nutrition_report_section_result) -> dict:
+    """Return explicit debug/QA-only Nutrition provider diagnostics.
+
+    This metadata is intentionally not persisted. It contains sanitized category
+    and field names only; raw provider output, raw validation errors, prompts,
+    and model-facing context remain excluded.
+    """
+
+    safe_metadata = nutrition_section_provider_job_metadata(
+        nutrition_report_section_result
+    )
+    if nutrition_report_section_result is None:
+        return {
+            **safe_metadata,
+            "validation_error_categories": [],
+            "validation_error_fields": [],
+            "validation_error_count": 0,
+            "first_validation_error_category": None,
+            "first_validation_error_field": None,
+        }
+
+    categories = list(
+        getattr(nutrition_report_section_result, "validation_error_categories", [])
+        or []
+    )
+    fields = list(
+        getattr(nutrition_report_section_result, "validation_error_fields", []) or []
+    )
+    validation_error_count = int(
+        safe_metadata.get("nutrition_validation_errors_count") or 0
+    )
+
+    if validation_error_count > 0 and not categories:
+        categories = ["validation_failure"]
+
+    return {
+        **safe_metadata,
+        "validation_error_categories": categories,
+        "validation_error_fields": fields,
+        "validation_error_count": validation_error_count,
+        "first_validation_error_category": (categories[0] if categories else None),
+        "first_validation_error_field": (fields[0] if fields else None),
+    }
+
+
 def training_section_provider_job_metadata(
     training_report_section_result,
     *,
