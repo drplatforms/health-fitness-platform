@@ -18,6 +18,28 @@ Open after v1 implementation:
 - Should action availability be persisted for analytics, or remain read-only/computed at request time?
 - How should the panel behave once catalog expansion and food logging usability improve?
 
+
+## Catalog Expansion & Curation
+
+Planning status: `CATALOG_EXPANSION_CURATION_V1_PLANNED_PENDING_ARCHITECTURE_ACCEPTANCE`.
+
+Resolved in planning draft:
+
+- Current starter inventory is documented at planning level: 132 canonical starter foods and 178 curated exercise entries observed in the code snapshot.
+- Food Catalog Expansion v1 is recommended as the first implementation slice because Daily Next Action Panel v1 often routes users to food logging.
+- Exercise Catalog Expansion v1 is recommended second because workout variety, equipment matching, substitutions, and recovery suitability are the next training-loop usability bottlenecks.
+- Catalogs should remain deterministic, curated, inspectable, testable, and backend-owned.
+- RAG, embeddings, scraping, AI-generated production entries, meal planning, and unreviewed catalog dumps remain out of scope.
+
+Open for Architecture review:
+
+- Should Food Catalog Expansion v1 add only new seed entries, or also add explicit first-class category fields?
+- Should default serving sizes remain optional metadata or become required for quick logging?
+- Should fiber and sodium be required for new foods or remain optional v1 nutrients?
+- Should Exercise Catalog Expansion v1 require schema changes for joint stress, recovery suitability, substitution group, setup notes, and safety notes, or start with deterministic constants/docs first?
+- What is the target size for curated Food Catalog Expansion v1 and Exercise Catalog Expansion v1 before QA?
+- Should catalog additions be split by user-relevant home-gym and food-logging priorities rather than broad generic completeness?
+
 ## Product voice
 
 - When should qwen3 be re-tested for Training product voice?

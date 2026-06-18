@@ -8,29 +8,31 @@ AI Health Coach / fitness-ai
 
 ## Current branch
 
-`feature/daily-coaching-product-loop-v1`
+`main`
 
 ## Latest accepted milestone
 
-`Daily Coaching Product Loop v1` planning was accepted.
+`Daily Next Action Panel v1` was accepted and merged to main.
 
-Planning status: `DAILY_COACHING_PRODUCT_LOOP_V1_PLAN_ACCEPTED`.
+Final accepted status: `DAILY_NEXT_ACTION_PANEL_V1_ACCEPTED`.
 
-## Current implementation milestone
+The first product-loop slice added a deterministic backend next-action service, `GET /daily-coach/{user_id}/next-action`, and a Today-page action card. Backend owns the action decision; Streamlit renders one primary action; no provider output controls navigation or invents food, calorie, macro, workout, fatigue, or recovery claims.
 
-`Daily Next Action Panel v1` is implemented and pending QA.
+## Current planning milestone
 
-Implementation status: `DAILY_NEXT_ACTION_PANEL_V1_IMPLEMENTED_PENDING_QA`.
+`Catalog Expansion & Curation v1` is planned and pending Architecture acceptance.
 
-The first product-loop slice adds a deterministic backend next-action service and Today-page action card. Backend owns the action decision; Streamlit renders one primary action; no provider output controls navigation or invents food, calorie, macro, workout, fatigue, or recovery claims.
+Planning status: `CATALOG_EXPANSION_CURATION_V1_PLANNED_PENDING_ARCHITECTURE_ACCEPTANCE`.
+
+The goal is to design deterministic, curated food and exercise catalog expansion so the daily action loop becomes easier to use in real life without adding RAG, embeddings, scraping, AI-generated production catalog entries, meal planning, or provider behavior changes.
 
 ## Next recommended milestone options
 
-- Daily Next Action Panel v1 QA.
-- Demo / Deployment Packaging Design v1.
+- Catalog Expansion & Curation v1 architecture acceptance.
+- Food Catalog Expansion v1.
+- Exercise Catalog Expansion v1.
 - Nutrition Explanation Value-Aware Copy v1.
-- UI polish / screenshot capture pass.
-- GitHub README / portfolio update pass.
+- Demo / Deployment Packaging Design v1.
 
 ## Current model/provider status
 
@@ -72,10 +74,11 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 
 ## What is safe to build next
 
-- Daily Coaching Product Loop v1 planning/design.
-- Daily Next Action Panel v1 as a narrow deterministic Today-page implementation slice.
-- Demo / Deployment Packaging Design v1.
+- Catalog Expansion & Curation v1 planning/design.
+- Food Catalog Expansion v1 as the recommended first catalog implementation slice.
+- Exercise Catalog Expansion v1 as the recommended second catalog implementation slice.
 - Nutrition Explanation Value-Aware Copy v1.
+- Demo / Deployment Packaging Design v1.
 - UI polish / screenshot capture pass.
 - GitHub README / portfolio update pass.
 - Public claims can now say Nutrition fallback semantics are runtime-validated through a QA-only forced-invalid provider mode, while still clarifying that this mode is not normal user behavior.
@@ -86,9 +89,9 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 
 ## Current product loop direction
 
-The next product development priority is daily usefulness: help the user answer “What should I do today?” from the Today page without reopening provider safety or Level 5 semantics.
+Daily Next Action Panel v1 is accepted and merged. The Today page now answers “What should I do today?” with one deterministic backend-owned next action.
 
-Daily Coaching Product Loop v1 should connect existing backend-approved state into a practical loop:
+Daily Coaching Product Loop v1 connects existing backend-approved state into a practical loop:
 
 ```text
 recovery check-in
@@ -99,11 +102,21 @@ recovery check-in
 → one backend-approved next action
 ```
 
-Daily Next Action Panel v1 is implemented pending QA. The deterministic service returns exactly one action from the approved v1 action set, with backend-owned reason and workflow target. The Today page renders this card near the top without exposing raw provider/debug metadata.
+Daily Next Action Panel v1 is accepted. The deterministic service returns exactly one action from the approved v1 action set, with backend-owned reason and workflow target. The Today page renders this card near the top without exposing raw provider/debug metadata.
 
 Approved v1 action set: Complete recovery check-in, Keep training conservative, Log a meal or snack, Review nutrition target progress, Review today’s workout, Review today’s report guidance.
 
 The panel remains backend-truth-owned. It surfaces one primary action, a short backend-supported reason, and a workflow pointer, but does not allow AI/provider output to invent navigation, food, calorie, macro, workout, fatigue, or recovery claims.
+
+## Current catalog direction
+
+Catalog Expansion & Curation v1 is the current planning milestone.
+
+The app can now tell the user to log food or review a workout; the next product-quality bottleneck is whether those actions are easy and useful. Catalog expansion should remain deterministic, curated, inspectable, testable, and backend-owned.
+
+Current planning audits record 132 starter canonical foods and 178 curated exercise entries in the code snapshot. Food Catalog Expansion v1 is recommended first because it directly improves the “Log a meal or snack” daily action. Exercise Catalog Expansion v1 is recommended second to improve workout variety, equipment matching, substitutions, and recovery-aware options.
+
+Do not add RAG, embeddings, scraping, AI-generated production catalog entries, meal planning, unreviewed food dumps, or clinical nutrition claims.
 
 ## What must not be changed casually
 
@@ -145,6 +158,9 @@ For code/tooling changes:
 7. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
 8. Generic coaching language degrading product quality even when technically safe.
 9. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during future runtime QA or provider work.
+10. Catalog expansion becoming an unreviewed dump instead of deterministic curated seed data.
+11. Food catalog entries creating false precision through weak source/confidence handling.
+12. Exercise catalog expansion changing workout generation behavior before the curation plan is accepted.
 
 ## What a new AI assistant should read first
 
