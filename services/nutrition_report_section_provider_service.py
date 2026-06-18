@@ -145,7 +145,9 @@ def build_configured_nutrition_report_section(
 
 def build_deterministic_nutrition_report_section_with_metadata(
     *,
-    evidence_context: NutritionReportEvidenceContext,
+    evidence_context: NutritionReportEvidenceContext | None = None,
+    user_id: int | None = None,
+    report_date: str | None = None,
     provider_enabled: bool = False,
     selected_provider: str | None = NUTRITION_REPORT_SECTION_PROVIDER_DETERMINISTIC,
     selected_model: str | None = NUTRITION_REPORT_SECTION_PROVIDER_DETERMINISTIC,
@@ -153,6 +155,16 @@ def build_deterministic_nutrition_report_section_with_metadata(
     fallback_reason: str | None = None,
     nutrition_section_source: str = NUTRITION_SECTION_SOURCE_DETERMINISTIC,
 ) -> NutritionReportSectionProviderResult:
+    if evidence_context is None:
+        if user_id is None or report_date is None:
+            raise ValueError(
+                "user_id and report_date are required when evidence_context is not provided"
+            )
+        evidence_context = build_nutrition_report_evidence_context(
+            user_id=user_id,
+            report_date=report_date,
+        )
+
     section = build_deterministic_nutrition_report_section(evidence_context)
     safe_context = build_nutrition_provider_safe_context(evidence_context)
     safe_metadata = build_nutrition_provider_safe_metadata(

@@ -43,7 +43,7 @@ This should be an implementation milestone only. It should not promote Nutrition
 |---|---|---|
 | training | Provider-integrated full-report section, opt-in direct_ollama/qwen2.5 path | Level 5 |
 | nutrition_target_display | Backend-approved target display contract; input to Nutrition Report Section | Level 2 |
-| nutrition_report_section | Backend-owned evidence/claims/fallback boundary plus isolated opt-in provider implementation; section-only runtime QA accepted; not full-report integrated | Level 4 |
+| nutrition_report_section | Backend-owned evidence/claims/fallback boundary plus isolated opt-in provider implementation; section-only runtime QA accepted; full-report opt-in integration implemented behind explicit gate; not Level 5 | Level 4 |
 | grounded_recommendation | Strong approved contract but cross-domain; not next provider voice section | Level 3 |
 | overall_score | Deterministic/coordinator-structured | Level 1 |
 | profile_context | Deterministic/coordinator-structured | Level 1 |
@@ -56,15 +56,10 @@ Provider-integrated report sections: `training` only.
 
 ## What is safe to build next
 
-- Architecture review of Nutrition Full Report Opt-In Integration Design Review v1.
-- If accepted, a narrow Nutrition Full Report Opt-In Integration v1 implementation with:
-  - explicit full-report integration gate
-  - deterministic default
-  - existing Nutrition provider service boundary
-  - safe fallback
-  - fake-provider tests
-  - safe metadata allowlist
-  - no Level 5 promotion before runtime QA
+- Nutrition Full Report Opt-In Runtime QA v1.
+- Runtime validation of the explicit full-report Nutrition integration gate.
+- Persisted-history inspection for Nutrition-prefixed metadata.
+- Exact-key leakage checks proving raw/debug/provider content is absent from public/persisted full-report surfaces.
 - Additional negative parser/validator tests after observing real qwen2.5 output.
 
 ## What must not be changed casually
@@ -101,10 +96,10 @@ For code/tooling changes:
 1. Context loss across long chat sessions.
 2. Accidentally treating qwen3 as promoted or default.
 3. Accidentally expanding provider ownership beyond Training.
-4. Nutrition full-report integration moving too fast into Level 5 promotion before explicit runtime QA and Architecture approval.
+4. Nutrition full-report integration being mistaken for Level 5 promotion before explicit runtime QA and Architecture approval.
 5. Legacy CrewAI coordinator being mistaken for the future full-report voice layer.
 6. Generic coaching language degrading product quality even when technically safe.
-7. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during future full-report integration.
+7. Safe Nutrition provider metadata accidentally leaking raw/debug fields into persisted history during runtime QA or future promotion work.
 
 ## What a new AI assistant should read first
 

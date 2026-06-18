@@ -25,10 +25,10 @@ Last updated: 2026-06-18
 
 `nutrition_target_display` is not the final nutrition voice section. It can feed the future `nutrition_report_section`, but it should not become provider-owned by itself.
 
-`nutrition_report_section` has a proven isolated opt-in provider path, but it is not full-report provider-integrated yet and must not be treated as Level 5.
+`nutrition_report_section` has a proven isolated opt-in provider path and an implemented full-report opt-in integration gate, but it is not Level 5 until runtime QA, persisted-history inspection, leakage checks, and Architecture approval pass.
 
 ## Next likely section path
 
-Nutrition Full Report Opt-In Integration Design Review v1 should define how the proven section-only Nutrition provider path can later enter async full-report composition behind explicit gates.
+Nutrition Full Report Opt-In Integration v1 has implemented the first gated full-report integration step.
 
-A future implementation may move Nutrition toward full-report runtime QA, but Level 5 requires later Architecture approval after runtime QA, persisted-history inspection, composition fallback checks, and raw/debug leakage checks.
+The next step is Nutrition Full Report Opt-In Runtime QA v1. Level 5 still requires Architecture approval after runtime QA, persisted-history inspection, composition fallback checks, and raw/debug leakage checks.

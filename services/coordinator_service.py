@@ -11,6 +11,11 @@ from services.coaching_decision_service import build_coaching_decision
 from services.full_report_section_registry_service import (
     get_full_report_section_registry_metadata,
 )
+from services.nutrition_report_section_provider_service import (
+    NUTRITION_SECTION_SOURCE_DETERMINISTIC,
+    build_configured_nutrition_report_section_with_metadata,
+    build_deterministic_nutrition_report_section_with_metadata,
+)
 from services.nutrition_target_service import (
     build_nutrition_targets,
     nutrition_targets_to_user_dict,
@@ -22,7 +27,7 @@ from services.recommendation_engine_service import (
 )
 from services.report_service import save_health_report
 from services.training_report_section_direct_ollama_provider import (
-    DirectOllamaGenerateCallable,
+    DirectOllamaGenerateCallable as TrainingDirectOllamaGenerateCallable,
 )
 from services.training_report_section_provider_service import (
     FALLBACK_REASON_FULL_REPORT_PROVIDER_DISABLED,
@@ -40,6 +45,9 @@ load_dotenv()
 AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED_ENV = (
     "AI_HEALTH_REPORT_TRAINING_SECTION_PROVIDER_ENABLED"
 )
+AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED_ENV = (
+    "AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED"
+)
 
 FALLBACK_REASON_FULL_REPORT_PROVIDER_REQUIRES_BACKGROUND_JOB = (
     "provider_requires_async_report_job"
@@ -53,6 +61,7 @@ _TRUTHY_ENV_VALUES = {"1", "true", "yes", "on", "enabled"}
 class FullHealthReportGenerationResult:
     report_text: str
     training_report_section_result: object | None = None
+    nutrition_report_section_result: object | None = None
 
 
 @dataclass(frozen=True)
@@ -781,12 +790,65 @@ def _full_report_training_section_provider_enabled() -> bool:
     )
 
 
+def _full_report_nutrition_integration_enabled() -> bool:
+    return (
+        os.getenv(AI_HEALTH_REPORT_NUTRITION_FULL_REPORT_INTEGRATION_ENABLED_ENV, "")
+        .strip()
+        .lower()
+        in _TRUTHY_ENV_VALUES
+    )
+
+
+def build_full_report_nutrition_section_result(
+    *,
+    user_id: int,
+    report_date: str,
+    direct_ollama_generate=None,
+    evidence_context=None,
+    allow_nutrition_full_report_integration: bool | None = None,
+):
+    """Build the Nutrition Report Section for full-report rendering.
+
+    Full-report Nutrition integration has its own explicit gate. When disabled,
+    it returns deterministic Nutrition section content and does not call the
+    lower-level Nutrition provider service, even if the section-only provider
+    env vars are enabled. When enabled, provider execution still requires the
+    existing Nutrition section provider gates.
+    """
+
+    integration_enabled = (
+        _full_report_nutrition_integration_enabled()
+        if allow_nutrition_full_report_integration is None
+        else allow_nutrition_full_report_integration
+    )
+
+    if not integration_enabled:
+        return build_deterministic_nutrition_report_section_with_metadata(
+            evidence_context=evidence_context,
+            user_id=user_id,
+            report_date=report_date,
+            provider_enabled=False,
+            selected_provider="deterministic",
+            selected_model="deterministic",
+            fallback_used=False,
+            fallback_reason=None,
+            nutrition_section_source=NUTRITION_SECTION_SOURCE_DETERMINISTIC,
+        )
+
+    return build_configured_nutrition_report_section_with_metadata(
+        user_id=user_id,
+        report_date=report_date,
+        evidence_context=evidence_context,
+        direct_ollama_generate=direct_ollama_generate,
+    )
+
+
 def build_full_report_training_section_result(
     *,
     user_id: int,
     report_date: str,
     approved_context: dict | None = None,
-    direct_ollama_generate: DirectOllamaGenerateCallable | None = None,
+    direct_ollama_generate: TrainingDirectOllamaGenerateCallable | None = None,
     allow_training_section_provider: bool = False,
 ):
     """Build the training section used by full report rendering.
@@ -845,6 +907,20 @@ def _render_training_report_section(training_report_section_result) -> str:
     )
 
 
+def _render_nutrition_report_section(nutrition_report_section_result) -> str:
+    section = nutrition_report_section_result.approved_section
+    return (
+        "**Nutrition Report Section:**\n"
+        f"**Summary:** {section.section_summary}\n"
+        f"**Intake Snapshot:** {section.intake_snapshot}\n"
+        f"**Target Alignment:** {section.target_alignment}\n"
+        f"**Logging Quality:** {section.logging_quality}\n"
+        f"**Practical Food Focus:** {section.practical_food_focus}\n"
+        f"**Next Nutrition Action:** {section.next_nutrition_action}\n"
+        f"**Limitations:** {section.limitations_context}"
+    )
+
+
 def render_unified_health_report(
     report: UnifiedHealthReport,
     timestamp: str | None = None,
@@ -852,6 +928,7 @@ def render_unified_health_report(
     coaching_decision: CoachingDecision | None = None,
     approved_action_plan=None,
     training_report_section_result=None,
+    nutrition_report_section_result=None,
 ) -> str:
     generated_line = f"Generated: {timestamp}\n\n" if timestamp else ""
 
@@ -870,6 +947,12 @@ def render_unified_health_report(
             approved_action_plan=approved_action_plan,
         )
 
+    nutrition_section = ""
+    if nutrition_report_section_result is not None:
+        nutrition_section = "\n\n" + _render_nutrition_report_section(
+            nutrition_report_section_result
+        )
+
     training_section = ""
     if training_report_section_result is not None:
         training_section = "\n\n" + _render_training_report_section(
@@ -882,6 +965,7 @@ def render_unified_health_report(
         f"**Overall Score:** {report.overall_score}/100"
         f"{profile_context}"
         f"{grounded_recommendation}"
+        f"{nutrition_section}"
         f"{training_section}\n\n"
         f"**1. Biggest Issue:** {report.biggest_issue}\n\n"
         f"**2. Likely Cause:** {report.likely_cause}\n\n"
@@ -900,6 +984,7 @@ def _persist_final_health_report(
     report_text: str,
     resolved_report_date: str,
     training_report_section_result,
+    nutrition_report_section_result,
     report_job_id: str | None,
     allow_training_section_provider: bool,
     provider_enabled: bool,
@@ -917,6 +1002,7 @@ def _persist_final_health_report(
         report_date=resolved_report_date,
         report_metadata=build_health_report_persistence_metadata(
             training_report_section_result,
+            nutrition_report_section_result=nutrition_report_section_result,
             report_job_id=report_job_id,
             report_status=report_status,
             report_generation_mode=_report_generation_mode(
@@ -938,6 +1024,7 @@ def _build_deterministic_fallback_full_report_text(
     coaching_decision: CoachingDecision,
     approved_action_plan,
     training_report_section_result,
+    nutrition_report_section_result,
 ) -> str:
     structured_report = _build_fallback_unified_report(health_state, coaching_decision)
     timestamp = datetime.now().strftime("%Y-%m-%d %I:%M:%S %p")
@@ -948,6 +1035,7 @@ def _build_deterministic_fallback_full_report_text(
         coaching_decision=coaching_decision,
         approved_action_plan=approved_action_plan,
         training_report_section_result=training_report_section_result,
+        nutrition_report_section_result=nutrition_report_section_result,
     )
 
 
@@ -955,6 +1043,7 @@ def generate_health_report(
     user_id,
     report_date: str | None = None,
     direct_ollama_generate=None,
+    nutrition_direct_ollama_generate=None,
     allow_training_section_provider: bool = False,
     return_training_section_result: bool = False,
     report_job_id: str | None = None,
@@ -971,6 +1060,12 @@ def generate_health_report(
         report_date=resolved_report_date,
         direct_ollama_generate=direct_ollama_generate,
         allow_training_section_provider=allow_training_section_provider,
+    )
+    nutrition_report_section_result = build_full_report_nutrition_section_result(
+        user_id=user_id,
+        report_date=resolved_report_date,
+        direct_ollama_generate=nutrition_direct_ollama_generate
+        or direct_ollama_generate,
     )
 
     # -----------------------------
@@ -1327,6 +1422,7 @@ def generate_health_report(
             coaching_decision=coaching_decision,
             approved_action_plan=approved_action_plan,
             training_report_section_result=training_report_section_result,
+            nutrition_report_section_result=nutrition_report_section_result,
         )
 
         language_violations = validate_report_language(
@@ -1345,6 +1441,7 @@ def generate_health_report(
             report_text=final_report,
             resolved_report_date=resolved_report_date,
             training_report_section_result=training_report_section_result,
+            nutrition_report_section_result=nutrition_report_section_result,
             report_job_id=report_job_id,
             allow_training_section_provider=allow_training_section_provider,
             provider_enabled=provider_enabled,
@@ -1358,6 +1455,7 @@ def generate_health_report(
             return FullHealthReportGenerationResult(
                 report_text=final_report,
                 training_report_section_result=training_report_section_result,
+                nutrition_report_section_result=nutrition_report_section_result,
             )
 
         return final_report
@@ -1376,12 +1474,14 @@ def generate_health_report(
             coaching_decision=coaching_decision,
             approved_action_plan=approved_action_plan,
             training_report_section_result=training_report_section_result,
+            nutrition_report_section_result=nutrition_report_section_result,
         )
         _persist_final_health_report(
             user_id=user_id,
             report_text=fallback_report,
             resolved_report_date=resolved_report_date,
             training_report_section_result=training_report_section_result,
+            nutrition_report_section_result=nutrition_report_section_result,
             report_job_id=report_job_id,
             allow_training_section_provider=allow_training_section_provider,
             provider_enabled=provider_enabled,
@@ -1399,6 +1499,7 @@ def generate_health_report(
             return FullHealthReportGenerationResult(
                 report_text=fallback_report,
                 training_report_section_result=training_report_section_result,
+                nutrition_report_section_result=nutrition_report_section_result,
             )
 
         return fallback_report
@@ -1407,6 +1508,7 @@ def generate_health_report(
 def build_health_report_persistence_metadata(
     training_report_section_result,
     *,
+    nutrition_report_section_result=None,
     report_job_id: str | None = None,
     report_status: str = "completed",
     report_generation_mode: str = "synchronous",
@@ -1431,6 +1533,9 @@ def build_health_report_persistence_metadata(
     )
     metadata.update(get_full_report_section_registry_metadata())
     metadata.update(
+        nutrition_section_provider_job_metadata(nutrition_report_section_result)
+    )
+    metadata.update(
         {
             "report_status": report_status,
             "report_generation_mode": report_generation_mode,
@@ -1442,6 +1547,50 @@ def build_health_report_persistence_metadata(
         }
     )
     return metadata
+
+
+def nutrition_section_provider_job_metadata(nutrition_report_section_result) -> dict:
+    """Return Nutrition-prefixed safe full-report metadata."""
+
+    integration_enabled = _full_report_nutrition_integration_enabled()
+    if nutrition_report_section_result is None:
+        return {
+            "nutrition_full_report_integration_enabled": integration_enabled,
+            "nutrition_provider_attempted": False,
+        }
+
+    safe_metadata = dict(getattr(nutrition_report_section_result, "safe_metadata", {}))
+    section = getattr(nutrition_report_section_result, "approved_section", None)
+    section_source = getattr(section, "source", None)
+
+    return {
+        "nutrition_full_report_integration_enabled": integration_enabled,
+        "nutrition_provider_execution_enabled": safe_metadata.get(
+            "nutrition_provider_execution_enabled"
+        ),
+        "nutrition_provider_enabled": safe_metadata.get("provider_enabled"),
+        "nutrition_provider_attempted": safe_metadata.get("provider_attempted"),
+        "nutrition_selected_provider": safe_metadata.get("selected_provider"),
+        "nutrition_selected_model": safe_metadata.get("selected_model"),
+        "nutrition_parse_status": safe_metadata.get("parse_status"),
+        "nutrition_candidate_valid": safe_metadata.get("candidate_valid"),
+        "nutrition_validation_status": safe_metadata.get("validation_status"),
+        "nutrition_validation_errors_count": safe_metadata.get(
+            "validation_errors_count"
+        ),
+        "nutrition_fallback_used": safe_metadata.get("fallback_used"),
+        "nutrition_fallback_reason": safe_metadata.get("fallback_reason"),
+        "nutrition_fallback_source": safe_metadata.get("fallback_source"),
+        "nutrition_confidence_ceiling": safe_metadata.get("confidence_ceiling"),
+        "nutrition_approved_claim_types": safe_metadata.get("approved_claim_types"),
+        "nutrition_approved_food_suggestion_count": safe_metadata.get(
+            "approved_food_suggestion_count"
+        ),
+        "nutrition_section_source": safe_metadata.get(
+            "nutrition_section_source", section_source
+        ),
+        "nutrition_provider_latency_ms": safe_metadata.get("provider_latency_ms"),
+    }
 
 
 def training_section_provider_job_metadata(
