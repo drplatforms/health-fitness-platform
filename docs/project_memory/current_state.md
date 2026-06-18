@@ -12,17 +12,17 @@ AI Health Coach / fitness-ai
 
 ## Latest accepted milestone
 
-`Nutrition Report Section Boundary v1`
+`Developer Commit Workflow Cleanup v1`
 
 ## Current provisional milestone
 
-`Nutrition Provider Readiness Review v1` is approved to begin review/design only.
+`Nutrition Provider Contract Design v1` is approved to begin design only.
 
-## Next recommended milestone after Nutrition Provider Readiness Review v1
+## Next recommended milestone after Nutrition Provider Contract Design v1
 
-`Nutrition Provider Contract Design v1` if Architecture accepts the readiness review.
+`Nutrition Provider Contract Scaffolding v1` if Architecture accepts the contract design.
 
-Do not implement nutrition provider voice during the readiness-review milestone.
+Do not implement nutrition provider execution during the contract-design milestone.
 
 ## Current model/provider status
 
@@ -51,10 +51,10 @@ Provider-integrated report sections: `training` only.
 
 ## What is safe to build next
 
-- Nutrition Provider Readiness Review v1.
-- Additional documentation of nutrition evidence and claim boundaries.
-- Nutrition Provider Contract Design v1 after Architecture acceptance.
-- Developer workflow cleanup that does not change runtime behavior.
+- Nutrition Provider Contract Design v1.
+- Provider-safe nutrition context/schema documentation.
+- Nutrition parser/validator design documentation.
+- Additional docs-only contract review work that does not call a provider.
 
 ## What must not be changed casually
 

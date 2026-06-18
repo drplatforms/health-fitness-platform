@@ -9,9 +9,11 @@ Last updated: 2026-06-18
 
 ## Nutrition
 
-- Is Nutrition Provider Readiness Review v1 sufficient to approve Nutrition Provider Contract Design v1?
-- What exact approved nutrition claim gating should be required before provider voice?
-- How should food suggestions be phrased without becoming meal planning?
+- Is Nutrition Provider Contract Design v1 sufficient to approve parser/validator scaffolding without provider execution?
+- What exact approved nutrition claim gating should be implemented first?
+- How should food suggestions be validated without becoming meal planning?
+- Should nutrition provider metadata use section-prefixed fields only?
+- What runtime QA cases are required before Nutrition can become opt-in provider-integrated?
 
 ## Recovery
 
@@ -23,5 +25,4 @@ Last updated: 2026-06-18
 
 ## Developer workflow
 
-- Should a Windows validation script be added to reduce commit friction?
-- Should pre-commit be narrowed or documented more clearly?
+- Should the new Windows validation helper eventually be mirrored with a Linux runtime-QA helper?
