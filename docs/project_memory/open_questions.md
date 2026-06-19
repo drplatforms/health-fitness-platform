@@ -1,6 +1,6 @@
 # Open Questions
 
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 
 ## Daily Coaching Product Loop
 
@@ -52,29 +52,25 @@ Open after catalog v1 slices:
 - What acceptance threshold should be used before considering the food and exercise catalogs broad enough for demo/recruiter walkthroughs?
 
 
-## Coach Voice Bakeoff
+## Coach Voice Bakeoff / Contract Tightening
 
-Bounded Coach Voice Bakeoff v1 is accepted with model findings. The direct CLI entrypoint is patched so repo-root execution no longer requires manual `PYTHONPATH`.
+Resolved by Bounded Coach Voice Bakeoff v1 and Coach Voice Contract Tightening v1:
 
-Resolved by bakeoff v1:
+- qwen3:8b remains the best practical evaluation-only bounded coach voice candidate.
+- qwen3:32b remains the best offline / chores-mode quality reference.
+- qwen2.5:3b improved from output-contract failure to 5/5 pass across all five context packs, but remains more generic.
+- qwen3:14b partially improved to 2/5 but remains unreliable.
+- qwen3:30b-a3b remains incompatible with strict JSON-only output.
+- Prompt/schema packaging was a real contributor to prior failures.
+- No model is promoted.
+- Daily Coach Narrative v1 Planning is the next safe bridge milestone.
 
-- qwen3:8b passed all 3 required starter contexts and is the best practical bounded coach voice candidate so far.
-- qwen3:32b passed all 3 starter contexts as an exploratory addendum and is the best offline / chores-mode quality signal so far.
-- qwen3:32b latency is too high for tight Today UI, roughly 2.6-3.1 minutes per context.
-- qwen2.5:3b and qwen3:14b failed the current output contract.
-- No model is promoted by the bakeoff.
-- The next milestone should be Coach Voice Contract Tightening v1.
+Open after contract tightening:
 
-Open after bakeoff v1:
-
-- Which prompt/schema packaging changes prevent schema echoing and improve object-format reliability?
-- Can qwen2.5:3b and qwen3:14b pass after contract tightening, or are their failures model-specific?
-- Does qwen3:8b remain safe across all five context packs after contract tightening?
-- Should qwen3:32b remain a reference-only offline quality signal or be tested for slower report/reflection modes later?
-- What validator gaps appear when all five context packs are evaluated?
-- What evidence threshold would be required before planning a future Daily Coach Narrative v1?
-
-No model is promoted by the bakeoff itself.
+- How much additional validation is needed before a future narrative provider can be tested behind an opt-in flag?
+- Should qwen2.5:3b be retained as a small compliant baseline despite generic language?
+- Should qwen3:32b remain offline/reference-only due to latency?
+- Should future narrative QA reuse the all-five-context bakeoff set or define Daily Next Action-specific fixtures?
 
 ## Product voice
 
@@ -103,26 +99,38 @@ No model is promoted by the bakeoff itself.
 
 - Should the new Windows validation helper eventually be mirrored with a Linux runtime-QA helper?
 
-## Coach Voice Contract Tightening v1 QA questions
+## Daily Coach Narrative v1 Planning
 
-Status: PENDING RUNTIME QA
+Resolved by planning:
 
-Questions for the all-context bakeoff run:
+- The narrative may explain the deterministic Daily Next Action but may not choose or change it.
+- Backend owns action selection, workflow target, approved focus, confidence limits, approved facts, forbidden claims, validation, and fallback.
+- The model owns wording, tone, concise explanation, and coach-like framing only.
+- The proposed `DailyCoachNarrativeContext` should contain compact approved fields from Daily Next Action state and optional approved nutrition/recovery/workout summaries.
+- Raw logs, raw provider output, debug payloads, full catalog dumps, validation internals, and unfiltered history are excluded.
+- The proposed output contract reuses the tightened coach voice JSON object.
+- Failed provider output falls back to deterministic Daily Next Action wording.
+- First implementation slice should be `Daily Coach Narrative Context Builder v1` with no model call.
 
-- Does the tightened contract reduce schema echoing for `qwen2.5:3b`, `qwen3:14b`, or `qwen3:30b-a3b`?
-- Does `qwen3:8b` remain the best practical evaluation-only candidate across all five contexts?
-- Does `qwen3:32b` remain the best offline / chores-mode quality reference across all five contexts?
-- Does `qwen3:14b` improve enough to justify Practical Model Comparison v2?
-- Does `qwen3:30b-a3b` remain incompatible with the strict JSON-only contract, or does the tightened prompt help?
-- Are failure categories clearer enough to guide a possible Coach Voice Contract Tightening v2?
-- Is the next safe milestone Daily Coach Narrative v1 Planning, Practical Model Comparison v2, Offline Report Voice Mode v1 Planning, or another contract-tightening slice?
+Open after planning:
+
+- Which exact Daily Next Action fields should become v1 required context fields versus optional fields?
+- Should the narrative context builder live beside `daily_next_action_service` or in a new narrative service module?
+- Should `approved_facts` be generated directly by the context builder or adapted from existing bakeoff context-pack logic?
+- What compact length limit should the Today card use for `coach_note`?
+- Should the first runtime QA use only fixed fixtures, live seeded users 101-105, or both?
+- Should `qwen2.5:3b` be tested as a fallback candidate despite more generic copy?
+- Should `qwen3:32b` remain offline/reference-only for narrative QA, or be skipped due to latency?
+- What Developer Mode preview surface is acceptable before normal Today UI integration?
+- What additional validator phrases are needed for Daily Next Action-specific risk areas?
 
 Non-negotiable constraints:
 
 - no model promotion
 - no qwen3 production approval
-- no Today integration
+- no Today integration during planning/context-builder work
 - no report integration
 - no validator loosening
 - no provider path changes
 - no direct_ollama default change
+- no raw model/debug/provider leakage in normal UI
