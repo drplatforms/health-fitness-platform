@@ -139,3 +139,29 @@ Non-negotiable constraints:
 - no provider path changes
 - no direct_ollama default change
 - no raw model/debug/provider leakage in normal UI
+
+## Daily Coach Narrative Offline Provider QA v1
+
+Resolved by runtime QA:
+
+- `qwen3:8b` passed all required DailyCoachNarrativeContext users 101, 102, and 105 and remains the best practical evaluation candidate.
+- `qwen2.5:3b` passed all required users as a safe compliance baseline but produced unacceptable meta/process copy.
+- `qwen3:32b` remains a useful offline quality reference, but it timed out on user 101 and is too slow for practical preview loops.
+- Daily Next Action-specific validation must now include product-copy filters for meta/process/internal architecture language.
+
+Open after runtime QA:
+
+- What exact meta/process phrases should `Daily Coach Narrative Provider Contract Tightening v1.1` reject beyond the initial list?
+- Should future Developer Preview use a debug endpoint, a local artifact viewer, or Streamlit Developer Mode only?
+- Should `qwen3:14b` or `qwen3:30b-a3b` be retried later, or remain out of scope until after v1.1?
+- What developer-only preview latency budget is acceptable for `qwen3:8b` if no normal Today UI integration is allowed yet?
+
+Still not approved:
+
+- normal Today UI integration
+- Streamlit normal surface integration
+- report integration
+- model promotion
+- qwen3 production approval
+- direct_ollama default changes
+- persistence of model-generated narrative output

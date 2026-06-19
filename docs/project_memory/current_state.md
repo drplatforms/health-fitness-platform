@@ -259,9 +259,9 @@ Normal Today UI integration remains out of scope until later runtime QA and Arch
 
 ## Daily Coach Narrative Context Builder v1
 
-Daily Coach Narrative Context Builder v1 is implemented on `feature/daily-coach-narrative-context-builder-v1` pending QA/Architecture acceptance.
+Daily Coach Narrative Context Builder v1 is accepted and merged to `main`.
 
-Implementation status: `DAILY_COACH_NARRATIVE_CONTEXT_BUILDER_V1_IMPLEMENTED_PENDING_QA`.
+Final accepted status: `DAILY_COACH_NARRATIVE_CONTEXT_BUILDER_V1_ACCEPTED`.
 
 Implemented:
 
@@ -276,3 +276,33 @@ The builder consumes the existing deterministic Daily Next Action result and ret
 The builder creates explicit approved facts, approved limitations, forbidden claim categories, and deterministic fallback wording. It filters raw/debug/provider-like evidence keys and does not expose raw logs, raw provider output, raw validation errors, raw debug payloads, full catalog dumps, or unfiltered history.
 
 No model is called. No qwen, Ollama, direct_ollama, or CrewAI path is introduced. No Today/Streamlit/report integration occurs in this slice.
+
+## Daily Coach Narrative Offline Provider QA v1
+
+Daily Coach Narrative Offline Provider QA v1 is accepted with model findings.
+
+Final accepted status: `DAILY_COACH_NARRATIVE_OFFLINE_PROVIDER_QA_V1_ACCEPTED_WITH_MODEL_FINDINGS`.
+
+Implemented:
+
+- Daily Coach Narrative provider/offline QA service
+- Daily Coach Narrative validation service
+- offline QA CLI tool
+- focused parser/validator/provider tests
+- runtime QA project memory docs
+
+The offline QA path builds `DailyCoachNarrativeContext` for selected users, sends only approved context fields to the model, parses the tightened six-key JSON output contract, validates recommended focus and approved facts, blocks forbidden claims, records local QA artifacts, and keeps deterministic fallback behavior available.
+
+Runtime findings:
+
+- `qwen3:8b`: clean practical pass across users 101, 102, and 105; parse/validation/decision 3/3; grounding 5; voice 4; latency roughly 39-52 seconds; best practical Daily Coach Narrative evaluation candidate; not production-approved.
+- `qwen2.5:3b`: safe compliance pass across users 101, 102, and 105; parse/validation/decision 3/3; useful small baseline but produced meta/process language such as "Use the exact approved focus because the backend-approved facts support it"; not recommended for developer preview voice without validator tightening.
+- `qwen3:32b`: partial offline reference pass; users 102 and 105 passed, user 101 timed out at roughly 300 seconds; useful quality reference but too slow and timeout-prone for practical preview loops.
+
+Validator gap identified:
+
+- Product-copy validation must reject meta/process/internal architecture language before any Developer Preview surface displays provider narrative.
+
+No normal Today UI integration occurred. No Streamlit integration occurred. No report integration occurred. No model output is persisted. No model is promoted. qwen3 remains not approved. direct_ollama remains opt-in only.
+
+Recommended next milestone: `Daily Coach Narrative Provider Contract Tightening v1.1`.
