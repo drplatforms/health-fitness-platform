@@ -18,6 +18,29 @@ Open after v1 implementation:
 - Should action availability be persisted for analytics, or remain read-only/computed at request time?
 - How should the panel behave once catalog expansion and food logging usability improve?
 
+
+## Catalog Expansion & Curation
+
+Catalog Expansion & Curation v1 planning accepted Food Catalog Expansion v1 as the first implementation slice.
+
+Resolved through Food Catalog Expansion v1 implementation:
+
+- Food Catalog Expansion v1 starts with curated seed entries rather than a schema migration.
+- The starter canonical food catalog is expanded from 132 to 202 entries.
+- New entries keep current per-100g nutrient storage, default grams, source policy, confidence, and alias infrastructure.
+- The implementation stays deterministic, manually curated, reviewable, and backend-owned.
+- Fiber and sodium remain optional/future nutrients rather than required v1 fields.
+- Brand-heavy, highly variable mixed foods, scraping, RAG, embeddings, AI-generated production entries, and meal planning remain out of scope.
+
+Open after Food Catalog Expansion v1:
+
+- Should a future schema migration add first-class category fields beyond `food_type`?
+- Should future quick-log UX use default serving sizes as shortcuts, or continue requiring explicit grams?
+- Should Food Catalog Expansion v2 add fiber and sodium for a smaller high-confidence subset?
+- Which new foods should be prioritized from actual user logging misses after QA?
+- Should Exercise Catalog Expansion v1 require schema changes for joint stress, recovery suitability, substitution group, setup notes, and safety notes, or start with deterministic constants/docs first?
+- What acceptance threshold should be used before considering the food catalog broad enough for demo/recruiter walkthroughs?
+
 ## Product voice
 
 - When should qwen3 be re-tested for Training product voice?

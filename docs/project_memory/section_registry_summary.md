@@ -56,13 +56,13 @@ Fallback runtime semantics are now runtime-tested through the QA-only forced-inv
 
 ## Next likely section path
 
-Next recommended milestone should be selected separately: Demo / Deployment Packaging Design v1 for recruiter/demo readiness, Nutrition Explanation Value-Aware Copy v1 for product depth, or a UI/README/portfolio polish pass.
+No section-maturity changes are planned for Catalog Expansion & Curation v1. The current product-development focus is catalog depth and daily-use usability, not a new provider-owned report section.
 
 ## Daily Coaching Product Loop planning note
 
 `Daily Coaching Product Loop v1` does not change section maturity or provider ownership.
 
-The planned `Daily Next Action Panel v1` should consume existing backend-approved section state and routing signals. It should not become a new provider-owned report section, and it should not merge `nutrition_target_display` with `nutrition_report_section`.
+`Daily Next Action Panel v1` is accepted and merged. It consumes existing backend-approved section state and routing signals. It is not a provider-owned report section, and it does not merge `nutrition_target_display` with `nutrition_report_section`.
 
 Expected ownership:
 
@@ -76,4 +76,26 @@ Expected ownership:
 
 The panel is implemented through deterministic backend service output and Today-page rendering. It does not change section maturity, provider ownership, report persistence semantics, Nutrition Level 5 semantics, or Training Level 5 semantics.
 
-Current status: `DAILY_NEXT_ACTION_PANEL_V1_IMPLEMENTED_PENDING_QA`.
+Current status: `DAILY_NEXT_ACTION_PANEL_V1_ACCEPTED`.
+
+
+## Catalog Expansion & Curation planning note
+
+`Catalog Expansion & Curation v1` does not change section maturity, provider ownership, Level 5 semantics, deterministic fallback, or provider gates.
+
+Catalogs are product infrastructure for daily usefulness:
+
+- Food catalog depth supports logging actions from the Daily Next Action Panel.
+- Exercise catalog depth supports workout preview, substitutions, equipment matching, and recovery-aware training usability.
+
+Expected ownership:
+
+- Backend owns curated catalog data, curation rules, schema decisions, and tests.
+- Streamlit may later render improved search/logging/workout options.
+- AI/provider output must not generate production catalog entries.
+
+Catalog Expansion & Curation v1 planning was accepted. Food Catalog Expansion v1 is implemented pending Architecture/QA review.
+
+Food Catalog Expansion v1 increases the starter canonical food catalog from 132 to 202 curated entries while preserving deterministic canonical search/logging behavior and provider/report boundaries.
+
+Current implementation status: `FOOD_CATALOG_EXPANSION_V1_IMPLEMENTED_PENDING_QA`.
