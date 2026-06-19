@@ -28,16 +28,18 @@ No model is production-approved. No Today, Streamlit, report, provider, catalog,
 
 ## Current implementation milestone
 
-`Daily Coach Narrative v1 Planning` is implemented as a docs-only planning milestone and pending Architecture review.
+`Daily Coach Narrative v1 Planning` was accepted by Architecture.
 
-Planning status: `DAILY_COACH_NARRATIVE_V1_PLANNED_PENDING_ARCHITECTURE_ACCEPTANCE`.
+`Daily Coach Narrative Context Builder v1` is implemented and pending QA/Architecture review.
 
-The planning defines a future bounded Daily Coach Narrative path that can explain the deterministic Daily Next Action without choosing the action, inventing facts, overriding backend confidence, or bypassing validators. It does not implement runtime narrative generation or UI integration.
+Implementation status: `DAILY_COACH_NARRATIVE_CONTEXT_BUILDER_V1_IMPLEMENTED_PENDING_QA`.
+
+The context builder creates a deterministic `DailyCoachNarrativeContext` from the existing Daily Next Action state. It preserves the selected action and workflow target exactly, produces explicit approved facts/limitations/forbidden claims, and creates deterministic fallback wording. It does not call a model and does not integrate into Today, Streamlit, reports, or production provider paths.
 
 ## Next recommended milestone options
 
-- Daily Coach Narrative Context Builder v1.
-- Daily Coach Narrative Offline Runtime QA v1.
+- Daily Coach Narrative Context Builder v1 Architecture/QA review.
+- Daily Coach Narrative Offline Runtime QA v1 after Context Builder acceptance.
 - Logging UX Speed & Friction Reduction v1.
 - Nutrition Explanation Value-Aware Copy v1.
 
@@ -254,3 +256,23 @@ Planning confirms:
 - the first implementation slice should be `Daily Coach Narrative Context Builder v1`, with no model call
 
 Normal Today UI integration remains out of scope until later runtime QA and Architecture acceptance.
+
+## Daily Coach Narrative Context Builder v1
+
+Daily Coach Narrative Context Builder v1 is implemented on `feature/daily-coach-narrative-context-builder-v1` pending QA/Architecture acceptance.
+
+Implementation status: `DAILY_COACH_NARRATIVE_CONTEXT_BUILDER_V1_IMPLEMENTED_PENDING_QA`.
+
+Implemented:
+
+- `DailyCoachNarrativeContext` model
+- deterministic context builder service
+- context validation helper
+- focused unit tests
+- project memory milestone/review docs
+
+The builder consumes the existing deterministic Daily Next Action result and returns a compact backend-approved context packet for future narrative provider QA. It preserves `next_action_id`, `next_action_title`, `next_action_reason`, `workflow_target`, `priority`, and `severity` exactly. `approved_focus` is exactly the Daily Next Action title.
+
+The builder creates explicit approved facts, approved limitations, forbidden claim categories, and deterministic fallback wording. It filters raw/debug/provider-like evidence keys and does not expose raw logs, raw provider output, raw validation errors, raw debug payloads, full catalog dumps, or unfiltered history.
+
+No model is called. No qwen, Ollama, direct_ollama, or CrewAI path is introduced. No Today/Streamlit/report integration occurs in this slice.

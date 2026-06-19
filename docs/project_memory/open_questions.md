@@ -99,30 +99,35 @@ Open after contract tightening:
 
 - Should the new Windows validation helper eventually be mirrored with a Linux runtime-QA helper?
 
-## Daily Coach Narrative v1 Planning
+## Daily Coach Narrative v1 Planning / Context Builder
 
 Resolved by planning:
 
 - The narrative may explain the deterministic Daily Next Action but may not choose or change it.
 - Backend owns action selection, workflow target, approved focus, confidence limits, approved facts, forbidden claims, validation, and fallback.
 - The model owns wording, tone, concise explanation, and coach-like framing only.
-- The proposed `DailyCoachNarrativeContext` should contain compact approved fields from Daily Next Action state and optional approved nutrition/recovery/workout summaries.
-- Raw logs, raw provider output, debug payloads, full catalog dumps, validation internals, and unfiltered history are excluded.
 - The proposed output contract reuses the tightened coach voice JSON object.
 - Failed provider output falls back to deterministic Daily Next Action wording.
-- First implementation slice should be `Daily Coach Narrative Context Builder v1` with no model call.
 
-Open after planning:
+Resolved by Context Builder v1 implementation:
 
-- Which exact Daily Next Action fields should become v1 required context fields versus optional fields?
-- Should the narrative context builder live beside `daily_next_action_service` or in a new narrative service module?
-- Should `approved_facts` be generated directly by the context builder or adapted from existing bakeoff context-pack logic?
-- What compact length limit should the Today card use for `coach_note`?
-- Should the first runtime QA use only fixed fixtures, live seeded users 101-105, or both?
+- The context builder lives in `services/daily_coach_narrative_context_service.py`.
+- The model lives in `models/daily_coach_narrative_models.py`.
+- Required context fields now include user/date/action id/title/reason/workflow target/priority/severity/approved focus/confidence language/approved facts/approved limitations/forbidden claims/fallback note/source metadata/status.
+- `approved_focus` is exactly the Daily Next Action title.
+- `approved_facts` are generated directly by the context builder from Daily Next Action public fields and public-safe evidence.
+- Raw logs, raw provider output, debug payloads, full catalog dumps, validation internals, and unfiltered history remain excluded.
+- No model call is introduced.
+
+Open after Context Builder v1:
+
+- What compact length limit should the future Today card use for `coach_note`?
+- Should Daily Coach Narrative Offline Provider Runtime QA use fixed fixtures, live seeded users 101-105, or both?
 - Should `qwen2.5:3b` be tested as a fallback candidate despite more generic copy?
 - Should `qwen3:32b` remain offline/reference-only for narrative QA, or be skipped due to latency?
 - What Developer Mode preview surface is acceptable before normal Today UI integration?
 - What additional validator phrases are needed for Daily Next Action-specific risk areas?
+- Should an optional debug-only context endpoint be added before provider runtime QA, or should context stay service/test-only for now?
 
 Non-negotiable constraints:
 

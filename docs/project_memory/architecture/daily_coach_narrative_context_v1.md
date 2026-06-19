@@ -140,3 +140,42 @@ This design does not approve:
 - validator loosening
 - provider gate changes
 - RAG, embeddings, scraping, agents, meal planning, or AI-generated food/exercise suggestions
+
+## Context Builder v1 implementation update
+
+Status: IMPLEMENTED / PENDING QA
+
+Implementation status: `DAILY_COACH_NARRATIVE_CONTEXT_BUILDER_V1_IMPLEMENTED_PENDING_QA`
+
+The first implementation slice now adds the deterministic context builder without adding provider runtime.
+
+Implemented pipeline slice:
+
+```text
+Daily Next Action service
+→ DailyCoachNarrativeContext
+→ deterministic context validation
+→ future provider/runtime QA input
+```
+
+Implemented model:
+
+- `DailyCoachNarrativeContext`
+
+Implemented service:
+
+- `build_daily_coach_narrative_context(user_id, target_date=None)`
+- `build_daily_coach_narrative_context_from_action(...)`
+- `validate_daily_coach_narrative_context(...)`
+
+The builder preserves the backend-selected action and workflow target exactly. It sets `approved_focus` to the deterministic Daily Next Action title and builds exact approved fact strings from public-safe action/evidence fields.
+
+The builder also creates deterministic fallback wording:
+
+```text
+{next_action_title}: {next_action_reason}
+```
+
+The implemented context still excludes raw logs, raw provider output, raw debug payloads, validation internals, full catalog dumps, private diagnostics, and unfiltered history.
+
+No model/provider runtime is added by Context Builder v1.
