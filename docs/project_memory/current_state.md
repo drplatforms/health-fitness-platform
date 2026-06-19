@@ -125,13 +125,24 @@ Do not add RAG, embeddings, scraping, AI-generated production catalog entries, m
 
 ## Current AI provider evaluation direction
 
-Bounded Coach Voice Bakeoff v1 is implemented pending QA on `feature/bounded-coach-voice-bakeoff-v1`.
+Bounded Coach Voice Bakeoff v1 is accepted with model findings on `feature/bounded-coach-voice-bakeoff-v1`.
+
+Final accepted status: `BOUNDED_COACH_VOICE_BAKEOFF_V1_ACCEPTED_WITH_MODEL_FINDINGS`.
+
+Closeout status: `BOUNDED_COACH_VOICE_BAKEOFF_V1_CLOSEOUT_COMPLETE_PENDING_MERGE`.
 
 The bakeoff is an offline/backend-controlled evaluation harness. It compares local model candidates against the same backend-approved coach context packs and validates strict JSON output before scoring. It does not integrate model output into Today, reports, Streamlit, or production provider paths.
 
-Starter model candidates: qwen2.5:3b, qwen3:8b, and qwen3:14b. qwen3 remains experimental and not approved for production.
+Accepted model findings:
 
-The harness is intended to answer whether richer local models can produce premium coach language while staying inside backend-approved truth. Any production narrative use requires a later Architecture decision.
+- `qwen3:8b` passed all 3 required starter contexts and is the best practical bounded coach voice candidate so far. It is promising for future contract-tightened coach voice work, but it is not production-approved.
+- `qwen3:32b` passed all 3 starter contexts as an exploratory addendum. It is the best offline / chores-mode quality signal so far, with grounding 5 and voice 4, but roughly 2.6-3.1 minute latency per context makes it unsuitable for tight Today UI.
+- `qwen2.5:3b` is a fast baseline but failed the current output contract.
+- `qwen3:14b` failed the current output contract.
+
+Interpretation: the harness works, bounded coach voice is viable, and prompt/schema packaging needs tightening before judging qwen2.5:3b or qwen3:14b permanently unsuitable.
+
+No model is promoted. `qwen3` remains experimental and not approved for production. Any production narrative use requires a later Architecture decision.
 
 Coach Voice Bakeoff CLI Entrypoint Fix v1 is implemented to keep the direct repo-root command stable without requiring manual `PYTHONPATH` setup:
 
@@ -140,6 +151,8 @@ python tools/coach_voice_bakeoff.py --model qwen2.5:3b
 ```
 
 The fix is CLI/tooling only. It does not change prompts, validators, model approval, Streamlit, Today, reports, provider gates, or production integration.
+
+Recommended next milestone: `Coach Voice Contract Tightening v1`.
 
 ## What must not be changed casually
 
