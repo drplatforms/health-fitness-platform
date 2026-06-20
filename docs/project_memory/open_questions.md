@@ -1,5 +1,16 @@
 # Open Questions
 
+## Today UX Polish v1 follow-ups
+
+Today UX Polish v1 intentionally keeps Workout changes small. If the Workout tab still feels poor after manual QA, split follow-up work into `Workout Substitution UX v1` rather than hiding a larger redesign in this milestone.
+
+Roadmap candidates after this polish:
+
+- `Workout Substitution UX v1` for a focused substitution redesign.
+- `Workout Exercise Count Preference v1` for future 5-7 exercise sessions and user-configurable exercise count under safety constraints.
+- `Daily Coach Narrative Same-Session Approved Preview Bridge v1` after deterministic Today UX feels solid.
+
+
 Last updated: 2026-06-20
 
 ## Daily Coaching Product Loop

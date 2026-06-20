@@ -1368,8 +1368,7 @@ def display_apply_substitution_control(
 
     if not allow_apply:
         st.caption(
-            "Apply is available after a plan is selected, started, or in progress. "
-            "Completed workouts preserve completed history."
+            "You can review swap options now. Apply becomes available once the plan is selected, started, or in progress."
         )
         return
 
@@ -1380,11 +1379,13 @@ def display_apply_substitution_control(
     ]
 
     if not candidate_options:
-        st.caption("No selectable substitution candidates were returned.")
+        st.caption("No selectable swap options were returned.")
         return
 
-    st.markdown("##### Apply substitution")
-    st.caption("Use one of the top matches, or open More options for the full list.")
+    st.markdown("##### Suggested swaps")
+    st.caption(
+        f"Replace **{planned_exercise_name}** with one compatible option below, or keep the original."
+    )
 
     for index, candidate in enumerate(candidate_options[:5], start=1):
         reason_codes = candidate.get("compatibility_reason_codes") or []
@@ -1403,7 +1404,7 @@ def display_apply_substitution_control(
             )
         with col2:
             if st.button(
-                "Use this",
+                "Swap in",
                 key=(
                     "substitution_quick_apply_"
                     f"{apply_response_key}_{candidate.get('catalog_exercise_id')}"
@@ -1417,20 +1418,20 @@ def display_apply_substitution_control(
                     apply_response_key=apply_response_key,
                 )
 
-    with st.expander("More options", expanded=False):
+    with st.expander("More swap options", expanded=False):
         candidate_option_map = {
             substitution_candidate_option_label(candidate): candidate
             for candidate in candidate_options
         }
         selected_candidate_label = st.selectbox(
-            "All compatible substitutions",
+            "Choose a replacement exercise",
             options=list(candidate_option_map.keys()),
             key=f"substitution_apply_select_{apply_response_key}",
         )
         selected_candidate = candidate_option_map[selected_candidate_label]
 
         if st.button(
-            f"Apply selected substitution for {planned_exercise_name}",
+            f"Replace {planned_exercise_name} with selected exercise",
             key=f"substitution_apply_button_{apply_response_key}",
         ):
             apply_substitution_candidate(
@@ -1450,12 +1451,12 @@ def display_substitution_candidates(
     execution_status: str | None = None,
     active_substitutions: dict[int, dict] | None = None,
     always_visible: bool = False,
-    title: str = "Compatible Substitutions",
+    title: str = "Need a swap?",
 ) -> None:
     st.markdown(f"#### {title}")
 
     if not planned_exercises:
-        st.info("No planned exercises are available for substitution lookup.")
+        st.info("No planned exercises are available for swap lookup.")
         return
 
     if st.session_state.substitution_apply_message:
@@ -1470,14 +1471,12 @@ def display_substitution_candidates(
     active_substitutions = active_substitutions or {}
 
     st.caption(
-        "Substitutions are optional. The original plan stays preserved, while actual "
-        "set logging uses the active substituted exercise after apply."
+        "Choose an exercise to replace. The original plan stays preserved, and set logging uses the active swap only after you apply it."
     )
 
     if not allow_apply:
         st.caption(
-            "Substitution candidates can be reviewed here, but Apply is only available "
-            "for selected, started, or in-progress workout plans."
+            "Swap options can be reviewed here, but Apply is only available for selected, started, or in-progress workout plans."
         )
 
     for planned_exercise in planned_exercises:
@@ -1486,22 +1485,25 @@ def display_substitution_candidates(
 
         if planned_exercise_id is None:
             st.caption(
-                f"Substitution lookup is unavailable for {planned_exercise_name} "
+                f"Swap lookup is unavailable for {planned_exercise_name} "
                 "because no planned exercise ID was returned."
             )
             continue
 
         planned_exercise_id_int = int(planned_exercise_id)
         active_substitution = active_substitutions.get(planned_exercise_id_int)
-        expander_label = f"Need a substitution? {planned_exercise_name}"
+        expander_label = f"Replace: {planned_exercise_name}"
         if active_substitution:
-            expander_label = f"Substitution active: {planned_exercise_name}"
+            expander_label = f"Swap active: {planned_exercise_name}"
 
         with st.expander(
             expander_label,
             expanded=bool(active_substitution) or bool(always_visible),
         ):
-            st.write(f"**Original:** {planned_exercise_name}")
+            st.write(f"**Original exercise:** {planned_exercise_name}")
+            st.caption(
+                "Review compatible replacements, then choose Swap in or keep the original."
+            )
 
             apply_response_key = f"{plan_instance_id}_{planned_exercise_id_int}"
             apply_response = st.session_state.applied_substitution_responses.get(
@@ -1517,7 +1519,7 @@ def display_substitution_candidates(
                 )
             except requests.RequestException as exc:
                 st.error(
-                    "Failed to load substitution candidates for "
+                    "Failed to load swap options for "
                     f"{planned_exercise_name}: {extract_api_error_message(exc)}"
                 )
                 continue
@@ -3225,6 +3227,8 @@ st.markdown(
     .portfolio-card-green { border-left: 4px solid #22c55e; }
     .portfolio-card-amber { border-left: 4px solid #f59e0b; }
     .portfolio-card-purple { border-left: 4px solid #a78bfa; }
+    .portfolio-card-action { border-left: 4px solid #2dd4bf; }
+    .portfolio-card-coach { border-left: 4px solid #38bdf8; }
     .portfolio-eyebrow {
         color: #93c5fd;
         font-size: 0.72rem;
@@ -4188,53 +4192,57 @@ def render_daily_coach_today_card(user_id: int) -> None:
     st.subheader("Today’s Coach Note")
     st.caption("A short note tied to your next action.")
 
+    fallback_copy = "Today’s plan is still available. Start with the next action above."
+
     try:
         response = api_get(f"/daily-coach/{user_id}/today-card", request_timeout=30)
     except requests.RequestException as exc:
-        st.info("Today’s plan is still available. Start with the next action above.")
+        st.info(fallback_copy)
         if st.session_state.get("developer_mode", False):
             with st.expander("Developer details: Today Coach Note error"):
                 st.write(extract_api_error_message(exc))
         return
 
     if not response.get("success"):
-        st.info("Today’s plan is still available. Start with the next action above.")
+        st.info(fallback_copy)
         developer_details("Developer details: Today Coach Note response", response)
         return
 
     card = response.get("today_card") or {}
     if not card:
-        st.info("Today’s plan is still available. Start with the next action above.")
+        st.info(fallback_copy)
         developer_details("Developer details: Today Coach Note response", response)
         return
 
     card_title = card.get("card_title") or "Today’s Coach Note"
-    coach_note = card.get("coach_note") or (
-        "Today’s plan is still available. Start with the next action above."
-    )
+    coach_note = card.get("coach_note") or fallback_copy
     next_action_title = card.get("next_action_title") or "Next action"
-    cta_label = card.get("cta_label") or f"Next action: {next_action_title}"
+    cta_label = card.get("cta_label") or f"Your next move: {next_action_title}"
     supporting_reason = card.get("supporting_reason")
+
+    chips = [portfolio_chip(cta_label, "green")]
+    if supporting_reason:
+        chips.append(portfolio_chip("Why this matters", "accent"))
 
     st.markdown(
         portfolio_card_html(
-            "Daily Coach",
+            "Today’s Focus",
             card_title,
             coach_note,
-            [portfolio_chip(cta_label, "green")],
-            "portfolio-card-purple",
+            chips,
+            "portfolio-card-coach",
         ),
         unsafe_allow_html=True,
     )
 
     if supporting_reason:
-        st.caption(f"Why this today: {supporting_reason}")
+        st.caption(f"Why this matters: {supporting_reason}")
 
     developer_details("Developer details: Today Coach Note response", response)
 
 
 def render_daily_next_action_panel(user_id: int) -> None:
-    st.subheader("Next Best Action")
+    st.subheader("Your next move")
     st.caption(
         "One selected action for today, grounded in your current check-in and logs."
     )
@@ -4266,24 +4274,31 @@ def render_daily_next_action_panel(user_id: int) -> None:
         workflow_target,
         humanize_label(workflow_target),
     )
+    title = action.get("title", "Next action")
+    summary = (
+        action.get("summary")
+        or "Start here, then let the rest of the day build from that."
+    )
+    reason = action.get("reason")
 
-    if severity == "warning":
-        st.warning(f"**{action.get('title', 'Next action')}**")
-    elif severity == "success":
-        st.success(f"**{action.get('title', 'Next action')}**")
-    else:
-        st.info(f"**{action.get('title', 'Next action')}**")
+    chips = [
+        portfolio_chip(f"Priority: {severity_label}", "accent"),
+        portfolio_chip(f"Go to: {workflow_label}", "green"),
+    ]
 
-    if action.get("summary"):
-        st.write(action.get("summary"))
-    if action.get("reason"):
-        st.caption(action.get("reason"))
+    st.markdown(
+        portfolio_card_html(
+            "Start here",
+            title,
+            summary,
+            chips,
+            "portfolio-card-action",
+        ),
+        unsafe_allow_html=True,
+    )
 
-    meta_col, target_col = st.columns([1, 2])
-    with meta_col:
-        st.caption(f"**Priority:** {severity_label}")
-    with target_col:
-        st.caption(f"**Go to:** {workflow_label}")
+    if reason:
+        st.caption(f"Why this matters: {reason}")
 
     developer_details("Developer details: daily next action", response)
 
@@ -8071,30 +8086,32 @@ st.markdown(
     <style>
     div[data-testid="stMetric"] {
         background: rgba(255, 255, 255, 0.025);
-        border: 1px solid rgba(206, 184, 136, 0.15);
+        border: 1px solid rgba(45, 212, 191, 0.15);
         border-radius: 0.7rem;
         padding: 0.55rem 0.65rem;
     }
     div[data-testid="stMetricLabel"] p {
         font-size: 0.78rem;
-        color: #cdbf9f;
+        color: #94a3b8;
     }
     div[data-testid="stMetricValue"] {
         font-size: 1.15rem;
     }
     .portfolio-card {
-        border: 1px solid rgba(206, 184, 136, 0.20);
+        border: 1px solid rgba(45, 212, 191, 0.20);
         border-radius: 0.85rem;
         padding: 0.72rem 0.82rem;
         background: linear-gradient(180deg, rgba(39, 24, 32, 0.82), rgba(15, 23, 42, 0.46));
         margin-bottom: 0.55rem;
     }
-    .portfolio-card-accent { border-left: 4px solid #CEB888; }
-    .portfolio-card-green { border-left: 4px solid #CEB888; }
-    .portfolio-card-amber { border-left: 4px solid #F2C75C; }
-    .portfolio-card-purple { border-left: 4px solid #782F40; }
+    .portfolio-card-accent { border-left: 4px solid #2dd4bf; }
+    .portfolio-card-green { border-left: 4px solid #2dd4bf; }
+    .portfolio-card-amber { border-left: 4px solid #f59e0b; }
+    .portfolio-card-purple { border-left: 4px solid #14b8a6; }
+    .portfolio-card-action { border-left: 4px solid #2dd4bf; }
+    .portfolio-card-coach { border-left: 4px solid #38bdf8; }
     .portfolio-eyebrow {
-        color: #CEB888;
+        color: #2dd4bf;
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: 0.06em;
@@ -8106,12 +8123,12 @@ st.markdown(
         font-weight: 750;
         line-height: 1.2;
         margin-bottom: 0.28rem;
-        color: #fff8e6;
+        color: #f8fafc;
     }
     .portfolio-body {
         font-size: 0.86rem;
         line-height: 1.35;
-        color: #e5dcc6;
+        color: #d1d5db;
         margin-bottom: 0.26rem;
     }
     .portfolio-chip {
@@ -8121,54 +8138,54 @@ st.markdown(
         margin: 0.08rem 0.15rem 0.08rem 0;
         font-size: 0.72rem;
         font-weight: 650;
-        color: #fff8e6;
-        background: rgba(120, 47, 64, 0.22);
-        border: 1px solid rgba(206, 184, 136, 0.30);
+        color: #f8fafc;
+        background: rgba(20, 184, 166, 0.22);
+        border: 1px solid rgba(45, 212, 191, 0.30);
     }
     .portfolio-chip-green {
-        color: #fff8e6;
-        background: rgba(206, 184, 136, 0.16);
-        border-color: rgba(206, 184, 136, 0.42);
+        color: #f8fafc;
+        background: rgba(45, 212, 191, 0.16);
+        border-color: rgba(45, 212, 191, 0.42);
     }
     .portfolio-chip-amber {
-        color: #fff3c4;
-        background: rgba(242, 199, 92, 0.14);
-        border-color: rgba(242, 199, 92, 0.34);
+        color: #fef3c7;
+        background: rgba(245, 158, 11, 0.14);
+        border-color: rgba(245, 158, 11, 0.34);
     }
     .portfolio-chip-purple {
-        color: #ffe9ef;
-        background: rgba(120, 47, 64, 0.28);
-        border-color: rgba(206, 184, 136, 0.24);
+        color: #ecfeff;
+        background: rgba(20, 184, 166, 0.28);
+        border-color: rgba(45, 212, 191, 0.24);
     }
     .portfolio-muted {
-        color: #b9ad92;
+        color: #94a3b8;
         font-size: 0.78rem;
         margin-top: 0.2rem;
     }
     .quick-log-panel {
-        border: 1px solid rgba(206, 184, 136, 0.24);
+        border: 1px solid rgba(45, 212, 191, 0.24);
         border-radius: 0.95rem;
         padding: 0.9rem 1rem;
-        background: linear-gradient(135deg, rgba(120, 47, 64, 0.22), rgba(15, 23, 42, 0.50));
+        background: linear-gradient(135deg, rgba(20, 184, 166, 0.22), rgba(15, 23, 42, 0.50));
         margin: 0.5rem 0 0.85rem 0;
     }
     .quick-log-title {
-        color: #fff8e6;
+        color: #f8fafc;
         font-size: 1rem;
         font-weight: 800;
         margin-bottom: 0.15rem;
     }
     .quick-log-copy {
-        color: #e5dcc6;
+        color: #d1d5db;
         font-size: 0.86rem;
         line-height: 1.35;
         margin-bottom: 0.35rem;
     }
     .quick-log-step {
         display: inline-block;
-        color: #fff8e6;
-        background: rgba(206, 184, 136, 0.14);
-        border: 1px solid rgba(206, 184, 136, 0.30);
+        color: #f8fafc;
+        background: rgba(45, 212, 191, 0.14);
+        border: 1px solid rgba(45, 212, 191, 0.30);
         border-radius: 999px;
         padding: 0.12rem 0.48rem;
         font-size: 0.72rem;

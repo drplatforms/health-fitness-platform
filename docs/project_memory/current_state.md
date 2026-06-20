@@ -1,5 +1,18 @@
 # Current Project State
 
+## Current implementation milestone
+
+`Today UX Polish v1` is implemented pending review.
+
+Implementation status: `TODAY_UX_POLISH_V1_IMPLEMENTED_PENDING_REVIEW`.
+
+This milestone improves Today tab readability and visual hierarchy, replaces the prior FSU-like garnet/gold palette dominance with calmer neutral/teal styling, and changes the Daily Next Action presentation from a heavy alert-style banner to a softer product card.
+
+Workout substitution copy is lightly clarified with user-facing swap language while preserving existing substitution backend behavior and workout generation logic.
+
+No provider calls, provider defaults, model promotion, persistence, schema, report, Daily Next Action selection, nutrition calculation, workout generation, or catalog behavior is changed.
+
+
 Last updated: 2026-06-20
 
 ## Project
