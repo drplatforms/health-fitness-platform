@@ -329,3 +329,22 @@ Still not approved:
 - model promotion
 - qwen3 production approval
 - direct_ollama default change
+
+## AI Coding Workflow Supercharger v1
+
+Resolved by implementation:
+
+- ChatGPT remains Architecture / TPM / QA review / handoff generator.
+- User remains project owner, command runner, final approver, merge owner, and snapshot owner.
+- Codex is optional and scoped, not the main implementation engine.
+- Copilot is IDE helper only.
+- Aider is optional for surgical patches/failing-test fixes.
+- Dev Assistant is the local project cockpit for status, project-memory checks, prompt/context-pack generation, QA plans, snapshot commands, sync commands, and deterministic-safe restart guidance.
+- Claude-specific files and commands remain out of scope.
+- Headroom remains a future developer-workflow-only spike, not runtime product logic.
+
+Open after Supercharger v1:
+
+- Should Headroom Developer Workflow Spike v1 compress generated context packs, or remain a manual comparison only?
+- Should Dev Assistant eventually gain a Linux runtime-QA helper script, or should it remain command-generation only?
+- Should project-memory stale detection become stricter after more current_state/open_questions cleanup?

@@ -7,8 +7,10 @@ handoff/PR templates without modifying files, committing, or pushing.
 
 from __future__ import annotations
 
+import argparse
 import re
 import subprocess
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -18,6 +20,28 @@ DEFAULT_BASE_BRANCHES = [
     "origin/feature/coaching-decision-layer",
     "main",
     "origin/main",
+]
+
+SOURCE_OF_TRUTH_DOCS = [
+    "AGENTS.md",
+    "docs/project_memory/current_state.md",
+    "docs/project_memory/product_vision.md",
+    "docs/project_memory/architecture_principles.md",
+    "docs/project_memory/backend_truth_contract.md",
+    "docs/project_memory/ai_boundaries.md",
+    "docs/project_memory/section_registry_summary.md",
+    "docs/project_memory/development_workflow.md",
+    "docs/project_memory/agent_workflow.md",
+    "docs/project_memory/open_questions.md",
+]
+
+FOCUSED_SAFETY_TESTS = [
+    "pytest tests/test_project_memory_check.py -q",
+    "pytest tests/test_daily_coach_narrative_preview_route.py -q",
+    "pytest tests/test_daily_coach_narrative_preview_service.py -q",
+    "pytest tests/test_daily_next_action_service.py -q",
+    "pytest tests/test_report_persistence_boundary.py -q",
+    "pytest tests/test_full_report_section_registry.py -q",
 ]
 
 
@@ -218,6 +242,20 @@ def recommend_tests(changed_files: list[str]) -> list[str]:
     if any(file.startswith("ui/") for file in changed_files):
         recommendations.append("python -m py_compile ui/streamlit_app.py")
 
+    if any(
+        file.startswith("tools/") or file.startswith("docs/project_memory")
+        for file in changed_files
+    ):
+        add_if_exists(
+            recommendations,
+            "pytest tests/test_project_memory_check.py -q",
+            "tests/test_project_memory_check.py",
+        )
+        if path_exists("tools/dev_assistant.py"):
+            recommendations.append("python -m py_compile tools/dev_assistant.py")
+        if path_exists("tools/project_memory_check.py"):
+            recommendations.append("python -m py_compile tools/project_memory_check.py")
+
     if any(file.startswith("api/") for file in changed_files):
         add_if_exists(
             recommendations,
@@ -397,7 +435,214 @@ def generate_snapshot_name(commit_hash: str, commit_subject: str) -> str:
     return f"fitness_ai_snapshot_{today}_{commit_hash}_{slug}.zip"
 
 
-def main() -> None:
+def generate_snapshot_command() -> str:
+    return r"""$commit = git rev-parse --short HEAD
+$date = Get-Date -Format "yyyy-MM-dd"
+$commitMessage = git log -1 --pretty=%s
+
+$safeMessage = $commitMessage -replace '[^a-zA-Z0-9]+', '-'
+$safeMessage = $safeMessage.ToLower().Trim('-')
+
+$zipName = "..\fitness_ai_snapshot_${date}_${commit}_${safeMessage}.zip"
+
+git archive --format=zip --output=$zipName HEAD
+
+Write-Host "Created snapshot:"
+Write-Host $zipName
+
+Get-Item $zipName"""
+
+
+def generate_linux_sync_command(branch: str | None = None) -> str:
+    selected_branch = branch or get_current_branch() or "main"
+    return f"""cd ~/projects/fitness-ai-platform
+
+git fetch origin
+git switch {selected_branch} || git switch --track origin/{selected_branch}
+git pull --ff-only origin {selected_branch}
+
+git status -sb
+git log --oneline -5"""
+
+
+def generate_windows_push_command(branch: str | None = None) -> str:
+    selected_branch = branch or get_current_branch() or "<branch-name>"
+    return f"""cd C:\\projects\\fitness_ai
+
+git status --short
+git log --oneline -5
+git push -u origin {selected_branch}"""
+
+
+def generate_runtime_restart_commands(ollama_base_url: str) -> str:
+    return f"""# Linux deterministic-safe FastAPI restart.
+# OLLAMA_BASE_URL only tells FastAPI where Windows Ollama lives.
+# It does not make provider output the default.
+
+cd ~/projects/fitness-ai-platform
+
+unset RECOMMENDATION_CANDIDATE_PROVIDER
+unset NUTRITION_EXPLANATION_PROVIDER
+export OLLAMA_BASE_URL={ollama_base_url}
+
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+# Connectivity check from Linux to Windows Ollama:
+curl -s {ollama_base_url}/api/tags | head
+
+# Daily Coach Narrative direct_ollama lane smoke test:
+curl -s "http://127.0.0.1:8000/daily-coach/102/narrative-preview/debug?provider=direct_ollama&model=qwen3:8b&date=2026-06-19&timeout_seconds=180" | python -m json.tool
+
+# Streamlit alternate-port restart when 8501 is occupied:
+streamlit run ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8502"""
+
+
+def generate_validation_block() -> str:
+    checks = [
+        "git diff --check",
+        "powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code",
+        ".\\.venv\\Scripts\\python.exe -m py_compile tools\\dev_assistant.py",
+        ".\\.venv\\Scripts\\python.exe -m py_compile tools\\project_memory_check.py",
+        ".\\.venv\\Scripts\\python.exe -m pytest tests\\test_project_memory_check.py -q",
+    ]
+    return "\n".join(checks)
+
+
+def generate_agent_prompt(target: str, milestone: str) -> str:
+    branch = get_current_branch()
+    commit = get_latest_commit()
+    source_docs = "\n".join(f"- {doc}" for doc in SOURCE_OF_TRUTH_DOCS)
+    focused_tests = "\n".join(f"- {test}" for test in FOCUSED_SAFETY_TESTS)
+    return f"""Recipient:
+{target}
+
+Project:
+AI Health Coach / fitness-ai
+
+Branch:
+{branch}
+
+Latest commit:
+{commit}
+
+Milestone:
+{milestone}
+
+Role:
+You are a scoped implementation worker. You are not the Architecture owner, milestone owner, or final approver.
+
+Source-of-truth docs to read first:
+{source_docs}
+
+Core doctrine:
+- Backend owns truth.
+- AI explains backend-approved truth only.
+- Validators enforce reality.
+- Deterministic fallback remains default.
+- Provider defaults must not change.
+- qwen3 is not production-approved.
+- Do not loosen validators.
+- Do not add Claude workflow files or commands.
+
+Scope:
+<fill in exact approved scope>
+
+Strict non-goals:
+- no product/runtime behavior changes unless explicitly scoped
+- no provider behavior changes unless explicitly scoped
+- no validator loosening
+- no deterministic fallback weakening
+- no broad rewrites
+- no staged artifacts or snapshots
+
+Expected files:
+<fill in expected files>
+
+Validation commands:
+{focused_tests}
+
+Acceptance criteria:
+<fill in pass criteria>
+
+Artifact rules:
+- Do not stage *.zip or *.patch files.
+- Do not stage artifacts/, qa_artifacts/, runtime output, or local DB copies.
+- User owns final commit, push, merge, and snapshot.
+"""
+
+
+def generate_context_pack(target: str, milestone: str) -> str:
+    branch = get_current_branch()
+    commit = get_latest_commit()
+    recent = get_recent_commits()
+    docs = "\n".join(f"- {doc}" for doc in SOURCE_OF_TRUTH_DOCS)
+    return f"""AI Health Coach context pack
+
+Target: {target}
+Milestone: {milestone}
+Branch: {branch}
+Latest commit: {commit}
+
+Read order:
+{docs}
+
+Recent commits:
+{recent}
+
+Non-negotiable boundaries:
+- backend owns facts/calculations/validation/persistence/fallback
+- AI/provider output is never source of truth
+- deterministic fallback remains default
+- provider lanes remain opt-in/manual/debug unless explicitly promoted
+- raw provider output/prompts/payloads/validation internals stay out of normal UI/API
+- do not add CLAUDE.md or Claude-specific commands
+- do not stage patch/snapshot/runtime artifacts
+
+Windows path:
+C:\\projects\\fitness_ai
+
+Linux path:
+~/projects/fitness-ai-platform
+
+Linux provider-lane note:
+FastAPI may set OLLAMA_BASE_URL to reach Windows Ollama without changing provider defaults.
+"""
+
+
+def generate_qa_plan(milestone: str) -> str:
+    focused_tests = "\n".join(f"- {test}" for test in FOCUSED_SAFETY_TESTS)
+    return f"""QA plan — {milestone}
+
+Static checks:
+- git diff --check
+- scripts/dev_commit_check.ps1 -Mode code
+
+Focused tests:
+{focused_tests}
+
+Manual checks:
+- Confirm expected surfaces exist only where scoped.
+- Confirm normal product UI is unchanged unless explicitly scoped.
+- Confirm no raw provider output, prompts, payloads, validation internals, stack traces, or rejected text leak.
+- Confirm deterministic fallback remains available.
+- Confirm provider defaults did not change.
+
+Artifact checks:
+- git status --short
+- git diff --cached --name-only
+- no *.zip snapshots staged
+- no *.patch files staged
+- no artifacts/ or qa_artifacts/ staged
+
+Result format:
+PASS / PARTIAL PASS / FAIL
+
+Notes:
+- <fill in>
+"""
+
+
+def print_status_report() -> None:
     branch = get_current_branch()
     latest_commit = get_latest_commit()
     latest_commit_hash = get_latest_commit_hash()
@@ -474,6 +719,15 @@ def main() -> None:
     print_section("Suggested snapshot filename")
     print(snapshot_name)
 
+    print_section("Snapshot command")
+    print(generate_snapshot_command())
+
+    print_section("Linux sync after snapshot")
+    print(generate_linux_sync_command(branch))
+
+    print_section("Runtime restart / provider-lane commands")
+    print(generate_runtime_restart_commands("http://192.168.1.104:11434"))
+
     print_section("PR description template")
     print(pr_template)
 
@@ -490,5 +744,114 @@ def main() -> None:
     print(full_status)
 
 
+def run_memory_check() -> int:
+    from project_memory_check import (
+        format_results,
+        has_failures,
+        run_project_memory_check,
+    )
+
+    results = run_project_memory_check(".")
+    print(format_results(results))
+    return 1 if has_failures(results) else 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Read-only developer workflow assistant for AI Health Coach."
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    subparsers.add_parser("status", help="Print repo state and workflow guidance.")
+    subparsers.add_parser("memory-check", help="Run project-memory existence checks.")
+    subparsers.add_parser(
+        "stale-doc-check", help="Run project-memory stale-doc checks."
+    )
+
+    agent_prompt = subparsers.add_parser(
+        "agent-prompt", help="Generate a scoped coding-agent prompt."
+    )
+    agent_prompt.add_argument("target", choices=["codex", "aider", "copilot"])
+    agent_prompt.add_argument("--milestone", required=True)
+
+    context_pack = subparsers.add_parser(
+        "context-pack", help="Generate a compact context pack for a coding helper."
+    )
+    context_pack.add_argument(
+        "--target", choices=["codex", "aider", "copilot"], required=True
+    )
+    context_pack.add_argument("--milestone", required=True)
+
+    qa_plan = subparsers.add_parser("qa-plan", help="Generate a milestone QA plan.")
+    qa_plan.add_argument("--milestone", required=True)
+
+    snapshot_command = subparsers.add_parser(
+        "snapshot-command", help="Print snapshot and Linux sync commands."
+    )
+    snapshot_command.add_argument("--branch", default=None)
+
+    runtime_restart = subparsers.add_parser(
+        "runtime-restart",
+        help="Print deterministic-safe restart/provider-lane commands.",
+    )
+    runtime_restart.add_argument(
+        "--ollama-base-url",
+        default="http://192.168.1.104:11434",
+        help="Windows-hosted Ollama base URL reachable from Linux FastAPI.",
+    )
+
+    sync = subparsers.add_parser(
+        "sync-commands", help="Print Windows push and Linux pull blocks."
+    )
+    sync.add_argument("--branch", default=None)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command in {None, "status"}:
+        print_status_report()
+        return 0
+
+    if args.command in {"memory-check", "stale-doc-check"}:
+        return run_memory_check()
+
+    if args.command == "agent-prompt":
+        print(generate_agent_prompt(args.target, args.milestone))
+        return 0
+
+    if args.command == "context-pack":
+        print(generate_context_pack(args.target, args.milestone))
+        return 0
+
+    if args.command == "qa-plan":
+        print(generate_qa_plan(args.milestone))
+        return 0
+
+    if args.command == "snapshot-command":
+        print_section("Windows snapshot command")
+        print(generate_snapshot_command())
+        print_section("Linux sync after snapshot")
+        print(generate_linux_sync_command(args.branch))
+        return 0
+
+    if args.command == "runtime-restart":
+        print(generate_runtime_restart_commands(args.ollama_base_url))
+        return 0
+
+    if args.command == "sync-commands":
+        print_section("Windows push command")
+        print(generate_windows_push_command(args.branch))
+        print_section("Linux pull/sync command")
+        print(generate_linux_sync_command(args.branch))
+        return 0
+
+    parser.print_help()
+    return 2
+
+
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main(sys.argv[1:]))
