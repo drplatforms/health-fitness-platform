@@ -417,3 +417,13 @@ Open after implementation:
 
 - Should Workout Exercise Count Preference v1 be next so workouts can move toward 5-7 exercises and eventual user-configurable exercise counts?
 - Does substitution candidate quality require a separate Workout Substitution Logic v1 milestone, or is the remaining pain primarily UI/lifecycle polish?
+
+## Workout Exercise Count Preference v1
+
+Open for Architecture / Product review:
+
+- Does Standard at 5 exercises feel like the right default after manual QA?
+- Should Full remain 6 by default, or should future work allow 7 only on high-readiness/high-candidate-quality days?
+- Should workout size preference become persistent in a future Workout Session Preference Persistence v1 milestone?
+- Does fuller workout generation worsen observed latency when switching Plan / Active Workout / Substitutions / Review tabs outside local Windows Streamlit?
+- After count preference is accepted, should the next milestone be Workout Tab Performance Profiling v1 or Daily Coach Narrative Same-Session Approved Preview Bridge v1?

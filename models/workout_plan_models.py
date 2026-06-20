@@ -17,6 +17,11 @@ class WorkoutContext:
     workout_constraints: WorkoutConstraints
     confidence: str
     reason_codes: list[str] = field(default_factory=list)
+    workout_size_preference: str = "standard"
+    requested_exercise_count: int = 5
+    final_target_exercise_count: int = 5
+    exercise_count_reason: str = "standard_session"
+    exercise_count_user_reason: str = "Built as a standard 5-exercise session."
 
 
 @dataclass
@@ -72,6 +77,11 @@ class ApprovedWorkoutPlan:
     confidence: str
     scenario: str
     reason_codes: list[str] = field(default_factory=list)
+    workout_size_preference: str = "standard"
+    requested_exercise_count: int = 5
+    final_target_exercise_count: int = 5
+    exercise_count_reason: str = "standard_session"
+    exercise_count_user_reason: str = "Built as a standard 5-exercise session."
 
 
 @dataclass

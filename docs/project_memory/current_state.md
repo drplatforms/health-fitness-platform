@@ -535,3 +535,17 @@ No normal Today UI integration occurs. The panel is hidden when Developer Mode i
 Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW.
 
 The Workout page substitution flow now uses a clearer normal-user path: choose an exercise to replace, review suggested replacements, apply a swap, keep the original, and continue to workout logging. This milestone is UI-only and preserves workout generation, substitution algorithm behavior, exercise count, persistence, provider behavior, reports, and catalog data.
+
+## Workout Exercise Count Preference v1
+
+Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW.
+
+Workout generation now supports a bounded Workout size preference in the Workout UI:
+
+- Quick targets a shorter 4-exercise session.
+- Standard is the default and targets 5 exercises where constraints allow.
+- Full targets 6 exercises where candidate quality allows.
+
+Backend count resolution remains deterministic and safety-owned. Recovery-limited sessions clamp to 4 exercises, data-quality-limited full requests clamp to 5, and v1 never exceeds 7 exercises.
+
+This milestone preserves provider/model behavior, persistence/schema, reports, Daily Coach logic, nutrition calculations, catalog data, substitution backend behavior, and workout logging lifecycle.

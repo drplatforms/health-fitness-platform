@@ -242,6 +242,20 @@ def _approved_workout_plan_from_dict(raw_plan: dict) -> ApprovedWorkoutPlan:
         confidence=str(raw_plan["confidence"]),
         scenario=str(raw_plan["scenario"]),
         reason_codes=[str(code) for code in raw_plan.get("reason_codes", [])],
+        workout_size_preference=str(
+            raw_plan.get("workout_size_preference", "standard")
+        ),
+        requested_exercise_count=int(raw_plan.get("requested_exercise_count", 5)),
+        final_target_exercise_count=int(raw_plan.get("final_target_exercise_count", 5)),
+        exercise_count_reason=str(
+            raw_plan.get("exercise_count_reason", "standard_session")
+        ),
+        exercise_count_user_reason=str(
+            raw_plan.get(
+                "exercise_count_user_reason",
+                "Built as a standard 5-exercise session.",
+            )
+        ),
     )
 
 
@@ -1354,7 +1368,11 @@ def update_actual_set(
     }
 
 
-def select_current_workout_plan(user_id: int) -> dict:
+def select_current_workout_plan(
+    user_id: int,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
+) -> dict:
     """Persist the current server-built ApprovedWorkoutPlan as selected.
 
     The caller never submits a workout plan JSON payload in v1. The backend
@@ -1365,7 +1383,11 @@ def select_current_workout_plan(user_id: int) -> dict:
 
     ensure_workout_plan_persistence_tables()
     health_state = build_user_health_state(user_id)
-    approved_plan = build_approved_workout_plan(health_state)
+    approved_plan = build_approved_workout_plan(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
 
     conn = get_connection()
     cursor = conn.cursor()

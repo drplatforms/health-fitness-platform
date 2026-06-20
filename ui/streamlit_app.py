@@ -308,6 +308,9 @@ def display_workout_plan_preview(
         ),
         unsafe_allow_html=True,
     )
+    count_reason = workout_plan.get("exercise_count_user_reason")
+    if count_reason:
+        st.caption(count_reason)
 
     if user_id is not None:
         display_workout_plan_explanation(user_id)
@@ -3674,10 +3677,61 @@ def render_preview_exercise_snapshot(workout_plan: dict) -> None:
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
 
 
-def select_today_workout(user_id: int, button_key: str) -> None:
+WORKOUT_SIZE_OPTION_LABELS = {
+    "quick": "Quick — 3 to 4 exercises",
+    "standard": "Standard — 5 exercises",
+    "full": "Full — 6 to 7 exercises",
+}
+
+
+def workout_size_query(workout_size_preference: str | None) -> str:
+    normalized = (workout_size_preference or "standard").strip().lower()
+    if normalized not in WORKOUT_SIZE_OPTION_LABELS:
+        normalized = "standard"
+    return f"workout_size_preference={normalized}"
+
+
+def render_workout_size_preference_control(context_key: str) -> str:
+    options = list(WORKOUT_SIZE_OPTION_LABELS)
+    selected = st.radio(
+        "Workout size",
+        options=options,
+        index=(
+            options.index(st.session_state.get("workout_size_preference", "standard"))
+            if st.session_state.get("workout_size_preference", "standard") in options
+            else options.index("standard")
+        ),
+        format_func=lambda value: WORKOUT_SIZE_OPTION_LABELS[value],
+        horizontal=True,
+        key=f"workout_size_preference_{context_key}",
+    )
+    st.session_state.workout_size_preference = selected
+    st.caption(
+        "Pick the session size. Recovery and equipment rules still apply, "
+        "so the coach may shorten the workout when needed."
+    )
+    return selected
+
+
+def workout_count_reason_from_payload(
+    workout_plan_data: dict,
+    approved_workout_plan: dict,
+) -> str | None:
+    count_payload = workout_plan_data.get("workout_exercise_count") or {}
+    return approved_workout_plan.get("exercise_count_user_reason") or count_payload.get(
+        "user_safe_reason"
+    )
+
+
+def select_today_workout(
+    user_id: int,
+    button_key: str,
+    workout_size_preference: str | None = None,
+) -> None:
     if st.button("Select This Workout", key=button_key, type="primary"):
         try:
-            select_response = api_post(f"/workout-plans/{user_id}/select")
+            query = workout_size_query(workout_size_preference)
+            select_response = api_post(f"/workout-plans/{user_id}/select?{query}")
         except requests.RequestException as exc:
             st.session_state.workout_plan_action_error = (
                 f"Workout plan selection failed: {extract_api_error_message(exc)}"
@@ -4861,8 +4915,10 @@ def render_workout_plan_section(user_id: int) -> None:
             "Deterministic workout plan built from the approved coaching scenario, "
             "training constraints, equipment profile, and validator boundaries."
         )
+        workout_size_preference = render_workout_size_preference_control("plan")
         try:
-            workout_plan_data = api_get(f"/workout-plans/preview/{user_id}")
+            query = workout_size_query(workout_size_preference)
+            workout_plan_data = api_get(f"/workout-plans/preview/{user_id}?{query}")
         except requests.RequestException as exc:
             st.error(
                 f"Failed to load workout plan preview: {extract_api_error_message(exc)}"
@@ -4874,9 +4930,19 @@ def render_workout_plan_section(user_id: int) -> None:
             confidence = workout_plan_data.get("confidence", "Unknown")
             approved_workout_plan = workout_plan_data.get("approved_workout_plan", {})
 
-            col1, col2 = st.columns(2)
+            col1, col2, col3 = st.columns(3)
             col1.metric("Plan Context", scenario_display_name(scenario))
             col2.metric("Confidence", confidence)
+            col3.metric(
+                "Exercise Count",
+                len(approved_workout_plan.get("exercises") or []),
+            )
+            count_reason = workout_count_reason_from_payload(
+                workout_plan_data,
+                approved_workout_plan,
+            )
+            if count_reason:
+                st.caption(count_reason)
 
             display_workout_plan_preview(approved_workout_plan, user_id=user_id)
 
@@ -4953,7 +5019,11 @@ def render_workout_plan_section(user_id: int) -> None:
                         request_workout_flow_step("2. Do Workout")
                         st.rerun()
             else:
-                select_today_workout(user_id, "select_workout_plan_button")
+                select_today_workout(
+                    user_id,
+                    "select_workout_plan_button",
+                    workout_size_preference=workout_size_preference,
+                )
 
             if st.session_state.get("developer_mode", False):
                 with st.expander(
