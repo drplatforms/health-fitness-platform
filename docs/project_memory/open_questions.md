@@ -393,3 +393,22 @@ Open after Supercharger v1:
 - Should Headroom Developer Workflow Spike v1 compress generated context packs, or remain a manual comparison only?
 - Should Dev Assistant eventually gain a Linux runtime-QA helper script, or should it remain command-generation only?
 - Should project-memory stale detection become stricter after more current_state/open_questions cleanup?
+
+## Daily Coach Narrative Limited Today UI Readiness v1
+
+Resolved by implementation:
+
+- Normal Today UI now has a deterministic Today Coach Note card.
+- The card is downstream of Daily Next Action and does not replace Daily Next Action selection.
+- Normal Today card loading does not call provider generation.
+- Provider preview remains developer-gated and manual.
+- The normal Today card route returns only public-safe display fields.
+- No narrative persistence, database schema change, report persistence change, provider default change, model promotion, or catalog/runtime calculation change is introduced.
+
+Open after implementation:
+
+- Should Today UX Polish v1 tighten layout, progressive disclosure, and CTA placement before adding any same-session provider bridge?
+- Should a future same-session approved preview bridge allow developer-approved provider copy to appear in a controlled non-persistent UI path?
+- What extra manual QA is needed before any provider-generated narrative is considered for normal user display?
+- Should the Today Coach Note card eventually support secondary reasons, or should it stay compact with one reason tied to Daily Next Action?
+- Should a future persistence design cache deterministic card text, or should it remain generated-on-read until provider persistence is approved?

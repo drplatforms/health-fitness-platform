@@ -8,6 +8,10 @@ from services.daily_coach_synthesis_service import (
     DailyCoachSynthesisValidationError,
     build_daily_coach_synthesis,
 )
+from services.daily_coach_today_card_service import (
+    DailyCoachTodayCardValidationError,
+    build_daily_coach_today_card,
+)
 from services.daily_next_action_service import (
     DailyNextActionValidationError,
     build_daily_next_action,
@@ -48,6 +52,28 @@ def daily_next_action(user_id: int):
         "success": True,
         "user_id": user_id,
         "daily_next_action": action.to_dict(),
+    }
+
+
+@router.get("/daily-coach/{user_id}/today-card")
+def daily_coach_today_card(user_id: int, date: str | None = None):
+    """Return the deterministic public-safe Today Coach Note card.
+
+    This normal product route does not call providers, return provider internals,
+    persist narrative text, mutate reports, or expose debug payloads.
+    """
+
+    try:
+        card = build_daily_coach_today_card(user_id, target_date=date)
+    except DailyCoachTodayCardValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "today_card": card.to_public_dict(),
     }
 
 
