@@ -27,6 +27,7 @@ from services.workout_plan_persistence_service import (
 )
 from services.workout_plan_service import (
     build_approved_workout_plan,
+    build_approved_workout_plan_for_context,
     build_configured_approved_workout_plan_with_metadata,
     build_configured_workout_explanation_with_metadata,
     build_workout_context,
@@ -98,10 +99,18 @@ def workout_plan_history(user_id: int):
 
 
 @router.get("/workout-plans/preview/{user_id}")
-def workout_plan_preview(user_id: int):
+def workout_plan_preview(
+    user_id: int,
+    workout_size_preference: str = "standard",
+    requested_target_count: int | None = None,
+):
     health_state = build_user_health_state(user_id)
-    context = build_workout_context(health_state)
-    approved_plan = build_approved_workout_plan(health_state)
+    context = build_workout_context(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
+    approved_plan = build_approved_workout_plan_for_context(context)
 
     return {
         "success": True,
@@ -110,16 +119,36 @@ def workout_plan_preview(user_id: int):
         "confidence": approved_plan.confidence,
         "training_constraints": asdict(context.training_constraints),
         "workout_constraints": asdict(context.workout_constraints),
+        "workout_exercise_count": {
+            "requested_size": context.workout_size_preference,
+            "requested_count": context.requested_exercise_count,
+            "final_count": len(approved_plan.exercises),
+            "final_target_count": context.final_target_exercise_count,
+            "reason": context.exercise_count_reason,
+            "user_safe_reason": approved_plan.exercise_count_user_reason,
+        },
         "approved_workout_plan": asdict(approved_plan),
         "rendered_workout_plan": render_approved_workout_plan(approved_plan),
     }
 
 
 @router.get("/workout-plans/preview/{user_id}/debug")
-def workout_plan_preview_debug(user_id: int):
+def workout_plan_preview_debug(
+    user_id: int,
+    workout_size_preference: str = "standard",
+    requested_target_count: int | None = None,
+):
     health_state = build_user_health_state(user_id)
-    context = build_workout_context(health_state)
-    result = build_configured_approved_workout_plan_with_metadata(health_state)
+    context = build_workout_context(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
+    result = build_configured_approved_workout_plan_with_metadata(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
     approved_plan = result.approved_workout_plan
 
     return {
@@ -129,6 +158,14 @@ def workout_plan_preview_debug(user_id: int):
         "confidence": approved_plan.confidence,
         "training_constraints": asdict(context.training_constraints),
         "workout_constraints": asdict(context.workout_constraints),
+        "workout_exercise_count": {
+            "requested_size": context.workout_size_preference,
+            "requested_count": context.requested_exercise_count,
+            "final_count": len(approved_plan.exercises),
+            "final_target_count": context.final_target_exercise_count,
+            "reason": context.exercise_count_reason,
+            "user_safe_reason": approved_plan.exercise_count_user_reason,
+        },
         "approved_workout_plan": asdict(approved_plan),
         "rendered_workout_plan": render_approved_workout_plan(approved_plan),
         "runtime_metadata": asdict(result.runtime_metadata),
@@ -229,8 +266,16 @@ def workout_execution_post_workout_summary_debug(execution_id: int):
 
 
 @router.post("/workout-plans/{user_id}/select")
-def select_workout_plan(user_id: int):
-    selected = select_current_workout_plan(user_id)
+def select_workout_plan(
+    user_id: int,
+    workout_size_preference: str = "standard",
+    requested_target_count: int | None = None,
+):
+    selected = select_current_workout_plan(
+        user_id,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
     workout_plan_instance = selected["workout_plan_instance"]
     execution_session = selected["execution_session"]
     approved_plan = selected["approved_workout_plan"]

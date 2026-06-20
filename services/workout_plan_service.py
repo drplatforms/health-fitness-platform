@@ -29,6 +29,10 @@ from services.exercise_catalog_service import (
 from services.training_constraint_service import build_training_constraints
 from services.training_execution_summary_service import build_training_execution_summary
 from services.workout_constraint_service import build_workout_constraints
+from services.workout_exercise_count_service import (
+    MAX_WORKOUT_EXERCISE_COUNT,
+    resolve_workout_exercise_count,
+)
 
 WorkoutCandidateProvider = Callable[[WorkoutContext], str]
 WorkoutExplanationProvider = Callable[[ApprovedWorkoutPlan, WorkoutContext], str]
@@ -269,10 +273,20 @@ def _text_blob(plan: CandidateWorkoutPlan) -> str:
     ).lower()
 
 
-def build_workout_context(health_state: UserHealthState) -> WorkoutContext:
+def build_workout_context(
+    health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
+) -> WorkoutContext:
     coaching_decision = build_coaching_decision(health_state)
     training_constraints = build_training_constraints(health_state, coaching_decision)
     workout_constraints = build_workout_constraints(health_state)
+    resolved_count = resolve_workout_exercise_count(
+        requested_size=workout_size_preference,
+        requested_target_count=requested_target_count,
+        scenario=coaching_decision.scenario,
+        confidence=coaching_decision.confidence,
+    )
 
     return WorkoutContext(
         user_id=health_state.user_id,
@@ -292,6 +306,11 @@ def build_workout_context(health_state: UserHealthState) -> WorkoutContext:
                 + workout_constraints.reason_codes
             )
         ),
+        workout_size_preference=resolved_count.requested_size,
+        requested_exercise_count=resolved_count.requested_count,
+        final_target_exercise_count=resolved_count.final_count,
+        exercise_count_reason=resolved_count.clamp_reason,
+        exercise_count_user_reason=resolved_count.user_safe_reason,
     )
 
 
@@ -466,7 +485,11 @@ def workout_context_to_llm_json(context: WorkoutContext) -> dict[str, Any]:
             "target_rir_min": rir_min,
             "target_rir_max": rir_max,
         },
-        "exercise_count": {"min": 3, "target": 4, "max": 5},
+        "exercise_count": {
+            "min": 3,
+            "target": context.final_target_exercise_count,
+            "max": MAX_WORKOUT_EXERCISE_COUNT,
+        },
         "duration_minutes": {"min": 30, "target": 45, "max": 60},
         "available_equipment": list(context.workout_constraints.available_equipment),
         "unavailable_equipment": list(
@@ -910,7 +933,9 @@ def _exercise_from_options(
     )
 
 
-def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkoutPlan:
+def _generate_base_candidate_workout_plan(
+    context: WorkoutContext,
+) -> CandidateWorkoutPlan:
     constraints = context.training_constraints
     rir_min = constraints.recommended_rir_min or 2
     rir_max = constraints.recommended_rir_max or 4
@@ -1382,6 +1407,144 @@ def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkout
     )
 
 
+_ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
+    tuple[list[tuple[str, list[str]]], int, int, int, str]
+] = [
+    (
+        [
+            ("Cable Pallof Press", ["cable"]),
+            ("Band Pallof Press", ["resistance_band"]),
+            ("Dead Bug", ["bodyweight"]),
+            ("Stability Ball Dead Bug", ["exercise_ball"]),
+            ("Farmer Carry", ["dumbbell"]),
+            ("Suitcase Carry", ["dumbbell"]),
+        ],
+        2,
+        8,
+        12,
+        "Use this to round out the session without turning it into extra strain.",
+    ),
+    (
+        [
+            ("Dumbbell Lateral Raise", ["dumbbell"]),
+            ("Band Face Pull", ["resistance_band"]),
+            ("Rope Face Pull", ["cable", "rope_cable_attachment"]),
+            ("Cable Face Pull", ["cable"]),
+            ("EZ-Bar Curl", ["ez_bar"]),
+            ("Dumbbell Curl", ["dumbbell"]),
+        ],
+        2,
+        10,
+        15,
+        "Keep the accessory work smooth and leave clean reps in reserve.",
+    ),
+    (
+        [
+            ("Treadmill Incline Walk", ["treadmill"]),
+            ("Bike Steady State", ["bike"]),
+            ("Dumbbell Calf Raise", ["dumbbell"]),
+            ("Band Pull-Apart", ["resistance_band"]),
+            ("Plank", ["bodyweight"]),
+        ],
+        2,
+        8,
+        15,
+        "Finish with controlled work that supports the main session.",
+    ),
+]
+
+
+def _option_is_available_and_new(
+    context: WorkoutContext,
+    option: tuple[str, list[str]],
+    existing_names: set[str],
+) -> bool:
+    catalog_name, catalog_equipment = _catalog_equipment_for_option(*option)
+    if _normalize_exercise_name(catalog_name) in existing_names:
+        return False
+    return _equipment_allowed(catalog_equipment, context.workout_constraints)
+
+
+def _next_additional_exercise(
+    context: WorkoutContext,
+    slot_index: int,
+    existing_names: set[str],
+) -> CandidateWorkoutExercise | None:
+    options, sets, reps_min, reps_max, notes = _ADDITIONAL_WORKOUT_EXERCISE_SLOTS[
+        slot_index % len(_ADDITIONAL_WORKOUT_EXERCISE_SLOTS)
+    ]
+    available_options = [
+        option
+        for option in options
+        if _option_is_available_and_new(context, option, existing_names)
+    ]
+    if not available_options:
+        return None
+
+    constraints = context.training_constraints
+    rir_min = constraints.recommended_rir_min or 2
+    rir_max = constraints.recommended_rir_max or 4
+    exercise = _exercise_from_options(
+        context,
+        available_options,
+        sets,
+        reps_min,
+        reps_max,
+        rir_min,
+        rir_max,
+        notes,
+    )
+    existing_names.add(_normalize_exercise_name(exercise.name))
+    return exercise
+
+
+def _duration_for_exercise_count(base_duration: int, exercise_count: int) -> int:
+    if exercise_count <= 4:
+        return base_duration
+    return min(75, base_duration + ((exercise_count - 4) * 8))
+
+
+def _finalize_candidate_workout_plan(
+    context: WorkoutContext,
+    plan: CandidateWorkoutPlan,
+) -> CandidateWorkoutPlan:
+    target_count = min(context.final_target_exercise_count, MAX_WORKOUT_EXERCISE_COUNT)
+    if len(plan.exercises) >= target_count:
+        plan.duration_minutes = _duration_for_exercise_count(
+            plan.duration_minutes,
+            len(plan.exercises),
+        )
+        return plan
+
+    existing_names = {
+        _normalize_exercise_name(exercise.name) for exercise in plan.exercises
+    }
+    exercises = list(plan.exercises)
+    slot_index = 0
+    while (
+        len(exercises) < target_count
+        and slot_index < len(_ADDITIONAL_WORKOUT_EXERCISE_SLOTS) * 2
+    ):
+        next_exercise = _next_additional_exercise(context, slot_index, existing_names)
+        if next_exercise is not None:
+            exercises.append(next_exercise)
+        slot_index += 1
+
+    plan.exercises = exercises
+    plan.duration_minutes = _duration_for_exercise_count(
+        plan.duration_minutes,
+        len(exercises),
+    )
+    return plan
+
+
+def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkoutPlan:
+    return _finalize_candidate_workout_plan(
+        context,
+        _generate_base_candidate_workout_plan(context),
+    )
+
+
 class WorkoutCandidateParseError(ValueError):
     """Raised when a CrewAI workout candidate cannot be parsed safely."""
 
@@ -1620,8 +1783,14 @@ def validate_candidate_workout_plan(
     if len(candidate.exercises) < 3:
         violations.append("Workout plan must include at least three exercises.")
 
-    if len(candidate.exercises) > 6:
-        violations.append("Workout plan must not include more than six exercises.")
+    if len(candidate.exercises) > MAX_WORKOUT_EXERCISE_COUNT:
+        violations.append("Workout plan must not include more than seven exercises.")
+
+    normalized_exercise_names = [
+        _normalize_exercise_name(exercise.name) for exercise in candidate.exercises
+    ]
+    if len(normalized_exercise_names) != len(set(normalized_exercise_names)):
+        violations.append("Workout plan exercises must be unique.")
 
     if candidate.duration_minutes < 20 or candidate.duration_minutes > 90:
         violations.append("Workout plan duration must be realistic for a preview.")
@@ -1735,6 +1904,11 @@ def approve_candidate_workout_plan(
         confidence=candidate.confidence,
         scenario=context.scenario,
         reason_codes=context.reason_codes,
+        workout_size_preference=context.workout_size_preference,
+        requested_exercise_count=context.requested_exercise_count,
+        final_target_exercise_count=context.final_target_exercise_count,
+        exercise_count_reason=context.exercise_count_reason,
+        exercise_count_user_reason=context.exercise_count_user_reason,
     )
 
 
@@ -2803,8 +2977,14 @@ def approve_workout_candidate_provider_or_fallback(
 
 def build_crewai_approved_workout_plan_with_metadata(
     health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
 ) -> ApprovedWorkoutPlanResult:
-    context = build_workout_context(health_state)
+    context = build_workout_context(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
     return approve_workout_candidate_provider_or_fallback_with_metadata(
         generate_crewai_candidate_workout_plan_json,
         context,
@@ -2815,9 +2995,13 @@ def build_crewai_approved_workout_plan_with_metadata(
 
 def build_crewai_approved_workout_plan(
     health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
 ) -> ApprovedWorkoutPlan:
     return build_crewai_approved_workout_plan_with_metadata(
         health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
     ).approved_workout_plan
 
 
@@ -2831,10 +3015,16 @@ def _configured_workout_candidate_provider() -> str:
 
 def build_configured_approved_workout_plan_with_metadata(
     health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
 ) -> ApprovedWorkoutPlanResult:
     """Build an ApprovedWorkoutPlan and runtime metadata for debug inspection."""
 
-    context = build_workout_context(health_state)
+    context = build_workout_context(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
     provider = _configured_workout_candidate_provider()
 
     if provider == WORKOUT_PROVIDER_DETERMINISTIC:
@@ -2881,6 +3071,8 @@ def build_configured_approved_workout_plan_with_metadata(
 
 def build_configured_approved_workout_plan(
     health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
 ) -> ApprovedWorkoutPlan:
     """Build an ApprovedWorkoutPlan through the configured provider.
 
@@ -2890,13 +3082,29 @@ def build_configured_approved_workout_plan(
 
     return build_configured_approved_workout_plan_with_metadata(
         health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
     ).approved_workout_plan
 
 
-def build_approved_workout_plan(health_state: UserHealthState) -> ApprovedWorkoutPlan:
-    context = build_workout_context(health_state)
+def build_approved_workout_plan_for_context(
+    context: WorkoutContext,
+) -> ApprovedWorkoutPlan:
     candidate = generate_candidate_workout_plan(context)
     return approve_candidate_workout_plan(candidate, context)
+
+
+def build_approved_workout_plan(
+    health_state: UserHealthState,
+    workout_size_preference: str | None = None,
+    requested_target_count: int | None = None,
+) -> ApprovedWorkoutPlan:
+    context = build_workout_context(
+        health_state,
+        workout_size_preference=workout_size_preference,
+        requested_target_count=requested_target_count,
+    )
+    return build_approved_workout_plan_for_context(context)
 
 
 def render_approved_workout_plan(plan: ApprovedWorkoutPlan) -> str:

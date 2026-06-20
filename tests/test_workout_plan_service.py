@@ -858,7 +858,7 @@ def test_workout_context_to_llm_json_is_bounded_and_safe(tmp_path, monkeypatch):
 
     assert payload["scenario"] == "aligned_managed"
     assert payload["allowed_rir_range"]["target_rir_min"] >= 0
-    assert payload["exercise_count"] == {"min": 3, "target": 4, "max": 5}
+    assert payload["exercise_count"] == {"min": 3, "target": 5, "max": 7}
     assert payload["duration_minutes"] == {"min": 30, "target": 45, "max": 60}
     assert payload["available_equipment"]
     assert payload["allowed_exercises"]
@@ -1314,8 +1314,17 @@ def test_normal_workout_preview_response_shape_does_not_expose_runtime_metadata(
         "confidence",
         "training_constraints",
         "workout_constraints",
+        "workout_exercise_count",
         "approved_workout_plan",
         "rendered_workout_plan",
+    }
+    assert set(payload["workout_exercise_count"]) == {
+        "requested_size",
+        "requested_count",
+        "final_count",
+        "final_target_count",
+        "reason",
+        "user_safe_reason",
     }
 
 

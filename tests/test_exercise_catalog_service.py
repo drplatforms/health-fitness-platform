@@ -351,7 +351,7 @@ def test_home_gym_preview_adds_accessory_slot_when_equipment_allows(
     accessory = approved.exercises[3]
     accessory_entry = find_catalog_entry_by_name(accessory.name)
 
-    assert len(approved.exercises) == 4
+    assert len(approved.exercises) == 5
     assert accessory_entry is not None
     assert accessory_entry.movement_pattern in {
         "arms_biceps",
@@ -394,7 +394,7 @@ def test_bodyweight_only_fourth_slot_remains_bodyweight_compatible(
     health_state = build_user_health_state(105)
     approved = build_approved_workout_plan(health_state)
 
-    assert len(approved.exercises) == 4
+    assert len(approved.exercises) == 5
     assert all(
         set(exercise.equipment_required).issubset({"bodyweight"})
         for exercise in approved.exercises
@@ -429,7 +429,7 @@ def test_limited_equipment_accessory_avoids_unavailable_equipment(
     health_state = build_user_health_state(102)
     approved = build_approved_workout_plan(health_state)
 
-    assert len(approved.exercises) == 4
+    assert len(approved.exercises) == 5
     for exercise in approved.exercises:
         assert set(exercise.equipment_required).isdisjoint(set(unavailable))
         assert set(exercise.equipment_required).issubset({"bodyweight", "dumbbell"})
@@ -480,7 +480,7 @@ def test_data_quality_limited_fourth_slot_stays_simple_and_manageable(
         [approved.session_focus, approved.rationale, fourth_exercise.notes]
     ).lower()
 
-    assert len(approved.exercises) == 4
+    assert len(approved.exercises) == 5
     assert fourth_exercise.name in {
         "Dead Bug",
         "Treadmill Walk",
