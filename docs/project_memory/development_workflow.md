@@ -13,7 +13,7 @@ It exists to reduce noisy commits, accidental staging, stale context, and runtim
 Windows is the source-of-truth development machine.
 
 ```powershell
-cd C:\projectsitness_ai
+cd C:\projects\fitness_ai
 ```
 
 Patch and snapshot files are normally downloaded to this project root.
@@ -70,7 +70,7 @@ Those project-memory handoff files are intentionally tracked.
 ## Before applying a patch
 
 ```powershell
-cd C:\projectsitness_ai
+cd C:\projects\fitness_ai
 
 git status --short
 git log --oneline -5
@@ -84,7 +84,7 @@ Do not stage patch files, zip files, temporary artifacts, local DB copies, or ru
 Most project patches should apply from project root with:
 
 ```powershell
-cd C:\projectsitness_ai
+cd C:\projects\fitness_ai
 
 git apply --check .\some_patch.patch
 git apply .\some_patch.patch
@@ -98,7 +98,7 @@ Do not guess. Run `Get-Content .\some_patch.patch -TotalCount 8` and inspect the
 Use the Windows helper:
 
 ```powershell
-cd C:\projectsitness_ai
+cd C:\projects\fitness_ai
 
 powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode docs-only
 powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code
@@ -168,7 +168,7 @@ $commitMessage = git log -1 --pretty=%s
 $safeMessage = $commitMessage -replace '[^a-zA-Z0-9]+', '-'
 $safeMessage = $safeMessage.ToLower().Trim('-')
 
-$zipName = "..itness_ai_snapshot_${date}_${commit}_${safeMessage}.zip"
+$zipName = "..\fitness_ai_snapshot_${date}_${commit}_${safeMessage}.zip"
 
 git archive --format=zip --output=$zipName HEAD
 
