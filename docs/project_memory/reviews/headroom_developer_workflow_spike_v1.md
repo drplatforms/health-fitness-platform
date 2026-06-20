@@ -1,4 +1,4 @@
-﻿# Headroom Developer Workflow Spike v1
+# Headroom Developer Workflow Spike v1
 
 Status: `HEADROOM_DEVELOPER_WORKFLOW_SPIKE_V1_IMPLEMENTED_PENDING_REVIEW`
 
@@ -168,3 +168,69 @@ If Architecture wants this closed now, close as:
 If Architecture requires real Headroom output before closure, keep as:
 
 `HEADROOM_DEVELOPER_WORKFLOW_SPIKE_V1_IMPLEMENTED_PENDING_REVIEW`
+
+## Real Headroom Comparison Addendum
+
+Status: `HEADROOM_DEVELOPER_WORKFLOW_SPIKE_V1_REAL_HEADROOM_RUN_COMPLETE`
+
+Command/tool used:
+
+``text
+
+``
+
+Headroom help output was saved locally at:
+
+``text
+qa_artifacts/headroom_spike_v1/real_headroom/headroom_help.txt
+``
+
+Real Headroom outputs were saved locally under:
+
+``text
+qa_artifacts/headroom_spike_v1/real_headroom
+``
+
+These local artifacts are not committed.
+
+### Comparison results
+
+| Input | Original chars | Baseline chars | Baseline reduction | Real Headroom chars | Real reduction | Compression | Safety | Usefulness | Accuracy | Result |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+
+### What was preserved
+
+- Headroom remained developer-workflow only.
+- Compressed output remained convenience context, not source of truth.
+- No FastAPI runtime integration was added.
+- No Streamlit runtime integration was added.
+- No provider prompt compression was added.
+- No model-facing health context compression was added.
+- No validator, fallback, persistence, report, nutrition, training, food catalog, or exercise catalog behavior changed.
+- No Claude workflow was added.
+- Codex remains optional/scoped only.
+
+### What was lost or weakened
+
+- Automated boundary-term scan did not identify lost critical boundary terms.
+
+### Invention / hallucination findings
+
+- Automated review did not prove semantic accuracy.
+- Backend must still manually inspect the real Headroom outputs before Architecture final acceptance.
+- No repository files, runtime behavior, provider defaults, or validation behavior were changed by this test.
+
+### Boundary weakening findings
+
+- Real Headroom outputs did not meet the minimum automated safety threshold: Safety >= 4.
+- Real Headroom outputs did not meet the minimum automated accuracy threshold: Accuracy >= 4.
+
+### Final recommendation
+
+`HEADROOM_DEVELOPER_WORKFLOW_SPIKE_V1_REJECTED_FOR_NOW`
+
+Backend recommendation:
+
+Do not adopt Headroom yet. Safety or accuracy threshold was not met by the automated review.
+
+Do not use Headroom for runtime, provider prompts, model-facing health context, validation contracts, source-of-truth docs, reports, nutrition/training contracts, food/exercise catalog truth, or persisted user health facts.
