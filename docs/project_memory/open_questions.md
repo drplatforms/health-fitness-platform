@@ -435,3 +435,11 @@ Open after implementation:
 - Should a future Workout History polish distinguish expired uncompleted plans from completed workout history more clearly?
 - Should Workout Session Preference Persistence v1 store the user's Quick/Standard/Full preference once lifecycle behavior is accepted?
 - Does the Workout tab still need performance profiling after lifecycle cleanup and fuller workouts?
+
+
+## After Same-Session Daily Coach Approval Bridge
+
+- Run Provider Narrative QA Matrix v2 before any provider promotion or persistence.
+- Decide whether qwen3:32b quality is strong enough for richer coach voice display.
+- Design async persistence only after same-session display proves useful and safe.
+- Keep Global Visual Theme Cleanup v1 tracked as a non-blocking visual follow-up.

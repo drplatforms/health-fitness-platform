@@ -10,6 +10,14 @@ import requests
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
+from services.daily_coach_same_session_approval_service import (
+    DailyCoachSameSessionApprovalError,
+    apply_approved_preview_to_today_card,
+    build_same_session_approval_from_preview,
+    validate_preview_for_same_session_approval,
+    validate_same_session_approval,
+)
+
 API_BASE_URL = "http://127.0.0.1:8000"
 
 
@@ -3371,6 +3379,7 @@ SESSION_DEFAULTS = {
     "daily_recommendation_error_by_user": {},
     "daily_coach_narrative_preview_by_user": {},
     "daily_coach_narrative_preview_error_by_user": {},
+    "daily_coach_approved_preview_session": None,
     "workout_explanation_by_user": {},
     "workout_explanation_error_by_user": {},
 }
@@ -4166,6 +4175,133 @@ def daily_coach_narrative_approved_display(preview: dict) -> dict:
     return narrative if isinstance(narrative, dict) else {}
 
 
+def daily_coach_current_session_approval() -> dict | None:
+    approval = st.session_state.get("daily_coach_approved_preview_session")
+    return approval if isinstance(approval, dict) else None
+
+
+def clear_daily_coach_session_approval() -> None:
+    st.session_state.daily_coach_approved_preview_session = None
+
+
+def daily_coach_same_session_approval_context(preview: dict) -> dict[str, object]:
+    return {
+        "user_id": int(preview.get("user_id") or 0),
+        "target_date": str(preview.get("date") or ""),
+        "next_action_id": str(preview.get("next_action_id") or ""),
+        "workflow_target": str(preview.get("workflow_target") or ""),
+    }
+
+
+def render_daily_coach_same_session_approval_controls(preview: dict) -> None:
+    approved_narrative = daily_coach_narrative_approved_display(preview)
+    if not approved_narrative:
+        return
+
+    context = daily_coach_same_session_approval_context(preview)
+    eligibility = validate_preview_for_same_session_approval(
+        preview,
+        user_id=int(context["user_id"]),
+        target_date=str(context["target_date"]),
+        next_action_id=str(context["next_action_id"]),
+        workflow_target=str(context["workflow_target"]),
+    )
+
+    st.write("**Same-session display approval**")
+    st.caption(
+        "This can temporarily use the validated preview in the Today Coach Note "
+        "for this session only. It will not be saved."
+    )
+
+    if not eligibility.eligible:
+        st.info(eligibility.user_safe_reason)
+        developer_details(
+            "Developer details: approval eligibility", eligibility.to_dict()
+        )
+        return
+
+    approve_col, clear_col = st.columns([1, 1])
+    with approve_col:
+        if st.button(
+            "Approve for this session",
+            key=f"approve_daily_coach_preview_{context['user_id']}_{context['target_date']}",
+        ):
+            try:
+                approval = build_same_session_approval_from_preview(
+                    preview,
+                    user_id=int(context["user_id"]),
+                    target_date=str(context["target_date"]),
+                    next_action_id=str(context["next_action_id"]),
+                    workflow_target=str(context["workflow_target"]),
+                )
+            except DailyCoachSameSessionApprovalError as exc:
+                st.warning("This preview cannot be approved for display.")
+                developer_details("Developer details: approval error", str(exc))
+            else:
+                st.session_state.daily_coach_approved_preview_session = (
+                    approval.to_dict()
+                )
+                st.success(
+                    "Approved for this session. The Today Coach Note can now use it."
+                )
+    with clear_col:
+        if st.button(
+            "Revert to deterministic note",
+            key=f"clear_daily_coach_preview_{context['user_id']}_{context['target_date']}",
+        ):
+            clear_daily_coach_session_approval()
+            st.info("Session approval cleared. The deterministic note is active.")
+
+    current_approval = daily_coach_current_session_approval()
+    if current_approval:
+        approval_eligibility = validate_same_session_approval(
+            current_approval,
+            user_id=int(context["user_id"]),
+            target_date=str(context["target_date"]),
+            next_action_id=str(context["next_action_id"]),
+            workflow_target=str(context["workflow_target"]),
+        )
+        st.caption(
+            "Current session approval: "
+            f"{'active' if approval_eligibility.eligible else 'inactive'}"
+        )
+        developer_details(
+            "Developer details: current session approval",
+            {
+                "eligibility": approval_eligibility.to_dict(),
+                "approval_source": current_approval.get("source"),
+                "is_session_only": current_approval.get("is_session_only"),
+            },
+        )
+
+
+def apply_daily_coach_session_approval_if_valid(
+    card: dict,
+    *,
+    user_id: int,
+) -> tuple[dict, bool]:
+    approval = daily_coach_current_session_approval()
+    if not approval:
+        return card, False
+
+    eligibility = validate_same_session_approval(
+        approval,
+        user_id=user_id,
+        target_date=str(card.get("date") or ""),
+        workflow_target=str(card.get("cta_target") or ""),
+    )
+    if not eligibility.eligible:
+        clear_daily_coach_session_approval()
+        return card, False
+
+    approved_card = apply_approved_preview_to_today_card(
+        card,
+        approval,
+        user_id=user_id,
+    )
+    return approved_card, approved_card != card
+
+
 def fetch_daily_coach_narrative_preview(
     user_id: int, lane_key: str = "deterministic"
 ) -> dict | None:
@@ -4304,6 +4440,7 @@ def render_daily_coach_narrative_developer_panel(user_id: int) -> None:
             confidence_language = approved_narrative.get("confidence_language")
             if confidence_language:
                 st.caption(confidence_language)
+            render_daily_coach_same_session_approval_controls(preview)
         else:
             st.info(daily_coach_narrative_fallback_display(preview))
 
@@ -4338,6 +4475,11 @@ def render_daily_coach_today_card(user_id: int) -> None:
         developer_details("Developer details: Today Coach Note response", response)
         return
 
+    card, session_approval_applied = apply_daily_coach_session_approval_if_valid(
+        card,
+        user_id=user_id,
+    )
+
     card_title = card.get("card_title") or "Today’s Coach Note"
     coach_note = card.get("coach_note") or (
         "Today’s plan is still available. Start with the next action above."
@@ -4359,6 +4501,13 @@ def render_daily_coach_today_card(user_id: int) -> None:
 
     if supporting_reason:
         st.caption(f"Why this today: {supporting_reason}")
+
+    if st.session_state.get("developer_mode", False):
+        st.caption(
+            "Session-approved preview active."
+            if session_approval_applied
+            else "Deterministic Today Coach Note active."
+        )
 
     developer_details("Developer details: Today Coach Note response", response)
 
