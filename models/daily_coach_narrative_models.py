@@ -66,6 +66,62 @@ class DailyCoachNarrativeContext:
         return asdict(self)
 
 
+DAILY_COACH_TODAY_CARD_DISPLAY_SOURCE = "deterministic_today_card"
+
+
+@dataclass(frozen=True)
+class DailyCoachTodayCard:
+    """Public-safe deterministic Today Coach Note display contract.
+
+    Normal Today UI consumes only ``to_public_dict()`` fields. Developer metadata
+    exists for Developer Mode inspection only and must not drive normal display.
+    """
+
+    user_id: int
+    date: str
+    next_action_id: str
+    next_action_title: str
+    workflow_target: str
+    card_title: str
+    coach_note: str
+    cta_label: str
+    cta_target: str
+    supporting_reason: str
+    display_source: str = DAILY_COACH_TODAY_CARD_DISPLAY_SOURCE
+    is_provider_generated: bool = False
+    is_fallback: bool = False
+    user_visible: bool = True
+    developer_metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "date": self.date,
+            "card_title": self.card_title,
+            "coach_note": self.coach_note,
+            "next_action_title": self.next_action_title,
+            "cta_label": self.cta_label,
+            "cta_target": self.cta_target,
+            "supporting_reason": self.supporting_reason,
+        }
+
+    def to_developer_dict(self) -> dict[str, Any]:
+        return {
+            "user_id": self.user_id,
+            "date": self.date,
+            "next_action_id": self.next_action_id,
+            "next_action_title": self.next_action_title,
+            "workflow_target": self.workflow_target,
+            "display_source": self.display_source,
+            "is_provider_generated": self.is_provider_generated,
+            "is_fallback": self.is_fallback,
+            "user_visible": self.user_visible,
+            "developer_metadata": dict(self.developer_metadata),
+        }
+
+
 DAILY_COACH_NARRATIVE_PARSE_STATUS_SUCCESS = "success"
 DAILY_COACH_NARRATIVE_PARSE_STATUS_FAILED = "failed"
 

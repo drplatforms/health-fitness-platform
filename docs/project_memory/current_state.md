@@ -8,54 +8,49 @@ AI Health Coach / fitness-ai
 
 ## Current branch
 
-`feature/food-catalog-import-batch-v1`
+`feature/daily-coach-narrative-limited-today-ui-readiness-v1`
 
 ## Latest accepted milestone
 
-`Catalog Source Evaluation v1` is accepted and merged to `main`.
+`Exercise Catalog Import Batch v1` is accepted.
 
-Final accepted status: `CATALOG_SOURCE_EVALUATION_V1_ACCEPTED_WITH_APPROVED_SMALL_BATCH_CANDIDATES`.
+Final accepted status: `EXERCISE_CATALOG_IMPORT_BATCH_V1_ACCEPTED`.
 
-USDA FoodData Central is accepted as the first source candidate for a tiny reviewed generic food batch.
+The catalog foundation is complete enough for the current phase:
+
+- Catalog Import Pipeline v1 is accepted.
+- Catalog Source Evaluation v1 is accepted with approved small-batch candidates.
+- Food Catalog Import Batch v1 is accepted with 20 reviewed USDA/FDC generic rows.
+- Exercise Catalog Import Batch v1 is accepted with 18 manually curated, equipment-aligned exercise rows.
+
+Catalog work should pause unless explicitly reauthorized.
 
 ## Current implementation milestone
 
-`Food Catalog Import Batch v1` is implemented pending review.
+`Daily Coach Narrative Limited Today UI Readiness v1` is implemented pending review.
 
-Implementation status: `FOOD_CATALOG_IMPORT_BATCH_V1_IMPLEMENTED_PENDING_REVIEW`.
+Implementation status: `DAILY_COACH_NARRATIVE_LIMITED_TODAY_UI_READINESS_V1_IMPLEMENTED_PENDING_REVIEW`.
 
-This milestone adds exactly 20 reviewed USDA/FDC Foundation Foods generic rows to the canonical food seed list. The batch is small, per-100g clear, source-noted, and limited to practical generic staples not already well-covered by the starter catalog.
+This milestone adds a deterministic `Today???s Coach Note` card to normal Today UI. The card appears immediately after the deterministic Daily Next Action panel, uses backend-owned Daily Next Action as its source, and gives the user short coach-like copy plus a next-action CTA.
 
-Canonical additions include fish/protein options, vegetables, fruits, dry grains, and a few high-value staples:
+The normal Today card is deterministic only. It does not call provider generation, does not persist narrative text, does not display raw/rejected provider output, does not expose model/prompt/debug details, and does not change Daily Next Action selection.
 
-- Alaska Pollock, Raw
-- Apricot, Raw
-- Arugula, Raw
-- Beets, Raw
-- Beet Greens, Raw
-- Bok Choy, Raw
-- Red Cabbage, Raw
-- Collard Greens, Raw
-- Fennel Bulb, Raw
-- Figs, Dried
-- Haddock, Raw
-- Catfish, Raw
-- Plantain, Raw
-- Mandarin, Raw
-- Black Rice, Dry
-- Red Rice, Dry
-- Fonio Grain, Dry
-- Khorasan Grain, Dry
-- Parsnips, Raw
-- Radishes, Raw
+New pieces:
 
-No raw USDA/FDC dataset is committed. No staged qa_artifacts are committed. No scraping, API client, AI-generated nutrition facts, runtime behavior, provider behavior, nutrition calculation behavior, food logging behavior, or exercise catalog behavior changed.
+- `DailyCoachTodayCard` display model
+- `services/daily_coach_today_card_service.py`
+- `GET /daily-coach/{user_id}/today-card`
+- Streamlit `Today???s Coach Note` card near the top of Today
+- service, route, and Streamlit boundary tests
+
+No nutrition calculations, workout generation, catalog rows, provider defaults, validators, persistence, reports, database schema, or model routing are changed.
 
 ## Next recommended milestone options
 
-- Exercise Catalog Import Batch v1 using manual curation and/or CC0 structured-name inspiration only.
-- Food Catalog Import Batch v1.1 if the first batch review identifies obvious missing generic staples.
-- Daily Coach Narrative Limited Today UI Readiness v1 if Product chooses to return to product-facing work.
+- Today UX Polish v1 after Daily Coach Narrative Limited Today UI Readiness v1 acceptance.
+- Daily Coach Narrative Same-Session Approved Preview Bridge v1 if Architecture wants a controlled same-session provider-preview display path.
+- Daily Coach Narrative Async Persistence Design v1 only after the deterministic display path feels right.
+- Provider Narrative QA Matrix v2 if Architecture wants broader qwen lane comparison against the new display contract.
 
 ---
 

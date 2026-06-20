@@ -4184,10 +4184,59 @@ def render_daily_coach_narrative_developer_panel(user_id: int) -> None:
             render_daily_coach_narrative_context_summary(preview)
 
 
+def render_daily_coach_today_card(user_id: int) -> None:
+    st.subheader("Today???s Coach Note")
+    st.caption("A short note tied to your next action.")
+
+    try:
+        response = api_get(f"/daily-coach/{user_id}/today-card", request_timeout=30)
+    except requests.RequestException as exc:
+        st.info("Today???s plan is still available. Start with the next action above.")
+        if st.session_state.get("developer_mode", False):
+            with st.expander("Developer details: Today Coach Note error"):
+                st.write(extract_api_error_message(exc))
+        return
+
+    if not response.get("success"):
+        st.info("Today???s plan is still available. Start with the next action above.")
+        developer_details("Developer details: Today Coach Note response", response)
+        return
+
+    card = response.get("today_card") or {}
+    if not card:
+        st.info("Today???s plan is still available. Start with the next action above.")
+        developer_details("Developer details: Today Coach Note response", response)
+        return
+
+    card_title = card.get("card_title") or "Today???s Coach Note"
+    coach_note = card.get("coach_note") or (
+        "Today???s plan is still available. Start with the next action above."
+    )
+    next_action_title = card.get("next_action_title") or "Next action"
+    cta_label = card.get("cta_label") or f"Next action: {next_action_title}"
+    supporting_reason = card.get("supporting_reason")
+
+    st.markdown(
+        portfolio_card_html(
+            "Daily Coach",
+            card_title,
+            coach_note,
+            [portfolio_chip(cta_label, "green")],
+            "portfolio-card-purple",
+        ),
+        unsafe_allow_html=True,
+    )
+
+    if supporting_reason:
+        st.caption(f"Why this today: {supporting_reason}")
+
+    developer_details("Developer details: Today Coach Note response", response)
+
+
 def render_daily_next_action_panel(user_id: int) -> None:
     st.subheader("Next Best Action")
     st.caption(
-        "One backend-selected action for today. No provider output controls this card."
+        "One selected action for today, grounded in your current check-in and logs."
     )
 
     try:
@@ -4688,10 +4737,11 @@ def render_recent_workout_reflection_card(user_id: int) -> None:
 def render_today_section(user_id: int) -> None:
     st.header("Today")
     st.caption(
-        "Start with one backend-approved action, then use recovery, nutrition, and workout context to follow through."
+        "Start with one clear action, then use recovery, nutrition, and workout context to follow through."
     )
 
     render_daily_next_action_panel(user_id)
+    render_daily_coach_today_card(user_id)
 
     st.divider()
 
