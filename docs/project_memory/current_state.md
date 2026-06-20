@@ -1,4 +1,4 @@
-# Current Project State
+﻿# Current Project State
 
 Last updated: 2026-06-20
 
@@ -112,22 +112,22 @@ Provider-integrated section maturity: `training` and `nutrition_report_section`.
 
 ## Current product loop direction
 
-Daily Next Action Panel v1 is accepted and merged. The Today page now answers “What should I do today?” with one deterministic backend-owned next action.
+Daily Next Action Panel v1 is accepted and merged. The Today page now answers â€œWhat should I do today?â€ with one deterministic backend-owned next action.
 
 Daily Coaching Product Loop v1 connects existing backend-approved state into a practical loop:
 
 ```text
 recovery check-in
-→ current recovery/training/nutrition state
-→ nutrition target-vs-actual and logging completeness
-→ workout preview / workout execution
-→ report guidance
-→ one backend-approved next action
+â†’ current recovery/training/nutrition state
+â†’ nutrition target-vs-actual and logging completeness
+â†’ workout preview / workout execution
+â†’ report guidance
+â†’ one backend-approved next action
 ```
 
 Daily Next Action Panel v1 is accepted. The deterministic service returns exactly one action from the approved v1 action set, with backend-owned reason and workflow target. The Today page renders this card near the top without exposing raw provider/debug metadata.
 
-Approved v1 action set: Complete recovery check-in, Keep training conservative, Log a meal or snack, Review nutrition target progress, Review today’s workout, Review today’s report guidance.
+Approved v1 action set: Complete recovery check-in, Keep training conservative, Log a meal or snack, Review nutrition target progress, Review todayâ€™s workout, Review todayâ€™s report guidance.
 
 The panel remains backend-truth-owned. It surfaces one primary action, a short backend-supported reason, and a workflow pointer, but does not allow AI/provider output to invent navigation, food, calorie, macro, workout, fatigue, or recovery claims.
 
@@ -165,12 +165,12 @@ Current planned future narrative sequence:
 
 ```text
 Daily Next Action state
-→ DailyCoachNarrativeContext
-→ CandidateDailyCoachNarrative JSON attempt
-→ narrative parser/validator
-→ ApprovedDailyCoachNarrative or deterministic fallback
-→ future Developer Mode preview
-→ future normal Today UI only after Architecture acceptance
+â†’ DailyCoachNarrativeContext
+â†’ CandidateDailyCoachNarrative JSON attempt
+â†’ narrative parser/validator
+â†’ ApprovedDailyCoachNarrative or deterministic fallback
+â†’ future Developer Mode preview
+â†’ future normal Today UI only after Architecture acceptance
 ```
 
 Recommended next milestone after planning acceptance: `Daily Coach Narrative Context Builder v1`.
@@ -253,10 +253,10 @@ Proposed future context:
 
 ```text
 Daily Next Action state
-→ DailyCoachNarrativeContext
-→ CandidateDailyCoachNarrative JSON attempt
-→ narrative parser/validator
-→ ApprovedDailyCoachNarrative or deterministic fallback
+â†’ DailyCoachNarrativeContext
+â†’ CandidateDailyCoachNarrative JSON attempt
+â†’ narrative parser/validator
+â†’ ApprovedDailyCoachNarrative or deterministic fallback
 ```
 
 Planning confirms:
@@ -529,3 +529,9 @@ GET /daily-coach/{user_id}/narrative-preview/debug
 ```
 
 No normal Today UI integration occurs. The panel is hidden when Developer Mode is disabled. No provider generation happens automatically on normal Today page load. No report integration, persistence, model promotion, provider default change, validator change, or deterministic fallback weakening is introduced.
+
+## Workout Substitution UX v1
+
+Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW.
+
+The Workout page substitution flow now uses a clearer normal-user path: choose an exercise to replace, review suggested replacements, apply a swap, keep the original, and continue to workout logging. This milestone is UI-only and preserves workout generation, substitution algorithm behavior, exercise count, persistence, provider behavior, reports, and catalog data.

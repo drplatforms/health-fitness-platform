@@ -1,4 +1,4 @@
-# Open Questions
+﻿# Open Questions
 
 Last updated: 2026-06-20
 
@@ -412,3 +412,8 @@ Open after implementation:
 - What extra manual QA is needed before any provider-generated narrative is considered for normal user display?
 - Should the Today Coach Note card eventually support secondary reasons, or should it stay compact with one reason tied to Daily Next Action?
 - Should a future persistence design cache deterministic card text, or should it remain generated-on-read until provider persistence is approved?
+
+## Workout follow-up after Substitution UX v1
+
+- Should Workout Exercise Count Preference v1 be next so workouts can move toward 5-7 exercises and eventual user-configurable exercise counts?
+- Does substitution candidate quality require a separate Workout Substitution Logic v1 milestone, or is the remaining pain primarily UI/lifecycle polish?

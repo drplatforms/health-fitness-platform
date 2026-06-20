@@ -1087,7 +1087,10 @@ def format_substitution_list(values: list[str] | None) -> str:
 
 def display_substitution_candidate_table(candidates: list[dict]) -> None:
     if not candidates:
-        st.info("No compatible substitutions were returned for this planned exercise.")
+        st.info(
+            "No replacement candidates are available for this exercise yet. "
+            "Keep the original exercise or regenerate the workout."
+        )
         return
 
     top_candidates = candidates[:5]
@@ -1098,11 +1101,11 @@ def display_substitution_candidate_table(candidates: list[dict]) -> None:
         first_reason = (
             substitution_reason_label(reason_codes[0])
             if reason_codes
-            else "Compatible with current constraints"
+            else "Fits the current workout constraints"
         )
         summary_rows.append(
             {
-                "Option": candidate.get("name", "Unknown"),
+                "Replacement": candidate.get("name", "Unknown"),
                 "Equipment": format_substitution_list(
                     candidate.get("required_equipment")
                 ),
@@ -1110,8 +1113,9 @@ def display_substitution_candidate_table(candidates: list[dict]) -> None:
             }
         )
 
+    st.markdown("##### Suggested replacements")
     st.caption(
-        "Top compatible substitutions are shown first. Full details are hidden below."
+        "Pick one compatible option, or keep the original exercise if none feels right."
     )
     st.dataframe(
         pd.DataFrame(summary_rows),
@@ -1119,7 +1123,7 @@ def display_substitution_candidate_table(candidates: list[dict]) -> None:
         hide_index=True,
     )
 
-    with st.expander("More options / candidate details", expanded=False):
+    with st.expander("Compare all suggested replacements", expanded=False):
         candidate_rows = []
         for candidate in candidates:
             reason_codes = candidate.get("compatibility_reason_codes") or []
@@ -1141,7 +1145,7 @@ def display_substitution_candidate_table(candidates: list[dict]) -> None:
                         substitution_reason_label(reason_code)
                         for reason_code in reason_codes
                     )
-                    or "Compatible with current constraints",
+                    or "Fits the current workout constraints",
                 }
             )
 
@@ -1156,11 +1160,7 @@ def substitution_candidate_option_label(candidate: dict) -> str:
     equipment = format_substitution_list(candidate.get("required_equipment"))
     movement_pattern = humanize_label(candidate.get("movement_pattern"))
 
-    return (
-        f"{candidate.get('catalog_exercise_id')} — "
-        f"{candidate.get('name', 'Unknown')} "
-        f"({movement_pattern}; {equipment})"
-    )
+    return f"{candidate.get('name', 'Unknown')} " f"({movement_pattern}; {equipment})"
 
 
 def display_active_substitution(apply_response: dict | None) -> None:
@@ -1175,14 +1175,10 @@ def display_active_substitution(apply_response: dict | None) -> None:
         or "Unknown"
     )
 
-    st.success("Active substitution applied.")
-    st.write(f"**Original:** {original_name}")
-    st.write(f"**Substituted with:** {replacement_name}")
+    st.success(f"Workout updated: swapped {original_name} for {replacement_name}.")
 
     if apply_response.get("previous_active_substitution_replaced"):
-        st.caption(
-            "A previous active substitution for this planned exercise was replaced."
-        )
+        st.caption("This replaced a previous swap for the same exercise.")
 
 
 def active_substitution_response_from_record(substitution: dict | None) -> dict | None:
@@ -1322,10 +1318,11 @@ def apply_substitution_candidate(
             payload,
         )
     except requests.RequestException as exc:
-        st.session_state.substitution_apply_error = (
-            f"Substitution apply failed for {planned_exercise_name}: "
-            f"{extract_api_error_message(exc)}"
-        )
+        if st.session_state.get("developer_mode", False):
+            st.session_state.substitution_apply_error_detail = (
+                extract_api_error_message(exc)
+            )
+        st.session_state.substitution_apply_error = "That swap could not be applied. Keep the original exercise or try another replacement."
         st.rerun()
 
     if apply_response.get("success"):
@@ -1341,17 +1338,15 @@ def apply_substitution_candidate(
             or "selected exercise"
         )
         st.session_state.substitution_apply_message = (
-            f"Substitution applied: {planned_exercise_name} → {replacement_name}. "
-            "Actual set logging will use the substituted exercise."
+            f"Swapped {planned_exercise_name} for {replacement_name}."
         )
         st.session_state.substitution_apply_error = None
+        st.session_state.substitution_apply_error_detail = None
         st.session_state.substitution_flow_ready_to_do_workout = True
         request_workout_flow_step("2. Do Workout")
         st.rerun()
 
-    st.session_state.substitution_apply_error = (
-        f"Substitution apply failed for {planned_exercise_name}."
-    )
+    st.session_state.substitution_apply_error = "That swap could not be applied. Keep the original exercise or try another replacement."
     st.rerun()
 
 
@@ -1368,8 +1363,7 @@ def display_apply_substitution_control(
 
     if not allow_apply:
         st.caption(
-            "Apply is available after a plan is selected, started, or in progress. "
-            "Completed workouts preserve completed history."
+            "You can review replacement options now. Apply becomes available once the plan is selected, started, or in progress."
         )
         return
 
@@ -1380,18 +1374,23 @@ def display_apply_substitution_control(
     ]
 
     if not candidate_options:
-        st.caption("No selectable substitution candidates were returned.")
+        st.info(
+            "No replacement candidates are available for this exercise yet. "
+            "Keep the original exercise or regenerate the workout."
+        )
         return
 
-    st.markdown("##### Apply substitution")
-    st.caption("Use one of the top matches, or open More options for the full list.")
+    st.markdown("##### Suggested swaps")
+    st.caption(
+        f"Replacing: **{planned_exercise_name}**. Choose one replacement below, or keep the original."
+    )
 
     for index, candidate in enumerate(candidate_options[:5], start=1):
         reason_codes = candidate.get("compatibility_reason_codes") or []
         first_reason = (
             substitution_reason_label(reason_codes[0])
             if reason_codes
-            else "Compatible with current constraints"
+            else "Fits the current workout constraints"
         )
         col1, col2 = st.columns([4, 1])
         with col1:
@@ -1403,7 +1402,7 @@ def display_apply_substitution_control(
             )
         with col2:
             if st.button(
-                "Use this",
+                "Apply swap",
                 key=(
                     "substitution_quick_apply_"
                     f"{apply_response_key}_{candidate.get('catalog_exercise_id')}"
@@ -1417,29 +1416,42 @@ def display_apply_substitution_control(
                     apply_response_key=apply_response_key,
                 )
 
-    with st.expander("More options", expanded=False):
-        candidate_option_map = {
-            substitution_candidate_option_label(candidate): candidate
-            for candidate in candidate_options
-        }
-        selected_candidate_label = st.selectbox(
-            "All compatible substitutions",
-            options=list(candidate_option_map.keys()),
-            key=f"substitution_apply_select_{apply_response_key}",
-        )
-        selected_candidate = candidate_option_map[selected_candidate_label]
-
+    keep_col, more_col = st.columns([1, 3])
+    with keep_col:
         if st.button(
-            f"Apply selected substitution for {planned_exercise_name}",
-            key=f"substitution_apply_button_{apply_response_key}",
+            "Keep original",
+            key=f"substitution_keep_original_{apply_response_key}",
         ):
-            apply_substitution_candidate(
-                plan_instance_id=plan_instance_id,
-                planned_exercise_id=planned_exercise_id,
-                planned_exercise_name=planned_exercise_name,
-                selected_candidate=selected_candidate,
-                apply_response_key=apply_response_key,
+            st.session_state.substitution_apply_message = (
+                f"Keeping {planned_exercise_name} in the workout."
             )
+            st.session_state.substitution_apply_error = None
+            st.rerun()
+
+    with more_col:
+        with st.expander("Compare more replacement options", expanded=False):
+            candidate_option_map = {
+                substitution_candidate_option_label(candidate): candidate
+                for candidate in candidate_options
+            }
+            selected_candidate_label = st.selectbox(
+                "Choose a replacement exercise",
+                options=list(candidate_option_map.keys()),
+                key=f"substitution_apply_select_{apply_response_key}",
+            )
+            selected_candidate = candidate_option_map[selected_candidate_label]
+
+            if st.button(
+                f"Apply swap for {planned_exercise_name}",
+                key=f"substitution_apply_button_{apply_response_key}",
+            ):
+                apply_substitution_candidate(
+                    plan_instance_id=plan_instance_id,
+                    planned_exercise_id=planned_exercise_id,
+                    planned_exercise_name=planned_exercise_name,
+                    selected_candidate=selected_candidate,
+                    apply_response_key=apply_response_key,
+                )
 
 
 def display_substitution_candidates(
@@ -1450,12 +1462,12 @@ def display_substitution_candidates(
     execution_status: str | None = None,
     active_substitutions: dict[int, dict] | None = None,
     always_visible: bool = False,
-    title: str = "Compatible Substitutions",
+    title: str = "Need a swap?",
 ) -> None:
     st.markdown(f"#### {title}")
 
     if not planned_exercises:
-        st.info("No planned exercises are available for substitution lookup.")
+        st.info("No planned exercises are available for swap lookup.")
         return
 
     if st.session_state.substitution_apply_message:
@@ -1464,90 +1476,122 @@ def display_substitution_candidates(
 
     if st.session_state.substitution_apply_error:
         st.error(st.session_state.substitution_apply_error)
+        if st.session_state.get("developer_mode", False) and st.session_state.get(
+            "substitution_apply_error_detail"
+        ):
+            st.caption(
+                "Developer detail: "
+                f"{st.session_state.substitution_apply_error_detail}"
+            )
         st.session_state.substitution_apply_error = None
 
     allow_apply = can_apply_substitution(plan_status, execution_status)
     active_substitutions = active_substitutions or {}
 
     st.caption(
-        "Substitutions are optional. The original plan stays preserved, while actual "
-        "set logging uses the active substituted exercise after apply."
+        "Pick the exercise you want to replace, then choose a similar option that fits today’s workout."
+    )
+
+    selectable_exercises = [
+        exercise for exercise in planned_exercises if exercise.get("id") is not None
+    ]
+
+    if not selectable_exercises:
+        st.info("No replacement candidates are available for this workout yet.")
+        return
+
+    option_labels = [
+        f"{exercise.get('exercise_order', index + 1)}. {exercise.get('name', 'Unknown')}"
+        for index, exercise in enumerate(selectable_exercises)
+    ]
+    selected_label = st.selectbox(
+        "Choose an exercise to replace",
+        options=option_labels,
+        key=f"substitution_target_select_{context_key}_{plan_instance_id}",
+    )
+    selected_index = option_labels.index(selected_label)
+    planned_exercise = selectable_exercises[selected_index]
+
+    planned_exercise_id = planned_exercise.get("id")
+    planned_exercise_name = planned_exercise.get("name", "Unknown")
+
+    try:
+        planned_exercise_id_int = int(planned_exercise_id)
+    except (TypeError, ValueError):
+        st.info(
+            "No replacement candidates are available for this exercise yet. "
+            "Keep the original exercise or regenerate the workout."
+        )
+        return
+
+    active_substitution = active_substitutions.get(planned_exercise_id_int)
+
+    # Replace: user-selected exercise target.
+    # Original exercise remains preserved until a swap is applied.
+    st.markdown(
+        portfolio_card_html(
+            "Selected exercise",
+            f"Replacing: {planned_exercise_name}",
+            "Review suggested replacements below, apply a swap, or keep the original exercise.",
+            [
+                portfolio_chip("Swap target", "purple"),
+                portfolio_chip("Backend behavior unchanged"),
+            ],
+            "portfolio-card-action",
+        ),
+        unsafe_allow_html=True,
     )
 
     if not allow_apply:
         st.caption(
-            "Substitution candidates can be reviewed here, but Apply is only available "
-            "for selected, started, or in-progress workout plans."
+            "Replacement options can be reviewed here, but Apply is only available for selected, started, or in-progress workout plans."
         )
 
-    for planned_exercise in planned_exercises:
-        planned_exercise_id = planned_exercise.get("id")
-        planned_exercise_name = planned_exercise.get("name", "Unknown")
+    apply_response_key = f"{plan_instance_id}_{planned_exercise_id_int}"
+    apply_response = st.session_state.applied_substitution_responses.get(
+        apply_response_key
+    ) or active_substitution_response_from_record(active_substitution)
+    display_active_substitution(apply_response)
 
-        if planned_exercise_id is None:
-            st.caption(
-                f"Substitution lookup is unavailable for {planned_exercise_name} "
-                "because no planned exercise ID was returned."
-            )
-            continue
+    try:
+        candidate_response = api_get(
+            "/workout-plans/"
+            f"{plan_instance_id}/planned-exercises/"
+            f"{planned_exercise_id_int}/substitution-candidates"
+        )
+    except requests.RequestException as exc:
+        if st.session_state.get("developer_mode", False):
+            st.caption("Developer detail: " f"{extract_api_error_message(exc)}")
+        st.info(
+            "No replacement candidates are available for this exercise yet. "
+            "Keep the original exercise or regenerate the workout."
+        )
+        return
 
-        planned_exercise_id_int = int(planned_exercise_id)
-        active_substitution = active_substitutions.get(planned_exercise_id_int)
-        expander_label = f"Need a substitution? {planned_exercise_name}"
-        if active_substitution:
-            expander_label = f"Substitution active: {planned_exercise_name}"
+    candidates = candidate_response.get("substitution_candidates", [])
 
+    display_substitution_candidate_table(candidates)
+    display_apply_substitution_control(
+        plan_instance_id=plan_instance_id,
+        planned_exercise_id=planned_exercise_id_int,
+        planned_exercise_name=planned_exercise_name,
+        candidates=candidates,
+        apply_response_key=apply_response_key,
+        allow_apply=allow_apply,
+    )
+
+    if st.session_state.get("developer_mode", False):
         with st.expander(
-            expander_label,
-            expanded=bool(active_substitution) or bool(always_visible),
+            f"Developer details: substitution candidates for {planned_exercise_name}"
         ):
-            st.write(f"**Original:** {planned_exercise_name}")
+            st.json(candidate_response)
 
-            apply_response_key = f"{plan_instance_id}_{planned_exercise_id_int}"
-            apply_response = st.session_state.applied_substitution_responses.get(
+            latest_apply_response = st.session_state.applied_substitution_responses.get(
                 apply_response_key
-            ) or active_substitution_response_from_record(active_substitution)
-            display_active_substitution(apply_response)
-
-            try:
-                candidate_response = api_get(
-                    "/workout-plans/"
-                    f"{plan_instance_id}/planned-exercises/"
-                    f"{planned_exercise_id_int}/substitution-candidates"
-                )
-            except requests.RequestException as exc:
-                st.error(
-                    "Failed to load substitution candidates for "
-                    f"{planned_exercise_name}: {extract_api_error_message(exc)}"
-                )
-                continue
-
-            candidates = candidate_response.get("substitution_candidates", [])
-
-            display_substitution_candidate_table(candidates)
-            display_apply_substitution_control(
-                plan_instance_id=plan_instance_id,
-                planned_exercise_id=planned_exercise_id_int,
-                planned_exercise_name=planned_exercise_name,
-                candidates=candidates,
-                apply_response_key=apply_response_key,
-                allow_apply=allow_apply,
             )
-
-            if st.session_state.get("developer_mode", False):
-                with st.expander(
-                    f"Developer details: substitution candidates for {planned_exercise_name}"
-                ):
-                    st.json(candidate_response)
-
-                    latest_apply_response = (
-                        st.session_state.applied_substitution_responses.get(
-                            apply_response_key
-                        )
-                    )
-                    if latest_apply_response:
-                        st.subheader("Latest Raw Apply Response")
-                        st.json(latest_apply_response)
+            if latest_apply_response:
+                st.subheader("Latest apply response")
+                st.json(latest_apply_response)
 
 
 def actual_set_reference_id(actual_set: dict) -> int | None:
@@ -3310,6 +3354,7 @@ SESSION_DEFAULTS = {
     "applied_substitution_responses": {},
     "substitution_apply_message": None,
     "substitution_apply_error": None,
+    "substitution_apply_error_detail": None,
     "substitution_flow_ready_to_do_workout": False,
     "workout_flow_step": "1. Plan",
     "workout_flow_step_selector": "1. Plan",
@@ -4860,13 +4905,13 @@ def render_workout_plan_section(user_id: int) -> None:
 
                     st.divider()
                     with st.expander(
-                        "Need a substitution?",
+                        "Need a swap?",
                         expanded=bool(active_substitutions),
                     ):
                         st.caption(
-                            "Optional: choose a compatible replacement before you start. "
-                            "After you apply one, the active workout plan updates automatically "
-                            "and the Do Workout step uses the substituted exercise for logging."
+                            "Optional: choose one exercise to replace before you start. "
+                            "After you apply a swap, the active workout plan updates automatically "
+                            "and the Do Workout step uses the active exercise choice for logging."
                         )
                         display_substitution_candidates(
                             plan_instance_id,
@@ -4876,7 +4921,7 @@ def render_workout_plan_section(user_id: int) -> None:
                             execution_status=execution_session.get("status"),
                             active_substitutions=active_substitutions,
                             always_visible=False,
-                            title="Compatible Substitutions",
+                            title="Need a swap?",
                         )
 
                     refreshed_plan_response = refresh_active_plan_response(
