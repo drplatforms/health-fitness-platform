@@ -1,22 +1,22 @@
 # Development Workflow
 
-Last updated: 2026-06-18
+Last updated: 2026-06-19
 
 ## Purpose
 
-This document defines the local development and commit workflow for the AI Health Coach repo.
-It exists to reduce noisy commits, accidental staging, and validation friction while preserving the backend-truth-first architecture.
+This document defines the local development, validation, restart, sync, and snapshot workflow for the AI Health Coach repo.
+
+It exists to reduce noisy commits, accidental staging, stale context, and runtime confusion while preserving the backend-truth-first architecture.
 
 ## Default Windows project path
 
 Windows is the source-of-truth development machine.
-Assume project root:
 
 ```powershell
-cd C:\projects\fitness_ai
+cd C:\projectsitness_ai
 ```
 
-Patch and snapshot files are normally downloaded to this same project root.
+Patch and snapshot files are normally downloaded to this project root.
 
 ## Windows vs Linux responsibility split
 
@@ -28,20 +28,23 @@ Windows owns source-of-truth repo work:
 - docs edits
 - local validation
 - `git add`, `git commit`, and `git push`
+- post-merge snapshots with `git archive`
 
 Linux owns runtime/staging QA:
 
-- API runtime smoke tests
-- Ollama-connected runtime QA
+- FastAPI runtime smoke tests
+- Streamlit runtime QA
 - SQLite persisted-history inspection
-- staging app validation
+- Ollama-connected provider-lane QA
 
 Do not commit separately from Linux unless that workflow is explicitly planned.
+
 GitHub remains the shared source of truth.
 
 ## Local artifact clutter
 
 Patch, snapshot, and temporary review artifacts should not be staged.
+
 Recommended local-only ignores belong in:
 
 ```text
@@ -55,6 +58,7 @@ Recommended local entries:
 *.patch
 *.zip
 artifacts/
+qa_artifacts/
 _backup_before_*/
 _patched_*/
 patch_check_output.txt
@@ -66,21 +70,21 @@ Those project-memory handoff files are intentionally tracked.
 ## Before applying a patch
 
 ```powershell
-cd C:\projects\fitness_ai
+cd C:\projectsitness_ai
 
 git status --short
 git log --oneline -5
 ```
 
 Clean unrelated drift before applying feature work.
-Do not stage patch files, zip files, temporary artifacts, or local runtime outputs.
+Do not stage patch files, zip files, temporary artifacts, local DB copies, or runtime outputs.
 
 ## Applying a patch from project root
 
 Most project patches should apply from project root with:
 
 ```powershell
-cd C:\projects\fitness_ai
+cd C:\projectsitness_ai
 
 git apply --check .\some_patch.patch
 git apply .\some_patch.patch
@@ -94,7 +98,7 @@ Do not guess. Run `Get-Content .\some_patch.patch -TotalCount 8` and inspect the
 Use the Windows helper:
 
 ```powershell
-cd C:\projects\fitness_ai
+cd C:\projectsitness_ai
 
 powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode docs-only
 powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code
@@ -115,7 +119,7 @@ Does not run Ruff, Black, or Pytest.
 
 ### Mode: code
 
-Use for normal code milestones.
+Use for normal code/tooling milestones.
 
 Runs:
 
@@ -125,8 +129,7 @@ Runs:
 - focused safety tests
 - `git status --short`
 
-Important: this mode intentionally avoids `black .` by default.
-That prevents unrelated files from being reformatted during ordinary commit prep.
+This mode intentionally avoids `black .` by default to prevent unrelated reformatting.
 
 ### Mode: full
 
@@ -140,84 +143,128 @@ Runs:
 - `pytest -q`
 - `git status --short`
 
-This mode can touch unrelated files if local drift exists. Clean drift first.
+Use this intentionally. Clean drift first.
 
-## Manual docs-only validation
+## Project-memory checks
 
-For docs-only changes, this is usually enough:
-
-```powershell
-cd C:\projects\fitness_ai
-
-powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode docs-only
-
-git diff --check
-git status --short
-```
-
-Full pytest is not required for docs-only milestones unless runtime/code files changed.
-
-## Manual code validation
-
-For code changes, prefer:
+Use Dev Assistant commands:
 
 ```powershell
-cd C:\projects\fitness_ai
-
-powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code
+.\.venv\Scripts\python.exe tools\dev_assistant.py memory-check
+.\.venv\Scripts\python.exe tools\dev_assistant.py stale-doc-check
 ```
 
-Then run additional focused tests that match the milestone.
+The checks are read-only. They verify required project-memory docs and flag obvious stale/conflicting workflow statements.
 
-## Manual full validation
+## Snapshot command
 
-For full validation:
+Use `git archive`, not `Compress-Archive`.
 
 ```powershell
-cd C:\projects\fitness_ai
+$commit = git rev-parse --short HEAD
+$date = Get-Date -Format "yyyy-MM-dd"
+$commitMessage = git log -1 --pretty=%s
 
-powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode full
+$safeMessage = $commitMessage -replace '[^a-zA-Z0-9]+', '-'
+$safeMessage = $safeMessage.ToLower().Trim('-')
+
+$zipName = "..itness_ai_snapshot_${date}_${commit}_${safeMessage}.zip"
+
+git archive --format=zip --output=$zipName HEAD
+
+Write-Host "Created snapshot:"
+Write-Host $zipName
+
+Get-Item $zipName
 ```
 
-Use this intentionally. It is not the default path for docs-only or small code commits.
+Immediately after snapshot, sync Linux:
 
-## Handling unrelated Black/Ruff drift
+```bash
+cd ~/projects/fitness-ai-platform
 
-If Black or pre-commit touches unrelated files, inspect first:
+git fetch origin
+git switch main
+git pull --ff-only origin main
+
+git status -sb
+git log --oneline -5
+```
+
+For feature branches, replace `main` with the feature branch name.
+
+## Windows to Linux branch sync
+
+Windows after commit/push:
 
 ```powershell
-git status --short
+git push -u origin <branch-name>
 ```
 
-Restore unrelated files only when they are clearly not part of the milestone:
+Linux:
 
-```powershell
-git restore -- path\to\unrelated_file.py
+```bash
+cd ~/projects/fitness-ai-platform
+
+git fetch origin
+git switch <branch-name> || git switch --track origin/<branch-name>
+git pull --ff-only origin <branch-name>
+
+git status -sb
+git log --oneline -5
 ```
 
-Do not use broad destructive cleanup commands unless you have verified the intended files are staged or backed up.
+## Deterministic-safe FastAPI restart with Windows Ollama connectivity
 
-## Commit hygiene
+FastAPI and Streamlit may run on Linux while Ollama runs on Windows.
 
-Before commit:
+Use `OLLAMA_BASE_URL` so manual Developer Mode provider lanes can reach Windows Ollama.
+This does not enable provider behavior by default.
 
-```powershell
-git status --short
-git diff --cached --name-only
+Deterministic-safe restart:
+
+```bash
+cd ~/projects/fitness-ai-platform
+
+unset RECOMMENDATION_CANDIDATE_PROVIDER
+unset NUTRITION_EXPLANATION_PROVIDER
+export OLLAMA_BASE_URL=http://<WINDOWS_IP>:11434
+
+python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Only intended files should be staged.
+Provider-selection env vars should remain unset unless intentionally testing provider defaults.
 
-Patch files and snapshot zips should remain untracked/local-only.
+Connectivity check from Linux:
+
+```bash
+curl -s http://<WINDOWS_IP>:11434/api/tags | head
+```
+
+Daily Coach Narrative provider-lane smoke test:
+
+```bash
+curl -s "http://127.0.0.1:8000/daily-coach/102/narrative-preview/debug?provider=direct_ollama&model=qwen3:8b&date=2026-06-19&timeout_seconds=180" | python -m json.tool
+```
+
+## Streamlit restart
+
+If port 8501 is occupied, use 8502:
+
+```bash
+cd ~/projects/fitness-ai-platform
+
+streamlit run ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8502
+```
 
 ## Current product safety reminders
 
-- Deterministic remains default and fallback.
-- `direct_ollama/qwen2.5:3b` remains opt-in for Training only.
-- qwen3 remains experimental only.
-- Training remains the only provider-integrated full-report section.
-- Nutrition Report Section is backend-owned Level 3 and does not call provider.
 - Backend owns truth.
-- AI explains approved truth.
-- Validator enforces reality.
-- The product principle remains: sound right and be right.
+- AI explains approved truth only.
+- Validators enforce reality.
+- Deterministic fallback remains default.
+- Provider lanes remain manual/opt-in/debug unless explicitly promoted.
+- `direct_ollama` remains opt-in/manual for Daily Coach Narrative developer preview lanes.
+- qwen3 remains evaluation-only, not production-approved.
+- Normal Today UI narrative integration remains separate future work.
+- Do not add Claude-specific workflow files or commands.

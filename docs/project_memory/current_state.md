@@ -8,60 +8,46 @@ AI Health Coach / fitness-ai
 
 ## Current branch
 
-`main`
+`feature/ai-coding-workflow-supercharger-v1`
 
 ## Latest accepted milestone
 
-`Daily Coach Narrative Developer Preview v1` was accepted and merged to `main`.
+`Daily Coach Narrative Today Developer Panel v1` is accepted and merged to `main`.
 
-Final accepted status: `DAILY_COACH_NARRATIVE_DEVELOPER_PREVIEW_V1_ACCEPTED`.
-
-Accepted developer/debug endpoint:
-
-```text
-GET /daily-coach/{user_id}/narrative-preview/debug
-```
+Final accepted status: `DAILY_COACH_NARRATIVE_TODAY_DEVELOPER_PANEL_V1_ACCEPTED`.
 
 Accepted behavior:
 
-- default path remains deterministic fallback only
-- provider path is explicit `direct_ollama` opt-in only
-- approved provider narrative is returned only after parse + validation success
-- rejected/unparsable/provider-failed output falls back deterministically
-- rejected provider text, raw prompts, raw provider payloads, raw validation internals, stack traces, and hidden architecture language are not exposed
-
-No normal Today UI integration occurred. No Streamlit normal surface integration occurred. No report integration occurred. No provider narrative persistence occurred. No model was production-approved.
+- Streamlit Developer Mode-only panel is available.
+- Normal Today user view remains unchanged.
+- Provider calls are manual-trigger only.
+- Accepted lanes are deterministic fallback, `qwen3:8b` fast preview, `qwen3:32b` premium preview, and `qwen2.5:3b` baseline/regression.
+- Approved provider narrative appears only after backend parse and validation success.
+- Rejected/raw/provider/debug output remains hidden.
+- No report integration, persistence, model promotion, provider default change, validator change, or deterministic fallback change occurred.
 
 ## Current implementation milestone
 
-`Daily Coach Narrative Async Today Preview Design v1` is complete and ready for Architecture review.
+`AI Coding Workflow Supercharger v1` is implemented pending review.
 
-Implementation status: `DAILY_COACH_NARRATIVE_ASYNC_TODAY_PREVIEW_DESIGN_V1_COMPLETE`.
+Implementation status: `AI_CODING_WORKFLOW_SUPERCHARGER_V1_IMPLEMENTED_PENDING_QA`.
 
-Architecture has made the Product Readiness call: Daily Coach Narrative is not approved for synchronous normal Today UI integration because qwen3:8b latency around 40-50 seconds is not acceptable for blocking Today page load.
+This milestone adds repo-native workflow guidance and read-only local tooling for ChatGPT-led development, optional scoped Codex/Aider/Copilot use, project-memory checks, prompt/context-pack generation, snapshot commands, Windows/Linux sync commands, and deterministic-safe FastAPI restart guidance for Windows-hosted Ollama provider-lane testing.
 
-The design defines the approved bridge pattern:
+This milestone does not change product runtime behavior, FastAPI routes, Streamlit product surfaces, provider defaults, validators, persistence, reports, nutrition, training, food catalog, exercise catalog, or model approval status.
 
-```text
-Today page loads immediately
-→ deterministic Daily Next Action remains primary
-→ deterministic fallback coach note appears immediately
-→ provider narrative may be generated only through async/developer-gated preview
-→ approved provider narrative may replace fallback only after parse + validation success
-→ failed or rejected provider output keeps fallback
-→ provider can be disabled without breaking Today
-```
-
-Design recommendation: implement `Daily Coach Narrative Today Developer Panel v1` next, using the accepted backend debug endpoint with a manual Developer Mode trigger. Do not implement normal Today UI narrative integration yet.
+Claude-specific files and commands remain out of scope. No `CLAUDE.md` is added.
 
 ## Next recommended milestone options
 
-- Daily Coach Narrative Async Today Preview Design v1 Architecture review/acceptance.
-- AI Coding Workflow Supercharger v1.
-- Daily Coach Narrative Today Developer Panel v1 after design acceptance.
-- Daily Coach Narrative Async Preview Backend v1 if Architecture wants backend-first status helpers.
-- Logging UX Speed & Friction Reduction v1.
-- Nutrition Explanation Value-Aware Copy v1.
+- Architecture / QA review for AI Coding Workflow Supercharger v1.
+- Headroom Developer Workflow Spike v1 after Supercharger acceptance.
+- Daily Coach Narrative Limited Today UI Readiness v1 after product-readiness review.
+- Daily Coach Narrative Async Background Generation v1 after runtime/persistence strategy is approved.
+
+---
+
+## Historical project state notes
 
 ## Current model/provider status
 
