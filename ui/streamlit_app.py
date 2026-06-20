@@ -8080,7 +8080,7 @@ with reports_tab:
 with developer_tab:
     render_developer_section(user_id)
 
-# Portfolio visual tightening v4 — garnet/gold portfolio palette
+# Portfolio visual tightening v4 — calm neutral/teal readability palette
 st.markdown(
     """
     <style>
