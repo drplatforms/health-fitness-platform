@@ -94,6 +94,8 @@ Linux commands preserved and refreshed:
 - `lpull` — pull Linux `main` only, no restart.
 - `lvalidate` — run Linux project-memory validation.
 - `lollama` — verify Linux can reach Windows Ollama; does not start Linux Ollama.
+
+Linux command hotfix note: `lstatus`, `lpull`, and `lollama` were smoke-tested after the initial repo-owned command-menu patch exposed fragile Bash payload formatting. `lstatus` now uses safe `printf` labels and DB file checks without escaped Bash parentheses; `lpull` uses `git log -5 --oneline --decorate`; `lollama` uses `printf` instead of a literal `\n` suffix.
 - `lstop` — stop project FastAPI/Streamlit processes only.
 - `lrestart` — restart Linux FastAPI/Streamlit with Windows Ollama URL.
 - `lupdate` — pull Linux `main` and restart the app.

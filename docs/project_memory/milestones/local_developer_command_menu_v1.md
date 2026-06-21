@@ -1,6 +1,6 @@
 # Local Developer Command Menu Audit + Repo-Owned Commands v1
 
-Status: `IMPLEMENTED / READY FOR ARCHITECTURE REVIEW`
+Status: `IMPLEMENTED / HOTFIXED / READY FOR ARCHITECTURE REVIEW`
 
 Branch: `feature/local-developer-command-menu-v1`
 
@@ -36,3 +36,13 @@ Not changed:
 - same-session bridge behavior
 - qwen model eligibility
 - model/provider defaults
+
+## Hotfix before acceptance
+
+Local smoke found issues in the first repo-owned command script:
+
+- `lstatus` failed on the Linux bash payload around DB file discovery.
+- `lpull` failed after a successful pull because the log argument was malformed in runtime.
+- `lollama` succeeded but printed a literal `\n`.
+
+The hotfix keeps the milestone docs/tooling-only and updates only command scripting/tests/docs. It uses safe `printf` labels, `git log -5 --oneline --decorate`, and DB file checks without Bash parenthesis escaping.

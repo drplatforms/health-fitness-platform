@@ -134,3 +134,22 @@ def test_command_artifacts_do_not_include_citations_or_obvious_secrets() -> None
     ]
     for marker in forbidden:
         assert marker not in combined
+
+
+def test_linux_status_and_pull_commands_use_safe_bash_payloads() -> None:
+    text = read(COMMAND_SCRIPT)
+    assert "git log -5 --oneline --decorate" in text
+    assert "git log --oneline -5" not in text
+    assert "find . -maxdepth 3 -type f \\(" not in text
+    assert "find . -maxdepth 3 -type f \\\\(" not in text
+    assert "DB files:" in text
+    assert "printf '%s\\n' 'DB files:'" in text
+
+
+def test_lollama_uses_printf_without_literal_newline_suffix() -> None:
+    text = read(COMMAND_SCRIPT)
+    lollama_block = text[text.index("function lollama") :]
+    assert "Checking Windows Ollama from Linux" in lollama_block
+    assert "printf '%s\\n'" in lollama_block
+    assert "api/tags\\\\n" not in lollama_block
+    assert "echo 'Windows Ollama reachable from Linux.'" not in lollama_block

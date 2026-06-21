@@ -93,6 +93,8 @@ Runtime truth encoded by the command menu:
 
 This is docs/tooling/local command work only. It does not change provider, runtime, Streamlit app, FastAPI, schema, persistence, reports, Daily Next Action, nutrition, workout, catalog, or model eligibility behavior.
 
+Hotfix status before acceptance: local smoke found Linux command-script issues in `lstatus`, `lpull`, and `lollama`. The command-menu hotfix updates safe Bash payloads, uses `git log -5 --oneline --decorate`, removes escaped `find` parentheses from `lstatus`, and uses `printf` so `lollama` does not print a literal `\n`.
+
 ## Developer Delivery Workflow Contract v1 status
 ## Developer Delivery Workflow Script Safety Addendum v1 status
 
