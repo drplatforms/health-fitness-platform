@@ -12,11 +12,11 @@ AI Health Coach / fitness-ai
 
 ## Current active milestone
 
-`Developer Delivery Workflow Contract v1`
+`Developer Delivery Workflow Script Safety Addendum v1`
 
 Status: `IMPLEMENTED / READY FOR ARCHITECTURE REVIEW`
 
-Purpose: create a repo-level delivery workflow contract so implementation handoffs use patch-first delivery by default, snapshot fallback only when needed, and Linux pull immediately after every snapshot filename.
+Purpose: extend the repo-level delivery workflow contract so future generated scripts are phase-separated and merge scripts verify the accepted final feature commit is actually an ancestor of `main` before push, snapshot, or Linux pull.
 
 North-star references remain preserved in repo memory:
 - Technical future architecture ledger: `docs/project_memory/future_architecture_ledger.md`
@@ -68,6 +68,22 @@ Memory drift is architecture drift.
 
 
 ## Developer Delivery Workflow Contract v1 status
+## Developer Delivery Workflow Script Safety Addendum v1 status
+
+Developer Delivery Workflow Script Safety Addendum v1 is a docs/tooling-only hardening milestone.
+
+It adds `docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md` and updates project-memory checks so future agents have an explicit rule for safe generated scripts.
+
+The key rule is that merge scripts must run:
+
+```text
+git merge-base --is-ancestor <accepted-final-feature-commit> main
+```
+
+If the accepted final feature commit is not an ancestor of `main`, scripts must stop before push, snapshot, or Linux pull.
+
+This milestone exists because a clean working tree does not prove that the correct milestone was merged.
+
 
 Developer Delivery Workflow Contract v1 is a docs/tooling-only milestone.
 

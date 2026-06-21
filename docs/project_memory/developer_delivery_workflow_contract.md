@@ -12,6 +12,8 @@ It exists because repo workflow is part of project architecture. The project use
 
 This contract is binding guidance for ChatGPT, Codex-style agents, patch helpers, QA, DevOps & Tooling, and future project-memory work.
 
+This contract is extended by `docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md`, which adds hard-stop gates for generated scripts and post-merge ancestry verification.
+
 ## Core rule
 
 Patch-first delivery is the default.
@@ -19,6 +21,14 @@ Patch-first delivery is the default.
 Snapshot restore is a fallback only.
 
 When Dustin provides a snapshot filename, the next assistant response must provide the Linux pull command first, before handoff or next-step discussion.
+
+Generated scripts must also follow the script-safety addendum. In particular, merge scripts must prove that the accepted final feature commit is an ancestor of `main` after merge:
+
+```text
+git merge-base --is-ancestor <accepted-final-feature-commit> main
+```
+
+A clean working tree is not proof that the correct milestone was merged.
 
 ## Environment assumptions
 
