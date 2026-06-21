@@ -141,3 +141,4 @@ Every meaningful milestone or feature branch that changes user-visible behavior,
 A milestone is not done if project memory still describes older project truth.
 
 - Daily Coach same-session bridge retry memory: `docs/project_memory/milestones/daily_coach_same_session_approved_preview_bridge_v1_retry.md` and `docs/project_memory/reviews/daily_coach_same_session_approved_preview_bridge_v1_retry.md`.
+- Daily Coach narrative product voice polish memory: `docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md` and `docs/project_memory/reviews/daily_coach_narrative_product_voice_polish_v1.md`.

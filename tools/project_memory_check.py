@@ -40,6 +40,9 @@ REQUIRED_FILES = [
     "docs/project_memory/milestones/same_session_bridge_runtime_qa_v1.md",
     "docs/project_memory/reviews/same_session_bridge_runtime_qa_v1.md",
     "docs/project_memory/runtime_qa/same_session_bridge_runtime_qa_v1_results.md",
+    "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md",
+    "docs/project_memory/reviews/daily_coach_narrative_product_voice_polish_v1.md",
+    "docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md",
     "docs/project_memory/development_workflow.md",
     "docs/project_memory/agent_workflow.md",
 ]
@@ -183,6 +186,24 @@ REQUIRED_PHRASES = {
         "No provider call occurred on normal Today load",
         "No DB/report/file persistence was observed",
     ],
+    "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md": [
+        "Daily Coach Narrative Product Voice Polish v1",
+        "sound right and be right",
+        "qwen2.5:3b",
+        "No provider call occurs on normal Today load",
+    ],
+    "docs/project_memory/reviews/daily_coach_narrative_product_voice_polish_v1.md": [
+        "Daily Coach Narrative Product Voice Polish v1",
+        "DAILY_COACH_NARRATIVE_PRODUCT_VOICE_POLISH_V1_ACCEPTED",
+        "No validation loosening",
+        "Generic/meta copy is blocked or flagged",
+    ],
+    "docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md": [
+        "Daily Coach Narrative Product Voice Polish v1 Runtime QA Results",
+        "LOCAL MANUAL QA REQUIRED",
+        "qwen2.5:3b",
+        "No provider call occurs on normal Today load",
+    ],
     "docs/project_memory/milestones/provider_narrative_qa_matrix_v2.md": [
         "Provider Narrative QA Matrix v2",
         "qwen2.5:3b",
@@ -208,6 +229,8 @@ REQUIRED_PHRASES = {
         "Provider Narrative QA Matrix v2",
         "Daily Coach Same-Session Approved Preview Bridge v1 Retry",
         "Same-Session Bridge Runtime QA v1",
+        "Daily Coach Narrative Product Voice Polish v1",
+        "sound right and be right",
     ],
     "docs/project_memory/ai_boundaries.md": [
         "Deterministic fallback remains the default",

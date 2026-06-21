@@ -12,11 +12,11 @@ AI Health Coach / fitness-ai
 
 ## Current active milestone
 
-`Same-Session Bridge Runtime QA v1`
+`Daily Coach Narrative Product Voice Polish v1`
 
-Status: `RUNTIME QA PASS / DOCS CLOSEOUT READY FOR ARCHITECTURE REVIEW`
+Status: `IMPLEMENTED / READY FOR LOCAL VALIDATION AND MANUAL QA`
 
-Purpose: record accepted runtime QA evidence for the manual Daily Coach same-session approval bridge and keep the result in repo memory instead of chat-only handoff text.
+Purpose: improve approved Daily Coach provider narrative quality while preserving the accepted manual same-session bridge boundary. The target remains: sound right and be right.
 
 North-star references remain preserved in repo memory:
 - Technical future architecture ledger: `docs/project_memory/future_architecture_ledger.md`
@@ -48,6 +48,7 @@ The accepted main baseline before this provider-reliability branch includes:
 - Developer Delivery Workflow Script Safety Addendum v1
 - Daily Coach Same-Session Approved Preview Bridge v1 Retry
 - Same-Session Bridge Runtime QA v1 results
+- Daily Coach Narrative Product Voice Polish v1
 
 The prior same-session approval bridge branch is not accepted and is reference-only.
 
@@ -194,6 +195,33 @@ Runtime QA recorded the accepted bridge as safe across the required manual QA co
 - Diagnostics remained sanitized/readable.
 - No PyArrow diagnostic rendering issue was observed.
 
+
+### Daily Coach Narrative Product Voice Polish v1
+Current branch: `feature/daily-coach-narrative-product-voice-polish-v1`
+
+Status: `IMPLEMENTED / READY FOR LOCAL VALIDATION AND MANUAL QA`
+
+This milestone improves approved Daily Coach provider narrative voice inside the existing manual same-session bridge. It refines prompt guidance and adds stricter product-voice validation so qwen2.5:3b approved copy is more coach-like, useful, concise, and grounded.
+
+Implemented voice boundaries:
+
+- `qwen2.5:3b` remains bridge baseline only.
+- No qwen3 model is bridge-enabled.
+- No model/provider default is promoted.
+- Provider preview remains manual Developer Mode only.
+- Normal Today load remains deterministic and must not call the provider.
+- Approval remains explicit, manual, session-only, and non-persistent.
+- Generic/template/meta copy is rejected or flagged.
+- Unsupported claims remain blocked.
+- Raw/rejected provider output and provider/model/debug internals remain hidden from normal UI.
+- No DB/report/file/schema behavior changed.
+
+Runtime QA result doc:
+
+`docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md`
+
+Manual runtime QA is required before final acceptance.
+
 ## Current provider doctrine
 
 - Deterministic paths remain the default.
@@ -252,21 +280,21 @@ No new catalog import, scraping, external API ingestion, or AI-generated catalog
 | today coach note | Deterministic normal Today UI card |
 | coach's read / daily coach synthesis | Deterministic synthesis surface |
 | daily coach narrative developer preview | Manual Developer Mode preview/debug only |
-| daily coach same-session approval | Not accepted; reference-only failed branch |
+| daily coach same-session approval | Accepted manual Developer Mode, qwen2.5:3b-only, session-only bridge |
 | workout planning | Deterministic generation with size preference and lifecycle cleanup |
 | catalogs | Deterministic curated/imported canonical food and exercise foundations |
 
 ## Safe next sequence
 
-1. Complete Project Memory Alignment + North Star Architecture v1.
-2. Resume or accept Daily Coach Provider Preview Contract Reliability v1 only after docs are aligned.
-3. Retry Daily Coach Same-Session Approved Preview Bridge only after provider preview contract reliability is proven manually and by tests.
+1. Complete Daily Coach Narrative Product Voice Polish v1 local validation and manual QA.
+2. Run Daily Coach Narrative Product Voice Runtime QA v1 across QA users/contexts before any broader provider design.
+3. Keep Async Daily Coach Narrative Design v1 as a design-only future milestone unless Architecture explicitly authorizes implementation.
 4. Keep Global Visual Theme Cleanup v1 parked as non-blocking UI polish.
 
 ## Non-negotiable constraints
 
 - no model promotion without QA matrix and Architecture acceptance
-- no same-session approval unless explicitly reauthorized after reliability work
+- no widening same-session approval beyond the accepted manual Developer Mode qwen2.5:3b session-only bridge
 - no Daily Coach narrative persistence yet
 - no provider call on normal Today load
 - no raw/rejected provider output in normal UI

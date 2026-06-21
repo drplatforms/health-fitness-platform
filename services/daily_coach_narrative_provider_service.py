@@ -61,7 +61,11 @@ def build_daily_coach_narrative_prompt(context: DailyCoachNarrativeContext) -> s
         f'- "{claim}"' for claim in sorted(set(context.forbidden_claims))
     )
     example_output = {
-        "coach_note": "Log a meal or snack to improve today's nutrition picture.",
+        "coach_note": (
+            "Today's useful move is to make the nutrition picture less fuzzy. "
+            "Log one meal or snack first, then add anything else you remember "
+            "without turning it into a project."
+        ),
         "key_takeaway": "More food logging gives today's guidance a clearer base.",
         "recommended_focus": "Log a meal or snack",
         "confidence_language": "Keep this limited until more food data is logged.",
@@ -103,6 +107,17 @@ def build_daily_coach_narrative_prompt(context: DailyCoachNarrativeContext) -> s
         "- In coach_note, key_takeaway, and confidence_language, do not mention "
         "prompts, objects, validators, services, data packets, routes, internal "
         "instructions, or whether facts were approved.\n\n"
+        "PRODUCT_VOICE_TARGET:\n"
+        "- Sound like a practical coach note, not a system report.\n"
+        "- Make coach_note two or three short sentences.\n"
+        "- Sentence 1: name the useful priority for today.\n"
+        "- Sentence 2: explain why the selected action helps.\n"
+        "- Final sentence: give one concrete, low-friction next step.\n"
+        "- Be calm, direct, lightly encouraging, and specific to the selected action.\n"
+        "- Do not add facts, targets, trends, medical claims, or a second action.\n"
+        "- Do not use headings, bullet labels, hype, fake intimacy, or filler.\n"
+        "- Avoid phrases like based on the data provided, you got this, "
+        "stay consistent, trust the process, and keep up the good work.\n\n"
         "EXAMPLE SHAPE ONLY. Do not copy these placeholder values:\n"
         f"{json.dumps(example_output, indent=2)}\n\n"
         "SELECTED_ACTION_CONTEXT:\n"

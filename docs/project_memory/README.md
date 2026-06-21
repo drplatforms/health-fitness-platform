@@ -35,6 +35,16 @@ All future agents should follow `developer_delivery_workflow_contract.md` for br
 
 `developer_delivery_workflow_script_safety_addendum_v1.md` extends the contract with script hard-stop gates, including the mandatory post-merge ancestry check that proves the accepted final feature commit is an ancestor of `main` before push, snapshot, or Linux pull.
 
+## Active Daily Coach provider docs
+
+Daily Coach narrative product voice polish is tracked in:
+
+- `milestones/daily_coach_narrative_product_voice_polish_v1.md`
+- `reviews/daily_coach_narrative_product_voice_polish_v1.md`
+- `runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md`
+
+This milestone improves approved narrative copy inside the accepted manual same-session bridge only. It does not authorize provider default changes, persistence, normal-load AI, qwen3 bridge use, or model promotion.
+
 ## Historical docs
 
 Historical milestone, review, runtime QA, and architecture docs are preserved. Do not rewrite history to pretend failed smoke tests did not happen. Classify old branches and decisions instead.

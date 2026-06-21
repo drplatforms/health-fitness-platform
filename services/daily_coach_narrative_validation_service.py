@@ -68,6 +68,24 @@ _GENERIC_FILLER_FRAGMENTS = {
     "keep up the good work",
     "trust the process",
     "listen to your body",
+    "you got this",
+    "crush it",
+    "no excuses",
+}
+
+_TEMPLATE_COPY_FRAGMENTS = {
+    "based on the data provided",
+    "based on the information provided",
+    "based on your data",
+    "data provided",
+    "information provided",
+    "what matters today:",
+    "why it matters:",
+    "next step:",
+    "avoid overthinking:",
+    "as your ai coach",
+    "as a coach note",
+    "this coach note",
 }
 
 _INTERNAL_METADATA_FRAGMENTS = {
@@ -270,6 +288,9 @@ def validate_daily_coach_narrative_candidate(
     for fragment in sorted(_GENERIC_FILLER_FRAGMENTS):
         if fragment in lowercase_public_text:
             validation_errors.append(f"Generic filler language found: {fragment}")
+
+    for fragment in sorted(_template_copy_fragments_found(candidate)):
+        validation_errors.append(f"Generic/template coach language found: {fragment}")
 
     invented_numbers = _invented_numeric_tokens(public_text, context=context)
     if invented_numbers:
@@ -525,6 +546,17 @@ def _meta_process_language_found(
         if field_matches:
             matches.append(f"{field_name}: " + ", ".join(field_matches))
     return _dedupe_preserve_order(matches)
+
+
+def _template_copy_fragments_found(
+    candidate: CandidateDailyCoachNarrative,
+) -> list[str]:
+    """Return generic/template fragments from user-facing coach copy only."""
+
+    text = _user_facing_generated_text(candidate).lower()
+    return _dedupe_preserve_order(
+        [fragment for fragment in sorted(_TEMPLATE_COPY_FRAGMENTS) if fragment in text]
+    )
 
 
 def _user_facing_generated_text(candidate: CandidateDailyCoachNarrative) -> str:
