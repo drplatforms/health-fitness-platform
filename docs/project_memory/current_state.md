@@ -12,11 +12,11 @@ AI Health Coach / fitness-ai
 
 ## Current active milestone
 
-`Daily Coach Narrative Product Voice Polish v1`
+`Daily Coach Narrative Product Voice Runtime QA v1`
 
-Status: `IMPLEMENTED / READY FOR LOCAL VALIDATION AND MANUAL QA`
+Status: `PASS / DOCS CLOSEOUT READY FOR ARCHITECTURE REVIEW`
 
-Purpose: improve approved Daily Coach provider narrative quality while preserving the accepted manual same-session bridge boundary. The target remains: sound right and be right.
+Purpose: record the accepted runtime QA result for Daily Coach Narrative Product Voice Polish v1 while preserving the accepted manual same-session bridge boundary. The current qwen2.5:3b voice is acceptable for the manual bridge baseline, but premium voice remains a later Architecture-approved milestone.
 
 North-star references remain preserved in repo memory:
 - Technical future architecture ledger: `docs/project_memory/future_architecture_ledger.md`
@@ -49,6 +49,7 @@ The accepted main baseline before this provider-reliability branch includes:
 - Daily Coach Same-Session Approved Preview Bridge v1 Retry
 - Same-Session Bridge Runtime QA v1 results
 - Daily Coach Narrative Product Voice Polish v1
+- Daily Coach Narrative Product Voice Runtime QA v1 results
 
 The prior same-session approval bridge branch is not accepted and is reference-only.
 
@@ -197,9 +198,7 @@ Runtime QA recorded the accepted bridge as safe across the required manual QA co
 
 
 ### Daily Coach Narrative Product Voice Polish v1
-Current branch: `feature/daily-coach-narrative-product-voice-polish-v1`
-
-Status: `IMPLEMENTED / READY FOR LOCAL VALIDATION AND MANUAL QA`
+Status: accepted as a narrow voice-polish milestone inside the manual same-session bridge.
 
 This milestone improves approved Daily Coach provider narrative voice inside the existing manual same-session bridge. It refines prompt guidance and adds stricter product-voice validation so qwen2.5:3b approved copy is more coach-like, useful, concise, and grounded.
 
@@ -216,11 +215,39 @@ Implemented voice boundaries:
 - Raw/rejected provider output and provider/model/debug internals remain hidden from normal UI.
 - No DB/report/file/schema behavior changed.
 
+### Daily Coach Narrative Product Voice Runtime QA v1
+Current branch: `feature/daily-coach-narrative-product-voice-runtime-qa-v1`
+
+Status: `PASS / DOCS CLOSEOUT READY FOR ARCHITECTURE REVIEW`
+
 Runtime QA result doc:
 
-`docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md`
+`docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_runtime_qa_v1_results.md`
 
-Manual runtime QA is required before final acceptance.
+Runtime QA passed for the accepted Daily Coach Narrative Product Voice Polish v1. The qwen2.5:3b approved runtime narrative is acceptable for the current manual same-session bridge baseline while all accepted safety boundaries remain intact.
+
+Recorded runtime result:
+
+- QA 102 qwen2.5:3b happy path passed.
+- Provider was `direct_ollama`.
+- Model was `qwen2.5:3b`.
+- parse_success was true.
+- validation_success was true.
+- approved_narrative_returned was true.
+- fallback_used was false.
+- latency was approximately 22.5 seconds.
+- approval was eligible and the approval button was visible.
+- session approval worked.
+- Today Coach Note updated after approval.
+- normal Today UI remained free of provider/model/debug internals.
+- no raw/rejected provider output was displayed.
+- no persistence was observed.
+- Developer Mode diagnostics remained sanitized/readable.
+- no PyArrow diagnostic rendering issue was observed.
+
+Voice quality: `PASS_WITH_NOTE`
+
+The approved runtime narrative is acceptable for the current qwen2.5:3b manual bridge baseline, but it is not yet premium. The long-term product target remains: sound right and be right. Premium voice work remains a later milestone, likely involving qwen3 or premium async design after Architecture approval.
 
 ## Current provider doctrine
 
