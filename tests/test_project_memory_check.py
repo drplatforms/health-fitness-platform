@@ -359,3 +359,23 @@ def test_project_memory_check_requires_product_voice_polish_docs(
         == "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md"
         for result in results
     )
+
+
+def test_project_memory_check_requires_product_voice_runtime_qa_docs(
+    tmp_path: Path,
+) -> None:
+    write_required_project_memory(tmp_path)
+    (
+        tmp_path
+        / "docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_runtime_qa_v1_results.md"
+    ).unlink()
+
+    results = run_project_memory_check(tmp_path)
+
+    assert has_failures(results)
+    assert any(
+        result.status == "FAIL"
+        and result.path
+        == "docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_runtime_qa_v1_results.md"
+        for result in results
+    )
