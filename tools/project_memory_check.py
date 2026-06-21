@@ -26,12 +26,15 @@ REQUIRED_FILES = [
     "docs/project_memory/future_architecture_ledger.md",
     "docs/project_memory/premium_platform_blueprint.md",
     "docs/project_memory/developer_delivery_workflow_contract.md",
+    "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md",
     "docs/project_memory/open_questions.md",
     "docs/project_memory/milestones/provider_narrative_qa_matrix_v2.md",
     "docs/project_memory/reviews/provider_narrative_qa_matrix_v2.md",
     "docs/project_memory/runtime_qa/provider_narrative_qa_matrix_v2_results.md",
     "docs/project_memory/milestones/developer_delivery_workflow_contract_v1.md",
     "docs/project_memory/reviews/developer_delivery_workflow_contract_v1.md",
+    "docs/project_memory/milestones/developer_delivery_workflow_script_safety_addendum_v1.md",
+    "docs/project_memory/reviews/developer_delivery_workflow_script_safety_addendum_v1.md",
     "docs/project_memory/development_workflow.md",
     "docs/project_memory/agent_workflow.md",
 ]
@@ -72,6 +75,7 @@ REQUIRED_PHRASES = {
         "Do not add `CLAUDE.md`",
         "Project memory update requirement",
         "developer_delivery_workflow_contract.md",
+        "developer_delivery_workflow_script_safety_addendum_v1.md",
     ],
     ".github/copilot-instructions.md": [
         "Backend owns facts",
@@ -126,6 +130,22 @@ REQUIRED_PHRASES = {
         "Developer Delivery Workflow Contract v1",
         "DEVELOPER_DELIVERY_WORKFLOW_CONTRACT_V1_ACCEPTED",
         "docs/tooling only",
+    ],
+    "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md": [
+        "git merge-base --is-ancestor <accepted-final-feature-commit> main",
+        "A clean working tree is not proof that the correct milestone was merged.",
+        "phase-separated",
+        "stop before push, snapshot, or Linux pull",
+    ],
+    "docs/project_memory/milestones/developer_delivery_workflow_script_safety_addendum_v1.md": [
+        "Developer Delivery Workflow Script Safety Addendum v1",
+        "git merge-base --is-ancestor",
+        "Docs/tooling only",
+    ],
+    "docs/project_memory/reviews/developer_delivery_workflow_script_safety_addendum_v1.md": [
+        "Developer Delivery Workflow Script Safety Addendum v1",
+        "DEVELOPER_DELIVERY_WORKFLOW_SCRIPT_SAFETY_ADDENDUM_V1_ACCEPTED",
+        "Docs/tooling only",
     ],
     "docs/project_memory/milestones/provider_narrative_qa_matrix_v2.md": [
         "Provider Narrative QA Matrix v2",

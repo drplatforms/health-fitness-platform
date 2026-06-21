@@ -63,6 +63,34 @@ def write_required_project_memory(root: Path) -> None:
             )
         elif (
             relative_path
+            == "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md"
+        ):
+            text = (
+                "git merge-base --is-ancestor <accepted-final-feature-commit> main\n"
+                "A clean working tree is not proof that the correct milestone was merged.\n"
+                "phase-separated\n"
+                "stop before push, snapshot, or Linux pull\n"
+            )
+        elif (
+            relative_path
+            == "docs/project_memory/milestones/developer_delivery_workflow_script_safety_addendum_v1.md"
+        ):
+            text = (
+                "Developer Delivery Workflow Script Safety Addendum v1\n"
+                "git merge-base --is-ancestor\n"
+                "Docs/tooling only\n"
+            )
+        elif (
+            relative_path
+            == "docs/project_memory/reviews/developer_delivery_workflow_script_safety_addendum_v1.md"
+        ):
+            text = (
+                "Developer Delivery Workflow Script Safety Addendum v1\n"
+                "DEVELOPER_DELIVERY_WORKFLOW_SCRIPT_SAFETY_ADDENDUM_V1_ACCEPTED\n"
+                "Docs/tooling only\n"
+            )
+        elif (
+            relative_path
             == "docs/project_memory/milestones/developer_delivery_workflow_contract_v1.md"
         ):
             text = (
@@ -236,5 +264,25 @@ def test_project_memory_check_requires_developer_delivery_workflow_contract(
     assert any(
         result.status == "FAIL"
         and result.path == "docs/project_memory/developer_delivery_workflow_contract.md"
+        for result in results
+    )
+
+
+def test_project_memory_check_requires_script_safety_addendum(
+    tmp_path: Path,
+) -> None:
+    write_required_project_memory(tmp_path)
+    (
+        tmp_path
+        / "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md"
+    ).unlink()
+
+    results = run_project_memory_check(tmp_path)
+
+    assert has_failures(results)
+    assert any(
+        result.status == "FAIL"
+        and result.path
+        == "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md"
         for result in results
     )

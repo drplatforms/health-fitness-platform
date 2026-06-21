@@ -16,8 +16,9 @@ Agents and humans should read these files before changing architecture, provider
 8. `premium_platform_blueprint.md`
 9. `development_workflow.md`
 10. `developer_delivery_workflow_contract.md`
-11. `agent_workflow.md`
-12. `open_questions.md`
+11. `developer_delivery_workflow_script_safety_addendum_v1.md`
+12. `agent_workflow.md`
+13. `open_questions.md`
 
 ## Project memory update requirement
 
@@ -31,6 +32,8 @@ A milestone is not accepted if docs still describe old state, imply unapproved p
 Implementation delivery is patch-first by default. Snapshot restore is fallback only.
 
 All future agents should follow `developer_delivery_workflow_contract.md` for branch checks, patch application, validation, explicit staging, snapshot creation, and the hard rule that Linux pull is provided immediately after a snapshot filename.
+
+`developer_delivery_workflow_script_safety_addendum_v1.md` extends the contract with script hard-stop gates, including the mandatory post-merge ancestry check that proves the accepted final feature commit is an ancestor of `main` before push, snapshot, or Linux pull.
 
 ## Historical docs
 

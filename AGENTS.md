@@ -14,10 +14,11 @@ Read project memory before making changes:
 6. `docs/project_memory/section_registry_summary.md`
 7. `docs/project_memory/development_workflow.md`
 8. `docs/project_memory/developer_delivery_workflow_contract.md`
-9. `docs/project_memory/open_questions.md`
-10. `docs/project_memory/future_architecture_ledger.md`
-11. `docs/project_memory/premium_platform_blueprint.md`
-12. Milestone-specific docs under `docs/project_memory/milestones/`, `reviews/`, `runtime_qa/`, and `architecture/`
+9. `docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md`
+10. `docs/project_memory/open_questions.md`
+11. `docs/project_memory/future_architecture_ledger.md`
+12. `docs/project_memory/premium_platform_blueprint.md`
+13. Milestone-specific docs under `docs/project_memory/milestones/`, `reviews/`, `runtime_qa/`, and `architecture/`
 
 When project memory and a pasted prompt disagree, stop and ask for the latest source-of-truth snapshot or Architecture handoff.
 
@@ -76,6 +77,13 @@ Required defaults:
 - Windows source repo is `C:\projects\fitness_ai`.
 - Linux mirror repo is `~/projects/fitness-ai-platform`.
 - Ollama runs on Windows by default; Linux provider runtime must use `OLLAMA_BASE_URL=http://192.168.1.104:11434` unless Dustin says otherwise.
+
+Script safety addendum requirements from `docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md` are also mandatory:
+
+- Generated scripts should be phase-separated: preflight, apply patch, validate, stage, commit, push, Architecture review, merge after acceptance, snapshot, Linux pull.
+- Scripts must stop on branch/base/path assumption failures.
+- Merge scripts must verify the accepted final feature commit is an ancestor of `main` after merge with `git merge-base --is-ancestor <accepted-final-feature-commit> main` before push, snapshot, or Linux pull.
+- A clean working tree is not proof that the correct milestone was merged.
 
 ## Artifact and staging rules
 
