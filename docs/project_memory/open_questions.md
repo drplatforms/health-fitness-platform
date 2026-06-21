@@ -30,6 +30,7 @@ Future-only ideas in those files remain parked until scoped milestones approve i
 - Provider Narrative QA Matrix v2 must characterize `qwen2.5:3b`, qwen3 probes, latency, safe rejection behavior, and voice quality before same-session approval is retried.
 - Same-Session Approved Preview Bridge v1 Retry is accepted as a manual Developer Mode, session-only bridge using `qwen2.5:3b` only.
 - Same-Session Bridge Runtime QA v1 is PASS; no broader model/provider promotion is implied.
+- Daily Coach Narrative Product Voice Polish v1 is active; it should improve qwen2.5:3b approved copy without widening provider authority.
 - Which qwen3 model, if any, is promising enough for a future premium async voice lane?
 
 ### Today product loop
@@ -97,6 +98,7 @@ Future-only ideas in those files remain parked until scoped milestones approve i
 - Daily Coach Developer Preview Stabilization v1 fixed Developer Mode diagnostics rendering and clarified Coach's Read visibility.
 - Daily Coach Same-Session Approved Preview Bridge v1 Retry was accepted as manual Developer Mode, session-only display only.
 - Same-Session Bridge Runtime QA v1 passed and documented the manual bridge boundary.
+- Daily Coach Narrative Product Voice Polish v1 is scoped to voice quality inside the accepted bridge only.
 
 ### Provider boundaries
 

@@ -136,6 +136,36 @@ def write_required_project_memory(root: Path) -> None:
                 "No model is promoted by this report.\n"
                 "No same-session approval was added by this matrix.\n"
             )
+        elif (
+            relative_path
+            == "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md"
+        ):
+            text = (
+                "Daily Coach Narrative Product Voice Polish v1\n"
+                "sound right and be right\n"
+                "qwen2.5:3b\n"
+                "No provider call occurs on normal Today load\n"
+            )
+        elif (
+            relative_path
+            == "docs/project_memory/reviews/daily_coach_narrative_product_voice_polish_v1.md"
+        ):
+            text = (
+                "Daily Coach Narrative Product Voice Polish v1\n"
+                "DAILY_COACH_NARRATIVE_PRODUCT_VOICE_POLISH_V1_ACCEPTED\n"
+                "No validation loosening\n"
+                "Generic/meta copy is blocked or flagged\n"
+            )
+        elif (
+            relative_path
+            == "docs/project_memory/runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md"
+        ):
+            text = (
+                "Daily Coach Narrative Product Voice Polish v1 Runtime QA Results\n"
+                "LOCAL MANUAL QA REQUIRED\n"
+                "qwen2.5:3b\n"
+                "No provider call occurs on normal Today load\n"
+            )
         elif relative_path == "docs/project_memory/current_state.md":
             text = (
                 "Project Memory Alignment + North Star Architecture v1\n"
@@ -144,6 +174,8 @@ def write_required_project_memory(root: Path) -> None:
                 "No provider may run on normal Today page load\n"
                 "Provider Narrative QA Matrix v2\n"
                 "Same-Session Bridge Runtime QA v1\n"
+                "Daily Coach Narrative Product Voice Polish v1\n"
+                "sound right and be right\n"
             )
         elif relative_path == "docs/project_memory/ai_boundaries.md":
             text = (
@@ -305,5 +337,25 @@ def test_project_memory_check_requires_same_session_bridge_runtime_qa_results(
         result.status == "FAIL"
         and result.path
         == "docs/project_memory/runtime_qa/same_session_bridge_runtime_qa_v1_results.md"
+        for result in results
+    )
+
+
+def test_project_memory_check_requires_product_voice_polish_docs(
+    tmp_path: Path,
+) -> None:
+    write_required_project_memory(tmp_path)
+    (
+        tmp_path
+        / "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md"
+    ).unlink()
+
+    results = run_project_memory_check(tmp_path)
+
+    assert has_failures(results)
+    assert any(
+        result.status == "FAIL"
+        and result.path
+        == "docs/project_memory/milestones/daily_coach_narrative_product_voice_polish_v1.md"
         for result in results
     )
