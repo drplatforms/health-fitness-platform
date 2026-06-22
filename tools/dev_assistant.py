@@ -9,6 +9,7 @@ templates without committing, pushing, or changing product/runtime files.
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import subprocess
 import sys
@@ -26,6 +27,14 @@ DEFAULT_BASE_BRANCHES = [
 SOURCE_OF_TRUTH_DOCS = [
     "AGENTS.md",
     "docs/project_memory/current_state.md",
+    "docs/project_memory/project_state.json",
+    "docs/project_memory/current_workflow_contract.md",
+    "docs/project_memory/next_milestone.md",
+    "docs/project_memory/role_bootstrap_architecture.md",
+    "docs/project_memory/role_bootstrap_backend.md",
+    "docs/project_memory/role_bootstrap_qa.md",
+    "docs/project_memory/role_bootstrap_devops_tooling.md",
+    "docs/project_memory/chat_onboarding_test.md",
     "docs/project_memory/product_vision.md",
     "docs/project_memory/architecture_principles.md",
     "docs/project_memory/backend_truth_contract.md",
@@ -871,6 +880,98 @@ def run_memory_check() -> int:
     return 1 if has_failures(results) else 0
 
 
+def load_project_state(
+    path: Path | str = "docs/project_memory/project_state.json",
+) -> dict:
+    """Load the machine-readable project state file."""
+    state_path = Path(path)
+    if not state_path.exists():
+        return {}
+
+    try:
+        return json.loads(state_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def _format_list(values: list[str]) -> str:
+    if not values:
+        return "- Unavailable"
+    return "\n".join(f"- {value}" for value in values)
+
+
+def generate_continuity_brief() -> str:
+    """Generate a compact onboarding brief from project_state.json."""
+    state = load_project_state()
+
+    project = state.get("project", {})
+    baseline = state.get("current_baseline", {})
+    roadmap = state.get("active_roadmap", {})
+    runtime = state.get("runtime_split", {})
+    model_policy = state.get("model_provider_policy", {})
+    async_boundary = state.get("daily_coach_async_boundary", {})
+    workflow = state.get("workflow_rules", {})
+    first_files = state.get("first_files_to_read", {})
+
+    not_authorized = async_boundary.get("not_authorized", [])
+    all_role_files = first_files.get("all_roles", [])
+
+    lines = [
+        "AI Health Coach Continuity Brief",
+        "=" * 72,
+        "",
+        f"Project: {project.get('name', 'Unavailable')} / {project.get('repo', 'Unavailable')}",
+        f"Canonical branch: {project.get('canonical_branch', 'Unavailable')}",
+        f"Latest accepted milestone: {baseline.get('latest_accepted_milestone', 'Unavailable')}",
+        f"Latest accepted status: {baseline.get('latest_final_status', 'Unavailable')}",
+        f"Latest accepted commit: {baseline.get('latest_accepted_commit', 'Unavailable')}",
+        f"Latest accepted snapshot: {baseline.get('latest_accepted_snapshot', 'Unavailable')}",
+        f"Current authorized milestone: {roadmap.get('current_authorized_milestone', 'Unavailable')}",
+        f"Recommended next milestone after acceptance: {roadmap.get('recommended_next_milestone_after_acceptance', 'Unavailable')}",
+        "",
+        "Runtime split",
+        "-" * 72,
+        "Windows:",
+        _format_list(runtime.get("windows", [])),
+        "",
+        "Linux:",
+        _format_list(runtime.get("linux", [])),
+        "",
+        "Model / provider policy",
+        "-" * 72,
+        f"- qwen2.5:3b: {model_policy.get('qwen2_5_3b', 'Unavailable')}",
+        f"- qwen3: {model_policy.get('qwen3', 'Unavailable')}",
+        f"- qwen3:32b: {model_policy.get('qwen3_32b', 'Unavailable')}",
+        f"- model promotion: {model_policy.get('model_promotion', 'Unavailable')}",
+        f"- fallback: {model_policy.get('fallback', 'Unavailable')}",
+        f"- boundary: {model_policy.get('boundary', 'Unavailable')}",
+        "",
+        "Daily Coach async boundary",
+        "-" * 72,
+        f"- Current: {async_boundary.get('current', 'Unavailable')}",
+        f"- Normal Today behavior: {async_boundary.get('normal_today_behavior', 'Unavailable')}",
+        "- Not authorized:",
+        _format_list(not_authorized),
+        "",
+        "Workflow rules",
+        "-" * 72,
+        f"- phase-separated delivery: {workflow.get('phase_separated_delivery', 'Unavailable')}",
+        f"- no git add .: {workflow.get('no_git_add_dot', 'Unavailable')}",
+        f"- temp artifacts outside repo: {workflow.get('temporary_apply_artifacts_outside_repo', 'Unavailable')}",
+        f"- temp artifact root: {workflow.get('temporary_apply_artifact_root', 'Unavailable')}",
+        f"- apply scripts: {workflow.get('run_apply_scripts_from_repo_as', 'Unavailable')}",
+        f"- raw patches: {workflow.get('apply_raw_patches_from_repo_as', 'Unavailable')}",
+        f"- docs-only broad formatters disabled: {workflow.get('no_broad_formatters_for_docs_only', 'Unavailable')}",
+        f"- long handoffs in code blocks: {workflow.get('long_handoffs_in_code_blocks', 'Unavailable')}",
+        "",
+        "First files to read",
+        "-" * 72,
+        _format_list(all_role_files),
+    ]
+
+    return "\n".join(lines)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Read-only developer workflow assistant for AI Health Coach."
@@ -881,6 +982,10 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("memory-check", help="Run project-memory existence checks.")
     subparsers.add_parser(
         "stale-doc-check", help="Run project-memory stale-doc checks."
+    )
+    subparsers.add_parser(
+        "continuity-brief",
+        help="Print a compact role-aware onboarding brief from project_state.json.",
     )
 
     agent_prompt = subparsers.add_parser(
@@ -942,6 +1047,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in {"memory-check", "stale-doc-check"}:
         return run_memory_check()
+
+    if args.command == "continuity-brief":
+        print(generate_continuity_brief())
+        return 0
 
     if args.command == "agent-prompt":
         print(generate_agent_prompt(args.target, args.milestone))

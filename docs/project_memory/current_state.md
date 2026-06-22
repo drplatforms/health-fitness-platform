@@ -8,19 +8,19 @@ AI Health Coach / fitness-ai
 
 ## Current source-of-truth branch
 
-`feature/daily-coach-async-provider-runtime-design-v1`
+`feature/project-continuity-system-v2`
 
 ## Current active milestone
 
-`Daily Coach Async Provider Runtime Design v1`
+`Project Continuity System v2`
 
-Status: `AUTHORIZED / DESIGNED FOR REVIEW`
+Status: `AUTHORIZED FOR BACKEND / DEVOPS TOOLING IMPLEMENTATION`
 
-Purpose: define the safe future provider runtime boundary for Daily Coach async narrative generation before any implementation begins.
+Purpose: create an active role-aware continuity/onboarding system so new chats can rehydrate from repo truth and follow the correct delivery workflow.
 
-Current accepted implementation baseline before this branch: `Daily Coach Async Developer-Only Prototype v1`.
+Current accepted baseline before this branch: `Daily Coach Async Provider Runtime Design v1`.
 
-Continuity landing packet: `docs/project_memory/project_continuity_bootstrap.md`.
+Continuity control layer: `docs/project_memory/project_state.json`, `docs/project_memory/project_continuity_bootstrap.md`, `docs/project_memory/current_workflow_contract.md`, and role-specific bootstraps.
 
 ## Current Accepted Milestone Stack
 
@@ -33,12 +33,56 @@ Accepted Daily Coach async / runtime-control stack:
 5. Daily Coach Async Service Shell / No Worker v1
 6. Project Memory Transition Packet v1
 7. Daily Coach Async Developer-Only Prototype v1
+8. Daily Coach Async Provider Runtime Design v1
 
-Latest accepted implementation baseline: `Daily Coach Async Developer-Only Prototype v1`.
+Latest accepted baseline: `Daily Coach Async Provider Runtime Design v1`.
 
-`docs/project_memory/project_continuity_bootstrap.md` is the project-wide continuity landing packet for future Architecture, Backend Development, QA, DevOps / Tooling, Product, and TPM-style coordination chats.
+`docs/project_memory/project_state.json` is the compact machine-readable current-state control file.
 
-Current Daily Coach async boundary: service shell plus a Developer Mode-only manual lifecycle prototype. Normal Today behavior remains unchanged. There is still no provider runtime, no worker, no queue, no scheduler, no DB persistence, no normal Today provider call, no public Streamlit async display, no qwen3 promotion, and no qwen3 bridge.
+`docs/project_memory/project_continuity_bootstrap.md` remains the project-wide continuity landing packet for future Architecture, Backend Development, QA, DevOps / Tooling, Product, and TPM-style coordination chats.
+
+`docs/project_memory/current_workflow_contract.md` is the canonical phase-separated delivery workflow contract.
+
+Current Daily Coach async boundary: contracts plus service shell plus Developer Mode-only manual lifecycle prototype plus provider runtime design. Normal Today behavior remains unchanged. There is still no provider runtime implementation, no worker, no queue, no scheduler, no DB persistence implementation, no normal Today provider call, no public Streamlit async display, no qwen3 promotion, and no qwen3 bridge.
+
+
+## Project Continuity System v2 status
+
+Project Continuity System v2 is authorized on `feature/project-continuity-system-v2`.
+
+This is a docs + tooling milestone, not product feature work.
+
+Deliverables:
+
+- `docs/project_memory/project_state.json`
+- `docs/project_memory/role_bootstrap_architecture.md`
+- `docs/project_memory/role_bootstrap_backend.md`
+- `docs/project_memory/role_bootstrap_qa.md`
+- `docs/project_memory/role_bootstrap_devops_tooling.md`
+- `docs/project_memory/current_workflow_contract.md`
+- `docs/project_memory/next_milestone.md`
+- `docs/project_memory/chat_onboarding_test.md`
+- `python tools/dev_assistant.py continuity-brief`
+- strengthened project-memory checks
+
+Boundary preserved:
+
+- docs + tooling only
+- no Daily Coach provider runtime implementation
+- no Daily Coach persistence implementation
+- no direct_ollama call
+- no CrewAI call
+- no qwen3 call
+- no qwen3 bridge
+- no qwen3:32b promotion
+- no worker / queue / scheduler
+- no DB schema
+- no FastAPI behavior change
+- no Streamlit behavior change
+- no normal Today behavior change
+- no app/wapp command behavior change
+- no nutrition / workout / report behavior change
+
 
 ## Daily Coach Async Provider Runtime Design v1 status
 

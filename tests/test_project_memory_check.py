@@ -172,6 +172,35 @@ def write_required_project_memory(root: Path) -> None:
                 "No provider call occurs on normal Today load\n"
             )
 
+        elif relative_path == "docs/project_memory/project_state.json":
+            text = (
+                "{\n"
+                '  "project": {"name": "AI Health Coach", "repo": "fitness_ai"},\n'
+                '  "current_baseline": {\n'
+                '    "latest_accepted_milestone": "Daily Coach Async Provider Runtime Design v1",\n'
+                '    "latest_final_status": "DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED"\n'
+                "  },\n"
+                '  "active_roadmap": {\n'
+                '    "current_authorized_milestone": "Project Continuity System v2",\n'
+                '    "current_authorized_branch": "feature/project-continuity-system-v2",\n'
+                '    "recommended_next_milestone_after_acceptance": "Daily Coach Async Persistence Design v1"\n'
+                "  },\n"
+                '  "workflow_rules": {\n'
+                '    "temporary_apply_artifact_root": "C:\\\\projects",\n'
+                '    "run_apply_scripts_from_repo_as": "python ..\\\\<script>.py",\n'
+                '    "apply_raw_patches_from_repo_as": "git apply --check ..\\\\<patch>.patch"\n'
+                "  },\n"
+                '  "model_provider_policy": {\n'
+                '    "qwen3": "not bridge-enabled",\n'
+                '    "qwen3_32b": "research / future premium async candidate only",\n'
+                '    "fallback": "Deterministic fallback remains mandatory."\n'
+                "  },\n"
+                '  "daily_coach_async_boundary": {\n'
+                '    "not_authorized": ["normal Today provider call", "public async narrative display"]\n'
+                "  }\n"
+                "}\n"
+            )
+
         elif relative_path == "docs/project_memory/project_continuity_bootstrap.md":
             text = (
                 "Project Continuity Bootstrap\n"
@@ -735,4 +764,35 @@ def test_daily_coach_async_developer_only_prototype_memory_is_required() -> None
         in project_memory_check.REQUIRED_PHRASES[
             "docs/project_memory/project_continuity_bootstrap.md"
         ]
+    )
+
+
+def test_project_state_json_invalid_fails(tmp_path: Path) -> None:
+    write_required_project_memory(tmp_path)
+    (tmp_path / "docs/project_memory/project_state.json").write_text(
+        "{not-json",
+        encoding="utf-8",
+    )
+
+    results = run_project_memory_check(tmp_path)
+
+    assert has_failures(results)
+    assert any(
+        result.status == "FAIL"
+        and result.path == "docs/project_memory/project_state.json"
+        and "invalid" in result.message
+        for result in results
+    )
+
+
+def test_project_state_json_valid_passes(tmp_path: Path) -> None:
+    write_required_project_memory(tmp_path)
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "PASS"
+        and result.path == "docs/project_memory/project_state.json"
+        and "Machine-readable project state JSON is valid" in result.message
+        for result in results
     )

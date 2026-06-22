@@ -13,6 +13,10 @@ Future-only ideas in those files remain parked until scoped milestones approve i
 
 ### Project memory and continuity
 
+- Project Continuity System v2 is authorized to create `project_state.json`, role bootstraps, `current_workflow_contract.md`, `next_milestone.md`, `chat_onboarding_test.md`, and `python tools/dev_assistant.py continuity-brief`.
+- After Project Continuity System v2, should every future milestone update `project_state.json` as part of Definition of Done?
+- Should `project_state.json` become a blocking check for milestone/status drift?
+
 - How strict should automated stale-doc checks become before they start blocking commits?
 - Which stale milestone phrases should be flagged in `tools/project_memory_check.py` without creating noisy false positives?
 - Should each future merge require a short post-merge project-memory closeout note?
@@ -27,6 +31,7 @@ Future-only ideas in those files remain parked until scoped milestones approve i
 
 ### Daily Coach async provider runtime
 
+- Daily Coach Async Persistence Design v1 is the recommended next milestone after Project Continuity System v2.
 - Daily Coach Async Provider Runtime Design v1 is designed for Architecture review.
 - Should Daily Coach Async Persistence Design v1 be completed before any provider runtime implementation?
 - Should the first provider runtime prototype use subprocess isolation rather than same-process provider execution?

@@ -1,68 +1,58 @@
 # QA Handoff Current
 
-Current milestone: Daily Coach Async Provider Runtime Design v1
+Current milestone: Project Continuity System v2
 
-Status: DESIGN-ONLY / READY FOR QA REVIEW
+Status: DOCS + TOOLING / READY FOR QA REVIEW
 
-Branch: `feature/daily-coach-async-provider-runtime-design-v1`
+Branch: `feature/project-continuity-system-v2`
 
-Baseline accepted before this milestone: Daily Coach Async Developer-Only Prototype v1
+Previous accepted milestone: Daily Coach Async Provider Runtime Design v1
 
 ## QA focus
 
-QA should verify that this branch is docs/design-only and does not change runtime behavior.
+QA should verify this is a docs + tooling continuity milestone only.
 
-## Design deliverable
+## Expected artifacts
 
-- `docs/project_memory/designs/daily_coach_async_provider_runtime_design_v1.md`
+- `docs/project_memory/project_state.json`
+- `docs/project_memory/role_bootstrap_architecture.md`
+- `docs/project_memory/role_bootstrap_backend.md`
+- `docs/project_memory/role_bootstrap_qa.md`
+- `docs/project_memory/role_bootstrap_devops_tooling.md`
+- `docs/project_memory/current_workflow_contract.md`
+- `docs/project_memory/next_milestone.md`
+- `docs/project_memory/chat_onboarding_test.md`
+- `python tools/dev_assistant.py continuity-brief`
 
-## Expected behavior
+## QA checks
 
-Runtime behavior should remain unchanged from Daily Coach Async Developer-Only Prototype v1.
+- continuity files exist
+- `project_state.json` is valid JSON
+- role bootstraps preserve lane-specific responsibilities
+- workflow contract includes phase-separated delivery
+- workflow contract forbids `git add .`
+- workflow contract forbids broad formatters for docs-only work
+- workflow contract documents temporary apply artifacts in `C:\projects`
+- workflow contract requires Linux pull after snapshot
+- model/provider policy is preserved
+- Daily Coach async boundary is preserved
 
-Normal Today behavior remains unchanged:
+## Runtime behavior expected
 
-- Daily Next Action remains deterministic and primary.
-- Normal Today page load does not create an async job.
-- Normal Today page load does not call a provider.
-- Normal Today does not show async provider narrative.
+Runtime behavior should remain unchanged.
+
+No manual runtime QA is required unless Architecture requests it.
 
 ## Boundary checks
 
-- design only
-- no provider execution
+- no provider runtime
+- no persistence implementation
 - no direct_ollama call
 - no CrewAI call
-- no qwen3 call
-- no qwen3:32b call
-- no worker
-- no queue
-- no scheduler
-- no polling
-- no DB/schema creation
-- no async persistence
-- no provider cache
-- no normal Today provider call
-- no public async narrative display
-- no model promotion
-- qwen3 remains not bridge-enabled
-- app/wapp Linux runtime split remains intact
-
-## Recommended validation
-
-```powershell
-git diff --check
-pytest tests/test_project_memory_check.py -q
-python tools/project_memory_check.py
-python tools/dev_assistant.py memory-check
-python tools/dev_assistant.py stale-doc-check
-. .\scripts\fitness_commands.ps1
-fsweep
-scripts/dev_commit_check.ps1 -Mode docs-only
-```
-
-Manual runtime QA is not required for this docs-only branch unless Architecture requests it.
-
-## Recommended next milestone after acceptance
-
-Architecture recommendation from the design: Daily Coach Async Persistence Design v1 before provider runtime implementation.
+- no qwen3 bridge
+- no worker / queue / scheduler
+- no DB schema
+- no FastAPI behavior change
+- no Streamlit behavior change
+- no normal Today behavior change
+- no app/wapp command behavior change
