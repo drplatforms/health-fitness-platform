@@ -4839,7 +4839,6 @@ def render_daily_coach_narrative_developer_panel(user_id: int) -> None:
             st.warning(f"Narrative preview call failed safely: {preview_error}")
 
         render_daily_coach_async_developer_lifecycle_panel(user_id)
-        render_daily_coach_async_persistence_inspection_panel(user_id)
 
         if not preview:
             return
@@ -5510,6 +5509,7 @@ def render_today_section(user_id: int) -> None:
         with st.expander("Daily Grounded Recommendation", expanded=True):
             render_daily_recommendation_snapshot(user_id)
         render_daily_coach_narrative_developer_panel(user_id)
+        render_daily_coach_async_persistence_inspection_panel(user_id)
 
     st.divider()
 
