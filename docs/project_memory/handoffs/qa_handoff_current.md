@@ -1,47 +1,43 @@
 # QA Handoff Current
 
 Updated: 2026-06-21
-Current milestone: Local Command Menu App Runtime Correction v1
-QA role: Command menu runtime semantics validation
 
-## QA Summary
+## Current Accepted Milestone
 
-This hotfix changes the repo-owned PowerShell command menu so `app` means Linux canonical app runtime, not Windows-local runtime.
+Daily Coach Async Contracts + Data Model v1 is accepted.
 
-## QA Focus
+## QA-Relevant Coverage
 
-- `fitness` menu shows `app` as Linux FastAPI + Streamlit.
-- `fitness` menu shows `wapp` as Windows-local FastAPI + Streamlit.
-- `app` does not contain Windows `Start-Process powershell` launches for `uvicorn` or Streamlit.
-- `wapp` preserves the explicit Windows-local launcher.
-- `lrestart`, `lupdate`, `lstatus`, and `fports` still exist.
-- `fports` is clearly Windows-side only.
-- Linux runtime still uses Windows Ollama URL.
-- No app runtime code, provider code, routes, Streamlit UI, DB schema, or async Daily Coach work changed.
+Accepted tests cover:
 
-## Expected Tests
+- required async job statuses
+- model lane policy
+- context identity creation
+- deterministic context hash behavior
+- hash stability across dictionary ordering
+- hash changes for meaningful context changes
+- sanitized diagnostics contract
+- qwen2.5:3b bridge baseline policy
+- qwen3:32b premium async candidate / research-only policy
+- qwen3 not bridge-approved
 
-- `pytest tests/test_local_developer_command_menu_v1.py -q`
-- `pytest tests/test_project_memory_check.py -q`
-- `python tools/dev_assistant.py memory-check`
-- `python tools/dev_assistant.py stale-doc-check`
-- `fsweep`
+## Command Menu Hotfix Boundary
 
-## Optional Manual Smoke
+QA should continue checking that:
 
-```powershell
-. .\scripts\fitness_commands.ps1
-fitness
-app
-lstatus
-wapp
-```
+- `app` means Linux runtime
+- `wapp` means Windows-local runtime
+- `fports` is Windows-side ports only
+- Linux tmux runtime remains canonical
 
+## Future QA for Next Milestone
 
-## Linux tmux runtime correction
+Daily Coach Async Service Shell / No Worker v1 should test:
 
-- `app` / `lrestart` use Linux tmux sessions `fitness-api` and `fitness-ui`.
-- Linux FastAPI uses port `8000`.
-- Linux Streamlit uses port `8501`.
-- Windows-local Streamlit remains port `8510` through `wapp` only.
-- Do not replace this with `nohup` or Windows-local app shells.
+- create/read/latest behavior
+- stale job rejection
+- context identity matching
+- deterministic fallback availability
+- no provider execution
+- no normal Today provider call
+- no UI display behavior change

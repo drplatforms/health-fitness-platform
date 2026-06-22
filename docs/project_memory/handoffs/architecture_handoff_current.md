@@ -1,49 +1,63 @@
 # Architecture Handoff Current
 
 Updated: 2026-06-21
-Current milestone: Local Command Menu App Runtime Correction v1
-Owner: DevOps & Tooling / Backend Development
-Status: Implemented / ready for Architecture review
 
-## Architecture Review Target
+## Current Accepted Milestones
 
-This hotfix corrects repo-owned command menu runtime semantics.
+Recent accepted milestones:
 
-`app` is now the canonical Linux runtime launcher. It restarts Linux FastAPI + Streamlit through SSH and opens the Linux-hosted Streamlit URL from Windows.
+- Local Developer Command Menu App Runtime Correction v1
+- Async Daily Coach Narrative Implementation Plan v1
+- Daily Coach Async Contracts + Data Model v1
 
-The previous Windows-local launcher behavior is preserved only under `wapp`.
+## Current Architecture Decision
 
-## Accepted Runtime Split
+Daily Coach Async Contracts + Data Model v1 is accepted.
+
+Accepted status:
+
+DAILY_COACH_ASYNC_CONTRACTS_DATA_MODEL_V1_ACCEPTED
+
+Accepted feature commit:
+
+74a6bd5 Add daily coach async narrative contracts
+
+## Runtime Boundary Reminder
+
+The command-menu hotfix restored the accepted runtime split:
 
 - Windows is the source-of-truth development/control machine.
 - Windows hosts Ollama.
-- Linux is the canonical FastAPI + Streamlit app runtime.
-- Linux runtime uses Windows Ollama through `OLLAMA_BASE_URL=http://192.168.1.104:11434`.
+- Linux is the canonical FastAPI + Streamlit runtime.
+- `app` launches Linux runtime.
+- `wapp` is the explicit Windows-local launcher.
 
-## Boundary
+## Async Boundary Reminder
 
-This hotfix changes command-wrapper behavior, docs, and tests only.
+Daily Coach async contracts are foundational only.
 
-It does not change FastAPI routes, Streamlit UI behavior, provider behavior, database schema, async Daily Coach architecture/contracts, model policy, Ollama hosting, or Linux service architecture.
+Not implemented:
 
-## Review Focus
+- async runtime
+- provider execution
+- worker
+- queue
+- scheduler
+- DB schema
+- provider cache
+- normal Today provider call
+- UI async display
+- model promotion
+- qwen3 bridge eligibility
 
-- `app` does not launch Windows-local `uvicorn` or Streamlit shells.
-- `app` uses Linux restart behavior.
-- `wapp` exists as the explicit Windows-local escape hatch.
-- `fitness` menu labels distinguish Linux canonical runtime from Windows-local runtime.
-- `fports` is labeled Windows-side only.
-- Docs/project memory reflect Linux as canonical app runtime.
+## Recommended Next Milestone
 
-## Proposed Acceptance
+Daily Coach Async Service Shell / No Worker v1
 
-LOCAL_COMMAND_MENU_APP_LINUX_RUNTIME_HOTFIX_V1_ACCEPTED
+Owner:
 
+Backend Development / Service Layer
 
-## Linux tmux runtime correction
+Purpose:
 
-- `app` / `lrestart` use Linux tmux sessions `fitness-api` and `fitness-ui`.
-- Linux FastAPI uses port `8000`.
-- Linux Streamlit uses port `8501`.
-- Windows-local Streamlit remains port `8510` through `wapp` only.
-- Do not replace this with `nohup` or Windows-local app shells.
+Implement service-layer create/read/latest/stale behavior using the accepted contracts, without provider runtime execution and without normal Today UI behavior changes.

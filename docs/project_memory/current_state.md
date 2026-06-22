@@ -442,3 +442,40 @@ Canonical command runtime:
 - Linux FastAPI exports `OLLAMA_BASE_URL=http://192.168.1.104:11434` so Linux reaches Windows-hosted Ollama.
 
 This hotfix does not change FastAPI routes, Streamlit UI behavior, provider behavior, database schema, async Daily Coach contracts, model policy, persistence, or Ollama hosting.
+
+<!-- START DAILY_COACH_ASYNC_CONTRACTS_DATA_MODEL_V1 -->
+## Daily Coach Async Contracts + Data Model v1
+
+Status: Accepted / merging to main
+Date: 2026-06-21
+Branch: feature/daily-coach-async-contracts-data-model-v1
+
+Daily Coach Async Contracts + Data Model v1 implemented the foundational backend contracts for future async Daily Coach narrative jobs.
+
+Accepted scope:
+- async Daily Coach narrative job status contract
+- model lane contract
+- context identity contract
+- narrative job contract
+- approved narrative payload contract
+- sanitized diagnostics contract
+- deterministic context hash helper
+- model lane / bridge eligibility helpers
+- contract invariant tests
+
+Boundary preserved:
+- no async runtime implemented
+- no provider execution added
+- no background worker added
+- no queue added
+- no scheduler added
+- no DB schema change
+- no daily_coach_narrative_jobs table created
+- no provider cache table
+- no provider call on normal Today load
+- no UI display behavior changed
+- no model promoted
+- qwen2.5:3b remains bridge baseline only
+- qwen3 remains not bridge-enabled
+- qwen3:32b remains future premium async candidate / research-only
+<!-- END DAILY_COACH_ASYNC_CONTRACTS_DATA_MODEL_V1 -->

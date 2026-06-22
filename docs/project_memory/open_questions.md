@@ -189,3 +189,16 @@ Remaining QA confirmation:
 
 - Manual smoke should confirm `app` restarts Linux FastAPI + Streamlit and opens the Linux-hosted Streamlit URL.
 - Manual smoke should confirm `wapp` still starts Windows-local FastAPI + Streamlit only when explicitly requested.
+
+<!-- START DAILY_COACH_ASYNC_CONTRACTS_DATA_MODEL_V1 -->
+## Daily Coach Async Contracts + Data Model v1 Open Questions
+
+Date: 2026-06-21
+
+Open questions carried forward:
+
+- Should the next service-shell milestone remain fully in-memory, or should it include a repository abstraction without schema changes?
+- Should stale/latest job behavior be implemented before any Developer Mode trigger exists?
+- Should premium voice research happen before the service shell or after the service shell?
+- What exact persona/versioning rubric should be used before qwen3:32b advances beyond research-only?
+<!-- END DAILY_COACH_ASYNC_CONTRACTS_DATA_MODEL_V1 -->
