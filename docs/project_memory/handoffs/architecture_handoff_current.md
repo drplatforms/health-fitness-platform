@@ -1,97 +1,67 @@
 # Architecture Handoff Current
 
-Current milestone: Daily Coach Async Provider Runtime Design v1
+Current milestone: Project Continuity System v2
 
-Status: DESIGNED / READY FOR ARCHITECTURE REVIEW
+Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-Proposed final status: DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED
+Proposed final status: `PROJECT_CONTINUITY_SYSTEM_V2_ACCEPTED`
 
-Branch: `feature/daily-coach-async-provider-runtime-design-v1`
+Branch: `feature/project-continuity-system-v2`
 
-Baseline accepted before this milestone: Daily Coach Async Developer-Only Prototype v1
-
-Baseline main commit: `439b7a3 Merge feature-daily-coach-async-developer-only-prototype-v1`
+Previous accepted milestone: Daily Coach Async Provider Runtime Design v1
 
 ## Summary
 
-Daily Coach Async Provider Runtime Design v1 defines the safe future runtime boundary for Daily Coach async provider execution.
+Project Continuity System v2 adds an active continuity/onboarding system for AI Health Coach / fitness_ai.
 
-This is a design-only milestone. It does not implement provider execution.
+This milestone is docs + tooling only. It does not implement product/runtime behavior.
 
-## Design deliverable
+## Deliverables
 
-- `docs/project_memory/designs/daily_coach_async_provider_runtime_design_v1.md`
+- `docs/project_memory/project_state.json`
+- `docs/project_memory/role_bootstrap_architecture.md`
+- `docs/project_memory/role_bootstrap_backend.md`
+- `docs/project_memory/role_bootstrap_qa.md`
+- `docs/project_memory/role_bootstrap_devops_tooling.md`
+- `docs/project_memory/current_workflow_contract.md`
+- `docs/project_memory/next_milestone.md`
+- `docs/project_memory/chat_onboarding_test.md`
+- `python tools/dev_assistant.py continuity-brief`
+- strengthened project-memory checks
 
-## Designed
+## Architecture review focus
 
-- provider execution model and recommended isolation strategy
-- future async job lifecycle statuses and allowed/forbidden transitions
-- provider input contract
-- provider output contract
-- parser / schema / validation / approval flow
-- timeout, provider error, stale context, expiration, and fallback behavior
-- sanitized runtime metadata for Developer Mode/debug only
-- Developer Mode vs normal Today UI boundary
+Confirm that the continuity system correctly preserves:
+
+- latest accepted state
+- phase-separated workflow
+- temporary patch/apply artifact location rule
+- no `git add .`
+- no broad formatters for docs-only work
+- snapshot and Linux pull rules
+- long handoff formatting
 - model/provider policy
-- persistence decision points and recommended future sequencing
-
-## Architecture recommendation
-
-The design recommends that Daily Coach async provider runtime should not proceed to a product-like path until Daily Coach Async Persistence Design v1 resolves durable job/narrative storage.
-
-If provider runtime is implemented before persistence, it should remain Developer Mode-only and isolated from normal Today behavior.
-
-Same-process hard-timeout provider execution is treated as risky because prior provider timeout experimentation destabilized provider runtime internals.
+- Daily Coach async boundary
+- Developer Mode vs normal Today restrictions
 
 ## Boundary confirmation
 
-- design only: CONFIRMED
-- no provider execution implemented: CONFIRMED
+- docs + tooling only: CONFIRMED
+- no Daily Coach provider runtime implemented: CONFIRMED
+- no Daily Coach persistence implemented: CONFIRMED
 - no direct_ollama call added: CONFIRMED
 - no CrewAI call added: CONFIRMED
 - no qwen3 call added: CONFIRMED
 - no qwen3 bridge added: CONFIRMED
 - no qwen3:32b promotion: CONFIRMED
-- no worker added: CONFIRMED
-- no queue added: CONFIRMED
-- no scheduler added: CONFIRMED
-- no polling added: CONFIRMED
+- no worker / queue / scheduler added: CONFIRMED
 - no DB schema added: CONFIRMED
-- no normal Today provider call added: CONFIRMED
-- no public async narrative display added: CONFIRMED
-- deterministic fallback preserved: CONFIRMED
-- validation boundary preserved: CONFIRMED
-- app/wapp runtime split preserved: CONFIRMED
-
-## Files changed
-
-- `docs/project_memory/designs/daily_coach_async_provider_runtime_design_v1.md`
-- `docs/project_memory/current_state.md`
-- `docs/project_memory/project_continuity_bootstrap.md`
-- `docs/project_memory/open_questions.md`
-- `docs/project_memory/handoffs/architecture_handoff_current.md`
-- `docs/project_memory/handoffs/backend_handoff_current.md`
-- `docs/project_memory/handoffs/qa_handoff_current.md`
-- `tools/project_memory_check.py`
-- `tests/test_project_memory_check.py`
-
-## Validation requested
-
-```powershell
-git diff --check
-pytest tests/test_project_memory_check.py -q
-python tools/dev_assistant.py memory-check
-python tools/dev_assistant.py stale-doc-check
-python tools/project_memory_check.py
-. .\scripts\fitness_commands.ps1
-fsweep
-scripts/dev_commit_check.ps1 -Mode docs-only
-```
+- no FastAPI behavior changed: CONFIRMED
+- no Streamlit behavior changed: CONFIRMED
+- no normal Today behavior changed: CONFIRMED
+- no app/wapp command behavior changed: CONFIRMED
+- no nutrition / workout / report behavior changed: CONFIRMED
 
 ## Recommended next milestone after acceptance
 
-1. Daily Coach Async Persistence Design v1
-2. Daily Coach Async Provider Runtime Prototype v1
-3. Daily Coach Narrative Premium Voice Research v1
-
-Architecture recommendation: complete persistence design before provider runtime implementation.
+Daily Coach Async Persistence Design v1.

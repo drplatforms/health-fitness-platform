@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,16 @@ REQUIRED_FILES = [
     ".github/copilot-instructions.md",
     "docs/project_memory/current_state.md",
     "docs/project_memory/project_continuity_bootstrap.md",
+    "docs/project_memory/project_state.json",
+    "docs/project_memory/role_bootstrap_architecture.md",
+    "docs/project_memory/role_bootstrap_backend.md",
+    "docs/project_memory/role_bootstrap_qa.md",
+    "docs/project_memory/role_bootstrap_devops_tooling.md",
+    "docs/project_memory/current_workflow_contract.md",
+    "docs/project_memory/next_milestone.md",
+    "docs/project_memory/chat_onboarding_test.md",
+    "docs/project_memory/milestones/project_continuity_system_v2.md",
+    "docs/project_memory/reviews/project_continuity_system_v2.md",
     "docs/project_memory/product_vision.md",
     "docs/project_memory/architecture_principles.md",
     "docs/project_memory/backend_truth_contract.md",
@@ -101,6 +112,102 @@ FORBIDDEN_CURRENT_CLAIMS = {
 }
 
 REQUIRED_PHRASES = {
+    "docs/project_memory/project_state.json": [
+        "Daily Coach Async Provider Runtime Design v1",
+        "DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED",
+        "Project Continuity System v2",
+        "feature/project-continuity-system-v2",
+        "Daily Coach Async Persistence Design v1",
+        "C:\\projects",
+        "python ..\\<script>.py",
+        "git apply --check ..\\<patch>.patch",
+        "qwen3",
+        "not bridge-enabled",
+        "qwen3:32b",
+        "research / future premium async candidate only",
+        "Deterministic fallback remains mandatory.",
+        "normal Today provider call",
+        "public async narrative display",
+    ],
+    "docs/project_memory/role_bootstrap_architecture.md": [
+        "Architecture owns",
+        "Architecture does not implement",
+        "Architecture acceptance can be ACCEPTED",
+        "merge commands only when merge is actually the next action",
+        "Long milestone handoffs must be in one copy/paste-ready code block",
+        "qwen3 is not bridge-enabled",
+        "normal Today provider call",
+    ],
+    "docs/project_memory/role_bootstrap_backend.md": [
+        "Do not infer project rules from memory alone",
+        "phase-separated delivery",
+        "Every phase has one purpose",
+        "Never stage with `git add .`",
+        "C:\\projects",
+        "python ..\\<script>.py",
+        "git apply --check ..\\<patch>.patch",
+        "Snapshot only after commit",
+        "Linux pull immediately after snapshot",
+        "Do not run broad formatters for docs-only work",
+    ],
+    "docs/project_memory/role_bootstrap_qa.md": [
+        "QA validates behavior and boundary preservation",
+        "PASS WITH NOTES",
+        "normal UI does not leak provider/debug/runtime internals",
+        "snapshots are not committed",
+        "qa_artifacts are not committed",
+    ],
+    "docs/project_memory/role_bootstrap_devops_tooling.md": [
+        "Windows is the source-of-truth development/control machine",
+        "Linux is the canonical FastAPI + Streamlit runtime",
+        "`app` launches/manages Linux FastAPI + Streamlit runtime",
+        "`wapp` is Windows-local only",
+        "Do not confuse `app` and `wapp`",
+        "Do not reset/stash/clean on Linux unless diagnosing a dirty tree",
+    ],
+    "docs/project_memory/current_workflow_contract.md": [
+        "phase-separated delivery",
+        "Never use `git add .`",
+        "temporary apply scripts and patch files live outside the repo",
+        "C:\\projects",
+        "python ..\\<script>.py",
+        "git apply --check ..\\<patch>.patch",
+        "Do not run broad formatters for docs-only work",
+        "Linux pull happens immediately after snapshot",
+        "Long handoffs must be in one copy/paste-ready code block",
+        "Deterministic fallback remains mandatory",
+        "qwen3 is not bridge-enabled",
+        "qwen3:32b is research / future premium async candidate only",
+        "normal Today provider call",
+        "public async narrative display",
+    ],
+    "docs/project_memory/next_milestone.md": [
+        "Daily Coach Async Provider Runtime Design v1",
+        "DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED",
+        "Project Continuity System v2",
+        "Daily Coach Async Persistence Design v1",
+        "NOT_AUTHORIZED_YET",
+    ],
+    "docs/project_memory/chat_onboarding_test.md": [
+        "What is the latest accepted milestone?",
+        "Where should temporary apply scripts and patches live?",
+        "Should docs-only work run `black .` or `ruff check . --fix`?",
+        "Long handoffs must be in one copy/paste-ready code block",
+        "C:\\projects",
+        "qwen3 is not bridge-enabled",
+    ],
+    "docs/project_memory/milestones/project_continuity_system_v2.md": [
+        "Project Continuity System v2",
+        "AUTHORIZED FOR BACKEND / DEVOPS TOOLING IMPLEMENTATION",
+        "docs + tooling",
+        "no Daily Coach provider runtime",
+    ],
+    "docs/project_memory/reviews/project_continuity_system_v2.md": [
+        "Project Continuity System v2 Review",
+        "PROJECT_CONTINUITY_SYSTEM_V2_ACCEPTED",
+        "docs + tooling only",
+        "no provider runtime",
+    ],
     "docs/project_memory/project_continuity_bootstrap.md": [
         "Project Continuity Bootstrap",
         "Daily Coach Async Service Shell / No Worker v1",
@@ -504,6 +611,35 @@ def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheck
         else:
             results.append(
                 MemoryCheckResult("FAIL", relative_path, "Required file is missing.")
+            )
+
+    project_state_path = root / "docs/project_memory/project_state.json"
+    if project_state_path.exists():
+        try:
+            state = json.loads(_read_text(project_state_path))
+            if isinstance(state, dict) and state.get("project"):
+                results.append(
+                    MemoryCheckResult(
+                        "PASS",
+                        "docs/project_memory/project_state.json",
+                        "Machine-readable project state JSON is valid.",
+                    )
+                )
+            else:
+                results.append(
+                    MemoryCheckResult(
+                        "FAIL",
+                        "docs/project_memory/project_state.json",
+                        "Project state JSON must be an object with a project section.",
+                    )
+                )
+        except json.JSONDecodeError as exc:
+            results.append(
+                MemoryCheckResult(
+                    "FAIL",
+                    "docs/project_memory/project_state.json",
+                    f"Project state JSON is invalid: {exc}",
+                )
             )
 
     claude_path = root / "CLAUDE.md"

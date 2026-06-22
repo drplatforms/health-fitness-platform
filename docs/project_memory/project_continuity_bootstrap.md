@@ -10,20 +10,30 @@ Use it before making Architecture, Backend Development, QA, DevOps / Tooling, Pr
 
 This is not an Architecture-only bootstrap file. Do not create or rely on `docs/project_memory/handoffs/new_architecture_chat_bootstrap.md` for project-wide state.
 
+Project Continuity System v2 adds an active continuity control layer around this packet:
+
+- `docs/project_memory/project_state.json`
+- `docs/project_memory/current_workflow_contract.md`
+- `docs/project_memory/next_milestone.md`
+- `docs/project_memory/chat_onboarding_test.md`
+- role-specific bootstrap files for Architecture, Backend, QA, and DevOps / Tooling
+- `python tools/dev_assistant.py continuity-brief`
+
 ## 2. Latest Accepted Baseline
 
 Current accepted implementation baseline:
 
-`Daily Coach Async Service Shell / No Worker v1`
+`Daily Coach Async Provider Runtime Design v1`
 
 Baseline commit/snapshot at transition time:
 
-- Commit: `69fbccc Merge feature/daily-coach-async-service-shell-no-worker-v1`
-- Snapshot: `fitness_ai_snapshot_2026-06-21_69fbccc_merge-feature-daily-coach-async-service-shell-no-worker-v1.zip`
+- Commit: `b36241d Design daily coach async provider runtime`
+- Main merge commit: `0d3ab6a Merge feature-daily-coach-async-provider-runtime-design-v1`
+- Snapshot: `fitness_ai_snapshot_2026-06-22_0d3ab6a_merge-feature-daily-coach-async-provider-runtime-design-v1.zip`
 
 Accepted status:
 
-`DAILY_COACH_ASYNC_SERVICE_SHELL_NO_WORKER_V1_ACCEPTED`
+`DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED`
 
 The accepted baseline before the current branch includes the service shell and Developer Mode-only manual lifecycle prototype. The current branch is design-only for provider runtime. It still does not authorize provider execution, public UI display, persistence, worker execution, model promotion, or normal Today provider calls.
 
@@ -36,8 +46,11 @@ Accepted Daily Coach async / runtime-control stack:
 3. Async Daily Coach Narrative Implementation Plan v1
 4. Daily Coach Async Contracts + Data Model v1
 5. Daily Coach Async Service Shell / No Worker v1
+6. Project Memory Transition Packet v1
+7. Daily Coach Async Developer-Only Prototype v1
+8. Daily Coach Async Provider Runtime Design v1
 
-The latest accepted implementation baseline before the current branch is Daily Coach Async Developer-Only Prototype v1. Daily Coach Async Provider Runtime Design v1 is designed for review on the current feature branch and is not a provider runtime implementation milestone.
+The latest accepted baseline is Daily Coach Async Provider Runtime Design v1. The current authorized milestone is Project Continuity System v2, which is docs + tooling only and is not a provider runtime implementation milestone.
 
 ## 4. Current Product Vision
 
@@ -458,3 +471,22 @@ Recommended future sequence after acceptance:
 2. isolated/developer-only provider runtime prototype
 3. validated Developer Mode approved narrative preview
 4. public Today integration only after explicit Architecture acceptance
+
+
+## Project Continuity System v2 First-Read Order
+
+Future chats should start with:
+
+1. `docs/project_memory/project_state.json`
+2. `docs/project_memory/project_continuity_bootstrap.md`
+3. `docs/project_memory/current_workflow_contract.md`
+4. `docs/project_memory/next_milestone.md`
+5. role-specific bootstrap file
+6. current handoffs under `docs/project_memory/handoffs/`
+7. `docs/project_memory/chat_onboarding_test.md`
+
+Run:
+
+`python tools/dev_assistant.py continuity-brief`
+
+before implementation if the chat needs a compact state readback.
