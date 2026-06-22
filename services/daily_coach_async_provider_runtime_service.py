@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from database import initialize_database
 from models.async_daily_coach_narrative_models import (
     DailyCoachNarrativeJobStatus,
     is_daily_coach_narrative_bridge_approved_model,
@@ -197,6 +198,12 @@ def create_developer_mode_provider_runtime_job(
             },
         },
     )
+
+    # Developer Mode manual job creation should work against older local
+    # SQLite app databases that predate the async persistence tables.
+    # initialize_database() uses CREATE TABLE IF NOT EXISTS and does not
+    # create provider/runtime behavior.
+    initialize_database()
     return create_async_job(
         user_id=user_id,
         target_date=resolved_date,

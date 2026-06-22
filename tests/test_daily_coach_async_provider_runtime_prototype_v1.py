@@ -288,3 +288,46 @@ def test_create_developer_runtime_job_uses_persisted_schema(tmp_path, monkeypatc
     count = conn.execute("SELECT COUNT(*) FROM daily_coach_async_jobs").fetchone()[0]
     conn.close()
     assert count == 1
+
+
+def test_create_developer_runtime_job_initializes_missing_async_tables(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "fitness_ai_test.db"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    class Action:
+        action_id = "log_meal_or_snack"
+        workflow_target = "nutrition"
+
+        def to_dict(self):
+            return {
+                "action_id": self.action_id,
+                "workflow_target": self.workflow_target,
+            }
+
+    monkeypatch.setattr(
+        "services.daily_coach_async_provider_runtime_service.build_daily_next_action",
+        lambda user_id, target_date=None: Action(),
+    )
+
+    job = create_developer_mode_provider_runtime_job(
+        user_id=1,
+        target_date="2026-06-22",
+        environ={},
+    )
+
+    assert job.user_id == 1
+    assert job.status == DailyCoachNarrativeJobStatus.QUEUED.value
+
+    conn = sqlite3.connect(database.DB_PATH)
+    count = conn.execute("SELECT COUNT(*) FROM daily_coach_async_jobs").fetchone()[0]
+    approved_table = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'daily_coach_approved_narratives'"
+    ).fetchone()
+    conn.close()
+
+    assert count == 1
+    assert approved_table is not None
