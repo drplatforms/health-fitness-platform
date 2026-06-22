@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -39,6 +40,14 @@ _ALLOWED_BOOLEAN_FIELDS = {
     "raw_output_preview_truncated",
     "markdown_wrapper_detected",
 }
+
+
+def _is_missing_daily_coach_async_table_error(exc: sqlite3.OperationalError) -> bool:
+    message = str(exc).lower()
+    return "no such table" in message and (
+        DAILY_COACH_ASYNC_JOB_TABLE in message
+        or DAILY_COACH_APPROVED_NARRATIVE_TABLE in message
+    )
 
 
 class DailyCoachAsyncPersistenceError(Exception):
@@ -349,14 +358,59 @@ def create_async_job(
 
 def get_async_job(job_id: str) -> PersistedDailyCoachAsyncJob | None:
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        f"SELECT * FROM {DAILY_COACH_ASYNC_JOB_TABLE} WHERE job_id = ?",
-        (job_id,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"SELECT * FROM {DAILY_COACH_ASYNC_JOB_TABLE} WHERE job_id = ?",
+            (job_id,),
+        )
+        row = cursor.fetchone()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_daily_coach_async_table_error(exc):
+            return None
+        raise
+    finally:
+        conn.close()
     return _job_from_row(row) if row is not None else None
+
+
+def get_latest_async_jobs(
+    *,
+    user_id: int,
+    target_date: str | None = None,
+    limit: int = 5,
+) -> list[PersistedDailyCoachAsyncJob]:
+    """Return recent persisted Daily Coach async jobs for read-only inspection."""
+
+    safe_limit = max(1, min(int(limit), 20))
+    values: list[Any] = [user_id]
+    where = ["user_id = ?"]
+    if target_date is not None:
+        where.append("target_date = ?")
+        values.append(target_date)
+    values.append(safe_limit)
+
+    conn = get_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {DAILY_COACH_ASYNC_JOB_TABLE}
+            WHERE {" AND ".join(where)}
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+            """,
+            tuple(values),
+        )
+        rows = cursor.fetchall()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_daily_coach_async_table_error(exc):
+            return []
+        raise
+    finally:
+        conn.close()
+    return [_job_from_row(row) for row in rows]
 
 
 def update_async_job_status(
@@ -594,19 +648,25 @@ def get_approved_narrative_by_job_id(
     job_id: str,
 ) -> PersistedDailyCoachApprovedNarrative | None:
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        f"""
-        SELECT *
-        FROM {DAILY_COACH_APPROVED_NARRATIVE_TABLE}
-        WHERE job_id = ?
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-        """,
-        (job_id,),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {DAILY_COACH_APPROVED_NARRATIVE_TABLE}
+            WHERE job_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            (job_id,),
+        )
+        row = cursor.fetchone()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_daily_coach_async_table_error(exc):
+            return None
+        raise
+    finally:
+        conn.close()
     return _narrative_from_row(row) if row is not None else None
 
 
@@ -627,17 +687,23 @@ def get_latest_displayable_approved_narrative(
         where.append("target_date = ?")
         values.append(target_date)
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        f"""
-        SELECT *
-        FROM {DAILY_COACH_APPROVED_NARRATIVE_TABLE}
-        WHERE {" AND ".join(where)}
-        ORDER BY created_at DESC, id DESC
-        LIMIT 1
-        """,
-        tuple(values),
-    )
-    row = cursor.fetchone()
-    conn.close()
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            f"""
+            SELECT *
+            FROM {DAILY_COACH_APPROVED_NARRATIVE_TABLE}
+            WHERE {" AND ".join(where)}
+            ORDER BY created_at DESC, id DESC
+            LIMIT 1
+            """,
+            tuple(values),
+        )
+        row = cursor.fetchone()
+    except sqlite3.OperationalError as exc:
+        if _is_missing_daily_coach_async_table_error(exc):
+            return None
+        raise
+    finally:
+        conn.close()
     return _narrative_from_row(row) if row is not None else None
