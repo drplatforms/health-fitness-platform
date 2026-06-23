@@ -1155,3 +1155,46 @@ def test_weekly_coach_summary_service_shell_memory_is_required() -> None:
     assert (
         "No provider runtime" in project_memory_check.REQUIRED_PHRASES[milestone_path]
     )
+
+
+def test_weekly_coach_summary_developer_mode_inspection_memory_is_required() -> None:
+    ui_test_path = "tests/test_streamlit_weekly_coach_summary_developer_mode.py"
+    milestone_path = "docs/project_memory/milestones/weekly_coach_summary_developer_mode_inspection_v1.md"
+    review_path = "docs/project_memory/reviews/weekly_coach_summary_developer_mode_inspection_v1.md"
+
+    assert ui_test_path in project_memory_check.REQUIRED_FILES
+    assert milestone_path in project_memory_check.REQUIRED_FILES
+    assert review_path in project_memory_check.REQUIRED_FILES
+    assert (
+        "Weekly Coach Summary Developer Mode Inspection v1"
+        in project_memory_check.REQUIRED_PHRASES[milestone_path]
+    )
+    assert (
+        "WEEKLY_COACH_SUMMARY_DEVELOPER_MODE_INSPECTION_V1_ACCEPTED"
+        in project_memory_check.REQUIRED_PHRASES[review_path]
+    )
+
+
+def test_weekly_coach_summary_persistence_memory_is_required() -> None:
+    service_path = "services/weekly_coach_summary_persistence_service.py"
+    test_path = "tests/test_weekly_coach_summary_persistence_service.py"
+    milestone_path = (
+        "docs/project_memory/milestones/weekly_coach_summary_async_persistence_v1.md"
+    )
+    review_path = (
+        "docs/project_memory/reviews/weekly_coach_summary_async_persistence_v1.md"
+    )
+
+    assert service_path in project_memory_check.REQUIRED_FILES
+    assert test_path in project_memory_check.REQUIRED_FILES
+    assert milestone_path in project_memory_check.REQUIRED_FILES
+    assert review_path in project_memory_check.REQUIRED_FILES
+    assert (
+        "Weekly Coach Summary Async Persistence v1"
+        in project_memory_check.REQUIRED_PHRASES[milestone_path]
+    )
+    assert (
+        "WEEKLY_COACH_SUMMARY_ASYNC_PERSISTENCE_V1_ACCEPTED"
+        in project_memory_check.REQUIRED_PHRASES[review_path]
+    )
+    assert "sanitized metadata" in project_memory_check.REQUIRED_PHRASES[milestone_path]

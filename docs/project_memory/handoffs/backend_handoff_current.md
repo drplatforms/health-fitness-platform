@@ -1,15 +1,25 @@
-# Backend Handoff Current
+# Backend Handoff — Weekly Coach Summary Async Persistence v1
 
-Milestone: Weekly Coach Summary Async Service Shell / No Worker v1
+Recipient: Backend
+
+Project: AI Health Coach / fitness_ai
+
+Milestone: Weekly Coach Summary Async Persistence v1
 
 Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-Backend notes:
-- `services/weekly_coach_summary_service.py` is deterministic and no-worker.
-- `build_weekly_summary_context_from_fixture(...)` accepts bounded approved fixture values only.
-- `generate_candidate_weekly_summary(...)` produces deterministic candidates.
-- `approve_weekly_summary_candidate(...)` approves safe candidates into public-safe summaries.
-- `generate_approved_weekly_summary(...)` is the single deterministic service entry point.
-- `tools/dev_weekly_coach_summary_preview.py` prints a readable developer-only preview.
-- No persistence, provider runtime, API, Streamlit, worker/queue/scheduler, polling, or automatic generation is implemented.
-- Next Backend milestone should be Weekly Coach Summary Async Persistence Design v1 or Developer Mode Inspection v1 only after Architecture acceptance.
+Proposed final status: WEEKLY_COACH_SUMMARY_ASYNC_PERSISTENCE_V1_ACCEPTED
+
+Summary:
+Weekly Coach Summary approved outputs can now be persisted safely. Persistence stores only approved/public-safe display sections and sanitized metadata. Developer Mode can save/load persisted summaries. Normal/default UI and normal Today remain unchanged.
+
+Boundaries:
+- no provider runtime
+- no Ollama/CrewAI/qwen call
+- no automatic generation
+- no worker/queue/scheduler/polling
+- no public/default display
+- no normal Today display
+- no raw provider output persistence
+- no rejected provider output persistence
+- no prompt/raw context/scratchpad persistence
