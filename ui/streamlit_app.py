@@ -24,6 +24,16 @@ from services.daily_coach_async_provider_runtime_service import (
     resolve_daily_coach_async_provider_runtime_config,
     run_daily_coach_async_provider_runtime_prototype,
 )
+from services.weekly_coach_summary_persistence_service import (
+    WeeklyCoachSummaryPersistenceError,
+    get_latest_approved_weekly_summary,
+    save_approved_weekly_summary,
+)
+from services.weekly_coach_summary_service import (
+    approved_weekly_summary_to_public_sections,
+    build_weekly_summary_context_from_fixture,
+    generate_approved_weekly_summary,
+)
 from ui.daily_coach_session_approval import (
     clear_daily_coach_session_approved_narrative,
     daily_coach_preview_approval_eligibility,
@@ -3400,6 +3410,9 @@ SESSION_DEFAULTS = {
     "daily_coach_session_approved_narratives": {},
     "workout_explanation_by_user": {},
     "workout_explanation_error_by_user": {},
+    "weekly_coach_summary_preview_by_user": {},
+    "weekly_coach_summary_persisted_by_user": {},
+    "weekly_coach_summary_message_by_user": {},
 }
 
 for key, default_value in SESSION_DEFAULTS.items():
@@ -8974,6 +8987,218 @@ def render_reports_section(user_id: int) -> None:
     developer_details("Developer details: report history", data)
 
 
+def weekly_coach_summary_developer_scenarios() -> dict[str, dict[str, object]]:
+    return {
+        "Consistent training / moderate confidence": {
+            "user_id": 102,
+            "week_start": "2026-06-15",
+            "week_end": "2026-06-21",
+            "training_days_logged": 4,
+            "workouts_completed": 3,
+            "planned_workouts": 4,
+            "recovery_notes_available": True,
+            "nutrition_days_logged": 3,
+            "protein_days_logged": 3,
+            "average_energy": 7,
+            "average_soreness": 4,
+            "limitations": ("One nutrition day may be incomplete.",),
+        },
+        "Low data / deterministic fallback": {
+            "user_id": 102,
+            "week_start": "2026-06-15",
+            "week_end": "2026-06-21",
+            "training_days_logged": 0,
+            "workouts_completed": 0,
+            "planned_workouts": 4,
+            "recovery_notes_available": False,
+            "nutrition_days_logged": 0,
+            "protein_days_logged": 0,
+            "average_energy": None,
+            "average_soreness": None,
+            "limitations": ("Fixture intentionally has limited data.",),
+        },
+        "Mixed signal / cautious guidance": {
+            "user_id": 102,
+            "week_start": "2026-06-15",
+            "week_end": "2026-06-21",
+            "training_days_logged": 2,
+            "workouts_completed": 2,
+            "planned_workouts": 4,
+            "recovery_notes_available": True,
+            "nutrition_days_logged": 1,
+            "protein_days_logged": 1,
+            "average_energy": 4,
+            "average_soreness": 7,
+            "limitations": ("Mixed fixture signal keeps guidance conservative.",),
+        },
+    }
+
+
+def _weekly_coach_summary_selected_fixture(
+    scenario_label: str,
+    user_id: int,
+) -> dict[str, object]:
+    scenarios = weekly_coach_summary_developer_scenarios()
+    fixture = dict(scenarios[scenario_label])
+    fixture["user_id"] = user_id
+    return fixture
+
+
+def _render_weekly_coach_summary_sections(sections: dict[str, object]) -> None:
+    st.markdown("**Headline:**")
+    st.write(sections["headline"])
+    st.markdown("**Weekly Overview:**")
+    st.write(sections["weekly_overview"])
+    st.markdown("**Recovery Observation:**")
+    st.write(sections["recovery_observation"])
+    st.markdown("**Nutrition Observation:**")
+    st.write(sections["nutrition_observation"])
+    st.markdown("**Training Observation:**")
+    st.write(sections["training_observation"])
+    st.markdown("**Primary Pattern:**")
+    st.write(sections["primary_pattern"])
+    st.markdown("**Recommended Focus:**")
+    st.write(sections["recommended_focus"])
+    st.markdown("**Next Week Guidance:**")
+    st.write(sections["next_week_guidance"])
+
+
+def render_weekly_coach_summary_developer_inspection(user_id: int) -> None:
+    if not st.session_state.get("developer_mode", False):
+        return
+
+    st.subheader("Developer Mode: Weekly Coach Summary Preview")
+    st.caption(
+        "Developer Mode-only deterministic inspection. Generation is manual, "
+        "persistence is explicit, and no provider runtime is used."
+    )
+
+    scenarios = weekly_coach_summary_developer_scenarios()
+    scenario_label = st.selectbox(
+        "Weekly Coach Summary scenario",
+        options=list(scenarios.keys()),
+        key="weekly_coach_summary_developer_scenario",
+    )
+    fixture = _weekly_coach_summary_selected_fixture(scenario_label, user_id)
+    preview_cache = st.session_state.weekly_coach_summary_preview_by_user
+    persisted_cache = st.session_state.weekly_coach_summary_persisted_by_user
+    message_cache = st.session_state.weekly_coach_summary_message_by_user
+
+    if st.button(
+        "Generate deterministic weekly summary preview",
+        key="weekly_coach_summary_generate_preview_button",
+    ):
+        context = build_weekly_summary_context_from_fixture(**fixture)
+        summary = generate_approved_weekly_summary(context)
+        preview_cache[user_id] = {
+            "scenario": scenario_label,
+            "fixture": fixture,
+            "period": context.period.to_dict(),
+            "summary": summary,
+            "sections": approved_weekly_summary_to_public_sections(summary),
+        }
+        message_cache[user_id] = "Approved deterministic weekly summary generated."
+
+    cached_preview = preview_cache.get(user_id)
+    if cached_preview:
+        sections = cached_preview["sections"]
+        period = cached_preview["period"]
+        st.success(
+            message_cache.get(user_id, "Approved deterministic weekly summary ready.")
+        )
+        st.write(f"**Period:** {period['week_start']} to {period['week_end']}")
+        metadata_rows = [
+            {"Field": "Source", "Value": sections["source"]},
+            {"Field": "Confidence", "Value": sections["confidence"]},
+            {"Field": "Public Safe", "Value": str(sections["public_safe"]).lower()},
+            {"Field": "Displayable", "Value": str(sections["displayable"]).lower()},
+        ]
+        st.dataframe(pd.DataFrame(metadata_rows), width="stretch", hide_index=True)
+        _render_weekly_coach_summary_sections(sections)
+        st.markdown("**Reason Codes:**")
+        st.write(", ".join(sections["reason_codes"]) or "None")
+        st.markdown("**Limitations:**")
+        st.write(", ".join(sections["limitations"]) or "None")
+
+        save_col, load_col = st.columns(2)
+        with save_col:
+            if st.button(
+                "Save approved deterministic summary",
+                key="weekly_coach_summary_save_button",
+            ):
+                try:
+                    saved = save_approved_weekly_summary(
+                        summary=cached_preview["summary"],
+                        user_id=user_id,
+                        week_start=period["week_start"],
+                        week_end=period["week_end"],
+                        sanitized_metadata={
+                            "provider_attempted": False,
+                            "fallback_used": sections["source"]
+                            == "deterministic_fallback",
+                            "fallback_reason": (
+                                "deterministic fallback"
+                                if sections["source"] == "deterministic_fallback"
+                                else None
+                            ),
+                            "parse_status": "not_attempted",
+                            "validation_status": "approved",
+                            "final_summary_source": sections["source"],
+                            "generated_by": "developer_mode_weekly_summary_preview",
+                        },
+                    )
+                except WeeklyCoachSummaryPersistenceError:
+                    st.error(
+                        "Weekly summary was not saved because it failed safety checks."
+                    )
+                else:
+                    persisted_cache[user_id] = saved
+                    st.success(f"Saved weekly summary record {saved.record_id}.")
+        with load_col:
+            if st.button(
+                "Load latest persisted weekly summary",
+                key="weekly_coach_summary_load_button",
+            ):
+                latest = get_latest_approved_weekly_summary(
+                    user_id=user_id,
+                    week_start=period["week_start"],
+                    week_end=period["week_end"],
+                )
+                if latest is None:
+                    st.warning(
+                        "No persisted approved weekly summary found for this period."
+                    )
+                else:
+                    persisted_cache[user_id] = latest
+                    st.success(f"Loaded weekly summary record {latest.record_id}.")
+
+    persisted = persisted_cache.get(user_id)
+    if persisted:
+        st.markdown("**Persisted Weekly Coach Summary Metadata:**")
+        persisted_rows = [
+            {"Field": "Record ID", "Value": persisted.record_id},
+            {"Field": "User ID", "Value": persisted.user_id},
+            {"Field": "Week Start", "Value": persisted.week_start},
+            {"Field": "Week End", "Value": persisted.week_end},
+            {"Field": "Source", "Value": persisted.source},
+            {"Field": "Confidence", "Value": persisted.confidence},
+            {"Field": "Public Safe", "Value": str(persisted.public_safe).lower()},
+            {"Field": "Displayable", "Value": str(persisted.displayable).lower()},
+            {"Field": "Stale", "Value": str(persisted.stale).lower()},
+            {"Field": "Expired", "Value": str(persisted.expired).lower()},
+            {"Field": "Created At", "Value": persisted.created_at},
+        ]
+        st.dataframe(pd.DataFrame(persisted_rows), width="stretch", hide_index=True)
+        st.markdown("**Persisted Reason Codes:**")
+        st.write(", ".join(persisted.reason_codes) or "None")
+        st.markdown("**Persisted Limitations:**")
+        st.write(", ".join(persisted.limitations) or "None")
+        with st.expander("Loaded approved summary sections", expanded=False):
+            _render_weekly_coach_summary_sections(
+                approved_weekly_summary_to_public_sections(persisted.approved_summary)
+            )
+
+
 def render_developer_section(user_id: int) -> None:
     st.header("Developer")
     st.caption(
@@ -9002,6 +9227,8 @@ def render_developer_section(user_id: int) -> None:
             ).get("workout_daily_state"),
         }
     )
+
+    render_weekly_coach_summary_developer_inspection(user_id)
 
     st.subheader("Quick Endpoint Checks")
     endpoint_options = {

@@ -1,35 +1,25 @@
 # Next Milestone
 
-Current authorized milestone:
-Weekly Coach Summary Async Service Shell / No Worker v1
+Current authorized milestone: Weekly Coach Summary Async Persistence v1
 
-Status:
-IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
+Branch: `feature/weekly-coach-summary-async-persistence-v1`
 
-Proposed final status:
-WEEKLY_COACH_SUMMARY_ASYNC_SERVICE_SHELL_NO_WORKER_V1_ACCEPTED
+Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-Purpose:
-Add deterministic backend service shell functions around the accepted Weekly Coach Summary contracts without persistence, provider runtime, worker, queue, scheduler, polling, API, or Streamlit UI.
+Proposed final status: `WEEKLY_COACH_SUMMARY_ASYNC_PERSISTENCE_V1_ACCEPTED`
 
-Recommended next milestone after acceptance:
-Weekly Coach Summary Async Persistence Design v1
+Scope:
 
-Alternative next milestone:
-Weekly Coach Summary Developer Mode Inspection v1
+- persist approved deterministic Weekly Coach Summary output
+- persist deterministic fallback summaries safely
+- persist sanitized metadata only
+- provide Developer Mode-only save/load controls
+- no public/default display
+- no normal Today display
+- no provider runtime
+- no automatic generation
+- no worker/queue/scheduler/polling
 
-Why:
-The deterministic preview output is now useful. The next durable architecture step should define safe persistence before UI exposure, unless Architecture decides the app needs Developer Mode inspection first.
+Likely next milestone after acceptance:
 
-Still not authorized:
-
-- Weekly Coach Summary persistence schema/service
-- Weekly Coach Summary provider runtime
-- normal Today provider execution
-- provider execution on page load
-- automatic async job generation
-- worker / queue / scheduler / polling
-- public/default weekly summary display
-- qwen3 bridge
-- qwen3 promotion
-- qwen3:32b promotion
+Weekly Coach Summary Persistence QA / Developer Mode Smoke v1.

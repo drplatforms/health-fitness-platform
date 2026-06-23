@@ -32,7 +32,7 @@ def test_weekly_coach_summary_preview_is_not_in_normal_today_ui() -> None:
     assert "render_weekly_coach_summary_developer_inspection" not in today_source
 
 
-def test_weekly_coach_summary_preview_is_button_driven() -> None:
+def test_weekly_coach_summary_preview_generation_is_button_driven() -> None:
     panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
 
     button_index = panel_source.index("Generate deterministic weekly summary preview")
@@ -56,6 +56,8 @@ def test_weekly_coach_summary_preview_has_required_scenarios() -> None:
 
 def test_weekly_coach_summary_developer_preview_renders_safe_sections() -> None:
     panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
+    helper_source = _function_source("_render_weekly_coach_summary_sections")
+    combined_source = panel_source + helper_source
 
     for expected in [
         "Source",
@@ -73,10 +75,20 @@ def test_weekly_coach_summary_developer_preview_renders_safe_sections() -> None:
         "Reason Codes",
         "Limitations",
     ]:
-        assert expected in panel_source
+        assert expected in combined_source
 
 
-def test_weekly_coach_summary_developer_preview_has_no_runtime_or_persistence_calls() -> (
+def test_weekly_coach_summary_developer_preview_has_explicit_save_and_load() -> None:
+    panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
+
+    assert "Save approved deterministic summary" in panel_source
+    assert "Load latest persisted weekly summary" in panel_source
+    assert "save_approved_weekly_summary" in panel_source
+    assert "get_latest_approved_weekly_summary" in panel_source
+    assert "Persisted Weekly Coach Summary Metadata" in panel_source
+
+
+def test_weekly_coach_summary_developer_preview_has_no_provider_or_auto_job_calls() -> (
     None
 ):
     panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
@@ -88,9 +100,9 @@ def test_weekly_coach_summary_developer_preview_has_no_runtime_or_persistence_ca
         "run_daily_coach_async_provider_runtime_prototype",
         "call_ollama",
         "CrewAI",
-        "sqlite",
-        "INSERT",
-        "UPDATE",
+        "qwen2.5",
+        "qwen3",
+        "create_async_job",
         "raw_provider_output",
         "rejected_provider_output",
         "full_prompt",

@@ -1,15 +1,25 @@
-# QA Handoff Current
+# QA Handoff — Weekly Coach Summary Async Persistence v1
 
-Milestone: Weekly Coach Summary Async Service Shell / No Worker v1
+Recipient: QA
+
+Project: AI Health Coach / fitness_ai
+
+Milestone: Weekly Coach Summary Async Persistence v1
 
 Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-QA focus:
-- Verify service builds valid weekly context from bounded fixture data.
-- Verify deterministic candidate summary generation.
-- Verify safe candidate approval into `ApprovedWeeklyCoachSummary`.
-- Verify low-data context returns deterministic fallback.
-- Verify candidate is not automatically approved.
-- Verify unsafe/internal language triggers fallback.
-- Verify developer preview command runs and prints readable public-safe output.
-- Verify no provider runtime, Ollama/CrewAI call, DB/persistence dependency, Streamlit dependency, API endpoint, normal Today behavior, worker/queue/scheduler, or polling was added.
+Proposed final status: WEEKLY_COACH_SUMMARY_ASYNC_PERSISTENCE_V1_ACCEPTED
+
+Summary:
+Weekly Coach Summary approved outputs can now be persisted safely. Persistence stores only approved/public-safe display sections and sanitized metadata. Developer Mode can save/load persisted summaries. Normal/default UI and normal Today remain unchanged.
+
+Boundaries:
+- no provider runtime
+- no Ollama/CrewAI/qwen call
+- no automatic generation
+- no worker/queue/scheduler/polling
+- no public/default display
+- no normal Today display
+- no raw provider output persistence
+- no rejected provider output persistence
+- no prompt/raw context/scratchpad persistence

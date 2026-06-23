@@ -1,3 +1,11 @@
+# Current implementation update — Weekly Coach Summary Async Persistence v1
+
+Weekly Coach Summary Async Persistence v1 is implemented on `feature/weekly-coach-summary-async-persistence-v1`.
+
+The milestone persists only approved/public-safe Weekly Coach Summary output and sanitized metadata. It adds Developer Mode-only save/load controls, preserves normal Today/public UI boundaries, and does not add provider runtime, automatic generation, worker/queue/scheduler/polling, API endpoints, or public/default display.
+
+Next likely milestone after acceptance: Weekly Coach Summary Persistence QA / Developer Mode Smoke v1.
+
 # Project Continuity Bootstrap
 
 Current milestone:
