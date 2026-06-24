@@ -43,7 +43,10 @@ def test_qa_date_range_debug_v2_has_manual_inspect_and_generate_buttons() -> Non
         "Generate deterministic weekly summary from selected QA range" in panel_source
     )
     assert "inspect_weekly_summary_qa_range" in panel_source
+    assert "weekly_coach_summary_qa_context_service" in panel_source
     assert "build_weekly_summary_context_from_qa_range" in panel_source
+    assert "weekly_summary_context_to_safe_metadata" in panel_source
+    assert "Generated from selected QA date-range context" in panel_source
     assert "generate_approved_weekly_summary(context)" in panel_source
     assert panel_source.index("Inspect selected QA range") < panel_source.index(
         "inspect_weekly_summary_qa_range("
@@ -89,3 +92,25 @@ def test_qa_date_range_debug_v2_has_no_provider_calls() -> None:
     )
     for term in forbidden:
         assert term not in panel_source
+
+
+def test_selected_range_persistence_controls_render_before_summary_sections() -> None:
+    panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
+
+    assert "Selected-Range Persistence Controls" in panel_source
+    assert "Save selected-range approved summary" in panel_source
+    assert "Load latest selected-range summary" in panel_source
+    assert panel_source.index(
+        "Save selected-range approved summary"
+    ) < panel_source.index("_render_weekly_coach_summary_sections(sections)")
+
+
+def test_generated_preview_does_not_reuse_status_message_for_inventory_area() -> None:
+    panel_source = _function_source("render_weekly_coach_summary_developer_inspection")
+
+    assert (
+        "Selected QA range inventory used for this generated summary." in panel_source
+    )
+    assert panel_source.index(
+        "cached_preview = preview_cache.get(range_key)"
+    ) < panel_source.index("if cached_inventory:")

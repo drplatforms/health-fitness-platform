@@ -14,26 +14,23 @@ from services.qa_seed_data_verification_service import (
     validate_date_range,
     verify_qa_seed_data,
 )
-from services.weekly_coach_summary_service import (
-    build_weekly_summary_context_from_fixture,
-)
 
 DEFAULT_QA_DATE_RANGE_USER_ID = 102
 DEFAULT_QA_LOW_DATA_USER_ID = 105
 DEFAULT_QA_DATE_RANGE_PRESET_KEY = "latest_seeded_week"
 
 QA_DATE_RANGE_PRESETS: dict[str, tuple[str, str]] = {
-    "latest_seeded_week": ("2026-06-08", "2026-06-14"),
-    "previous_seeded_week": ("2026-06-01", "2026-06-07"),
-    "recent_14_days": ("2026-06-01", "2026-06-14"),
-    "recent_28_days": ("2026-05-18", "2026-06-14"),
+    "latest_seeded_week": ("2026-05-31", "2026-06-06"),
+    "previous_seeded_week": ("2026-05-24", "2026-05-30"),
+    "recent_14_days": ("2026-05-24", "2026-06-06"),
+    "recent_28_days": ("2026-05-10", "2026-06-06"),
 }
 
 QA_DATE_RANGE_PRESET_LABELS: dict[str, str] = {
-    "latest_seeded_week": "Latest seeded week: 2026-06-08 through 2026-06-14",
-    "previous_seeded_week": "Previous seeded week: 2026-06-01 through 2026-06-07",
-    "recent_14_days": "Recent 14 days: 2026-06-01 through 2026-06-14",
-    "recent_28_days": "Recent 28 days: 2026-05-18 through 2026-06-14",
+    "latest_seeded_week": "Latest seeded week: 2026-05-31 through 2026-06-06",
+    "previous_seeded_week": "Previous seeded week: 2026-05-24 through 2026-05-30",
+    "recent_14_days": "Recent 14 days: 2026-05-24 through 2026-06-06",
+    "recent_28_days": "Recent 28 days: 2026-05-10 through 2026-06-06",
     "custom": "Custom",
 }
 
@@ -145,6 +142,16 @@ def _inventory_from_user_summary(
         domain: _domain_row_count(summary)
         for domain, summary in user.selected_range_counts.items()
     }
+    data_quality_label = user.data_quality_label
+    diagnosis_codes = list(user.diagnosis_codes)
+    limitations = list(user.limitations)
+    if user.scenario == "data_quality_limited":
+        data_quality_label = "limited"
+        diagnosis_codes.append("scenario_data_quality_limited")
+        limitations.append(
+            "QA user is a data-quality-limited scenario; keep conclusions cautious "
+            "even when selected-range counts are present."
+        )
     return WeeklyCoachSummaryQAInventory(
         user_id=user.user_id,
         scenario=user.scenario,
@@ -156,9 +163,9 @@ def _inventory_from_user_summary(
         selected_range_has_data=any(value > 0 for value in fact_counts.values()),
         available_start_date=available_start,
         available_end_date=available_end,
-        data_quality_label=user.data_quality_label,
-        diagnosis_codes=user.diagnosis_codes,
-        limitations=user.limitations,
+        data_quality_label=data_quality_label,
+        diagnosis_codes=tuple(dict.fromkeys(diagnosis_codes)),
+        limitations=tuple(dict.fromkeys(limitations)),
         fact_counts=fact_counts,
         fact_date_bounds={
             domain: _domain_bounds(summary)
@@ -230,41 +237,16 @@ def build_weekly_summary_context_from_qa_range(
     end_date: date | str,
     db_path: str | Path | None = None,
 ) -> WeeklyCoachSummaryContext:
-    inventory = inspect_weekly_summary_qa_range(
+    # Lazy import avoids a module cycle while preserving the original public
+    # service entry point for existing callers/tests. The actual context builder
+    # is backend-owned and does not depend on Streamlit/UI labels.
+    from services.weekly_coach_summary_qa_context_service import (
+        build_weekly_summary_context_from_qa_range as build_context,
+    )
+
+    return build_context(
         user_id=user_id,
         start_date=start_date,
         end_date=end_date,
         db_path=db_path,
-    )
-    nutrition_days = int(inventory.distinct_logged_days.get("nutrition") or 0)
-    completed_workouts = _completed_workouts_from_inventory(inventory)
-    planned_workouts = max(4, completed_workouts)
-    limitations = list(inventory.limitations)
-    limitations.append(
-        "QA Date Range Debug inventory source: "
-        f"{inventory.source}; data quality: {inventory.data_quality_label}."
-    )
-    if (
-        not inventory.selected_range_has_data
-        and inventory.available_start_date
-        and inventory.available_end_date
-    ):
-        limitations.append(
-            "Selected range has no data for this user. Available data exists from "
-            f"{inventory.available_start_date} to {inventory.available_end_date}."
-        )
-
-    return build_weekly_summary_context_from_fixture(
-        user_id=inventory.user_id,
-        week_start=inventory.start_date,
-        week_end=inventory.end_date,
-        training_days_logged=_training_days_from_inventory(inventory),
-        workouts_completed=completed_workouts,
-        planned_workouts=planned_workouts,
-        recovery_notes_available=inventory.fact_counts.get("recovery", 0) > 0,
-        nutrition_days_logged=nutrition_days,
-        protein_days_logged=nutrition_days if inventory.selected_range_has_data else 0,
-        average_energy=None,
-        average_soreness=None,
-        limitations=tuple(dict.fromkeys(limitations)),
     )
