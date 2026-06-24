@@ -3415,6 +3415,8 @@ SESSION_DEFAULTS = {
     "weekly_coach_summary_persisted_by_user": {},
     "weekly_coach_summary_message_by_user": {},
     "weekly_coach_summary_timing_by_user": {},
+    "runtime_db_diagnostics": None,
+    "developer_mode_latency_timing": {},
 }
 
 for key, default_value in SESSION_DEFAULTS.items():
@@ -9301,6 +9303,32 @@ def render_weekly_coach_summary_developer_inspection(user_id: int) -> None:
     _render_weekly_coach_summary_timing(user_id)
 
 
+def _developer_mode_latency_elapsed_ms(start: float) -> float:
+    return round((perf_counter() - start) * 1000, 2)
+
+
+def _record_developer_mode_latency(label: str, start: float) -> None:
+    timings = st.session_state.setdefault("developer_mode_latency_timing", {})
+    timings[label] = _developer_mode_latency_elapsed_ms(start)
+
+
+def _render_developer_mode_latency_timing() -> None:
+    timings = st.session_state.get("developer_mode_latency_timing") or {}
+    if not timings:
+        return
+
+    rows = [
+        {"Step": key.replace("_", " ").title(), "Milliseconds": value}
+        for key, value in timings.items()
+    ]
+    with st.expander("Developer Mode Timing", expanded=False):
+        st.caption(
+            "Safe aggregate timing only. Developer tools are lazy-loaded; "
+            "diagnostics and debug outputs run only after explicit actions."
+        )
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+
 def _runtime_diagnostic_table(mapping: dict) -> None:
     rows = [
         {"Field": key, "Value": "" if value is None else str(value)}
@@ -9348,17 +9376,34 @@ def render_runtime_db_source_verification() -> None:
         "database source, and QA seed aggregate counts/date bounds. No raw rows, "
         "secrets, provider output, prompts, or stack traces are displayed."
     )
+    st.info(
+        "Developer diagnostics are lazy-loaded. Click refresh to query the active "
+        "runtime/database; opening the Developer tab alone does not run this query."
+    )
+
+    if "runtime_db_diagnostics" not in st.session_state:
+        st.session_state.runtime_db_diagnostics = None
 
     refresh = st.button(
         "Refresh runtime / DB diagnostics",
         key="runtime_db_diagnostics_refresh_button",
     )
-    if refresh or "runtime_db_diagnostics" not in st.session_state:
+    if refresh:
+        refresh_start = perf_counter()
         st.session_state.runtime_db_diagnostics = build_runtime_db_diagnostics(
             api_base_url=API_BASE_URL
         )
+        _record_developer_mode_latency(
+            "runtime_db_diagnostics_refresh_ms", refresh_start
+        )
 
-    diagnostics = st.session_state.get("runtime_db_diagnostics") or {}
+    diagnostics = st.session_state.get("runtime_db_diagnostics")
+    if not diagnostics:
+        st.info(
+            "No runtime diagnostics loaded yet. Click refresh to inspect runtime/DB source."
+        )
+        return
+
     warnings = diagnostics.get("warnings") or []
     for warning in warnings:
         st.warning(warning)
@@ -9421,6 +9466,7 @@ def render_runtime_db_source_verification() -> None:
 
 
 def render_developer_section(user_id: int) -> None:
+    developer_render_start = perf_counter()
     st.header("Developer")
     st.caption(
         "Developer details are hidden from the main UI unless Developer Mode is on."
@@ -9430,6 +9476,12 @@ def render_developer_section(user_id: int) -> None:
         st.info("Turn on Developer Mode in the sidebar to show raw backend responses.")
         return
 
+    st.caption(
+        "Developer tools are lazy-loaded. Opening this tab renders controls only; "
+        "diagnostics, QA inspection, and summary generation require explicit buttons."
+    )
+
+    session_state_start = perf_counter()
     st.subheader("Session State")
     st.json(
         {
@@ -9446,13 +9498,27 @@ def render_developer_section(user_id: int) -> None:
             "workout_daily_state": (
                 st.session_state.workout_daily_state_response or {}
             ).get("workout_daily_state"),
+            "has_runtime_db_diagnostics": st.session_state.get("runtime_db_diagnostics")
+            is not None,
         }
     )
+    _record_developer_mode_latency(
+        "session_state_snapshot_render_ms", session_state_start
+    )
 
+    runtime_panel_start = perf_counter()
     render_runtime_db_source_verification()
+    _record_developer_mode_latency(
+        "runtime_db_source_panel_render_ms", runtime_panel_start
+    )
 
+    weekly_panel_start = perf_counter()
     render_weekly_coach_summary_developer_inspection(user_id)
+    _record_developer_mode_latency(
+        "weekly_coach_summary_panel_render_ms", weekly_panel_start
+    )
 
+    quick_endpoint_start = perf_counter()
     st.subheader("Quick Endpoint Checks")
     endpoint_options = {
         "Health State": f"/health-state/{user_id}",
@@ -9474,6 +9540,12 @@ def render_developer_section(user_id: int) -> None:
             st.error(extract_api_error_message(exc))
         else:
             st.json(response)
+    _record_developer_mode_latency(
+        "quick_endpoint_panel_render_ms", quick_endpoint_start
+    )
+
+    _record_developer_mode_latency("developer_tab_render_ms", developer_render_start)
+    _render_developer_mode_latency_timing()
 
 
 # =====================================
