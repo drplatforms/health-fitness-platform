@@ -9601,23 +9601,37 @@ def render_developer_section(user_id: int) -> None:
     ]
 )
 
+today_tab_start = _developer_mode_latency_log("today_tab_render_start")
 with today_tab:
     render_today_section(user_id)
+_developer_mode_latency_log("today_tab_render_done", today_tab_start)
 
+workout_tab_start = _developer_mode_latency_log("workout_tab_render_start")
 with workout_tab:
     render_workout_plan_section(user_id)
+_developer_mode_latency_log("workout_tab_render_done", workout_tab_start)
 
+nutrition_tab_start = _developer_mode_latency_log("nutrition_tab_render_start")
 with nutrition_tab:
     render_nutrition_section(user_id)
+_developer_mode_latency_log("nutrition_tab_render_done", nutrition_tab_start)
 
+history_tab_start = _developer_mode_latency_log("history_tab_render_start")
 with history_tab:
     render_history_section(user_id)
+_developer_mode_latency_log("history_tab_render_done", history_tab_start)
 
+reports_tab_start = _developer_mode_latency_log("reports_tab_render_start")
 with reports_tab:
     render_reports_section(user_id)
+_developer_mode_latency_log("reports_tab_render_done", reports_tab_start)
 
+developer_tab_start = _developer_mode_latency_log(
+    "developer_tab_container_render_start"
+)
 with developer_tab:
     render_developer_section(user_id)
+_developer_mode_latency_log("developer_tab_container_render_done", developer_tab_start)
 
 # Portfolio visual tightening v4 — garnet/gold portfolio palette
 st.markdown(
