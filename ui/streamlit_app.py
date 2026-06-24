@@ -9312,6 +9312,17 @@ def _record_developer_mode_latency(label: str, start: float) -> None:
     timings[label] = _developer_mode_latency_elapsed_ms(start)
 
 
+def _developer_mode_latency_log(label: str, start: float | None = None) -> float:
+    now = perf_counter()
+    if start is None:
+        print(f"[developer-latency] {label}: start", flush=True)
+        return now
+
+    elapsed_ms = round((now - start) * 1000, 2)
+    print(f"[developer-latency] {label}: {elapsed_ms} ms", flush=True)
+    return now
+
+
 def _render_developer_mode_latency_timing() -> None:
     timings = st.session_state.get("developer_mode_latency_timing") or {}
     if not timings:
@@ -9466,6 +9477,7 @@ def render_runtime_db_source_verification() -> None:
 
 
 def render_developer_section(user_id: int) -> None:
+    developer_terminal_start = _developer_mode_latency_log("developer_section_enter")
     developer_render_start = perf_counter()
     st.header("Developer")
     st.caption(
@@ -9481,6 +9493,9 @@ def render_developer_section(user_id: int) -> None:
         "diagnostics, QA inspection, and summary generation require explicit buttons."
     )
 
+    session_state_terminal_start = _developer_mode_latency_log(
+        "session_state_snapshot_start"
+    )
     session_state_start = perf_counter()
     st.subheader("Session State")
     st.json(
@@ -9505,20 +9520,34 @@ def render_developer_section(user_id: int) -> None:
     _record_developer_mode_latency(
         "session_state_snapshot_render_ms", session_state_start
     )
+    _developer_mode_latency_log(
+        "session_state_snapshot_done", session_state_terminal_start
+    )
 
     runtime_panel_start = perf_counter()
+    runtime_terminal_start = _developer_mode_latency_log(
+        "runtime_db_source_panel_start"
+    )
     render_runtime_db_source_verification()
+    _developer_mode_latency_log("runtime_db_source_panel_done", runtime_terminal_start)
     _record_developer_mode_latency(
         "runtime_db_source_panel_render_ms", runtime_panel_start
     )
 
     weekly_panel_start = perf_counter()
+    weekly_terminal_start = _developer_mode_latency_log(
+        "weekly_coach_summary_panel_start"
+    )
     render_weekly_coach_summary_developer_inspection(user_id)
+    _developer_mode_latency_log(
+        "weekly_coach_summary_panel_done", weekly_terminal_start
+    )
     _record_developer_mode_latency(
         "weekly_coach_summary_panel_render_ms", weekly_panel_start
     )
 
     quick_endpoint_start = perf_counter()
+    quick_terminal_start = _developer_mode_latency_log("quick_endpoint_panel_start")
     st.subheader("Quick Endpoint Checks")
     endpoint_options = {
         "Health State": f"/health-state/{user_id}",
@@ -9543,8 +9572,10 @@ def render_developer_section(user_id: int) -> None:
     _record_developer_mode_latency(
         "quick_endpoint_panel_render_ms", quick_endpoint_start
     )
+    _developer_mode_latency_log("quick_endpoint_panel_done", quick_terminal_start)
 
     _record_developer_mode_latency("developer_tab_render_ms", developer_render_start)
+    _developer_mode_latency_log("developer_section_done", developer_terminal_start)
     _render_developer_mode_latency_timing()
 
 
