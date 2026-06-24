@@ -1,11 +1,19 @@
-# Next Milestone
+# Next milestone
 
-## Authorized now
+Current active milestone:
+QA Seed Data Verification CLI v1
 
-Runtime / DB Source Verification v1 is implemented and ready for Architecture review.
+Current branch:
+`feature/qa-seed-data-verification-cli-v1`
 
-## Recommended after acceptance
+Current status:
+IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-QA Seed Data Verification CLI v1.
+Recommended next milestone after acceptance:
+Streamlit Encoding Cleanup v1
 
-Purpose: independently prove seeded QA weekly data exists outside Streamlit and identify whether missing data is caused by no seed, wrong DB, out-of-range dates, or query logic.
+Reason:
+The failed Date-Range QA Debug v1 branch exposed global Streamlit mojibake/encoding corruption. Encoding cleanup should be isolated before rebuilding Weekly Coach Summary QA Date Range Debug v2.
+
+Deferred until after encoding cleanup:
+Weekly Coach Summary QA Date Range Debug v2.

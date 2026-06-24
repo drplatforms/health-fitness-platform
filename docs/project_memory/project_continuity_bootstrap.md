@@ -1,38 +1,24 @@
-# Project Continuity Bootstrap
+# Project continuity bootstrap
 
-Current milestone:
-Weekly Coach Summary Persistence Latency Investigation v1
+Current implementation milestone: QA Seed Data Verification CLI v1
 
-Status:
-IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
+Branch: `feature/qa-seed-data-verification-cli-v1`
 
-Start here:
+Previous accepted milestone: Runtime / DB Source Verification v1
 
-1. Read `docs/project_memory/project_state.json`.
-2. Read `docs/project_memory/current_state.md`.
-3. Read `docs/project_memory/next_milestone.md`.
-4. Read `ui/streamlit_app.py` weekly coach summary Developer Mode panel.
-5. Read `tools/dev_weekly_coach_summary_latency_probe.py`.
-6. Read `services/weekly_coach_summary_persistence_service.py`.
-7. Run `python tools/dev_weekly_coach_summary_latency_probe.py`.
+Previous accepted commit: `6aaff41`
 
-Current boundary:
+Current purpose:
+Verify weekly-window-specific QA seed data outside Streamlit before rebuilding Weekly Coach Summary QA Date Range Debug v2.
 
-- Weekly Coach Summary persistence is Developer Mode-only.
-- Approved/public-safe summaries and deterministic fallback summaries can be saved and loaded.
-- Latency was narrowed to Streamlit full-app rerun behavior.
-- The Developer Mode panel uses Streamlit fragment reruns when available.
-- Timing diagnostics remain Developer Mode-only.
-- No provider runtime, public/default display, normal Today integration, automatic generation, worker, queue, scheduler, or polling is authorized.
+Key commands:
+- `python tools/dev_runtime_db_diagnostics.py`
+- `python tools/dev_qa_seed_data_verification.py --start-date 2026-06-08 --end-date 2026-06-14`
+- `python tools/dev_qa_seed_data_verification.py --start-date 2026-05-18 --end-date 2026-06-14`
 
-Workflow reminder:
-
-- Use chat-driven apply scripts by default.
-- Do not use Codex unless the user explicitly opts in.
-- Temporary apply scripts live outside the repo under `C:\projects`.
-- Run apply scripts from repo root as `python ..\<script>.py`.
-- Never use `git add .`.
-
-## Runtime / DB Source Verification v1
-
-This milestone adds a permanent Developer Mode safety diagnostic to prove runtime identity and database source before future QA data work resumes. It follows the Date-Range QA Debug v1 failure and intentionally avoids reintroducing that panel or mixing in Streamlit encoding cleanup.
+Boundaries:
+- no Streamlit UI change
+- no Date-Range QA Debug panel
+- no provider runtime
+- no DB mutation
+- no raw rows
