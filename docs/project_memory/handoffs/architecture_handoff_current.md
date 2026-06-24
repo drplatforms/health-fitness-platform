@@ -1,28 +1,15 @@
-# Runtime / DB Source Verification v1 Handoff
+# Architecture handoff current
 
 Project: AI Health Coach / fitness_ai
-Branch: feature/runtime-db-source-verification-v1
+
+Branch: `feature/qa-seed-data-verification-cli-v1`
+
+Milestone: QA Seed Data Verification CLI v1
+
 Status: IMPLEMENTED / READY FOR ARCHITECTURE REVIEW
 
-## Summary
+Request:
+Review the read-only QA seed verification CLI and accept as `QA_SEED_DATA_VERIFICATION_CLI_V1_ACCEPTED` if validation and Linux CLI output confirm selected weekly windows are populated and diagnostically useful for Weekly Coach Summary QA Date Range Debug v2.
 
-Added Developer Mode-only runtime/database source diagnostics so the app can prove which code, repo path, Python runtime, SQLite DB, and QA seed data are active.
-
-## Files
-
-- services/runtime_diagnostics_service.py
-- tools/dev_runtime_db_diagnostics.py
-- ui/streamlit_app.py
-- tests/test_runtime_diagnostics_service.py
-- tests/test_streamlit_runtime_diagnostics_developer_mode.py
-- docs/project_memory/milestones/runtime_db_source_verification_v1.md
-- docs/project_memory/reviews/runtime_db_source_verification_v1.md
-
-## Boundaries
-
-- No Date-Range QA Debug v1 revival.
-- No Streamlit encoding cleanup.
-- No seed mutation.
-- No provider runtime.
-- No Ollama/CrewAI/qwen calls.
-- No raw rows/secrets/stack traces in UI.
+Recommended next milestone:
+Streamlit Encoding Cleanup v1.

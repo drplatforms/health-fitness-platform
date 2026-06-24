@@ -1,11 +1,13 @@
-# Open Questions
+# Open questions
 
-## Runtime / DB Source Verification v1
+## Runtime / DB source verification
 
-- Do Windows and Linux resolve the same expected SQLite database path?
-- Do QA users 101-105 exist in the active runtime DB?
-- Do QA users 101-105 have expected recovery/nutrition/workout/actual-set counts and date bounds?
+Runtime / DB Source Verification v1 proved the active Linux database path and QA seed users 101-105 were present.
 
-## Next likely milestone
+## QA seed data verification
 
-QA Seed Data Verification CLI v1 after Architecture acceptance.
+QA Seed Data Verification CLI v1 now needs Architecture review of Windows and Linux CLI output to confirm the best default happy-path user/range and low-data fallback user/range for Weekly Coach Summary QA Date Range Debug v2.
+
+## Streamlit encoding cleanup
+
+Global Streamlit mojibake remains deferred to a dedicated Streamlit Encoding Cleanup v1 milestone.
