@@ -1732,17 +1732,16 @@ def _finalize_candidate_workout_plan(
     plan: CandidateWorkoutPlan,
 ) -> CandidateWorkoutPlan:
     target_count = min(context.final_target_exercise_count, MAX_WORKOUT_EXERCISE_COUNT)
-    if len(plan.exercises) >= target_count:
+    exercises = list(plan.exercises[:target_count])
+    if len(exercises) >= target_count:
+        plan.exercises = exercises
         plan.duration_minutes = _duration_for_exercise_count(
             plan.duration_minutes,
-            len(plan.exercises),
+            len(exercises),
         )
         return plan
 
-    existing_names = {
-        _normalize_exercise_name(exercise.name) for exercise in plan.exercises
-    }
-    exercises = list(plan.exercises)
+    existing_names = {_normalize_exercise_name(exercise.name) for exercise in exercises}
     slot_index = 0
     while (
         len(exercises) < target_count

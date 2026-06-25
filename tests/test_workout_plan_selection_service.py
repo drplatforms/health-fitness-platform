@@ -130,3 +130,91 @@ def test_select_approved_workout_plan_is_visible_to_current_day_state(
     assert daily_state.state == "selected_today"
     assert daily_state.selected_plan_id == instance.id
     assert daily_state.stale_state_detected is False
+
+
+def test_preview_variation_does_not_change_selected_or_active_workout(
+    tmp_path, monkeypatch
+):
+    from fastapi.testclient import TestClient
+
+    from api.main import app
+    from services.equipment_profile_service import save_equipment_profile
+
+    _seed_test_db(tmp_path, monkeypatch)
+    save_equipment_profile(
+        user_id=102,
+        training_environment="home_gym",
+        available_equipment=[
+            "adjustable_bench",
+            "barbell",
+            "bike",
+            "bodyweight",
+            "cable",
+            "dumbbell",
+            "exercise_ball",
+            "ez_bar",
+            "plates",
+            "pull_up_bar",
+            "rack",
+            "resistance_band",
+            "rope_cable_attachment",
+            "treadmill",
+        ],
+        unavailable_equipment=["machine"],
+    )
+    client = TestClient(app)
+
+    preview_response = client.get(
+        "/workout-plans/preview/102"
+        "?workout_size_preference=full&preview_variation_index=0"
+    )
+    assert preview_response.status_code == 200
+    visible_plan = preview_response.json()["approved_workout_plan"]
+    visible_names = [exercise["name"] for exercise in visible_plan["exercises"]]
+
+    select_response = client.post(
+        "/workout-plans/102/select-preview",
+        json={"approved_workout_plan": visible_plan},
+    )
+    assert select_response.status_code == 200
+    selected_payload = select_response.json()
+    plan_instance_id = selected_payload["workout_plan_instance"]["id"]
+    assert [
+        exercise["name"] for exercise in selected_payload["planned_exercises"]
+    ] == visible_names
+
+    alternate_preview_response = client.get(
+        "/workout-plans/preview/102"
+        "?workout_size_preference=full&preview_variation_index=1"
+    )
+    assert alternate_preview_response.status_code == 200
+    alternate_names = [
+        exercise["name"]
+        for exercise in alternate_preview_response.json()["approved_workout_plan"][
+            "exercises"
+        ]
+    ]
+    assert alternate_names != visible_names
+
+    current_response = client.get("/workout-plans/current/102")
+    assert current_response.status_code == 200
+    current_payload = current_response.json()["current_execution_state"]
+    assert current_payload is not None
+    assert [
+        exercise["name"] for exercise in current_payload["planned_exercises"]
+    ] == visible_names
+
+    start_response = client.post(f"/workout-plans/{plan_instance_id}/start")
+    assert start_response.status_code == 200
+    assert [
+        exercise["name"] for exercise in start_response.json()["planned_exercises"]
+    ] == visible_names
+
+    active_response = client.get("/workout-plans/current/102")
+    assert active_response.status_code == 200
+    active_payload = active_response.json()["current_execution_state"]
+    assert active_payload is not None
+    assert active_response.json()["workout_daily_state"]["state"] == "active_today"
+    assert [
+        exercise["name"] for exercise in active_payload["planned_exercises"]
+    ] == visible_names

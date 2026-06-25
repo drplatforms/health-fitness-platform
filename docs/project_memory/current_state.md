@@ -32,3 +32,6 @@ A diagnostic catalog utilization report helper now summarizes:
 - movement-pattern counts and examples
 
 Boundaries remain: deterministic workout generation only, no AI/provider workout generation, no CrewAI/Ollama/OpenAI/PydanticAI/LangGraph work, no worker/queue/scheduler/polling, no selected workout mutation, no Today duplicate workout flow, no Daily Narrative regression, and no Weekly Summary behavior change.
+
+
+Update: Exercise Catalog Utilization / Specialized Movement Coverage v1 required a stabilization revision for Quick / Standard / Full sizing and selected/active workout persistence after preview refresh. Snapshot remains blocked until Linux and browser smoke are green.

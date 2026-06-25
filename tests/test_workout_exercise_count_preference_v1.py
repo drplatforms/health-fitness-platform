@@ -48,7 +48,7 @@ def _save_home_gym_profile(user_id: int = 102):
 
 
 def test_count_preference_service_maps_and_clamps_safely():
-    assert resolve_workout_exercise_count(requested_size="quick").final_count == 4
+    assert resolve_workout_exercise_count(requested_size="quick").final_count == 3
     assert resolve_workout_exercise_count(requested_size="standard").final_count == 5
     assert resolve_workout_exercise_count(requested_size="full").final_count == 6
 
@@ -68,6 +68,24 @@ def test_count_preference_service_maps_and_clamps_safely():
     )
     assert explicit.requested_count == 7
     assert explicit.final_count == 7
+
+
+def test_quick_generation_trims_to_three_main_exercises(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    _save_home_gym_profile(102)
+
+    health_state = build_user_health_state(102)
+    approved = build_approved_workout_plan(
+        health_state,
+        workout_size_preference="quick",
+    )
+
+    names = [exercise.name for exercise in approved.exercises]
+    assert len(approved.exercises) == 3
+    assert len(names) == len(set(names))
+    assert approved.workout_size_preference == "quick"
+    assert approved.final_target_exercise_count == 3
+    assert "quick 3-exercise" in approved.exercise_count_user_reason
 
 
 def test_standard_generation_targets_five_clean_exercises(tmp_path, monkeypatch):
@@ -167,7 +185,7 @@ def test_streamlit_workout_size_ui_uses_user_safe_labels():
     source = Path("ui/streamlit_app.py").read_text(encoding="utf-8")
 
     assert "Workout size" in source
-    assert "Quick — 3 to 4 exercises" in source
+    assert "Quick — 3 exercises" in source
     assert "Standard — 5 exercises" in source
     assert "Full — 6 to 7 exercises" in source
     assert "Pick the session size. Recovery and equipment rules still apply" in source

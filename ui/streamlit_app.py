@@ -3637,7 +3637,21 @@ def apply_workout_daily_state_response(daily_state_response: dict | None) -> Non
         )
 
 
+def get_cached_active_plan_response() -> dict | None:
+    cached_response = st.session_state.get(
+        "started_workout_plan_response"
+    ) or st.session_state.get("selected_workout_plan_response")
+    if (
+        cached_response
+        and get_plan_instance_id_from_response(cached_response) is not None
+    ):
+        return cached_response
+    return None
+
+
 def get_active_plan_response(user_id: int) -> dict | None:
+    cached_response = get_cached_active_plan_response()
+
     try:
         daily_state_response = api_get(f"/workout-plans/current/{user_id}")
     except requests.RequestException:
@@ -3645,8 +3659,17 @@ def get_active_plan_response(user_id: int) -> dict | None:
 
     if daily_state_response:
         apply_workout_daily_state_response(daily_state_response)
+        cached_response = get_cached_active_plan_response()
         current_execution_state = daily_state_response.get("current_execution_state")
         if current_execution_state:
+            if cached_response:
+                cached_plan_id = get_plan_instance_id_from_response(cached_response)
+                current_plan_id = get_plan_instance_id_from_response(
+                    current_execution_state
+                )
+                if cached_plan_id is not None and cached_plan_id != current_plan_id:
+                    return cached_response
+
             workout_plan_instance = (
                 current_execution_state.get("workout_plan_instance") or {}
             )
@@ -3664,13 +3687,8 @@ def get_active_plan_response(user_id: int) -> dict | None:
         clear_workout_transient_state_for_daily_lifecycle()
         return None
 
-    active_response = (
-        st.session_state.started_workout_plan_response
-        or st.session_state.selected_workout_plan_response
-    )
-
-    if active_response:
-        return active_response
+    if cached_response:
+        return cached_response
 
     return None
 
@@ -3809,7 +3827,7 @@ def render_preview_exercise_snapshot(workout_plan: dict) -> None:
 
 
 WORKOUT_SIZE_OPTION_LABELS = {
-    "quick": "Quick — 3 to 4 exercises",
+    "quick": "Quick — 3 exercises",
     "standard": "Standard — 5 exercises",
     "full": "Full — 6 to 7 exercises",
 }

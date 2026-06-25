@@ -7,7 +7,7 @@ MAX_WORKOUT_EXERCISE_COUNT = 7
 DEFAULT_WORKOUT_SIZE_PREFERENCE = "standard"
 
 _WORKOUT_SIZE_TO_COUNT = {
-    "quick": 4,
+    "quick": 3,
     "standard": 5,
     "full": 6,
 }

@@ -1,6 +1,6 @@
 # Review Notes — Exercise Catalog Utilization / Specialized Movement Coverage v1
 
-Status: implemented / ready for Architecture review.
+Status: stabilization revision implemented / pending validation and smoke.
 
 The implementation broadens deterministic workout slot candidate pools by adding catalog-backed alternatives that match the existing template slot movement patterns and current equipment constraints.
 
@@ -31,3 +31,13 @@ Validation targets:
 Architecture review should confirm whether this is sufficient for:
 
 `EXERCISE_CATALOG_UTILIZATION_SPECIALIZED_MOVEMENT_COVERAGE_V1_ACCEPTED`
+
+
+## Stabilization revision
+
+Architecture required a narrow stabilization revision before acceptance. The revision addressed two blockers:
+
+- Quick / Standard / Full workout size behavior no longer collapses Quick to the base four-exercise template. Quick trims to three main exercises, Standard targets five, and Full targets six when constraints allow. Recovery-limited sessions may still shorten Standard/Full with user-safe explanation.
+- Selected/active rendering now preserves the cached selected payload for the current Streamlit session when the current endpoint returns a competing persisted state, so preview variation cannot overwrite the just-selected visible workout during rerun. Backend API tests confirm preview variation does not mutate selected or active persisted exercises.
+
+No provider/AI workout generation was introduced. Latency optimization remains deferred.
