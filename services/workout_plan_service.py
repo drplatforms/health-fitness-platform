@@ -1457,6 +1457,13 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
     (
         [
             ("Dumbbell Lateral Raise", ["dumbbell"]),
+            ("Dumbbell Shoulder Press", ["dumbbell"]),
+            ("Cable Lateral Raise", ["cable"]),
+            ("Arnold Press", ["dumbbell"]),
+            ("Seated Dumbbell Shoulder Press", ["dumbbell", "adjustable_bench"]),
+            ("Dumbbell Front Raise", ["dumbbell"]),
+            ("Band Lateral Raise", ["resistance_band"]),
+            ("Cable Y Raise", ["cable"]),
             ("Band Face Pull", ["resistance_band"]),
             ("Rope Face Pull", ["cable", "rope_cable_attachment"]),
             ("Cable Face Pull", ["cable"]),
