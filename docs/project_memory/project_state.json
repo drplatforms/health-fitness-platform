@@ -2,7 +2,8 @@
   "project": {
     "name": "AI Health Coach",
     "repo": "fitness_ai",
-    "platform_repo": "fitness-ai-platform"
+    "platform_repo": "fitness-ai-platform",
+    "canonical_branch": "main"
   },
   "current_baseline": {
     "latest_accepted_milestone": "Exercise Catalog Utilization / Specialized Movement Coverage v1",
@@ -112,5 +113,82 @@
     "model_boundaries": "qwen3 is not bridge-enabled; qwen3:32b is research / future premium async candidate only",
     "fallback": "Deterministic fallback remains mandatory.",
     "not_authorized": "normal Today provider call; public async narrative display"
+  },
+  "runtime_split": {
+    "windows": "Primary development workstation at C:\\projects\\fitness_ai. Use Windows for patch application, validation, explicit staging, commit, push, and feature snapshots.",
+    "linux": "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
+  },
+  "model_policy": {
+    "qwen2_5_3b": "Approved local bridge/default experimental model for direct_ollama nutrition explanation provider paths when explicitly enabled.",
+    "qwen3": "Not approved as a bridge/default model. Do not promote without an explicit model-evaluation milestone.",
+    "qwen3_32b": "Research/future premium async candidate only; not approved for normal runtime.",
+    "model_promotion": "No model may be promoted to default without explicit Architecture acceptance, runtime QA, fallback behavior, and project-memory update.",
+    "fallback": "Deterministic fallback remains mandatory for all provider-backed paths.",
+    "boundary": "Provider may propose only inside approved schemas/contracts. Backend validates. User sees only approved output."
+  },
+  "daily_coach_async_boundary": {
+    "current": "Daily Coach async/provider work remains gated by accepted designs and developer-only/manual preview boundaries unless a later milestone explicitly authorizes runtime behavior.",
+    "normal_today_behavior": "Normal Today behavior remains deterministic and must not block on provider generation.",
+    "not_authorized": [
+      "normal Today provider call by default",
+      "public async narrative display without approval",
+      "raw provider output display",
+      "rejected provider output display",
+      "provider runtime promotion without explicit milestone approval"
+    ]
+  },
+  "workflow_rules": {
+    "phase_separated_delivery": "Use separate phases: preflight/branch, apply, validate, stage, commit, push, snapshot, Linux pull/smoke.",
+    "no_git_add_dot": "Do not use git add .; stage explicit files only.",
+    "temporary_apply_artifacts_outside_repo": "Temporary patches and apply scripts stay outside the repo.",
+    "temporary_apply_artifact_root": "C:\\projects",
+    "run_apply_scripts_from_repo_as": "Run temporary apply scripts from the repo root using python ..\\<script>.py.",
+    "apply_raw_patches_from_repo_as": "Apply raw patches from the repo root using git apply --check ..\\<patch>.patch then git apply ..\\<patch>.patch.",
+    "no_broad_formatters_for_docs_only": "For docs-only milestones, do not run broad formatters that can rewrite unrelated application files.",
+    "long_handoffs_in_code_blocks": "Long handoffs must be delivered as one copy/paste-ready code block."
+  },
+  "first_files": {
+    "all_roles": [
+      "AGENTS.md",
+      "readme.md",
+      "docs/project_memory/current_state.md",
+      "docs/project_memory/project_state.json",
+      "docs/project_memory/project_continuity_bootstrap.md",
+      "docs/project_memory/development_workflow.md",
+      "docs/project_memory/developer_delivery_workflow_contract.md",
+      "docs/project_memory/architecture_principles.md",
+      "docs/project_memory/open_questions.md",
+      "docs/project_memory/next_milestone.md",
+      "docs/project_memory/role_bootstrap_architecture.md",
+      "docs/project_memory/role_bootstrap_backend.md",
+      "docs/project_memory/role_bootstrap_qa.md",
+      "docs/project_memory/qa_workflow.md"
+    ]
+  },
+  "model_provider_policy": {
+    "qwen2_5_3b": "Approved local bridge/default experimental model for direct_ollama nutrition explanation provider paths when explicitly enabled.",
+    "qwen3": "Not approved as a bridge/default model. Do not promote without an explicit model-evaluation milestone.",
+    "qwen3_32b": "Research/future premium async candidate only; not approved for normal runtime.",
+    "model_promotion": "No model may be promoted to default without explicit Architecture acceptance, runtime QA, fallback behavior, and project-memory update.",
+    "fallback": "Deterministic fallback remains mandatory for all provider-backed paths.",
+    "boundary": "Provider may propose only inside approved schemas/contracts. Backend validates. User sees only approved output."
+  },
+  "first_files_to_read": {
+    "all_roles": [
+      "AGENTS.md",
+      "readme.md",
+      "docs/project_memory/current_state.md",
+      "docs/project_memory/project_state.json",
+      "docs/project_memory/project_continuity_bootstrap.md",
+      "docs/project_memory/development_workflow.md",
+      "docs/project_memory/developer_delivery_workflow_contract.md",
+      "docs/project_memory/architecture_principles.md",
+      "docs/project_memory/open_questions.md",
+      "docs/project_memory/next_milestone.md",
+      "docs/project_memory/role_bootstrap_architecture.md",
+      "docs/project_memory/role_bootstrap_backend.md",
+      "docs/project_memory/role_bootstrap_qa.md",
+      "docs/project_memory/qa_workflow.md"
+    ]
   }
 }
