@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+# ruff: noqa: E402
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from services.food_normalization_service import ensure_starter_canonical_foods_seeded
+ROOT_DIR = Path(__file__).resolve().parents[1]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
+from services.food_normalization_service import (
+    ensure_starter_canonical_foods_seeded,
+)
 from services.nutrition_serving_unit_service import (
     count_canonical_foods_with_active_serving_units,
     seed_canonical_food_serving_units,
@@ -21,8 +29,7 @@ def _print_summary(payload: dict) -> None:
     print(f"skipped_count: {payload['skipped_count']}")
     print(f"active_serving_unit_count: {payload['active_serving_unit_count']}")
     print(
-        "foods_with_active_serving_units: "
-        f"{payload['foods_with_active_serving_units']}"
+        f"foods_with_active_serving_units: {payload['foods_with_active_serving_units']}"
     )
     if payload["missing_canonical_foods"]:
         print("missing_canonical_foods:")
