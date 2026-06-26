@@ -1,22 +1,20 @@
 # Current State
 
-Latest accepted milestone: Test-First Quality Gate Development Plan v1.
+Latest accepted milestone: Exercise Eligibility Matrix v1.
 
-Latest accepted feature commit: `227990e`.
+Latest accepted feature commit: `851a7ca`.
 
-Latest main merge commit: `37d210f`.
+Latest main merge commit: `f469c89`.
 
-Latest accepted snapshot: `fitness_ai_snapshot_2026-06-26_227990e_clarify-continuity-brief-metadata.zip`.
+Latest accepted snapshot: `fitness_ai_snapshot_2026-06-26_851a7ca_update-exercise-eligibility-matrix-project-memory.zip`.
 
-Current implementation milestone: Exercise Eligibility Matrix v1.
+Current planning milestone: Nutrition Catalog + Serving Foundation Planning v1.
 
-Current branch: `feature/exercise-eligibility-matrix-v1`.
+Current branch: `feature/nutrition-catalog-serving-foundation-planning-v1`.
 
-Source baseline: `main` at `37d210f`.
+Source baseline: `main` at `f469c89`.
 
-Current feature checkpoint: `05d319e` (`Add exercise eligibility matrix quality gate`).
-
-Current checkpoint snapshot: `fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip`.
+Milestone type: planning / architecture / project memory only.
 
 ## Current process doctrine
 
@@ -74,23 +72,19 @@ Accepted and merged.
 
 This milestone made the current quality doctrine repo-discoverable instead of chat-only.
 
-## Current implementation milestone
+### Exercise Eligibility Matrix v1
 
-Exercise Eligibility Matrix v1 is in progress on `feature/exercise-eligibility-matrix-v1`.
+Accepted and merged.
 
-Current accepted implementation checkpoint:
+- Feature commit: `851a7ca`
+- Primary code checkpoint commit: `05d319e`
+- Main merge commit: `f469c89`
+- Snapshot: `fitness_ai_snapshot_2026-06-26_851a7ca_update-exercise-eligibility-matrix-project-memory.zip`
+- Accepted scope: explicit generator-facing exercise eligibility matrix, diagnostic tool, quality-gate tests, reachability/exclusion visibility, and preserved workout behavior.
+- Preserved: Quick / Standard / Full sizing, immediate preview refresh anti-repeat, selected workout persistence, Active Workout persistence, Today workout de-dup, no provider/AI workout generation path.
+- Deferred future scope: complete catalog reachability, rolling multi-refresh novelty, persistent exercise exposure tracking, arms/mobility slot expansion, deeper movement-family de-duplication, and optional diagnostic/service deduplication cleanup.
 
-- Feature checkpoint commit: `05d319e`
-- Checkpoint snapshot: `fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip`
-- Diagnostic-first process: completed.
-- Failing/coverage quality gate: completed; the new test first failed because `services.exercise_eligibility_matrix_service` did not exist.
-- Narrow implementation: completed; `services/exercise_eligibility_matrix_service.py` now provides explicit generator-facing eligibility profiles.
-- Diagnostic tool: added as `tools/exercise_eligibility_matrix_diagnostic.py`.
-- Focused test file: added as `tests/test_exercise_eligibility_matrix_v1.py`.
-- Linux checkpoint validation: green.
-- Optional diagnostic-service refactor: attempted, patch did not apply, and was deliberately stopped/deferred rather than stacked blindly.
-
-Diagnostic baseline from current branch:
+Diagnostic baseline from the accepted branch:
 
 - total active catalog exercises: 240
 - equipment-compatible exercises: 237
@@ -99,13 +93,99 @@ Diagnostic baseline from current branch:
 - largest exclusion reason: `not_supported_by_current_generator_candidate_pools` (170)
 - weak movement families called out by diagnostic: arms_biceps, arms_triceps, mobility
 
-V1 acceptance intent:
+## Current planning milestone
 
-- The matrix does not force all catalog exercises into workouts.
-- The matrix makes generator-facing eligibility explicit.
-- Active/equipment-compatible exercises can be classified as eligible or excluded with reason.
-- Known primary, specialized/accessory, core, carry, conditioning, and equipment-excluded examples are covered.
-- Existing workout generation behavior remains stable.
+Nutrition Catalog + Serving Foundation Planning v1 is authorized as a planning / architecture / project-memory-only milestone.
+
+The purpose is to define the nutrition backend foundation sequence before implementation begins. Upcoming nutrition features are connected enough that the project needs a clear architecture path before changing code:
+
+- food catalog expansion
+- canonical food curation
+- serving-size conversion to grams
+- household measures
+- nutrition actuals confidence
+- deterministic food suggestions
+- later AI meal/snack candidate generation
+
+This milestone does not authorize implementation of catalog expansion, serving units, food logging changes, provider behavior, Streamlit UI changes, database migrations, workout work, or recovery work.
+
+## Nutrition foundation direction
+
+Nutrition should become a grounded coaching engine, not only a calorie/macro logger.
+
+Backend owns:
+
+- food truth
+- canonical foods
+- nutrient data
+- serving unit conversions
+- grams
+- confidence
+- logged actuals
+- targets
+- gaps
+- validation
+- fallback
+
+Provider/AI may eventually help explain or assemble approved facts, but must not invent foods, macros, serving sizes, gram conversions, targets, missing intake, or health claims.
+
+## Two-layer food catalog strategy
+
+Future nutrition work should strongly prefer a two-layer model.
+
+Layer 1: raw / source food data.
+
+- large imported food datasets
+- USDA or source records
+- not directly user-facing
+- useful for search, enrichment, mapping, future expansion
+
+Layer 2: canonical app food catalog.
+
+- curated food names
+- aliases
+- nutrients per 100g
+- approved serving units
+- confidence/source metadata
+- safe for logging
+- safe for deterministic suggestions
+- safe for AI/provider contracts
+
+Doctrine: do not expose a huge raw import directly to food logging, suggestions, or provider contracts. Raw/staging imports can be large, but only approved canonical foods should power normal user-facing flows.
+
+## Serving unit / confidence strategy
+
+The backend should support weighed grams when precision matters and practical serving units when convenience matters.
+
+Examples:
+
+- `180g cooked white rice`
+- `1/2 cup cooked white rice`
+- `1 medium banana`
+- `1 large egg`
+- `1 tbsp peanut butter`
+- `1 scoop protein powder`
+- `1 slice bread`
+- `1 cup Greek yogurt`
+
+Approved serving units should convert to grams using validated metadata with default grams, optional min/max range, confidence, source, and source notes.
+
+Important rule: do not pretend household measures are exact. Store a default grams value, a range where useful, and a confidence level.
+
+## Recommended nutrition roadmap
+
+Recommended sequence after this planning milestone:
+
+1. Nutrition Catalog Diagnostic v1.
+2. Nutrition Canonical Food Model Review v1.
+3. Curated Food Catalog Expansion v1.
+4. Serving Unit Normalization / Household Measure Conversion v1.
+5. Nutrition Logging Backend Contract v1.
+6. Nutrition Actuals Confidence v1.
+7. Nutrition Deterministic Food Suggestions v1.
+8. Nutrition AI Meal/Snack Candidate Contract v1.
+
+Recommended next implementation milestone: Nutrition Catalog Diagnostic v1.
 
 ## Complex Backend Quality Gate
 
@@ -124,26 +204,6 @@ For any complex feature involving state, scoring, selection, persistence, provid
 
 Do not treat generic green tests as sufficient if the product-critical path is not covered.
 
-## Risk-based process model
-
-### Low-risk change
-
-Examples: docs update, typo/copy fix, isolated helper, small test cleanup, non-behavioral refactor.
-
-Process: normal patch, focused validation, commit, done.
-
-### Medium-risk change
-
-Examples: deterministic service behavior, simple new backend contract, small UI/backend integration, report section behavior, bounded data model expansion.
-
-Process: light diagnostic, focused test, narrow patch, regression validation, smoke if user-visible.
-
-### High-risk change
-
-Examples: workout generation, exercise catalog selection/scoring, persistence/state behavior, nutrition targets/suggestions, AI/provider output, recommendation logic, cross-domain coaching synthesis.
-
-Process: diagnostic first, failing/coverage test, narrow patch, regression validation, original smoke reproduction, Linux/browser smoke, project memory update, Architecture acceptance.
-
 ## Current boundaries
 
 - Deterministic backend owns truth.
@@ -153,20 +213,28 @@ Process: diagnostic first, failing/coverage test, narrow patch, regression valid
 - Deterministic fallback remains mandatory.
 - No provider may run on normal Today page load unless Architecture explicitly promotes it.
 - No provider/AI workout generation is accepted.
+- No provider may invent foods, serving units, grams, macros, targets, or gaps.
+- No raw/staging food import should directly power user-facing logging, suggestions, or provider contracts.
 - No CrewAI/Ollama/OpenAI/PydanticAI/LangGraph workout generation is accepted.
 - No worker/queue/scheduler/polling is accepted unless explicitly scoped.
 - No broad rewrite is authorized by process docs.
 - Codex is not used by default.
-- Exercise Eligibility Matrix v1 does not authorize rolling exposure, persistent exercise exposure tracking, nutrition, recovery, provider work, or Streamlit UI rewrites.
+- Nutrition Catalog + Serving Foundation Planning v1 is docs/project-memory only.
 
 ## Current next-roadmap candidates
 
-After Exercise Eligibility Matrix v1 is accepted, likely roadmap candidates are:
+After Nutrition Catalog + Serving Foundation Planning v1 is accepted, likely roadmap candidates are:
 
+- Nutrition Catalog Diagnostic v1.
+- Nutrition Canonical Food Model Review v1.
+- Curated Food Catalog Expansion v1.
+- Serving Unit Normalization / Household Measure Conversion v1.
+- Nutrition Logging Backend Contract v1.
+- Nutrition Actuals Confidence v1.
 - Nutrition Deterministic Food Suggestions v1.
 - Nutrition AI Meal/Snack Candidate Contract v1.
-- Catalog Reachability Audit v2.
-- Workout Preview Rolling Exposure Rotation v2.
+- Catalog Reachability Audit v2 later.
+- Workout Preview Rolling Exposure Rotation v2 later.
 - Recovery engine improvements later.
 
 ## Historical continuity reminders

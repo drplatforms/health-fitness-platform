@@ -1,125 +1,219 @@
 # Next Milestone
 
-Current milestone in progress: Exercise Eligibility Matrix v1.
+Current milestone in progress: Nutrition Catalog + Serving Foundation Planning v1.
 
-Recommended branch: `feature/exercise-eligibility-matrix-v1`.
+Recommended branch: `feature/nutrition-catalog-serving-foundation-planning-v1`.
 
 Source branch: `main`.
 
-Required source main commit: `37d210f`.
+Required source main commit: `f469c89`.
 
-Milestone type: backend quality gate / diagnostic / explicit generator-facing eligibility matrix.
+Milestone type: planning / architecture / project memory only.
 
-Current feature checkpoint: `05d319e` (`Add exercise eligibility matrix quality gate`).
+## Planning objective
 
-Current checkpoint snapshot: `fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip`.
+Define the nutrition backend foundation sequence before implementation begins.
 
-## Acceptance is blocked until
+The planning milestone should document:
 
-- Diagnostic-first process is documented and preserved.
-- `tools/exercise_eligibility_matrix_diagnostic.py` remains a developer-only diagnostic.
-- `services/exercise_eligibility_matrix_service.py` provides explicit generator-facing eligibility profiles.
-- `tests/test_exercise_eligibility_matrix_v1.py` proves known primary, specialized/accessory, core, carry/conditioning, equipment-excluded, and metadata/exclusion behavior.
-- The diagnostic baseline is recorded in project memory.
-- Known current limitation is recorded: many generator-eligible exercises remain not selected in a 10-variation deterministic sweep.
-- The failed optional diagnostic-service refactor is recorded as intentionally deferred rather than stacked blindly.
-- Quick / Standard / Full sizing remains stable.
-- Immediate preview refresh anti-repeat remains stable.
-- Selected workout persistence remains stable.
-- Active Workout persistence remains stable.
-- Today workout de-dup remains stable.
-- No provider/AI workout generation path is introduced.
-- Windows validation is green.
-- Linux validation is green.
-- Browser/manual workout smoke is green before final Architecture acceptance.
-- Feature snapshot is created only after final green validation/smoke.
+- the preferred nutrition foundation roadmap;
+- two-layer food catalog strategy;
+- serving-unit / household-measure strategy;
+- confidence/range model for estimated servings;
+- nutrition actuals confidence strategy;
+- deterministic food suggestion future contract;
+- AI meal/snack candidate future contract;
+- strict backend/provider boundary;
+- the next implementation milestone.
 
-## Diagnostic baseline to include in final handoff
+No app/runtime behavior should change.
 
-- total active catalog exercises: 240
-- total equipment-compatible exercises: 237
-- total exercises with usable metadata: 240
-- total specialized/accessory movements: 135
-- total generator-eligible exercises: 232
-- total selected in deterministic 10-variation sweep: 54
-- total not reachable in deterministic sweep: 186
-- top exclusion reason: `not_supported_by_current_generator_candidate_pools` (170)
-- weak movement families: arms_biceps, arms_triceps, mobility
+## Recommended planning decisions
 
-## Required validation before final acceptance
+### 1. Next implementation milestone
+
+Recommended next implementation milestone: Nutrition Catalog Diagnostic v1.
+
+Purpose: measure and report the current nutrition catalog state before expansion.
+
+Diagnostic should answer:
+
+- how many canonical foods exist;
+- how many active foods exist;
+- nutrient completeness;
+- alias coverage;
+- serving-unit coverage;
+- foods with no serving units;
+- foods with incomplete nutrient data;
+- duplicate or near-duplicate foods;
+- high-value staples missing;
+- current logging assumptions;
+- current target/actuals calculation dependencies;
+- whether food suggestions can safely use current data.
+
+Expected output: diagnostic tool/report and project memory update. No large catalog expansion yet.
+
+### 2. Two-layer food catalog
+
+Preferred model:
+
+Layer 1: raw / source food data.
+
+- large imported food datasets;
+- USDA or other source records;
+- not directly user-facing;
+- useful for search, enrichment, mapping, future expansion.
+
+Layer 2: canonical app food catalog.
+
+- curated food names;
+- aliases;
+- nutrients per 100g;
+- approved serving units;
+- confidence/source metadata;
+- safe for logging;
+- safe for deterministic suggestions;
+- safe for provider contracts.
+
+Do not expose a huge raw import directly to normal logging, suggestions, or AI/provider contracts.
+
+### 3. Serving unit model
+
+The backend should eventually support weighed grams and practical serving units.
+
+Possible model:
+
+CanonicalFood:
+
+- food_id
+- canonical_name
+- aliases
+- nutrients_per_100g
+- source
+- confidence
+- active
+
+ServingUnit:
+
+- serving_unit_id
+- food_id
+- unit_name
+- unit_quantity
+- grams_default
+- grams_min
+- grams_max
+- confidence
+- source
+- source_note
+- user_override_allowed
+- active
+
+### 4. Confidence/range rule
+
+Use default grams, ranges, and confidence.
+
+Do not present household measures as exact.
+
+Example:
+
+`1/2 cup cooked white rice`
+
+- grams_default: 90g
+- grams_min: 80g
+- grams_max: 100g
+- confidence: medium
+
+### 5. Nutrition actuals confidence
+
+Potential confidence sources:
+
+- weighed_grams
+- package_label
+- serving_unit_estimate
+- user_saved_serving
+- copied_previous_meal
+- AI_candidate_user_confirmed
+- unknown_or_low_confidence
+
+This should allow coaching copy like “This is an estimate,” “Weighed grams would be more precise,” or “Good enough for today.”
+
+### 6. Deterministic food suggestions
+
+Future deterministic suggestions should use backend-approved actuals, targets, gaps, canonical foods, serving units, and confidence.
+
+Backend creates approved candidates. AI may later explain or assemble only those approved candidates.
+
+### 7. AI/provider boundary
+
+Provider input must include only approved facts:
+
+- canonical foods;
+- approved serving units;
+- approved actuals;
+- approved targets;
+- approved gaps;
+- confidence notes;
+- user constraints/preferences;
+- forbidden claims.
+
+Backend validation must reject invented food, serving unit, grams, macros, targets, unsupported claims, missing required fields, non-schema output, and unsafe recommendations.
+
+## Recommended full nutrition foundation roadmap
+
+1. Nutrition Catalog Diagnostic v1.
+2. Nutrition Canonical Food Model Review v1.
+3. Curated Food Catalog Expansion v1.
+4. Serving Unit Normalization / Household Measure Conversion v1.
+5. Nutrition Logging Backend Contract v1.
+6. Nutrition Actuals Confidence v1.
+7. Nutrition Deterministic Food Suggestions v1.
+8. Nutrition AI Meal/Snack Candidate Contract v1.
+
+## Strict non-goals for the current planning milestone
+
+Do not implement catalog expansion.
+
+Do not implement serving units.
+
+Do not import USDA/source data.
+
+Do not modify food logging.
+
+Do not modify nutrition calculations.
+
+Do not modify provider/Ollama behavior.
+
+Do not add AI meal generation.
+
+Do not modify Streamlit UI.
+
+Do not modify workout generation.
+
+Do not modify recovery engine.
+
+Do not add migrations.
+
+Do not add dependencies.
+
+Do not commit snapshots, qa_artifacts, patch scripts, or local artifacts.
+
+Do not use `git add .`.
+
+## Required validation for this docs-only milestone
 
 ```powershell
 git diff --check
-pytest tests/test_exercise_eligibility_matrix_v1.py -q -s
-pytest tests/test_exercise_catalog_utilization_specialized_movement_coverage_v1.py -q
-pytest tests/test_exercise_catalog_service.py -q
-pytest tests/test_workout_plan_service.py -q
-pytest tests/test_workout_plan_selection_service.py -q
-pytest tests/test_workout_plan_persistence_service.py -q
-pytest tests/test_streamlit_workout_plan_selection.py -q
-pytest tests/test_streamlit_today_workout_dedup.py -q
-pytest tests/test_workout_daily_state_lifecycle_v1.py -q
-pytest tests/test_workout_exercise_count_preference_v1.py -q
-pytest tests/test_workout_generation_sizing_persistence_stabilization_v1.py -q
-pytest tests/test_workout_preview_full_slot_rotation_v1.py -q
-pytest tests/test_workout_preview_full_slot_rotation_quality_gate_v1.py -q -s
 python tools/project_memory_check.py
 python tools/dev_assistant.py memory-check
 python tools/dev_assistant.py stale-doc-check
 python tools/dev_assistant.py continuity-brief
-scripts/dev_commit_check.ps1 -Mode code
-python -m py_compile services/exercise_catalog_service.py
-python -m py_compile services/exercise_eligibility_matrix_service.py
-python -m py_compile services/workout_exercise_count_service.py
-python -m py_compile services/workout_plan_service.py
-python -m py_compile tools/exercise_eligibility_matrix_diagnostic.py
-python -m py_compile ui/streamlit_app.py
+pytest tests/test_project_memory_check.py -q
+scripts/dev_commit_check.ps1 -Mode docs-only
 ```
 
-## Manual smoke before final acceptance
+No browser smoke required.
 
-Workout page:
-
-- Generate Quick and confirm 3-4 exercises.
-- Click Show different exercises and confirm immediate refresh remains meaningfully different.
-- Generate Standard and confirm 4-5 exercises.
-- Click Show different exercises and confirm immediate refresh remains meaningfully different.
-- Generate Full and confirm 6-7 exercises.
-- Click Show different exercises and confirm immediate refresh remains meaningfully different.
-- Confirm no obvious invalid equipment appears.
-- Confirm no exact duplicate exercise names appear.
-- Select a visible preview and confirm selected workout persists unchanged across refresh/rerun.
-- Confirm Active Workout exactly matches selected workout.
-- Confirm Today does not duplicate full workout selection flow and does not regenerate selected/active workout.
-- Confirm Developer Mode does not expose raw rows/secrets/tracebacks and no provider/AI workout path was introduced.
-
-## Recommended next milestones after acceptance
-
-- Nutrition Deterministic Food Suggestions v1.
-- Nutrition AI Meal/Snack Candidate Contract v1.
-- Catalog Reachability Audit v2.
-- Workout Preview Rolling Exposure Rotation v2.
-- Recovery engine improvements later.
-
-## Deferred / not authorized by this milestone
-
-- rolling multi-refresh novelty
-- persistent exercise exposure tracking
-- forcing all catalog exercises into generated workouts
-- giant movement taxonomy engine
-- workout engine rewrite
-- exercise catalog rewrite
-- database migration
-- exercise substitution UI
-- selected-workout replacement
-- workout periodization
-- nutrition features
-- recovery features
-- Daily Narrative changes
-- Weekly Summary changes
-- AI/Ollama/CrewAI/OpenAI workout generation
-- worker/queue/scheduler/polling
-- Streamlit latency optimization
+No Linux runtime smoke required unless project policy chooses to pull docs milestones on Linux.
 
 ## Historical project-memory requirements still present
 
