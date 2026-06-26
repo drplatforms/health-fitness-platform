@@ -809,6 +809,31 @@ def _option_score(
     return score
 
 
+def _compatible_selection_patterns(slot_key: str | None) -> set[str]:
+    patterns = {
+        pattern.strip() for pattern in (slot_key or "").split("|") if pattern.strip()
+    }
+    if patterns & {"hinge", "squat", "lunge"}:
+        return {"hinge", "squat", "lunge"}
+    if patterns & {"carry", "core_anti_extension", "core_anti_rotation"}:
+        return {
+            "arms_biceps",
+            "arms_triceps",
+            "carry",
+            "core_anti_extension",
+            "core_anti_rotation",
+            "horizontal_pull",
+            "vertical_push",
+        }
+    if patterns & {"conditioning"}:
+        return {"conditioning", "carry", "core_anti_extension", "horizontal_pull"}
+    if patterns & {"vertical_push", "horizontal_push"}:
+        return {"vertical_push", "horizontal_push"}
+    if patterns & {"vertical_pull", "horizontal_pull"}:
+        return {"vertical_pull", "horizontal_pull"}
+    return patterns
+
+
 def _select_from_rotated_top_options(
     allowed_options: list[tuple[int, str, list[str]]],
     *,
@@ -823,23 +848,23 @@ def _select_from_rotated_top_options(
     best_score = ranked[0][0]
     strict_top_options = [item for item in ranked[:5] if best_score - item[0] <= 180]
 
-    primary_slot_pattern = (slot_key or "").split("|", 1)[0]
+    compatible_slot_patterns = _compatible_selection_patterns(slot_key)
     same_pattern_options: list[tuple[int, str, list[str]]] = []
-    if primary_slot_pattern:
+    if compatible_slot_patterns:
         for item in ranked:
             _score, option_name, _equipment_required = item
             catalog_entry = find_catalog_entry_by_name(option_name)
             if (
                 catalog_entry is not None
-                and catalog_entry.movement_pattern == primary_slot_pattern
+                and catalog_entry.movement_pattern in compatible_slot_patterns
             ):
                 same_pattern_options.append(item)
 
     if same_pattern_options:
-        # Use one stable same-pattern candidate pool for all preview variations.
-        # If variation 0 and variation 1 are selected from different pools, the
-        # first refresh can repeat a strong default even when later variation
-        # indexes prove valid alternatives are reachable.
+        # Use one stable compatible-pattern candidate pool for all preview
+        # variations. The pool remains pattern-aware, but allows safe sibling
+        # patterns such as hinge/squat/lunge or vertical/horizontal push to be
+        # selected instead of collapsing each slot to one narrow movement family.
         top_options = same_pattern_options
     else:
         top_options = strict_top_options
@@ -872,10 +897,10 @@ def _select_from_rotated_top_options(
         f"{name}:{count}" for name, count in sorted(recent_name_counts.items())[:16]
     )
     rotation_seed = f"{slot_key}:{history_depth}:{recent_seed}"
+    variation_index = _normalize_preview_variation_index(preview_variation_index)
     base_rotation_index = _stable_rotation_index(
         rotation_seed, len(top_options), user_id=user_id
     )
-    variation_index = _normalize_preview_variation_index(preview_variation_index)
     rotation_index = (base_rotation_index + variation_index) % len(top_options)
 
     if variation_index > 0 and len(top_options) > 1:
@@ -1355,10 +1380,18 @@ def _generate_base_candidate_workout_plan(
         else [
             ("Romanian Deadlift", ["barbell"]),
             ("Dumbbell Single-Leg RDL", ["dumbbell"]),
+            ("Dumbbell RDL", ["dumbbell"]),
             ("Cable Pull-Through", ["cable", "rope_cable_attachment"]),
             ("Barbell Squat", ["barbell"]),
             ("Goblet Squat", ["dumbbell"]),
             ("Bodyweight Squat", ["bodyweight"]),
+            ("Reverse Lunge", ["bodyweight"]),
+            ("Split Squat", ["bodyweight"]),
+            ("Dumbbell Split Squat", ["dumbbell"]),
+            ("Dumbbell Reverse Lunge", ["dumbbell"]),
+            ("Glute Bridge", ["bodyweight"]),
+            ("Hip Thrust", ["barbell", "plates", "adjustable_bench"]),
+            ("Single-Leg Glute Bridge", ["bodyweight"]),
             ("Leg Press", ["machine"]),
         ]
     )
@@ -1376,11 +1409,19 @@ def _generate_base_candidate_workout_plan(
             ("Dumbbell Shoulder Press", ["dumbbell"]),
             ("Arnold Press", ["dumbbell"]),
             ("Barbell Bench Press", ["barbell"]),
+            ("Dumbbell Bench Press", ["dumbbell", "adjustable_bench"]),
+            ("Dumbbell Floor Press", ["dumbbell"]),
+            ("Incline Dumbbell Press", ["dumbbell", "adjustable_bench"]),
+            ("Single-Arm Cable Press", ["cable"]),
             ("Push-Up", ["bodyweight"]),
+            ("Incline Push-Up", ["bodyweight", "adjustable_bench"]),
         ]
     )
     pull_options = (
         [
+            ("Pull-Up", ["pull_up_bar"]),
+            ("Cable Lat Pulldown", ["cable"]),
+            ("Band-Assisted Pull-Up", ["pull_up_bar", "resistance_band"]),
             ("Cable Row", ["cable"]),
             ("Barbell Row", ["barbell"]),
             ("One-Arm Dumbbell Row", ["dumbbell", "adjustable_bench"]),
@@ -1392,9 +1433,18 @@ def _generate_base_candidate_workout_plan(
         else [
             ("Pull-Up", ["pull_up_bar"]),
             ("Chin-Up", ["pull_up_bar"]),
+            ("Band-Assisted Pull-Up", ["pull_up_bar", "resistance_band"]),
+            ("Negative Pull-Up", ["pull_up_bar"]),
             ("Cable Lat Pulldown", ["cable"]),
+            ("Lat Pulldown", ["cable"]),
             ("Band Lat Pulldown", ["resistance_band"]),
             ("Cable Row", ["cable"]),
+            ("Cable High Row", ["cable"]),
+            ("Barbell Row", ["barbell"]),
+            ("One-Arm Dumbbell Row", ["dumbbell", "adjustable_bench"]),
+            ("Dumbbell Row", ["dumbbell"]),
+            ("Chest-Supported Row", ["dumbbell", "adjustable_bench"]),
+            ("Band Row", ["resistance_band"]),
             ("Inverted Row", ["bodyweight"]),
         ]
     )
@@ -1410,9 +1460,20 @@ def _generate_base_candidate_workout_plan(
         else [
             ("Farmer Carry", ["dumbbell"]),
             ("Suitcase Carry", ["dumbbell"]),
-            ("Stability Ball Rollout", ["exercise_ball"]),
-            ("Rope Face Pull", ["cable", "rope_cable_attachment"]),
+            ("Waiter Carry", ["dumbbell"]),
+            ("Dumbbell Front Rack Carry", ["dumbbell"]),
+            ("Cable Pallof Press", ["cable"]),
+            ("Band Pallof Press", ["resistance_band"]),
+            ("Side Plank", ["bodyweight"]),
+            ("Bird Dog", ["bodyweight"]),
             ("Dead Bug", ["bodyweight"]),
+            ("Plank", ["bodyweight"]),
+            ("Stability Ball Dead Bug", ["exercise_ball"]),
+            ("Stability Ball Rollout", ["exercise_ball"]),
+            ("Band Face Pull", ["resistance_band"]),
+            ("Band Pull-Apart", ["resistance_band"]),
+            ("Rope Face Pull", ["cable", "rope_cable_attachment"]),
+            ("Cable Face Pull", ["cable"]),
         ]
     )
 
@@ -1481,9 +1542,15 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
             ("Cable Pallof Press", ["cable"]),
             ("Band Pallof Press", ["resistance_band"]),
             ("Dead Bug", ["bodyweight"]),
+            ("Side Plank", ["bodyweight"]),
+            ("Bird Dog", ["bodyweight"]),
+            ("Plank", ["bodyweight"]),
             ("Stability Ball Dead Bug", ["exercise_ball"]),
+            ("Stability Ball Rollout", ["exercise_ball"]),
             ("Farmer Carry", ["dumbbell"]),
             ("Suitcase Carry", ["dumbbell"]),
+            ("Waiter Carry", ["dumbbell"]),
+            ("Dumbbell Front Rack Carry", ["dumbbell"]),
         ],
         2,
         8,
@@ -1514,10 +1581,16 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
     (
         [
             ("Treadmill Incline Walk", ["treadmill"]),
+            ("Treadmill Walk", ["treadmill"]),
+            ("Treadmill Intervals", ["treadmill"]),
             ("Bike Steady State", ["bike"]),
+            ("Bike Intervals", ["bike"]),
             ("Dumbbell Calf Raise", ["dumbbell"]),
+            ("Standing Calf Raise", ["bodyweight"]),
             ("Band Pull-Apart", ["resistance_band"]),
             ("Plank", ["bodyweight"]),
+            ("Mountain Climber", ["bodyweight"]),
+            ("Bear Crawl", ["bodyweight"]),
         ],
         2,
         8,
@@ -1564,15 +1637,24 @@ def _next_additional_exercise(
     constraints = context.training_constraints
     rir_min = constraints.recommended_rir_min or 2
     rir_max = constraints.recommended_rir_max or 4
-    exercise = _exercise_from_options(
-        context,
+    name, equipment_required = _select_exercise(
+        context.workout_constraints,
         available_options,
+        user_id=context.user_id,
+        slot_key=(
+            f"{_selection_slot_key(available_options)}|additional_slot_{slot_index}"
+        ),
+        preview_variation_index=context.preview_variation_index,
+    )
+    exercise = _exercise(
+        name,
         sets,
         reps_min,
         reps_max,
         rir_min,
         rir_max,
         notes,
+        equipment_required,
     )
     normalized_name = _normalize_exercise_name(exercise.name)
     existing_names.add(normalized_name)
