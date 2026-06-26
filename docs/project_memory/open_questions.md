@@ -1,5 +1,60 @@
 # Open Questions
 
+## Nutrition Catalog + Serving Foundation Planning v1
+
+Current planning questions for Architecture:
+
+1. Should the next implementation milestone be Nutrition Catalog Diagnostic v1?
+
+Recommended answer: yes.
+
+2. Should curated canonical food expansion come before serving units?
+
+Recommended answer: yes, but serving-unit modeling should be designed before expansion so the catalog schema does not need rework.
+
+3. Should raw USDA/source import be implemented before curated expansion?
+
+Recommended answer: no, not as the first implementation. Use curated expansion first, then raw/staging import later.
+
+4. Should serving sizes be exact numbers or ranges?
+
+Recommended answer: ranges plus default grams and confidence.
+
+5. Should serving-unit logging be allowed immediately in the UI?
+
+Recommended answer: not necessarily. Backend contract first, UI later.
+
+6. Should AI/provider participate in serving conversion?
+
+Recommended answer: no. Backend owns conversions.
+
+7. Should AI/provider participate in meal/snack generation later?
+
+Recommended answer: yes, but only from backend-approved foods, servings, actuals, targets, and gaps.
+
+8. Should nutrition suggestions come before AI meal generation?
+
+Recommended answer: yes. Deterministic food suggestions should come before AI-generated meal/snack candidates.
+
+9. Should recovery be tackled before nutrition?
+
+Recommended answer: no. Recovery is weaker, but nutrition is the better next learning/personal-use priority.
+
+10. Should workouts continue before nutrition?
+
+Recommended answer: no, unless a blocking workout regression appears. Workout foundation is good enough for now.
+
+## Nutrition catalog and serving follow-up questions
+
+- What is the current shape of food catalog tables/services?
+- How many current foods are true canonical foods versus seed/demo foods?
+- Which fields currently support aliases, source metadata, active flags, and per-100g nutrients?
+- Where should serving units live: schema table, JSON metadata, or service-owned mapping first?
+- What confidence enum should be used across logging, suggestions, and provider contracts?
+- Which 150-300 foods should be included in the first curated expansion?
+- Which 50-100 foods need serving units first?
+- Should user-specific serving overrides be allowed in v1 or deferred?
+
 ## Exercise Eligibility Matrix v1 follow-up
 
 Exercise Eligibility Matrix v1 created an explicit generator-facing eligibility service and developer diagnostic, but it intentionally did not force full catalog reachability.
@@ -29,25 +84,11 @@ Rolling multi-refresh novelty is deferred to Workout Preview Rolling Exposure Ro
 
 Open question: should long-window exercise exposure tracking be session-only, persisted, or derived from selected workout history?
 
-## Full exercise eligibility and catalog reachability
-
-Exercise Catalog Utilization / Specialized Movement Coverage v1 improved deterministic catalog breadth and specialized movement reachability.
-
-Exercise Eligibility Matrix v1 makes eligibility explicit but does not complete all reachability work.
-
-Future work remains:
-
-- Catalog Reachability Audit v2.
-- complete catalog reachability.
-- deeper movement-family de-duplication.
-- clearer equipment/movement-pattern compatibility rules.
-- decision on whether candidate-only exercises should be promoted by scoring, rotation, or new slots.
-
 ## Provider strategy roadmap
 
 Provider strategy remains pending.
 
-Possible future planning should compare local-first `qwen` / `direct_ollama` paths with higher-tier OpenAI/provider adapter options, but no provider strategy implementation is authorized by the current exercise eligibility milestone.
+Possible future planning should compare local-first `qwen` / `direct_ollama` paths with higher-tier OpenAI/provider adapter options, but no provider strategy implementation is authorized by the current nutrition planning milestone.
 
 Provider may propose. Backend validates. User sees only approved output.
 

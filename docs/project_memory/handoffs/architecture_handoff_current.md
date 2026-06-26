@@ -1,51 +1,49 @@
 # Architecture Handoff Current
 
-Milestone: Exercise Eligibility Matrix v1
+Milestone: Nutrition Catalog + Serving Foundation Planning v1
 
-Status: implementation checkpoint committed and Linux-validated; final closeout validation/smoke pending.
+Status: authorized / planning request.
 
-Source baseline: `main` at `37d210f`.
+Source baseline: `main` at `f469c89`.
 
-Branch: `feature/exercise-eligibility-matrix-v1`.
+Branch: `feature/nutrition-catalog-serving-foundation-planning-v1`.
 
-Current checkpoint commit: `05d319e` (`Add exercise eligibility matrix quality gate`).
-
-Current checkpoint snapshot: `fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip`.
+Milestone type: planning / architecture / project memory only.
 
 ## Review focus
 
-Architecture should verify that v1 stayed narrow:
+Architecture should make and document the nutrition foundation decisions before backend implementation begins.
 
-- diagnostic-first process was followed;
-- quality-gate test failed before implementation;
-- explicit generator-facing eligibility matrix service exists;
-- known primary, accessory, core, carry/conditioning, and equipment-excluded examples are classified;
-- diagnostic output records reachability and exclusion reasons;
-- generator behavior was not broadly rewritten;
-- no provider/AI workout generation was introduced;
-- the failed optional diagnostic-service refactor was correctly stopped/deferred instead of stacked blindly.
+Primary decisions:
 
-## V1 acceptance intent
+- confirm Nutrition Catalog Diagnostic v1 as the next implementation milestone;
+- confirm two-layer raw/source plus canonical app food catalog strategy;
+- confirm serving-unit / household-measure model direction;
+- confirm default grams + min/max range + confidence strategy;
+- confirm backend ownership of conversions and nutrition truth;
+- confirm deterministic suggestions before AI meal/snack generation;
+- confirm provider can only assemble/explain backend-approved foods, servings, actuals, targets, and gaps;
+- confirm workouts are good enough for now and recovery remains deferred behind nutrition foundation.
 
-Exercise Eligibility Matrix v1 should be accepted if it makes eligibility explicit and test-covered while preserving existing workout behavior.
+## Planning recommendation
 
-It should not be blocked merely because many exercises remain not selected in the deterministic sweep; that is a documented Catalog Reachability Audit v2 / future workout-roadmap issue.
+Recommended sequence:
 
-## Known diagnostic baseline
+1. Nutrition Catalog Diagnostic v1.
+2. Nutrition Canonical Food Model Review v1.
+3. Curated Food Catalog Expansion v1.
+4. Serving Unit Normalization / Household Measure Conversion v1.
+5. Nutrition Logging Backend Contract v1.
+6. Nutrition Actuals Confidence v1.
+7. Nutrition Deterministic Food Suggestions v1.
+8. Nutrition AI Meal/Snack Candidate Contract v1.
 
-- active catalog exercises: 240
-- equipment-compatible exercises: 237
-- generator-eligible exercises: 232
-- selected in 10-variation deterministic sweep: 54
-- top exclusion reason: `not_supported_by_current_generator_candidate_pools` (170)
-- weak movement families: arms_biceps, arms_triceps, mobility
+## Non-goals
 
-## Final acceptance is still blocked until
+No catalog expansion, serving unit implementation, USDA/source import, food logging changes, nutrition calculation changes, provider/Ollama behavior, AI meal generation, Streamlit UI, workout generation, recovery engine, migrations, or dependencies are authorized by this planning milestone.
 
-- full validation suite is green;
-- Linux validation remains green;
-- browser/manual workout smoke is green;
-- final feature snapshot is created;
-- final handoff records validation/smoke results.
+## Acceptance intent
 
-Proposed final status after successful closeout: `EXERCISE_ELIGIBILITY_MATRIX_V1_ACCEPTED`.
+Accept this milestone if the nutrition sequence, two-layer catalog doctrine, serving unit strategy, confidence model, provider boundary, and next implementation milestone are documented and docs validation is green.
+
+Proposed final status after successful closeout: `NUTRITION_CATALOG_SERVING_FOUNDATION_PLANNING_V1_ACCEPTED`.

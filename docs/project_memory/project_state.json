@@ -6,32 +6,29 @@
     "canonical_branch": "main"
   },
   "current_baseline": {
-    "latest_accepted_milestone": "Test-First Quality Gate Development Plan v1",
-    "latest_final_status": "TEST_FIRST_QUALITY_GATE_DEVELOPMENT_PLAN_V1_ACCEPTED",
-    "latest_accepted_commit": "227990e",
-    "latest_main_merge_commit": "37d210f",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_227990e_clarify-continuity-brief-metadata.zip",
-    "previous_accepted_milestone": "Exercise Catalog Utilization / Specialized Movement Coverage v1",
-    "previous_feature_commit": "1d44b3d",
-    "previous_main_merge_commit": "b343a47",
-    "previous_snapshot": "fitness_ai_snapshot_2026-06-26_1d44b3d_preserve-primary-workout-rotation-after-catalog-expansion.zip",
-    "previous_previous_accepted_milestone": "Workout Preview Full-Slot Rotation v1",
-    "previous_previous_feature_commit": "3b32f97",
-    "previous_previous_main_merge_commit": "f39b403",
-    "previous_previous_snapshot": "fitness_ai_snapshot_2026-06-25_3b32f97_fix-first-refresh-workout-slot-rotation.zip"
+    "latest_accepted_milestone": "Exercise Eligibility Matrix v1",
+    "latest_final_status": "EXERCISE_ELIGIBILITY_MATRIX_V1_ACCEPTED",
+    "latest_accepted_commit": "851a7ca",
+    "latest_main_merge_commit": "f469c89",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_851a7ca_update-exercise-eligibility-matrix-project-memory.zip",
+    "previous_accepted_milestone": "Test-First Quality Gate Development Plan v1",
+    "previous_feature_commit": "227990e",
+    "previous_main_merge_commit": "37d210f",
+    "previous_snapshot": "fitness_ai_snapshot_2026-06-26_227990e_clarify-continuity-brief-metadata.zip",
+    "previous_previous_accepted_milestone": "Exercise Catalog Utilization / Specialized Movement Coverage v1",
+    "previous_previous_feature_commit": "1d44b3d",
+    "previous_previous_main_merge_commit": "b343a47",
+    "previous_previous_snapshot": "fitness_ai_snapshot_2026-06-26_1d44b3d_preserve-primary-workout-rotation-after-catalog-expansion.zip"
   },
   "active_roadmap": {
-    "current_authorized_milestone": "Exercise Eligibility Matrix v1",
-    "current_authorized_branch": "feature/exercise-eligibility-matrix-v1",
-    "current_authorized_status": "IMPLEMENTATION CHECKPOINT / LINUX GREEN / FINAL CLOSEOUT VALIDATION PENDING",
-    "source_main_commit": "37d210f",
-    "recommended_next_milestone_after_acceptance": "Nutrition Deterministic Food Suggestions v1, Nutrition AI Meal/Snack Candidate Contract v1, Catalog Reachability Audit v2, or Workout Preview Rolling Exposure Rotation v2 later",
-    "codex": "DO NOT USE BY DEFAULT",
-    "delivery_flow": "diagnostic -> failing/coverage test -> narrow implementation -> regression validation -> manual smoke -> project memory -> snapshot -> Architecture handoff",
+    "current_authorized_milestone": "Nutrition Catalog + Serving Foundation Planning v1",
+    "current_authorized_status": "AUTHORIZED / PLANNING REQUEST / DOCS ONLY",
+    "current_authorized_branch": "feature/nutrition-catalog-serving-foundation-planning-v1",
+    "source_main_commit": "f469c89",
+    "recommended_next_milestone_after_acceptance": "Nutrition Catalog Diagnostic v1",
     "process_doctrine": "Bite by bite, just bigger bites. Bigger milestone is okay. Bigger single patch is not okay.",
-    "current_feature_checkpoint_commit": "05d319e",
-    "current_feature_checkpoint_message": "Add exercise eligibility matrix quality gate",
-    "current_feature_checkpoint_snapshot": "fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip"
+    "delivery_flow": "downloadable docs-only patch -> preflight -> apply patch -> docs validation -> stage explicit files -> commit -> push -> feature snapshot -> Architecture handoff",
+    "codex": "DO NOT USE BY DEFAULT"
   },
   "boundaries": {
     "normal_today_unchanged": true,
@@ -83,7 +80,24 @@
     "no_recovery_changes_for_current_milestone": true,
     "no_provider_ai_workout_generation_for_current_milestone": true,
     "no_streamlit_ui_rewrite_for_current_milestone": true,
-    "optional_diagnostic_service_refactor_deferred": true
+    "optional_diagnostic_service_refactor_deferred": true,
+    "exercise_eligibility_matrix_v1_accepted": true,
+    "workout_foundation_good_enough_for_now": true,
+    "nutrition_catalog_serving_foundation_planning_v1": true,
+    "current_milestone_docs_only": true,
+    "no_runtime_changes_for_current_planning_milestone": true,
+    "no_catalog_expansion_for_current_planning_milestone": true,
+    "no_serving_unit_implementation_for_current_planning_milestone": true,
+    "no_usda_source_import_for_current_planning_milestone": true,
+    "no_food_logging_changes_for_current_planning_milestone": true,
+    "no_nutrition_calculation_changes_for_current_planning_milestone": true,
+    "no_provider_changes_for_current_planning_milestone": true,
+    "no_streamlit_changes_for_current_planning_milestone": true,
+    "no_workout_changes_for_current_planning_milestone": true,
+    "no_recovery_changes_for_current_planning_milestone": true,
+    "two_layer_food_catalog_strategy": true,
+    "serving_unit_confidence_range_strategy": true,
+    "backend_owns_serving_conversions": true
   },
   "process_doctrine": {
     "complex_backend_quality_gate": [
@@ -180,10 +194,9 @@
       "docs/project_memory/architecture_principles.md",
       "docs/project_memory/open_questions.md",
       "docs/project_memory/next_milestone.md",
-      "docs/project_memory/role_bootstrap_architecture.md",
-      "docs/project_memory/role_bootstrap_backend.md",
-      "docs/project_memory/role_bootstrap_qa.md",
-      "docs/project_memory/qa_workflow.md"
+      "docs/project_memory/handoffs/architecture_handoff_current.md",
+      "docs/project_memory/handoffs/backend_handoff_current.md",
+      "docs/project_memory/handoffs/qa_handoff_current.md"
     ]
   },
   "model_provider_policy": {
@@ -206,10 +219,9 @@
       "docs/project_memory/architecture_principles.md",
       "docs/project_memory/open_questions.md",
       "docs/project_memory/next_milestone.md",
-      "docs/project_memory/role_bootstrap_architecture.md",
-      "docs/project_memory/role_bootstrap_backend.md",
-      "docs/project_memory/role_bootstrap_qa.md",
-      "docs/project_memory/qa_workflow.md"
+      "docs/project_memory/handoffs/architecture_handoff_current.md",
+      "docs/project_memory/handoffs/backend_handoff_current.md",
+      "docs/project_memory/handoffs/qa_handoff_current.md"
     ]
   },
   "exercise_eligibility_matrix_v1": {
@@ -245,6 +257,40 @@
       "rolling multi-refresh novelty",
       "persistent exercise exposure tracking",
       "arms/mobility slot expansion"
+    ]
+  },
+  "nutrition_catalog_serving_foundation_planning_v1": {
+    "status": "authorized planning milestone",
+    "branch": "feature/nutrition-catalog-serving-foundation-planning-v1",
+    "source_main_commit": "f469c89",
+    "milestone_type": "planning / architecture / project memory only",
+    "recommended_next_implementation_milestone": "Nutrition Catalog Diagnostic v1",
+    "recommended_sequence": [
+      "Nutrition Catalog Diagnostic v1",
+      "Nutrition Canonical Food Model Review v1",
+      "Curated Food Catalog Expansion v1",
+      "Serving Unit Normalization / Household Measure Conversion v1",
+      "Nutrition Logging Backend Contract v1",
+      "Nutrition Actuals Confidence v1",
+      "Nutrition Deterministic Food Suggestions v1",
+      "Nutrition AI Meal/Snack Candidate Contract v1"
+    ],
+    "catalog_strategy": "two-layer raw/source staging plus curated canonical app food catalog",
+    "serving_unit_strategy": "default grams plus optional min/max range, confidence, source, and source note",
+    "provider_boundary": "provider may only assemble/explain backend-approved foods, serving units, actuals, targets, gaps, and confidence notes; backend rejects invented facts",
+    "strict_non_goals": [
+      "catalog expansion",
+      "serving unit implementation",
+      "USDA/source import",
+      "food logging changes",
+      "nutrition calculation changes",
+      "provider/Ollama behavior changes",
+      "AI meal generation",
+      "Streamlit UI changes",
+      "workout generation changes",
+      "recovery engine changes",
+      "database migrations",
+      "dependency changes"
     ]
   }
 }

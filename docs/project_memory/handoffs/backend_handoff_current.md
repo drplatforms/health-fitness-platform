@@ -1,64 +1,61 @@
 # Backend Handoff Current
 
-Milestone: Exercise Eligibility Matrix v1
+Milestone: Nutrition Catalog + Serving Foundation Planning v1
 
-Status: implementation checkpoint committed and Linux-validated; final closeout validation/smoke pending.
+Status: planning request / no runtime implementation.
 
-Source baseline: `main` at `37d210f`.
+Source baseline: `main` at `f469c89`.
 
-Branch: `feature/exercise-eligibility-matrix-v1`.
+Branch: `feature/nutrition-catalog-serving-foundation-planning-v1`.
 
-Current checkpoint commit: `05d319e` (`Add exercise eligibility matrix quality gate`).
+## Backend planning direction
 
-Current checkpoint snapshot: `fitness_ai_snapshot_2026-06-26_05d319e_add-exercise-eligibility-matrix-quality-gate.zip`.
+Backend should prepare for nutrition work in this order:
 
-## What changed
+1. Diagnose the current nutrition catalog state.
+2. Review whether current models can support canonical foods, aliases, per-100g nutrients, source/confidence metadata, and active flags.
+3. Curate 150-300 high-value app-facing foods.
+4. Add serving units for 50-100 high-value foods.
+5. Support food logs by grams or approved serving unit.
+6. Track actuals confidence.
+7. Build deterministic food suggestions from macro gaps.
+8. Only then allow provider meal/snack candidates using backend-approved facts.
 
-- Added developer diagnostic: `tools/exercise_eligibility_matrix_diagnostic.py`.
-- Added explicit matrix service: `services/exercise_eligibility_matrix_service.py`.
-- Added focused quality-gate tests: `tests/test_exercise_eligibility_matrix_v1.py`.
-- No workout generation behavior was intentionally changed.
-- No Streamlit UI, database, provider, nutrition, recovery, Daily Narrative, or Weekly Summary behavior was changed.
+## Backend ownership
 
-## Diagnostic baseline
+Backend owns food truth, canonical foods, nutrients, serving conversions, grams, confidence, logged actuals, targets, gaps, validation, and fallback.
 
-- total active catalog exercises: 240
-- equipment-compatible exercises: 237
-- exercises with usable metadata: 240
-- specialized/accessory movements: 135
-- generator-eligible exercises: 232
-- selected in 10-variation deterministic sweep: 54
-- not reachable in deterministic sweep: 186
-- top exclusion reason: `not_supported_by_current_generator_candidate_pools` (170)
-- weak movement families: arms_biceps, arms_triceps, mobility
+Provider/AI must not invent foods, serving units, grams, macros, targets, actuals, or unsupported claims.
 
-## Quality-gate history
+## Two-layer catalog doctrine
 
-The required failing/coverage test was added before implementation.
+Use raw/source data as staging/enrichment. Use canonical app foods for normal logging, suggestions, and provider contracts.
 
-Initial expected failure:
+Do not expose a huge raw import directly to user-facing food logging, deterministic suggestions, or provider contracts.
 
-```text
-ModuleNotFoundError: No module named 'services.exercise_eligibility_matrix_service'
-```
+## Current non-goals
 
-The narrow implementation added the service and the focused test gate passed.
+Do not implement nutrition code in this planning milestone.
 
-An optional diagnostic-service refactor patch later failed to apply. Per stop-condition rules, refactoring stopped and the known-green checkpoint was committed instead of stacking more patches.
+Do not modify food logging, nutrition calculations, provider/Ollama behavior, Streamlit UI, workouts, recovery, migrations, dependencies, snapshots, qa_artifacts, or local patch scripts.
 
-## Backend closeout still required
+Do not use `git add .`.
 
-- Run the full workout regression suite listed in `docs/project_memory/next_milestone.md`.
-- Run project-memory checks.
-- Run manual/browser Workout smoke.
-- Create final feature snapshot only after final green validation/smoke.
-- Return final Architecture handoff.
+## Expected next backend milestone
 
-## Boundaries
+Nutrition Catalog Diagnostic v1.
 
-- Do not implement rolling exposure in this milestone.
-- Do not force all catalog exercises into generated workouts.
-- Do not add workout periodization.
-- Do not add nutrition/recovery/provider work.
-- Do not retry optional refactors unless Architecture explicitly asks.
-- Do not use `git add .`.
+Expected diagnostic output:
+
+- canonical food counts;
+- active food counts;
+- nutrient completeness;
+- alias coverage;
+- serving-unit coverage;
+- foods with no serving units;
+- foods with incomplete nutrient data;
+- duplicate/near-duplicate foods;
+- high-value staples missing;
+- current logging assumptions;
+- target/actuals calculation dependencies;
+- whether deterministic suggestions can safely use current data.

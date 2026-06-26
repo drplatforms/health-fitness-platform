@@ -1,52 +1,43 @@
 # QA Handoff Current
 
-Milestone: Exercise Eligibility Matrix v1
+Milestone: Nutrition Catalog + Serving Foundation Planning v1
 
-QA status: implementation checkpoint committed and Linux-validated; final regression/manual smoke pending.
+QA status: docs/project-memory planning validation only.
 
-Branch: `feature/exercise-eligibility-matrix-v1`.
-
-Current checkpoint commit: `05d319e`.
+Branch: `feature/nutrition-catalog-serving-foundation-planning-v1`.
 
 ## QA focus
 
-Confirm that Exercise Eligibility Matrix v1 preserved existing user-visible workout behavior while adding explicit generator-facing eligibility coverage.
+This milestone is planning/docs only. QA should validate that no runtime behavior is changed and that the planning docs are discoverable.
 
 Primary checks:
 
-- Quick remains 3-4 exercises.
-- Standard remains 4-5 exercises.
-- Full remains 6-7 exercises.
-- Immediate preview refresh anti-repeat remains meaningful.
-- Selected workout persists exactly.
-- Active Workout loads selected workout exactly.
-- Today does not duplicate or regenerate selected/active workout.
-- No invalid equipment appears for the current home-gym profile.
-- No exact duplicate exercise names appear unless unavoidable.
-- No provider/AI workout generation path exists.
-- Normal UI does not leak provider/debug/runtime internals.
+- nutrition foundation sequence is documented;
+- two-layer food catalog strategy is documented;
+- serving unit / household measure strategy is documented;
+- grams default/range/confidence model is documented;
+- AI/provider nutrition boundary is documented;
+- recommended next implementation milestone is clear;
+- workout foundation is marked good enough for now;
+- recovery remains acknowledged but deferred;
+- no app/runtime files are changed;
+- docs validation is green;
+- snapshots, qa_artifacts, and patch/apply scripts are not committed.
 
-## Diagnostic / matrix checks
+## Expected validation
 
-The diagnostic and service should make these visible:
+Docs-only validation:
 
-- active catalog total;
-- equipment compatibility;
-- generator eligibility roles;
-- slot families;
-- reachability status;
-- exclusion reasons;
-- known specialized/accessory examples;
-- known equipment-excluded examples.
+```powershell
+git diff --check
+python tools/project_memory_check.py
+python tools/dev_assistant.py memory-check
+python tools/dev_assistant.py stale-doc-check
+python tools/dev_assistant.py continuity-brief
+pytest tests/test_project_memory_check.py -q
+scripts/dev_commit_check.ps1 -Mode docs-only
+```
 
-## Known limitation for QA notes
+No browser smoke required.
 
-The diagnostic reports that many generator-eligible exercises are not selected in a 10-variation deterministic sweep. This is not a v1 blocker if those exercises are classified with reasons and existing workout behavior remains stable.
-
-## Deferred
-
-- rolling multi-refresh novelty;
-- persistent exposure tracking;
-- complete catalog reachability;
-- nutrition/recovery/provider changes;
-- optional diagnostic-service refactor that failed to apply and was intentionally stopped.
+No Linux runtime smoke required unless project policy chooses to pull docs milestones on Linux.
