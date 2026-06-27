@@ -77,6 +77,7 @@ class FakeResult:
         fallback: bool = False,
         fallback_reason: str | None = None,
         selected_model: str | None = None,
+        raw_provider_output: str | None = None,
     ) -> None:
         source = "deterministic_fallback" if fallback else provider
         self.user_id = user_id
@@ -84,6 +85,7 @@ class FakeResult:
             source=source,
             quoted_values_used=["recovery.readiness_level", "recovery.fatigue_risk"],
         )
+        self.raw_provider_output = raw_provider_output
         self.metadata = FakeMetadata(
             selected_provider=provider,
             selected_model=selected_model,
@@ -110,6 +112,8 @@ class FakeResult:
         payload = self.to_public_dict()
         payload["runtime_metadata"] = self.metadata.to_dict()
         payload["provider_context_summary"] = {"approved_value_claim_count": 2}
+        if self.raw_provider_output is not None:
+            payload["raw_provider_output"] = self.raw_provider_output
         return payload
 
 
@@ -174,7 +178,8 @@ def test_trial_matrix_records_skipped_provider_cases_cleanly(tmp_path: Path) -> 
     )
 
     assert rows[0].skipped is True
-    assert rows[0].skip_reason == "missing_OPENAI_API_KEY"
+    assert rows[0].skip_reason == "missing_api_key"
+    assert rows[0].provider_error_type == "missing_api_key"
     assert rows[0].success is False
     assert rows[0].approved_daily_coach_narrative is None
 
@@ -287,7 +292,6 @@ def test_trial_matrix_does_not_write_raw_provider_output_or_api_keys(
     )
     combined += (tmp_path / "selected_outputs.md").read_text(encoding="utf-8").lower()
     assert "raw_provider_output" not in combined
-    assert "raw provider output" not in combined
     assert "test-secret" not in combined
 
 
@@ -348,3 +352,262 @@ def test_model_overrides_require_provider_model_shape() -> None:
     assert parse_model_overrides(["openai=gpt-test"]) == {"openai": "gpt-test"}
     with pytest.raises(ValueError):
         parse_model_overrides(["gpt-test"])
+
+
+def test_raw_provider_output_diagnostic_mode_is_off_by_default(tmp_path: Path) -> None:
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_DETERMINISTIC],
+        output_dir=tmp_path,
+        narrative_builder=lambda user_id, target_date=None: FakeResult(
+            user_id=user_id,
+            raw_provider_output="SECRET RAW MODEL TEXT",
+        ),
+    )
+
+    assert rows[0].diagnostic_mode_enabled is False
+    assert rows[0].raw_output_saved_local_path is None
+    assert not list(tmp_path.glob("*raw_provider_output*"))
+
+
+def test_raw_provider_output_written_only_when_explicitly_enabled(
+    tmp_path: Path,
+) -> None:
+    raw_dir = tmp_path / "raw"
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_DETERMINISTIC],
+        output_dir=tmp_path / "artifacts",
+        narrative_builder=lambda user_id, target_date=None: FakeResult(
+            user_id=user_id,
+            raw_provider_output="SECRET RAW MODEL TEXT",
+        ),
+        diagnostic_raw_output=True,
+        raw_output_dir=raw_dir,
+    )
+
+    raw_path = rows[0].raw_output_saved_local_path
+    assert raw_path is not None
+    raw_text = Path(raw_path).read_text(encoding="utf-8")
+    assert "QA RAW PROVIDER OUTPUT / DO NOT COMMIT" in raw_text
+    assert "SECRET RAW MODEL TEXT" in raw_text
+
+    normal_artifacts = "\n".join(
+        [
+            (tmp_path / "artifacts" / "trial_matrix.jsonl").read_text(encoding="utf-8"),
+            (tmp_path / "artifacts" / "trial_matrix_summary.md").read_text(
+                encoding="utf-8"
+            ),
+            (tmp_path / "artifacts" / "selected_outputs.md").read_text(
+                encoding="utf-8"
+            ),
+        ]
+    )
+    assert "SECRET RAW MODEL TEXT" not in normal_artifacts
+    assert rows[0].diagnostic_mode_enabled is True
+
+
+def test_missing_openai_key_is_classified_as_missing_api_key(tmp_path: Path) -> None:
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_OPENAI],
+        output_dir=tmp_path,
+        narrative_builder=_fake_builder,
+        allow_live_providers=True,
+        environ={},
+    )
+
+    assert rows[0].skipped is True
+    assert rows[0].skip_reason == "missing_api_key"
+    assert rows[0].provider_error_type == "missing_api_key"
+    assert rows[0].api_key_present is False
+
+
+def test_openai_auth_error_is_classified_distinctly(tmp_path: Path) -> None:
+    def builder(user_id: int, target_date: str | None = None) -> FakeResult:
+        return FakeResult(
+            user_id=user_id,
+            provider="openai",
+            fallback=True,
+            fallback_reason="openai_auth_error",
+            selected_model="gpt-test",
+        )
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_OPENAI],
+        output_dir=tmp_path,
+        narrative_builder=builder,
+        allow_live_providers=True,
+        environ={"OPENAI_API_KEY": "test-secret"},
+        model_overrides={PROVIDER_OPENAI: "gpt-test"},
+    )
+
+    assert rows[0].provider_error_type == "invalid_api_key_or_auth_failed"
+
+
+def test_openai_timeout_is_classified_distinctly(tmp_path: Path) -> None:
+    def builder(user_id: int, target_date: str | None = None) -> FakeResult:
+        return FakeResult(
+            user_id=user_id,
+            provider="openai",
+            fallback=True,
+            fallback_reason="openai_timeout",
+            selected_model="gpt-test",
+        )
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_OPENAI],
+        output_dir=tmp_path,
+        narrative_builder=builder,
+        allow_live_providers=True,
+        environ={"OPENAI_API_KEY": "test-secret"},
+        model_overrides={PROVIDER_OPENAI: "gpt-test"},
+    )
+
+    assert rows[0].provider_error_type == "timeout"
+
+
+def test_openai_model_not_found_is_classified_distinctly(tmp_path: Path) -> None:
+    def builder(user_id: int, target_date: str | None = None) -> FakeResult:
+        return FakeResult(
+            user_id=user_id,
+            provider="openai",
+            fallback=True,
+            fallback_reason="openai_model_not_found",
+            selected_model="gpt-test",
+        )
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_OPENAI],
+        output_dir=tmp_path,
+        narrative_builder=builder,
+        allow_live_providers=True,
+        environ={"OPENAI_API_KEY": "test-secret"},
+        model_overrides={PROVIDER_OPENAI: "gpt-test"},
+    )
+
+    assert rows[0].provider_error_type == "model_not_found"
+
+
+def test_malformed_response_is_classified_distinctly(tmp_path: Path) -> None:
+    def builder(user_id: int, target_date: str | None = None) -> FakeResult:
+        return FakeResult(
+            user_id=user_id,
+            provider="openai",
+            fallback=True,
+            fallback_reason="openai_malformed_response",
+            selected_model="gpt-test",
+        )
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_OPENAI],
+        output_dir=tmp_path,
+        narrative_builder=builder,
+        allow_live_providers=True,
+        environ={"OPENAI_API_KEY": "test-secret"},
+        model_overrides={PROVIDER_OPENAI: "gpt-test"},
+    )
+
+    assert rows[0].provider_error_type == "malformed_response"
+
+
+def test_quote_validation_failure_remains_classified(tmp_path: Path) -> None:
+    def builder(user_id: int, target_date: str | None = None) -> FakeResult:
+        return FakeResult(
+            user_id=user_id,
+            provider="direct_ollama",
+            fallback=True,
+            fallback_reason="candidate_validation_failure",
+            selected_model="ollama/qwen2.5:3b",
+        )
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_DIRECT_OLLAMA],
+        output_dir=tmp_path,
+        narrative_builder=builder,
+        allow_live_providers=True,
+        environ={"OLLAMA_BASE_URL": "http://localhost:11434"},
+        model_overrides={PROVIDER_DIRECT_OLLAMA: "ollama/qwen2.5:3b"},
+    )
+
+    assert rows[0].provider_error_type == "quote_validation_failed"
+
+
+def test_ollama_cleanup_can_be_requested_without_crashing(tmp_path: Path) -> None:
+    cleanup_calls: list[tuple[str, str | None]] = []
+
+    def cleanup(
+        model: str, env: dict[str, str], keep_alive: str | None
+    ) -> dict[str, Any]:
+        cleanup_calls.append((model, keep_alive))
+        return {
+            "ollama_cleanup_attempted": True,
+            "ollama_cleanup_success": True,
+            "ollama_cleanup_error": None,
+        }
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_DIRECT_OLLAMA],
+        output_dir=tmp_path,
+        narrative_builder=lambda user_id, target_date=None: FakeResult(
+            user_id=user_id,
+            provider="direct_ollama",
+            selected_model="ollama/qwen2.5:3b",
+        ),
+        allow_live_providers=True,
+        environ={"OLLAMA_BASE_URL": "http://localhost:11434"},
+        model_overrides={PROVIDER_DIRECT_OLLAMA: "ollama/qwen2.5:3b"},
+        ollama_unload_after_run=True,
+        ollama_keep_alive="0",
+        ollama_cleanup=cleanup,
+    )
+
+    assert cleanup_calls == [("ollama/qwen2.5:3b", "0")]
+    assert rows[0].ollama_cleanup_status["ollama_cleanup_success"] is True
+
+
+def test_ollama_cleanup_failure_records_safe_metadata(tmp_path: Path) -> None:
+    def cleanup(
+        model: str, env: dict[str, str], keep_alive: str | None
+    ) -> dict[str, Any]:
+        return {
+            "ollama_cleanup_attempted": True,
+            "ollama_cleanup_success": False,
+            "ollama_cleanup_error": "connection_error",
+        }
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-27",
+        providers=[PROVIDER_DIRECT_OLLAMA],
+        output_dir=tmp_path,
+        narrative_builder=lambda user_id, target_date=None: FakeResult(
+            user_id=user_id,
+            provider="direct_ollama",
+            selected_model="ollama/qwen2.5:3b",
+        ),
+        allow_live_providers=True,
+        environ={"OLLAMA_BASE_URL": "http://localhost:11434"},
+        model_overrides={PROVIDER_DIRECT_OLLAMA: "ollama/qwen2.5:3b"},
+        ollama_unload_after_run=True,
+        ollama_cleanup=cleanup,
+    )
+
+    assert rows[0].success is True
+    assert rows[0].ollama_cleanup_status["ollama_cleanup_success"] is False
+    assert rows[0].ollama_cleanup_status["ollama_cleanup_error"] == "connection_error"

@@ -1,3 +1,19 @@
+# Current State — Daily Coach Provider Trial Diagnostics v1
+
+Current source of truth: `main` at `a6cd8d0` plus accepted Daily Coach Narrative Provider Trial Matrix tooling at `4641c91`.
+
+Active backend milestone: `Daily Coach Provider Trial Diagnostics v1`.
+
+Status: Architecture approved for Backend implementation.
+
+Diagnostics v1 improves the provider trial matrix only. It adds explicit local raw-provider-output diagnostics, safer OpenAI configuration/error classification, safe provider config metadata, optional Ollama unload cleanup, and artifact-safety guardrails.
+
+Deterministic remains default. `direct_ollama` and `openai` remain opt-in. No product runtime, Streamlit, persistence, parser, validator, quote/value, nutrition, workout, recovery, or report behavior changes are authorized.
+
+Requested final status: `DAILY_COACH_PROVIDER_TRIAL_DIAGNOSTICS_V1_ACCEPTED`.
+
+---
+
 # Current State Update — Daily Coach Narrative Provider Trial Matrix v1
 
 Current source of truth: `main`.

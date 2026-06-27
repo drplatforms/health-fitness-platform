@@ -42,6 +42,43 @@ python tools/run_daily_coach_provider_trial_matrix.py \
   --allow-live-providers
 ```
 
+
+## Diagnostics v1 additions
+
+Daily Coach Provider Trial Diagnostics v1 adds local-only diagnostics for provider-runtime investigation.
+
+Diagnostic mode is explicit and off by default. Normal trial artifacts remain sanitized and must not contain raw provider text or secrets.
+
+Local raw provider text capture:
+
+```bash
+python tools/run_daily_coach_provider_trial_matrix.py \
+  --users 102 \
+  --date 2026-06-27 \
+  --providers openai \
+  --models openai=gpt-4.1-mini \
+  --output-dir /tmp/daily_coach_trials \
+  --allow-live-providers \
+  --diagnostic-raw-output \
+  --raw-output-dir /tmp/fitness_ai_provider_diagnostics
+```
+
+Ollama cleanup after live trial rows:
+
+```bash
+python tools/run_daily_coach_provider_trial_matrix.py \
+  --users 102 \
+  --date 2026-06-27 \
+  --providers direct_ollama \
+  --models direct_ollama=ollama/qwen2.5:3b \
+  --output-dir /tmp/daily_coach_trials \
+  --allow-live-providers \
+  --ollama-unload-after-run \
+  --ollama-keep-alive 0
+```
+
+Safe diagnostic metadata may include provider error type, safe provider config status, live-provider allowance, diagnostic-mode status, and Ollama cleanup status. API keys, authorization headers, and raw provider text must not be written to normal JSONL/Markdown artifacts.
+
 ## Generated files
 
 The tool writes:
