@@ -1,84 +1,57 @@
 # Architecture Handoff Current
 
-Milestone: Canonical Serving Unit Discovery API v1
+Milestone: Nutrition Serving Unit Logging Streamlit UI v1
 
-Status: authorized backend implementation.
+Status: implementation branch prepared for Streamlit UI validation and Architecture review.
 
-Source baseline: `main` at `1820fd4`.
+Source baseline: `main` at `fd87538`.
 
-Branch: `feature/canonical-serving-unit-discovery-api-v1`.
+Branch: `feature/nutrition-serving-unit-logging-streamlit-ui-v1`.
 
-Milestone type: backend implementation / public-safe API / tests / project memory.
+Milestone type: Streamlit UI / user-facing nutrition logging workflow / project memory.
+
+Commit-check mode: code.
 
 ## Review focus
 
-Architecture should verify that Backend adds only the narrow serving-unit discovery API needed before Streamlit serving-unit picker work.
+Architecture should verify that Streamlit adds only the approved serving-unit logging UI path and preserves backend-owned truth.
 
 Primary review decisions:
 
-1. Confirm `GET /foods/canonical/{canonical_food_id}/serving-units` exists.
-2. Confirm endpoint returns active serving units for active canonical foods.
-3. Confirm `serving_unit_id` is visible for Streamlit selection.
-4. Confirm response is public-safe and excludes raw source payloads/debug internals.
-5. Confirm inactive serving units are excluded.
-6. Confirm inactive/missing canonical foods are handled safely.
-7. Confirm existing canonical search/logging behavior remains stable.
-8. Confirm `POST /nutrition/{user_id}/log-serving` behavior is unchanged.
-9. Confirm Target-vs-Actual remains grams-based and stable.
-10. Confirm no Streamlit or AI/provider changes were made.
+1. Confirm Streamlit reuses canonical food search.
+2. Confirm Streamlit calls `GET /foods/canonical/{canonical_food_id}/serving-units` for serving-unit options.
+3. Confirm submitted `serving_unit_id` comes from that backend discovery response.
+4. Confirm Streamlit submits `canonical_food_id + serving_unit_id + quantity` to `POST /nutrition/{user_id}/log-serving`.
+5. Confirm Streamlit does not submit grams overrides for serving-unit logging.
+6. Confirm Streamlit does not calculate grams or nutrient values.
+7. Confirm no raw DB table access was added.
+8. Confirm normal UI exposes no raw DB/source/debug/provider internals.
+9. Confirm existing canonical grams logging remains available as fallback.
+10. Confirm existing raw/source fallback remains available.
+11. Confirm Target-vs-Actual remains stable.
+12. Confirm no backend/API/provider/persistence behavior changed.
 
-## Current accepted serving-unit backend state
+## Accepted backend baseline
 
-Nutrition Serving Unit Logging Backend v1 is accepted and merged.
+Canonical Serving Unit Discovery API v1 is accepted at main commit `fd87538` with QA result `CANONICAL_SERVING_UNIT_DISCOVERY_API_QA_V1_PASS`.
 
-- Feature commit: `8b285c6`
-- Main merge commit: `2279665`
-- QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`
-- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
-
-Accepted behavior:
+The accepted backend chain is:
 
 ```text
-canonical_food_id + serving_unit_id + quantity
--> backend validates canonical food
--> backend validates serving unit
--> backend verifies serving unit belongs to canonical food
--> backend resolves serving quantity to grams
--> backend writes resolved grams through food_entries
--> backend persists serving-unit provenance metadata
--> existing Target-vs-Actual reads resolved grams through existing actuals flow
+GET /foods/canonical/search
+-> returns canonical_food_id
+GET /foods/canonical/{canonical_food_id}/serving-units
+-> returns backend-approved serving_unit_id values
+POST /nutrition/{user_id}/log-serving
+-> backend validates food/unit/ownership/quantity
+-> backend resolves grams
+-> backend writes food_entries and serving-unit provenance metadata
 ```
-
-## Snapshot policy reminder
-
-Feature snapshots are implementation artifacts.
-
-Canonical accepted snapshots are created from `main` after Architecture acceptance / merge and use the accepted main commit hash in the filename.
-
-Backend does not create the final canonical accepted snapshot for this implementation milestone.
 
 ## Recommended final Architecture decision after review
 
-Accept Canonical Serving Unit Discovery API v1.
+Accept Nutrition Serving Unit Logging Streamlit UI v1 if validation and manual smoke pass.
 
 Recommended final status:
 
-`CANONICAL_SERVING_UNIT_DISCOVERY_API_V1_ACCEPTED`
-
-## Recommended next milestone after acceptance
-
-Nutrition Serving Unit Logging Streamlit UI v1.
-
-Purpose:
-
-Allow Streamlit to render backend-approved serving-unit options, submit `canonical_food_id + serving_unit_id + quantity`, and display backend-returned grams/confidence without inventing mappings or conversions.
-
-## Runtime command continuity anchor
-
-Local Command Menu App Runtime Correction v1 remains in effect.
-
-`app` is now the canonical Linux runtime launcher.
-
-`wapp` remains Windows-local only.
-
-Linux is the canonical FastAPI + Streamlit app runtime.
+`NUTRITION_SERVING_UNIT_LOGGING_STREAMLIT_UI_V1_ACCEPTED`

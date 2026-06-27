@@ -1,107 +1,75 @@
 # QA Handoff Current
 
-Milestone: Canonical Serving Unit Discovery API v1
+Milestone: Nutrition Serving Unit Logging Streamlit UI v1
 
-QA status: backend implementation validation required after Backend handoff.
+QA class: CLASS 4 — STREAMLIT / USER-FACING WORKFLOW.
 
-Branch: `feature/canonical-serving-unit-discovery-api-v1`.
+Branch: `feature/nutrition-serving-unit-logging-streamlit-ui-v1`.
 
-Source baseline: `main` at `1820fd4`.
+Source baseline: `main` at `fd87538`.
 
 Commit-check mode: code.
 
 ## QA focus
 
-Validate that active serving units are discoverable through a public-safe backend endpoint before Streamlit serving-unit picker work begins.
+Validate the actual Streamlit serving-unit logging path, not just backend API contracts.
 
-Expected endpoint:
+Expected UI path:
 
-`GET /foods/canonical/{canonical_food_id}/serving-units`
-
-## Expected behavior
-
-QA should confirm:
-
-- active canonical food returns active serving units;
-- response includes `serving_unit_id`;
-- response includes display-safe serving-unit metadata;
-- inactive serving units are excluded;
-- inactive/missing canonical foods are handled safely;
-- canonical food with no active serving units returns a safe empty list;
-- ordering is deterministic;
-- raw source payloads are not exposed;
-- raw SQL/debug fields are not exposed;
-- existing `/foods/canonical/search` behavior remains stable;
-- existing `POST /nutrition/{user_id}/log-serving` behavior remains stable;
-- existing `/nutrition/{user_id}/log-canonical` behavior remains stable;
-- existing `/nutrition/log` behavior remains stable;
-- Target-vs-Actual remains stable.
-
-## Manual/API smoke
-
-Suggested smoke:
-
-```bash
-curl -s "http://127.0.0.1:8000/foods/canonical/search?q=banana" | jq
+```text
+Nutrition page
+-> search canonical food
+-> select canonical food
+-> serving units load from backend
+-> select serving unit
+-> enter positive quantity
+-> log serving
+-> success shows backend-returned resolved grams
 ```
 
-Then use the returned `canonical_food_id`:
+## Manual Streamlit smoke
 
-```bash
-curl -s "http://127.0.0.1:8000/foods/canonical/<canonical_food_id>/serving-units" | jq
-```
+Confirm:
 
-Expected:
+1. Streamlit starts.
+2. Nutrition page loads.
+3. Existing nutrition UI still appears.
+4. Serving-unit logging section appears.
+5. User can search canonical foods.
+6. User can select canonical food.
+7. Serving units load from backend.
+8. Serving-unit selector shows backend-approved options.
+9. `serving_unit_id` is not manually typed by user.
+10. Quantity input accepts positive values.
+11. Submit logs serving successfully.
+12. Success message displays backend-returned resolved grams.
+13. UI does not calculate grams.
+14. Existing canonical grams fallback still works.
+15. Existing raw/source fallback still works.
+16. Target-vs-Actual updates according to existing UI pattern.
+17. No traceback appears.
+18. No AI/provider path is involved.
+19. No raw DB/source/debug internals appear in normal UI.
+20. Changing selected canonical food does not submit a stale `serving_unit_id`.
 
-- `success: true`;
-- active serving units if seeded;
-- `serving_unit_id` visible;
-- no raw payload/debug fields.
-
-## Non-goals to verify
-
-No changes should appear in:
-
-- Streamlit UI;
-- AI/provider/Ollama/CrewAI paths;
-- Target-vs-Actual behavior;
-- DailyCoachSynthesis;
-- nutrition explanation behavior;
-- food suggestions;
-- meal planning;
-- workout/recovery/report behavior.
-
-## Suggested focused validation
-
-Use targeted checks on touched files only; do not run repo-wide mutating formatter commands.
+## Focused validation
 
 ```powershell
 git diff --check
-
+ruff check ui/streamlit_app.py
+black --check ui/streamlit_app.py
+python -m py_compile ui/streamlit_app.py
 pytest tests/test_canonical_serving_unit_discovery_api.py -q
-pytest tests/test_food_canonical_search_api.py -q
-pytest tests/test_nutrition_serving_unit_data_model_v1.py -q
 pytest tests/test_nutrition_serving_unit_logging_api.py -q
+pytest tests/test_canonical_food_logging_api.py -q
+pytest tests/test_food_canonical_search_api.py -q
 pytest tests/test_nutrition_target_vs_actual_service.py -q
 pytest tests/test_api_smoke.py -q
-pytest tests/test_project_memory_check.py -q
-
 python tools/project_memory_check.py
-python tools/dev_assistant.py memory-check
-python tools/dev_assistant.py stale-doc-check
-python tools/dev_assistant.py continuity-brief
 ```
 
-## Next QA routing
+Expected QA decision options:
 
-If accepted, the next QA lane should validate Streamlit Serving Unit Logging UI v1 using this endpoint as the only source of serving-unit options.
-
-## Runtime command continuity anchor
-
-Local Command Menu App Runtime Correction v1 remains in effect.
-
-`app` means Linux canonical app runtime.
-
-`wapp` remains Windows-local only.
-
-`fports` remains available for local port inspection.
+- `PASS_STREAMLIT_SERVING_UNIT_LOGGING_READY_FOR_ARCHITECTURE`
+- `PASS_WITH_MINOR_UI_NOTES`
+- `FAIL_UI_LEAKAGE_OR_SCOPE_DRIFT`

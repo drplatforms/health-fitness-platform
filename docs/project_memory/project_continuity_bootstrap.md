@@ -1,3 +1,23 @@
+# Project Continuity Bootstrap Update — Nutrition Serving Unit Logging Streamlit UI v1
+
+Use this update as the active continuity layer for the current Streamlit UI milestone.
+
+Source main commit: `fd87538`.
+
+Baseline snapshot: `fitness_ai_snapshot_2026-06-26_fd87538_canonical-serving-unit-discovery-api-v1.zip`.
+
+Current branch: `feature/nutrition-serving-unit-logging-streamlit-ui-v1`.
+
+Active task:
+
+Streamlit adds a user-facing serving-unit logging path by consuming the public-safe serving-unit discovery endpoint and posting backend-approved identifiers to `/nutrition/{user_id}/log-serving`.
+
+Non-negotiable boundary:
+
+Streamlit renders and submits backend-approved facts only. It does not calculate grams, infer serving-unit IDs, query raw serving-unit tables, involve provider/AI behavior, or change Target-vs-Actual semantics.
+
+---
+
 # Project Continuity Bootstrap
 
 Current focus: AI Health Coach / fitness_ai.

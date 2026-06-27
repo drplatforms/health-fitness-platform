@@ -7778,6 +7778,102 @@ def canonical_food_default_serving_text(food: dict) -> str:
     return f"Default: {default_grams:g}g {default_unit}"
 
 
+def format_public_number(value: object) -> str:
+    """Format backend-returned display numbers without changing their meaning."""
+    if value is None:
+        return "unknown"
+
+    try:
+        numeric_value = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+
+    if numeric_value.is_integer():
+        return str(int(numeric_value))
+
+    return f"{numeric_value:.1f}".rstrip("0").rstrip(".")
+
+
+def serving_unit_option_label(serving_unit: dict) -> str:
+    """Display a backend-approved serving unit without exposing internal IDs."""
+    display_name = serving_unit.get("display_name") or "Serving unit"
+    grams_default = serving_unit.get("grams_default")
+
+    if grams_default is None:
+        return str(display_name)
+
+    return f"{display_name} — {format_public_number(grams_default)} g"
+
+
+def serving_unit_context_text(serving_unit: dict) -> str:
+    """Build public context only from backend-returned serving-unit fields."""
+    context_parts = []
+    grams_min = serving_unit.get("grams_min")
+    grams_max = serving_unit.get("grams_max")
+    confidence = serving_unit.get("confidence")
+    amount_source = serving_unit.get("amount_source")
+    source_notes = serving_unit.get("source_notes")
+
+    if grams_min is not None and grams_max is not None:
+        context_parts.append(
+            "backend range "
+            f"{format_public_number(grams_min)}–"
+            f"{format_public_number(grams_max)} g"
+        )
+    if confidence:
+        context_parts.append(f"confidence {humanize_label(str(confidence))}")
+    if amount_source:
+        context_parts.append(f"source {humanize_label(str(amount_source))}")
+    if source_notes:
+        context_parts.append(str(source_notes))
+
+    return " · ".join(context_parts)
+
+
+def render_serving_unit_log_success(log_response: dict) -> None:
+    """Render only backend-approved serving-unit log response fields."""
+    display_name = log_response.get("display_name") or "Selected food"
+    serving_quantity = log_response.get("serving_quantity")
+    serving_display = log_response.get("serving_display") or "selected serving"
+    resolved_grams = log_response.get("resolved_grams")
+    logged_date = log_response.get("logged_date")
+    confidence = log_response.get("confidence")
+    amount_source = log_response.get("amount_source")
+    grams_min = log_response.get("grams_min")
+    grams_max = log_response.get("grams_max")
+
+    serving_summary = serving_display
+    if serving_quantity is not None:
+        serving_summary = (
+            f"{format_public_number(serving_quantity)} × {serving_display}"
+        )
+
+    if resolved_grams is not None:
+        st.success(
+            f"Logged {serving_summary} for {display_name} "
+            f"({format_public_number(resolved_grams)} g resolved by backend)."
+        )
+    else:
+        st.success(f"Logged {serving_summary} for {display_name}.")
+
+    detail_parts = []
+    if logged_date:
+        detail_parts.append(f"date {logged_date}")
+    if grams_min is not None and grams_max is not None:
+        detail_parts.append(
+            "backend range "
+            f"{format_public_number(grams_min)}–"
+            f"{format_public_number(grams_max)} g"
+        )
+    if confidence:
+        detail_parts.append(f"confidence {humanize_label(str(confidence))}")
+    if amount_source:
+        detail_parts.append(f"source {humanize_label(str(amount_source))}")
+
+    if detail_parts:
+        st.caption(" · ".join(detail_parts))
+
+
 def display_canonical_food_matches(canonical_foods: list[dict]) -> None:
     """Display canonical search results as a screenshot-friendly clean table."""
     if not canonical_foods:
@@ -8826,18 +8922,18 @@ def render_nutrition_section(user_id: int) -> None:
 
     st.subheader("Quick Log Food")
     st.caption(
-        "Search the clean canonical catalog, choose a food, enter grams, and log it "
-        "without touching noisy source records."
+        "Search the clean canonical catalog, choose a backend-approved serving size, "
+        "enter quantity, and log it without touching noisy source records."
     )
     st.markdown(
         """
         <div class="quick-log-panel">
-            <div class="quick-log-title">Clean canonical food logging</div>
-            <div class="quick-log-copy">Use the approved app-facing catalog first. Source-food fallback stays tucked away for edge cases.</div>
+            <div class="quick-log-title">Clean canonical serving-unit logging</div>
+            <div class="quick-log-copy">Use the approved app-facing catalog first. Serving sizes load from the backend; grams fallback stays available for edge cases.</div>
             <span class="quick-log-step">1 Search</span>
-            <span class="quick-log-step">2 Select</span>
-            <span class="quick-log-step">3 Log grams</span>
-            <span class="quick-log-step">4 Review targets</span>
+            <span class="quick-log-step">2 Select food</span>
+            <span class="quick-log-step">3 Pick serving</span>
+            <span class="quick-log-step">4 Log serving</span>
         </div>
         """,
         unsafe_allow_html=True,
@@ -8911,6 +9007,15 @@ def render_nutrition_section(user_id: int) -> None:
             with st.expander("Developer details: canonical food search error"):
                 st.write(canonical_error)
 
+    serving_log_success_key = "nutrition_serving_unit_log_success"
+    serving_log_success = st.session_state.pop(serving_log_success_key, None)
+    if serving_log_success:
+        render_serving_unit_log_success(serving_log_success)
+        developer_details(
+            "Developer details: log-serving response",
+            serving_log_success,
+        )
+
     if canonical_results:
         st.success(f"Found {len(canonical_results)} clean canonical match(es).")
 
@@ -8926,93 +9031,254 @@ def render_nutrition_section(user_id: int) -> None:
             canonical_options[label] = food
 
         if canonical_options:
-            with st.form("nutrition_log_canonical_food_form"):
-                st.markdown("#### Select and log")
-                select_col, grams_col, date_col, action_col = st.columns(
-                    [2.4, 0.8, 1, 0.8]
+            st.markdown("#### Log Food by Serving Unit")
+            st.caption(
+                "Choose a clean food, then select a backend-approved serving size. "
+                "The backend resolves the serving quantity to grams when you log it."
+            )
+
+            selected_food_label = st.selectbox(
+                "Clean food",
+                list(canonical_options.keys()),
+                key="nutrition_selected_canonical_food_for_serving",
+            )
+            selected_food = canonical_options[selected_food_label]
+            selected_food_name = selected_food.get("display_name", "Selected food")
+            selected_canonical_food_id = int(selected_food["canonical_food_id"])
+            display_selected_canonical_food_summary(selected_food)
+
+            serving_units_response = {}
+            serving_units_error = None
+            serving_units = []
+            try:
+                serving_units_response = api_get(
+                    f"/foods/canonical/{selected_canonical_food_id}/serving-units"
                 )
-                with select_col:
-                    selected_food_label = st.selectbox(
-                        "Clean food",
-                        list(canonical_options.keys()),
-                        key="nutrition_selected_canonical_food",
-                    )
-                selected_food = canonical_options[selected_food_label]
-                selected_food_name = selected_food.get("display_name", "Selected food")
-                selected_food_type = humanize_label(selected_food.get("food_type"))
-                selected_default_grams = selected_food.get("default_grams")
-                selected_nutrients = canonical_food_nutrient_summary_text(selected_food)
-                default_grams = float(selected_food.get("default_grams") or 100.0)
+            except requests.RequestException as exc:
+                serving_units_error = extract_api_error_message(exc)
+            else:
+                serving_units = serving_units_response.get("serving_units") or []
 
-                try:
-                    default_entry_date = datetime.fromisoformat(
-                        selected_nutrition_summary_date_text(user_id)
-                    ).date()
-                except ValueError:
-                    default_entry_date = datetime.now().date()
-
-                with grams_col:
-                    grams = st.number_input(
-                        "Grams",
-                        min_value=1.0,
-                        value=default_grams,
-                        step=5.0,
-                        key="nutrition_canonical_grams",
-                    )
-                with date_col:
-                    entry_date = st.date_input(
-                        "Date",
-                        value=default_entry_date,
-                        key=f"nutrition_canonical_log_date_{user_id}",
-                        help="Defaults to the Nutrition Today Summary date when available.",
-                    )
-                with action_col:
-                    st.write("")
-                    log_canonical_food = st.form_submit_button(
-                        "Log",
-                        type="primary",
-                    )
-
-                detail_parts = []
-                if selected_food_type and selected_food_type != "Unknown":
-                    detail_parts.append(selected_food_type)
-                if selected_default_grams is not None:
-                    detail_parts.append(f"default {selected_default_grams:g}g")
-                if selected_nutrients and selected_nutrients != "Nutrients unavailable":
-                    detail_parts.append(
-                        f"per 100g: {selected_nutrients.replace(' per 100g', '')}"
-                    )
-
-                st.caption(f"Selected: {selected_food_name}")
-                if detail_parts:
-                    st.caption(" · ".join(detail_parts))
-                st.caption(
-                    "Nutrition values come from the approved canonical food record."
+            if serving_units_error:
+                st.error(
+                    "Serving sizes are not available for this food right now. "
+                    "Use grams logging for now."
                 )
-
-            if log_canonical_food:
-                payload = {
-                    "canonical_food_id": int(selected_food["canonical_food_id"]),
-                    "grams": grams,
-                    "entry_date": entry_date.isoformat(),
-                }
-                try:
-                    data = api_post(
-                        f"/nutrition/{user_id}/log-canonical",
-                        payload,
+                if st.session_state.get("developer_mode", False):
+                    st.caption(serving_units_error)
+            elif not serving_units:
+                st.info(
+                    "No serving units are available for this food yet. "
+                    "Use grams logging for now."
+                )
+            else:
+                serving_options = {}
+                used_serving_labels = set()
+                for serving_unit in serving_units:
+                    if serving_unit.get("serving_unit_id") is None:
+                        continue
+                    serving_label = unique_food_option_label(
+                        serving_unit_option_label(serving_unit),
+                        used_serving_labels,
                     )
-                except requests.RequestException as exc:
-                    st.error(f"Food logging failed: {extract_api_error_message(exc)}")
+                    serving_options[serving_label] = serving_unit
+
+                if not serving_options:
+                    st.info(
+                        "No usable serving units are available for this food yet. "
+                        "Use grams logging for now."
+                    )
                 else:
-                    if data.get("success", True):
-                        st.success(f"Logged {selected_food_name}.")
-                        st.session_state[canonical_results_key] = []
-                        st.session_state[canonical_response_key] = {}
-                        st.session_state[canonical_error_key] = None
-                        st.session_state.food_search_results = []
-                        st.rerun()
+                    with st.form("nutrition_log_canonical_serving_unit_form"):
+                        serving_col, quantity_col, date_col, action_col = st.columns(
+                            [2.2, 0.8, 1, 0.8]
+                        )
+                        with serving_col:
+                            selected_serving_label = st.selectbox(
+                                "Serving size",
+                                list(serving_options.keys()),
+                                key="nutrition_selected_serving_unit",
+                            )
+                        selected_serving_unit = serving_options[selected_serving_label]
+
+                        with quantity_col:
+                            serving_quantity = st.number_input(
+                                "Quantity",
+                                min_value=0.0,
+                                value=1.0,
+                                step=0.25,
+                                key="nutrition_serving_unit_quantity",
+                                help=(
+                                    "Must be greater than zero. "
+                                    "Backend remains final authority."
+                                ),
+                            )
+
+                        try:
+                            default_entry_date = datetime.fromisoformat(
+                                selected_nutrition_summary_date_text(user_id)
+                            ).date()
+                        except ValueError:
+                            default_entry_date = datetime.now().date()
+
+                        with date_col:
+                            serving_entry_date = st.date_input(
+                                "Date",
+                                value=default_entry_date,
+                                key=f"nutrition_serving_log_date_{user_id}",
+                                help=(
+                                    "Defaults to the Nutrition Today Summary date "
+                                    "when available."
+                                ),
+                            )
+                        with action_col:
+                            st.write("")
+                            log_serving_unit = st.form_submit_button(
+                                "Log serving",
+                                type="primary",
+                            )
+
+                        context_text = serving_unit_context_text(selected_serving_unit)
+                        if context_text:
+                            st.caption(context_text)
+                        st.caption(
+                            "Serving size and grams context come from the "
+                            "backend-approved serving-unit record."
+                        )
+
+                    if log_serving_unit:
+                        if serving_quantity <= 0:
+                            st.error("Quantity must be greater than 0.")
+                        else:
+                            payload = {
+                                "canonical_food_id": selected_canonical_food_id,
+                                "serving_unit_id": int(
+                                    selected_serving_unit["serving_unit_id"]
+                                ),
+                                "quantity": float(serving_quantity),
+                                "logged_date": serving_entry_date.isoformat(),
+                            }
+                            try:
+                                data = api_post(
+                                    f"/nutrition/{user_id}/log-serving",
+                                    payload,
+                                )
+                            except requests.RequestException as exc:
+                                st.error(
+                                    "Could not log this serving. Please check the "
+                                    "selected food, serving size, and quantity. "
+                                    f"{extract_api_error_message(exc)}"
+                                )
+                            else:
+                                if data.get("success", True):
+                                    st.session_state[serving_log_success_key] = data
+                                    st.rerun()
+                                else:
+                                    st.error(
+                                        data.get(
+                                            "message",
+                                            "Could not log this serving.",
+                                        )
+                                    )
+
+            developer_details(
+                "Developer details: serving-unit discovery response",
+                serving_units_response,
+            )
+
+            with st.expander(
+                "Fallback: log selected clean food by grams",
+                expanded=False,
+            ):
+                st.caption(
+                    "Use grams only when a serving unit is unavailable or unsuitable. "
+                    "The canonical food remains backend-approved."
+                )
+                with st.form("nutrition_log_canonical_food_form"):
+                    grams_col, date_col, action_col = st.columns([1, 1, 0.8])
+                    selected_default_grams = selected_food.get("default_grams")
+                    default_grams = float(selected_food.get("default_grams") or 100.0)
+
+                    try:
+                        default_entry_date = datetime.fromisoformat(
+                            selected_nutrition_summary_date_text(user_id)
+                        ).date()
+                    except ValueError:
+                        default_entry_date = datetime.now().date()
+
+                    with grams_col:
+                        grams = st.number_input(
+                            "Grams",
+                            min_value=1.0,
+                            value=default_grams,
+                            step=5.0,
+                            key="nutrition_canonical_grams",
+                        )
+                    with date_col:
+                        entry_date = st.date_input(
+                            "Date",
+                            value=default_entry_date,
+                            key=f"nutrition_canonical_log_date_{user_id}",
+                            help=(
+                                "Defaults to the Nutrition Today Summary date "
+                                "when available."
+                            ),
+                        )
+                    with action_col:
+                        st.write("")
+                        log_canonical_food = st.form_submit_button(
+                            "Log grams",
+                            type="secondary",
+                        )
+
+                    detail_parts = []
+                    selected_food_type = humanize_label(selected_food.get("food_type"))
+                    selected_nutrients = canonical_food_nutrient_summary_text(
+                        selected_food
+                    )
+                    if selected_food_type and selected_food_type != "Unknown":
+                        detail_parts.append(selected_food_type)
+                    if selected_default_grams is not None:
+                        detail_parts.append(f"default {selected_default_grams:g}g")
+                    if (
+                        selected_nutrients
+                        and selected_nutrients != "Nutrients unavailable"
+                    ):
+                        detail_parts.append(
+                            f"per 100g: {selected_nutrients.replace(' per 100g', '')}"
+                        )
+
+                    if detail_parts:
+                        st.caption(" · ".join(detail_parts))
+                    st.caption(
+                        "Nutrition values come from the approved canonical food record."
+                    )
+
+                if log_canonical_food:
+                    payload = {
+                        "canonical_food_id": selected_canonical_food_id,
+                        "grams": grams,
+                        "entry_date": entry_date.isoformat(),
+                    }
+                    try:
+                        data = api_post(
+                            f"/nutrition/{user_id}/log-canonical",
+                            payload,
+                        )
+                    except requests.RequestException as exc:
+                        st.error(
+                            f"Food logging failed: {extract_api_error_message(exc)}"
+                        )
                     else:
-                        st.error(data.get("message", "Food logging failed."))
+                        if data.get("success", True):
+                            st.success(f"Logged {selected_food_name} by grams.")
+                            st.session_state[canonical_results_key] = []
+                            st.session_state[canonical_response_key] = {}
+                            st.session_state[canonical_error_key] = None
+                            st.session_state.food_search_results = []
+                            st.rerun()
+                        else:
+                            st.error(data.get("message", "Food logging failed."))
 
         with st.expander("Clean matches from the canonical catalog", expanded=False):
             rows = []
@@ -9040,7 +9306,8 @@ def render_nutrition_section(user_id: int) -> None:
         st.caption("No clean food match found yet. Use existing food database for now.")
     else:
         st.caption(
-            "Try common seeded foods like chicken breast, rice, egg, oats, banana, or Greek yogurt."
+            "Try common seeded foods like chicken breast, rice, egg, oats, "
+            "banana, or Greek yogurt."
         )
 
     fallback_expanded = bool(

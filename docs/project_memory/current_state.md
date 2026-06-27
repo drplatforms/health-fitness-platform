@@ -1,3 +1,51 @@
+# Current State Update — Nutrition Serving Unit Logging Streamlit UI v1
+
+Current source of truth: `main`.
+
+Required source main commit for this Streamlit milestone: `fd87538`.
+
+Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-26_fd87538_canonical-serving-unit-discovery-api-v1.zip`.
+
+Previous accepted backend milestone: Canonical Serving Unit Discovery API v1.
+
+Previous QA result: `CANONICAL_SERVING_UNIT_DISCOVERY_API_QA_V1_PASS`.
+
+Current authorized milestone: Nutrition Serving Unit Logging Streamlit UI v1.
+
+Current feature branch: `feature/nutrition-serving-unit-logging-streamlit-ui-v1`.
+
+Milestone owner: Streamlit UI.
+
+Backend role: CC / support only unless a true backend contract defect is found.
+
+Expected final status after validation and review: `NUTRITION_SERVING_UNIT_LOGGING_STREAMLIT_UI_V1_ACCEPTED`.
+
+Current implementation objective:
+
+```text
+canonical food search
+-> select canonical food
+-> GET /foods/canonical/{canonical_food_id}/serving-units
+-> select backend-approved serving_unit_id
+-> enter positive quantity
+-> POST /nutrition/{user_id}/log-serving
+-> display backend-returned resolved grams and public-safe context
+```
+
+Current strict UI boundary:
+
+- Streamlit must not query `canonical_food_serving_units` directly.
+- Streamlit must not infer `serving_unit_id`.
+- Streamlit must not calculate serving-unit grams.
+- Streamlit must not submit grams overrides to `/nutrition/{user_id}/log-serving`.
+- Streamlit must not expose raw DB/source/debug internals in normal UI.
+- Streamlit must not involve AI/provider/Ollama/CrewAI behavior.
+- Existing canonical grams logging remains available as fallback.
+- Existing raw/source grams logging remains available as advanced fallback.
+- Target-vs-Actual remains backend-owned and grams-based.
+
+---
+
 # Current State
 
 Latest accepted milestone: Snapshot Ownership / Main Acceptance Artifact Policy v1.
