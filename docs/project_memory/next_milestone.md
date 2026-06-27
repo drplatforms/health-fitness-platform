@@ -1,3 +1,40 @@
+# Next Milestone Update — Nutrition Serving Unit Logging Streamlit UI v1
+
+Current authorized milestone: Nutrition Serving Unit Logging Streamlit UI v1.
+
+Recommended branch: `feature/nutrition-serving-unit-logging-streamlit-ui-v1`.
+
+Source branch: `main`.
+
+Required source main commit: `fd87538`.
+
+Commit-check mode: code.
+
+Objective:
+
+Add Streamlit UI support for backend-approved serving-unit nutrition logging.
+
+Implementation scope:
+
+- reuse existing Nutrition page canonical food search;
+- call `GET /foods/canonical/{canonical_food_id}/serving-units` after canonical food selection;
+- render backend-returned serving-unit options;
+- submit only `canonical_food_id`, `serving_unit_id`, `quantity`, and supported date field to `/nutrition/{user_id}/log-serving`;
+- display backend-returned resolved grams and public-safe serving context;
+- preserve existing grams logging and raw/source fallback paths;
+- update project memory.
+
+Validation scope:
+
+- targeted Ruff check for touched Streamlit/UI files;
+- targeted Black check for touched Streamlit/UI files;
+- `python -m py_compile ui/streamlit_app.py`;
+- focused serving-unit discovery/logging/canonical search/canonical logging/Target-vs-Actual/API smoke tests;
+- `python tools/project_memory_check.py`;
+- manual Streamlit smoke.
+
+---
+
 # Next Milestone
 
 Current authorized milestone: Canonical Serving Unit Discovery API v1.

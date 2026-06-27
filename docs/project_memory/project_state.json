@@ -6,11 +6,11 @@
     "canonical_branch": "main"
   },
   "current_baseline": {
-    "latest_accepted_milestone": "Snapshot Ownership / Main Acceptance Artifact Policy v1",
-    "latest_final_status": "SNAPSHOT_OWNERSHIP_MAIN_ACCEPTANCE_ARTIFACT_POLICY_V1_ACCEPTED",
-    "latest_accepted_commit": "1820fd4",
-    "latest_main_merge_commit": "1820fd4",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_1820fd4_snapshot-ownership-main-acceptance-policy-v1.zip",
+    "latest_accepted_milestone": "Canonical Serving Unit Discovery API v1",
+    "latest_final_status": "CANONICAL_SERVING_UNIT_DISCOVERY_API_V1_ACCEPTED",
+    "latest_accepted_commit": "fd87538",
+    "latest_main_merge_commit": "fd87538",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_fd87538_canonical-serving-unit-discovery-api-v1.zip",
     "previous_accepted_milestone": "Nutrition Serving Unit Logging Backend v1",
     "previous_feature_commit": "8b285c6",
     "previous_main_merge_commit": "2279665",
@@ -18,15 +18,15 @@
     "previous_feature_snapshot": "fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip"
   },
   "active_roadmap": {
-    "current_authorized_milestone": "Canonical Serving Unit Discovery API v1",
-    "current_authorized_status": "AUTHORIZED_FOR_BACKEND_IMPLEMENTATION",
-    "current_authorized_branch": "feature/canonical-serving-unit-discovery-api-v1",
-    "source_main_commit": "1820fd4",
+    "current_authorized_milestone": "Nutrition Serving Unit Logging Streamlit UI v1",
+    "current_authorized_status": "AUTHORIZED_FOR_STREAMLIT_UI_IMPLEMENTATION",
+    "current_authorized_branch": "feature/nutrition-serving-unit-logging-streamlit-ui-v1",
+    "source_main_commit": "fd87538",
     "commit_check_mode": "code",
-    "recommended_next_milestone_after_acceptance": "Nutrition Serving Unit Logging Streamlit UI v1",
+    "recommended_next_milestone_after_acceptance": "Focused UI workflow QA for Nutrition Serving Unit Logging Streamlit UI v1",
     "alternative_next_milestone": "Nutrition Actuals Confidence Model v1 after serving-unit discovery and UI readiness are sequenced",
-    "process_doctrine": "Expose backend-approved serving units before Streamlit serving-unit logging UI. Streamlit must not query raw tables or invent conversions.",
-    "delivery_flow": "preflight/branch -> implement -> validate -> review diff -> stage -> commit -> push -> Linux validation -> Architecture handoff; Backend does not create final canonical accepted snapshot.",
+    "process_doctrine": "Streamlit consumes backend-approved serving units only; Streamlit must not query raw serving-unit tables or calculate grams.",
+    "delivery_flow": "preflight/branch -> inspect UI/API helpers -> implement UI-only serving-unit logging -> targeted validation -> manual Streamlit smoke -> explicit stage -> commit -> push -> Linux validation -> Architecture handoff",
     "codex": "DO NOT USE BY DEFAULT"
   },
   "boundaries": {
@@ -138,7 +138,13 @@
     "no_provider_changes_for_current_milestone": true,
     "no_target_vs_actual_changes_for_current_milestone": true,
     "serving_unit_discovery_before_streamlit_ui": true,
-    "backend_owns_serving_unit_options": true
+    "backend_owns_serving_unit_options": true,
+    "streamlit_serving_unit_logging_ui_v1": true,
+    "streamlit_must_not_query_raw_serving_unit_tables": true,
+    "streamlit_must_not_calculate_serving_unit_grams": true,
+    "serving_unit_id_from_backend_discovery_only": true,
+    "log_serving_payload_excludes_grams_override": true,
+    "no_ai_provider_serving_unit_path": true
   },
   "process_doctrine": {
     "complex_backend_quality_gate": [
@@ -578,5 +584,14 @@
       "no food suggestions or meal planning"
     ],
     "expected_next_milestone": "Nutrition Serving Unit Logging Streamlit UI v1"
+  },
+  "recent_updates": {
+    "nutrition_serving_unit_logging_streamlit_ui_v1": {
+      "status": "IMPLEMENTED_ON_FEATURE_BRANCH_PENDING_VALIDATION",
+      "branch": "feature/nutrition-serving-unit-logging-streamlit-ui-v1",
+      "source_main_commit": "fd87538",
+      "backend_baseline": "CANONICAL_SERVING_UNIT_DISCOVERY_API_V1_ACCEPTED",
+      "expected_final_status": "NUTRITION_SERVING_UNIT_LOGGING_STREAMLIT_UI_V1_ACCEPTED"
+    }
   }
 }
