@@ -1,57 +1,59 @@
-# Next Milestone — Daily Coach Narrative Approved Value Quote Validation v1
+# Next Milestone — Daily Coach Narrative Provider Trial Matrix v1
 
-Current backend milestone: Daily Coach Narrative Approved Value Quote Validation v1.
+Current backend milestone: Daily Coach Narrative Provider Trial Matrix v1.
 
 Owner: Backend Development / Data Layer.
 
-Secondary owner: Agent Engineering for provider/prompt/schema review.
+Secondary owner: Agent Engineering for provider/runtime comparison review.
 
 Status: authorized for backend implementation.
 
-Requested final status: `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED`.
+Requested final status: `DAILY_COACH_NARRATIVE_PROVIDER_TRIAL_MATRIX_V1_ACCEPTED`.
 
 ## Current accepted baseline
 
 Current source of truth: `main`.
 
-Required source main commit: `f13a898`.
+Required source main commit: `a6cd8d0`.
 
-Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_f13a898_daily-coach-narrative-value-aware-provider-comparison-v1.zip`.
+Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_a6cd8d0_daily-coach-narrative-approved-value-quote-validation-v1.zip`.
 
-Previous status: `DAILY_COACH_NARRATIVE_VALUE_AWARE_PROVIDER_COMPARISON_V1_ACCEPTED_AND_QA_PASSED`.
+Previous status: `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED_AND_MERGED`.
+
+Previous QA status: `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_QA_V1_PASS`.
 
 ## Implementation focus
 
-Add explicit quote/value validation for Daily Coach provider narratives:
+Add provider trial matrix tooling for Daily Coach value-aware narrative comparison:
 
-- add approved value claim model/registry;
-- add `approved_value_claims` to provider context;
-- add `quoted_values_used` to candidate and approved narratives;
-- require provider candidates to declare every quoted value;
-- reject quoted values not present in the approved value registry;
-- reject display-blocked values;
-- scan prose for undeclared numbers/statuses/target/gap claims;
-- fall back deterministically on quote/value validation failure.
+- run deterministic baseline cases;
+- skip live providers unless `--allow-live-providers` is explicit;
+- allow direct_ollama/openai trial rows when explicitly enabled and configured;
+- write sanitized JSONL output;
+- write markdown summary output;
+- write selected approved/rendered output comparisons;
+- record fallback, parse, validation, final source, latency, and quoted values;
+- preserve user 102 / 2026-06-27 as the recovery-truth regression case when requested.
 
 ## QA expectation
 
-QA class: CLASS 5 / PROVIDER SAFETY + CLAIM VALIDATION.
+QA class: CLASS 2 / CLASS 5 HYBRID.
 
-Recommended QA: focused backend/API/provider-contract smoke with mocked providers.
+Recommended QA: focused tooling, provider-safety, and no-live-provider regression tests.
 
 Not required:
 
 - full Streamlit workflow QA;
-- live OpenAI calls;
-- live Ollama calls;
-- nutrition actuals full regression beyond adjacent focused tests;
-- workout/recovery/report full QA.
+- live OpenAI calls in tests;
+- live Ollama calls in tests;
+- provider promotion;
+- persistence or UI changes.
 
 ## Post-acceptance routing
 
-After Architecture acceptance, route focused QA for quote/value validation and provider-safety regression.
+After Architecture acceptance, route focused QA for the trial matrix tool and optionally run a manual sanitized provider trial matrix.
 
-Potential follow-up: Daily Coach Narrative Provider Runtime Trial Matrix v1 or Developer Mode rendering of debug metadata.
+Potential follow-up: Daily Coach Narrative Provider Runtime Trial QA v1 or OpenAI/direct_ollama comparison review.
 
 
 ## Historical continuity anchors — reference-only

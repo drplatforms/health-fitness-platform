@@ -1,67 +1,68 @@
-# Current State Update — Daily Coach Narrative Approved Value Quote Validation v1
+# Current State Update — Daily Coach Narrative Provider Trial Matrix v1
 
 Current source of truth: `main`.
 
-Required source main commit: `f13a898`.
+Required source main commit: `a6cd8d0`.
 
-Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_f13a898_daily-coach-narrative-value-aware-provider-comparison-v1.zip`.
+Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_a6cd8d0_daily-coach-narrative-approved-value-quote-validation-v1.zip`.
 
-Previous milestone status: `DAILY_COACH_NARRATIVE_VALUE_AWARE_PROVIDER_COMPARISON_V1_ACCEPTED_AND_QA_PASSED`.
+Previous accepted statuses:
 
-Current backend milestone: Daily Coach Narrative Approved Value Quote Validation v1.
+- `DAILY_COACH_NARRATIVE_VALUE_AWARE_PROVIDER_COMPARISON_V1_ACCEPTED_AND_QA_PASSED`
+- `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED_AND_MERGED`
+- `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_QA_V1_PASS`
 
-Branch: `feature/daily-coach-narrative-approved-value-quote-validation-v1`.
+Current backend milestone: Daily Coach Narrative Provider Trial Matrix v1.
+
+Branch: `feature/daily-coach-narrative-provider-trial-matrix-v1`.
 
 Commit-check mode: code.
 
-QA class: CLASS 5 / PROVIDER SAFETY + CLAIM VALIDATION.
+QA class: CLASS 2 / CLASS 5 HYBRID.
 
 Status: backend implementation in progress.
 
-Requested final status: `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED`.
+Requested final status: `DAILY_COACH_NARRATIVE_PROVIDER_TRIAL_MATRIX_V1_ACCEPTED`.
 
 ## Goal
 
-Add an explicit approved value claim registry and quote/value validation layer for Daily Coach value-aware provider narratives.
+Add repeatable provider trial matrix tooling for Daily Coach value-aware narratives.
 
-Provider output may quote deterministic backend values only when those values are:
+The tool compares the same approved Daily Coach contexts across:
 
-- backend-approved;
-- public-safe;
-- present in `approved_value_claims`;
-- marked `display_allowed=true`;
-- declared by key in `quoted_values_used`;
-- validated before rendering.
+- deterministic;
+- direct_ollama;
+- openai.
+
+The matrix records schema adherence, parse/validation/fallback behavior, quote/value discipline, latency, approved narrative output, rendered narrative output, and manual-review placeholders without changing runtime defaults.
 
 ## Implemented direction
 
-The Daily Coach narrative candidate contract now includes `quoted_values_used`.
+Provider evaluation must run through the accepted Daily Coach value-aware narrative path and approved value quote validation path.
 
-The approved narrative contract also carries `quoted_values_used` for public-safe traceability.
+Live providers are skipped unless explicitly enabled with `--allow-live-providers`.
 
-The provider context includes `approved_value_claims` built from approved recovery, nutrition actuals, target/gap status, food suggestion, training/RIR, confidence, limitation, and recommendation context where available.
+Generated artifacts must not include raw provider output or secrets.
 
-The validator checks both declared `quoted_values_used` and the narrative prose for obvious undeclared value claims such as numbers, grams, calories, percentages, scores, RIR ranges, readiness/fatigue statuses, serving amounts, and target/gap language.
+The normal app/runtime behavior remains unchanged.
 
 ## Scope boundaries
 
 Deterministic remains default.
 
-`direct_ollama` remains opt-in.
+`direct_ollama` remains opt-in offline/developer mode.
 
-`openai` remains opt-in.
+`openai` remains opt-in hosted comparison provider.
+
+No provider default change is authorized.
 
 No live provider calls are allowed in automated tests.
 
 No Streamlit provider controls are added.
 
-No raw provider output is exposed.
+No provider narratives are persisted.
 
-No runtime metadata is exposed in the normal endpoint.
-
-No provider narrative persistence is added.
-
-No nutrition target, nutrition actual, food suggestion, workout, recovery, report, or schema behavior is changed.
+No parser, validator, quote/value, nutrition, workout, recovery, report, schema, or persistence behavior is changed.
 
 No snapshots are committed.
 
@@ -71,7 +72,7 @@ Return to Architecture after implementation and validation.
 
 Requested final status:
 
-`DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED`.
+`DAILY_COACH_NARRATIVE_PROVIDER_TRIAL_MATRIX_V1_ACCEPTED`.
 
 
 ## Historical continuity anchors — reference-only

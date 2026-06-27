@@ -1,3 +1,19 @@
+# Continuity Bootstrap — Daily Coach Narrative Provider Trial Matrix v1
+
+Current source of truth: `main` at `a6cd8d0`.
+
+Current milestone: Daily Coach Narrative Provider Trial Matrix v1.
+
+Canonical baseline snapshot: `fitness_ai_snapshot_2026-06-27_a6cd8d0_daily-coach-narrative-approved-value-quote-validation-v1.zip`.
+
+The accepted Daily Coach value-aware provider path and approved value quote validation path remain intact.
+
+This milestone adds tooling only: a provider trial matrix for deterministic/direct_ollama/openai comparison.
+
+Deterministic remains default. direct_ollama and openai remain opt-in. Live provider calls require explicit `--allow-live-providers`. Automated tests must not call live OpenAI or Ollama.
+
+Trial artifacts must not include raw provider output or secrets.
+
 # Project Continuity Bootstrap — Daily Coach Narrative Approved Value Quote Validation v1
 
 Current source of truth: `main` at `f13a898`.
