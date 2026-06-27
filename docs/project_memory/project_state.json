@@ -6,29 +6,30 @@
     "canonical_branch": "main"
   },
   "current_baseline": {
-    "latest_accepted_milestone": "Project Memory Warning Review v1",
-    "latest_final_status": "PROJECT_MEMORY_WARNING_REVIEW_V1_ACCEPTED",
-    "latest_accepted_commit": "b395e0a",
-    "latest_main_merge_commit": "d74ddec",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip",
-    "previous_accepted_milestone": "Nutrition Serving Unit Logging Contract Design v1",
-    "previous_feature_commit": "68ca6c3",
-    "previous_main_merge_commit": "4abf453",
-    "previous_snapshot": "fitness_ai_snapshot_2026-06-26_68ca6c3_nutrition-serving-unit-logging-contract-design-v1.zip",
+    "latest_accepted_milestone": "Nutrition Serving Unit Logging Backend v1",
+    "latest_final_status": "NUTRITION_SERVING_UNIT_LOGGING_BACKEND_V1_ACCEPTED",
+    "latest_accepted_commit": "8b285c6",
+    "latest_main_merge_commit": "2279665",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip",
+    "previous_accepted_milestone": "Project Memory Warning Review v1",
+    "previous_feature_commit": "b395e0a",
+    "previous_main_merge_commit": "d74ddec",
+    "previous_snapshot": "fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip",
     "previous_previous_accepted_milestone": "Nutrition Catalog Diagnostic v1",
     "previous_previous_feature_commit": "6765abb / 9f1285f closeout",
     "previous_previous_main_merge_commit": "8b2c4c3",
-    "previous_previous_snapshot": "fitness_ai_snapshot_2026-06-26_8b2c4c3_merge-nutrition-catalog-diagnostic-code-closeout.zip"
+    "previous_previous_snapshot": "fitness_ai_snapshot_2026-06-26_8b2c4c3_merge-nutrition-catalog-diagnostic-code-closeout.zip",
+    "latest_feature_snapshot": "fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip"
   },
   "active_roadmap": {
-    "current_authorized_milestone": "Nutrition Serving Unit Logging Backend v1",
-    "current_authorized_status": "AUTHORIZED FOR BACKEND IMPLEMENTATION",
-    "current_authorized_branch": "feature/nutrition-serving-unit-logging-backend-v1",
-    "source_main_commit": "d74ddec",
-    "recommended_next_milestone_after_acceptance": "Nutrition Actuals Confidence Model v1",
-    "alternative_next_milestone": "Streamlit Serving Unit Logging UI v1 after backend and actuals confidence are accepted",
-    "process_doctrine": "Backend owns serving-unit validation, grams resolution, provenance persistence, and public-safe responses. Streamlit and provider paths remain out of scope.",
-    "delivery_flow": "preflight/branch -> implement -> validate -> review diff -> stage -> commit -> push -> snapshot -> Linux validation -> Architecture/QA handoff",
+    "current_authorized_milestone": "Snapshot Ownership / Main Acceptance Artifact Policy v1",
+    "current_authorized_status": "AUTHORIZED",
+    "current_authorized_branch": "feature/snapshot-ownership-main-acceptance-policy-v1",
+    "source_main_commit": "2279665",
+    "recommended_next_milestone_after_acceptance": "Canonical Serving Unit Discovery API v1",
+    "alternative_next_milestone": "Nutrition Actuals Confidence Model v1 after serving-unit discovery and UI readiness are sequenced",
+    "process_doctrine": "Canonical accepted snapshots are created from accepted main commits after Architecture acceptance/merge. Feature snapshots may exist but are implementation artifacts unless explicitly designated canonical.",
+    "delivery_flow": "preflight/branch -> docs update -> validate -> review diff -> stage -> commit -> push -> create canonical main snapshot -> Linux docs validation -> Architecture handoff",
     "codex": "DO NOT USE BY DEFAULT"
   },
   "boundaries": {
@@ -522,5 +523,16 @@
     "provider_default": "provider disabled by default",
     "provider_trigger": "manual trigger only",
     "warning_review_note": "These anchors satisfy historical project-memory continuity checks and are not current active serving-unit logging scope."
+  },
+  "process_policies": {
+    "snapshot_ownership_main_acceptance_artifact_policy_v1": {
+      "status": "AUTHORIZED_FOR_DOCS_PROCESS_CLOSEOUT",
+      "feature_snapshots": "Optional implementation artifacts; not canonical unless explicitly designated.",
+      "canonical_accepted_snapshots": "Created from main after Architecture acceptance/merge and named with the accepted main commit hash.",
+      "serving_unit_backend_feature_commit": "8b285c6",
+      "serving_unit_backend_main_merge_commit": "2279665",
+      "serving_unit_backend_feature_snapshot": "fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip",
+      "serving_unit_backend_canonical_snapshot": "fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip"
+    }
   }
 }

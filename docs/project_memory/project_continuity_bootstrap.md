@@ -2,13 +2,15 @@
 
 Current focus: AI Health Coach / fitness_ai.
 
-Current source baseline: `main` at `d74ddec` after Project Memory Warning Review v1 was accepted and merged.
+Current source of truth: `main` at `2279665` after Nutrition Serving Unit Logging Backend v1 was accepted and merged.
 
-Current authorized milestone: Nutrition Serving Unit Logging Backend v1.
+Current docs/process milestone: Snapshot Ownership / Main Acceptance Artifact Policy v1.
 
-Milestone type: backend implementation / service / endpoint / tests / project memory.
+Milestone type: docs/process + artifact closeout.
 
-Backend is authorized to add the narrow serving-unit logging path. Streamlit UI, provider/Ollama/CrewAI behavior, Target-vs-Actual behavior/design, nutrition targets, food suggestions, meal planning, workout generation, recovery behavior, and report behavior remain out of scope.
+This milestone closes the serving-unit backend milestone by recording the canonical accepted main snapshot and establishing the project-wide snapshot ownership rule.
+
+No runtime/API/schema/Streamlit/provider behavior changes are authorized in this docs/process milestone.
 
 ## What Future Chats Must Do First
 
@@ -19,6 +21,27 @@ Backend is authorized to add the narrow serving-unit logging path. Streamlit UI,
 5. Read the current Backend, Architecture, and QA handoffs.
 6. Confirm the active branch and source baseline before proposing implementation.
 7. Do not infer project rules from memory alone.
+8. Distinguish feature commits/snapshots from canonical accepted main commits/snapshots.
+
+## Snapshot Ownership / Main Acceptance Artifact Policy v1
+
+Canonical accepted snapshots should be created from accepted `main` commits after Architecture acceptance / merge.
+
+Feature snapshots may still exist as implementation artifacts, but they are not final accepted continuity snapshots unless explicitly designated.
+
+Future handoffs must distinguish:
+
+- feature commit;
+- main merge commit;
+- feature snapshot, if any;
+- canonical accepted snapshot.
+
+For Nutrition Serving Unit Logging Backend v1:
+
+- Feature commit: `8b285c6 Add nutrition serving unit logging backend`
+- Main merge commit: `2279665 Merge nutrition serving unit logging backend v1`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
 
 ## Current Accepted Milestone Stack
 
@@ -70,18 +93,17 @@ Accepted and merged.
 
 - Feature commit: `68ca6c3`
 - Main merge commit: `4abf453`
-- Snapshot: `fitness_ai_snapshot_2026-06-26_68ca6c3_nutrition-serving-unit-logging-contract-design-v1.zip`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_68ca6c3_nutrition-serving-unit-logging-contract-design-v1.zip`
 
 Accepted contract baseline:
 
 - keep `food_entries` as the grams-based actuals bridge;
-- use a future companion serving-unit provenance table;
+- use a companion serving-unit provenance table;
 - prefer `POST /nutrition/{user_id}/log-serving`;
 - backend owns grams resolution;
 - Target-vs-Actual remains unchanged initially;
 - Streamlit must not invent mappings;
 - AI/provider must not invent serving units, grams, conversions, macros, or actuals.
-
 
 ### Project Memory Warning Review v1
 
@@ -89,115 +111,114 @@ Accepted and merged.
 
 - Feature commit: `b395e0a`
 - Main merge commit: `d74ddec`
-- Snapshot: `fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip`
 
 Accepted scope: docs-only current project-memory cleanup. Current warning baseline after review: `PASS=620 WARN=28 FAIL=0`. Remaining warnings are accepted as historical/archive/non-actionable continuity noise unless future checks prove otherwise.
 
-## Current implementation milestone
+### Nutrition Serving Unit Logging Backend v1
 
-Nutrition Serving Unit Logging Backend v1.
+Accepted and merged.
 
-Expected owner: Backend Development / Data Layer.
+- Feature commit: `8b285c6`
+- Main merge commit: `2279665`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
+- QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`
+
+Accepted backend behavior:
+
+```text
+canonical_food_id + serving_unit_id + quantity
+-> backend validates canonical food
+-> backend validates serving unit
+-> backend verifies serving unit belongs to canonical food
+-> backend resolves serving quantity to grams
+-> backend writes resolved grams through food_entries
+-> backend persists serving-unit provenance metadata
+-> existing Target-vs-Actual reads resolved grams through existing actuals flow
+```
+
+## Current docs/process milestone
+
+Snapshot Ownership / Main Acceptance Artifact Policy v1.
+
+Expected owner: Backend Development / Project Memory.
 
 Expected scope:
 
-- add backend service/endpoint for `canonical_food_id` + `serving_unit_id` + quantity;
-- resolve serving-unit quantity to grams using backend-owned serving-unit metadata;
-- persist `food_entries` grams row for actuals compatibility;
-- persist companion serving-unit provenance metadata;
-- preserve existing raw/canonical grams logging behavior;
-- keep Target-vs-Actual behavior stable;
-- add focused service/API/actuals regression tests;
-- no Streamlit changes until backend is accepted;
-- no AI/provider involvement.
+- create/record canonical accepted snapshot from `main` at `2279665`;
+- document snapshot ownership policy;
+- update current state, next milestone, open questions, project state, continuity bootstrap, and handoffs;
+- preserve feature snapshot as implementation artifact only;
+- route next implementation milestone to Canonical Serving Unit Discovery API v1.
 
-## Core doctrine
+## Expected next implementation milestone
 
-Backend owns truth.
+Canonical Serving Unit Discovery API v1.
 
-AI/provider may propose or explain only inside validated contracts.
+Expected owner: Backend Development / Data Layer.
 
-Backend validates and approves.
+Goal:
 
-User sees only approved output.
+Expose active serving units for an active canonical food through a public-safe endpoint so Streamlit can later build a serving-unit picker without direct database lookup or invented mappings.
 
-Deterministic fallback always works.
+Potential endpoint:
 
-Sound right and be right.
+`GET /foods/canonical/{canonical_food_id}/serving-units`
 
-## Bite by bite, just bigger bites
+Rules:
 
-The permanent development doctrine is:
+- only active canonical foods;
+- only active serving units;
+- no raw source payloads;
+- no raw SQL/debug output;
+- no AI/provider involvement;
+- no Streamlit mapping/inference;
+- backend remains source of truth.
 
-> Bigger milestone is okay. Bigger single patch is not okay.
+## Current guardrails
 
-Large objectives may be authorized only when internally phased. Single patches remain narrow and tied to a specific diagnostic, test, implementation, or documented process change.
+Do not implement runtime behavior in Snapshot Ownership / Main Acceptance Artifact Policy v1.
 
-## Complex Backend Quality Gate
+Do not change:
 
-For complex features involving state, scoring, selection, persistence, provider output, routing, nutrition targets, workout generation, recommendation logic, or user-visible workflow behavior:
+- Python runtime code;
+- API routes;
+- schemas;
+- Streamlit;
+- tests unless project-memory tooling requires it;
+- provider/Ollama/CrewAI behavior;
+- nutrition actuals;
+- food suggestions;
+- meal planning;
+- workout/recovery/report behavior.
 
-1. Diagnose current behavior before patching.
-2. Identify the exact failing, missing, or underperforming user path.
-3. Add a failing regression test, diagnostic test, or coverage test that captures the real path where practical.
-4. Confirm the test fails or exposes the gap before implementation.
-5. Apply the smallest safe implementation change.
-6. Prove the new test passes.
-7. Re-run prior milestone regression tests.
-8. Re-run the original manual/browser smoke path.
-9. Update project memory.
-10. Only then request Architecture acceptance.
+## Known baseline notes
 
-## Patch stacking stop conditions
+Project-memory check baseline before this policy closeout:
 
-Patch stacking is not the goal.
+```text
+PASS=620 WARN=28 FAIL=0
+```
 
-Backend must stop and return to Architecture if the same bug survives two implementation patches, browser smoke fails after tests pass, Linux smoke fails after Windows green, candidate pools or data shape are unclear, scope expands beyond approval, or the branch begins accumulating unrelated fixes.
+Remaining warnings are accepted historical/archive/non-actionable continuity noise unless future checks prove otherwise.
 
-## Provider / AI-specific rule
-
-No provider output is accepted unless it is schema-valid, validator-approved, fact-grounded, fallback-safe, and free of invented numbers, invented foods, invented exercises, unsupported health claims, and hidden raw provider output in normal UI.
-
-Provider may propose. Backend validates. User sees only approved output.
-
-No provider may run on normal Today page load.
+Repo-wide mutating formatter commands should not be used during feature work. Use targeted formatting on touched files and non-mutating full-repo checks when needed.
 
 ## Runtime command continuity anchor
 
-Local Command Menu App Runtime Correction v1 remains in effect.
+Linux pull/validation should use explicit commands only:
 
-The `app` command launches Linux runtime and is now the canonical Linux runtime launcher.
+```bash
+cd ~/projects/fitness-ai-platform
+git fetch origin --prune
+git switch <branch>
+git pull --ff-only origin <branch>
+source .venv/bin/activate
+```
 
-`app` restarts Linux FastAPI + Streamlit through SSH.
+Do not use `lpush`.
+
+`app` is the canonical Linux runtime launcher for FastAPI + Streamlit.
 
 `wapp` remains Windows-local only.
-
-Linux is the canonical FastAPI + Streamlit app runtime.
-
-## Delivery style
-
-Dustin runs the commands.
-
-Assistants provide copy/paste-ready PowerShell and bash command blocks.
-
-Long handoffs must be one copy/paste-ready code block.
-
-Do not use `git add .`.
-
-Do not commit snapshots, `qa_artifacts`, runtime artifacts, patch files, or temp scripts.
-
-Temporary apply scripts and patch files live outside the repo.
-
-Temporary patch/apply artifacts live outside the repo, normally in `C:\projects`.
-
-Use `python ..\<script>.py` for outside-repo scripts when applicable.
-
-Use `git apply --check ..\<patch>.patch` before applying outside-repo patches.
-
-Windows repo: `C:\projects\fitness_ai`.
-
-Linux runtime repo: `~/projects/fitness-ai-platform`.
-
-Architecture owns merges to `main`.
-
-Backend owns feature-branch implementation, validation, push, snapshot, and handoff.
