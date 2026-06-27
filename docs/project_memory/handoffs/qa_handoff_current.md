@@ -1,99 +1,116 @@
 # QA Handoff Current
 
-Milestone: Nutrition Serving Unit Logging Backend v1
+Milestone: Snapshot Ownership / Main Acceptance Artifact Policy v1
 
-QA status: backend implementation validation required.
+QA status: docs/process closeout validation required.
 
-Branch: `feature/nutrition-serving-unit-logging-backend-v1`.
+Branch: `feature/snapshot-ownership-main-acceptance-policy-v1`.
 
-Source baseline: `main` at `d74ddec`.
+Source baseline: `main` at `2279665`.
 
-Commit-check mode: code.
+Commit-check mode: docs.
 
 ## QA focus
 
-Validate the new backend serving-unit logging path and confirm no unrelated behavior changed.
+Validate that project memory closes Nutrition Serving Unit Logging Backend v1 with the accepted main commit and canonical accepted snapshot.
 
-Primary route:
+This milestone has no runtime behavior changes.
 
-- `POST /nutrition/{user_id}/log-serving`
+## Expected current accepted state
 
-Expected request shape:
+Nutrition Serving Unit Logging Backend v1:
 
-```json
-{
-  "canonical_food_id": 123,
-  "serving_unit_id": 456,
-  "quantity": 1.5,
-  "logged_date": "2026-06-26"
-}
+- Feature commit: `8b285c6 Add nutrition serving unit logging backend`
+- Main merge commit: `2279665 Merge nutrition serving unit logging backend v1`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
+- QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`
+
+## Snapshot policy to verify
+
+Project memory should now say:
+
+- feature snapshots may exist as temporary implementation artifacts;
+- feature snapshots are not final accepted continuity snapshots unless explicitly designated;
+- canonical accepted snapshots should be created from `main` after Architecture acceptance / merge;
+- canonical accepted snapshot filenames should use the accepted main commit hash;
+- snapshots should not be committed to the repo;
+- future handoffs must distinguish feature commit, main merge commit, feature snapshot, and canonical accepted snapshot.
+
+## Serving-unit backend behavior already accepted
+
+The accepted backend flow is:
+
+```text
+canonical_food_id + serving_unit_id + quantity
+-> backend validates canonical food
+-> backend validates serving unit
+-> backend verifies serving unit belongs to canonical food
+-> backend resolves serving quantity to grams
+-> backend writes resolved grams through food_entries
+-> backend persists serving-unit provenance metadata
+-> existing Target-vs-Actual reads resolved grams through existing actuals flow
 ```
 
-Expected behavior:
+QA PASS already confirmed:
 
-- canonical food must exist and be active;
-- serving unit must exist and be active;
-- serving unit must belong to the canonical food;
-- quantity must be positive;
-- backend resolves grams;
-- resolved grams are persisted to `food_entries`;
-- serving-unit provenance is persisted to `nutrition_serving_unit_log_metadata`;
-- Target-vs-Actual sees the logged food through existing grams actuals;
-- response is public-safe.
-
-## Regression checks
-
-Confirm these still work:
-
-- existing `/nutrition/log` raw/source grams logging;
-- existing `/nutrition/{user_id}/log-canonical` canonical grams logging;
-- canonical food search;
-- serving-unit seed idempotence;
-- canonical food seed idempotence;
-- Target-vs-Actual actuals;
-- DailyCoachSynthesis/recommendation tests if run in full suite.
+- valid serving-unit logging succeeds;
+- wrong-food serving units reject safely;
+- zero/negative quantity rejects safely;
+- missing serving units reject safely;
+- missing canonical foods reject safely;
+- resolved grams persist to `food_entries`;
+- provenance persists to `nutrition_serving_unit_log_metadata`;
+- Target-vs-Actual sees serving-unit logs;
+- raw/source `/nutrition/log` remains stable;
+- canonical grams `/nutrition/{user_id}/log-canonical` remains stable;
+- no raw source payloads exposed;
+- no Streamlit behavior changed;
+- no AI/provider behavior changed;
+- missing nutrients remain missing/unknown, not zero.
 
 ## Non-goals to verify
 
 No changes should appear in:
 
+- Python runtime code;
+- API routes;
+- database/schema code;
 - Streamlit UI;
+- tests unless project-memory tooling requires it;
 - AI/provider/Ollama/CrewAI paths;
-- nutrition target formula behavior;
-- food suggestion behavior;
+- nutrition actuals behavior;
+- Target-vs-Actual behavior;
+- food suggestions;
 - meal planning;
 - workout/recovery/report behavior.
 
-## Suggested focused validation
+## Suggested docs validation
 
 ```powershell
-ruff check . --fix
-black .
+git diff --check
 
-pytest tests/test_nutrition_serving_unit_data_model_v1.py -q
-pytest tests/test_nutrition_serving_unit_logging_service.py -q
-pytest tests/test_nutrition_serving_unit_logging_api.py -q
-pytest tests/test_canonical_food_logging_api.py -q
-pytest tests/test_nutrition_target_vs_actual_service.py -q
-pytest tests/test_api_smoke.py -q
-pytest
+python tools/project_memory_check.py
+python tools/dev_assistant.py memory-check
+python tools/dev_assistant.py stale-doc-check
+python tools/dev_assistant.py continuity-brief
 
-python -m py_compile ui/streamlit_app.py
+pytest tests/test_project_memory_check.py -q
+
+.\scripts\dev_commit_check.ps1 -Mode docs-only
 ```
 
-## Manual API smoke idea
+Use docs-only commit-check mode if the tooling does not have a literal `docs` mode.
 
-After seeding canonical foods and serving units, use a known canonical food/serving unit pair from the test database or local DB, then POST to:
+Do not run repo-wide mutating formatter commands for this milestone.
 
-```text
-/nutrition/1/log-serving
-```
+## Next QA routing
 
-Confirm:
+After Architecture accepts this docs/process closeout, the next implementation milestone should be:
 
-- response includes `resolved_grams`, gram range, confidence, and serving display;
-- `/nutrition/1/target-vs-actual?date=<date>` reflects the logged actuals;
-- no runtime metadata or raw source payload appears.
+Canonical Serving Unit Discovery API v1.
+
+QA should later verify that active serving units are discoverable through a public-safe backend endpoint before Streamlit serving-unit picker work begins.
 
 ## Runtime command continuity anchor
 

@@ -1,22 +1,30 @@
 # Current State
 
-Latest accepted milestone: Project Memory Warning Review v1.
+Latest accepted milestone: Nutrition Serving Unit Logging Backend v1.
 
-Latest accepted feature commit: `b395e0a`.
+Latest accepted feature commit: `8b285c6`.
 
-Latest main merge commit: `d74ddec`.
+Latest main merge commit: `2279665`.
 
-Latest accepted snapshot: `fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip`.
+Feature implementation snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`.
 
-Current implementation milestone: Nutrition Serving Unit Logging Backend v1.
+Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`.
 
-Current branch: `feature/nutrition-serving-unit-logging-backend-v1`.
+Current source of truth: `main` at `2279665`.
 
-Source baseline: `main` at `d74ddec`.
+QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`.
 
-Milestone type: backend implementation / service / endpoint / tests / project memory.
+Project-memory baseline before this policy closeout: `PASS=620 WARN=28 FAIL=0`.
 
-Commit-check mode: code.
+Remaining project-memory warnings are accepted as historical/archive/non-actionable continuity noise unless future checks prove otherwise.
+
+Current docs/process milestone: Snapshot Ownership / Main Acceptance Artifact Policy v1.
+
+Current branch: `feature/snapshot-ownership-main-acceptance-policy-v1`.
+
+Milestone type: docs/process + artifact closeout.
+
+Commit-check mode: docs.
 
 ## Current process doctrine
 
@@ -35,6 +43,89 @@ Meaning:
 - Backend must not blindly stack patches after repeated failures.
 - QA validates the real user path, not only generic test-green status.
 - Docs/project memory are first-class continuity artifacts and must be updated with every milestone.
+- Feature implementation snapshots and canonical accepted snapshots must be distinguished.
+
+## Snapshot Ownership / Main Acceptance Artifact Policy v1
+
+Architecture has established the following snapshot ownership policy:
+
+1. Backend owns:
+   - implementation;
+   - focused tests;
+   - validation;
+   - feature branch;
+   - feature commit;
+   - implementation handoff;
+   - optional feature implementation snapshot.
+
+2. Architecture / TPM / Project Memory owns:
+   - accepted milestone state;
+   - merge-to-main authorization;
+   - canonical main commit tracking;
+   - canonical accepted snapshot naming;
+   - continuity artifact policy.
+
+3. QA owns:
+   - validation against the accepted implementation and/or accepted main state;
+   - pass/fail evidence;
+   - defect routing.
+
+4. Feature snapshots:
+   - may exist as implementation artifacts;
+   - are not final accepted continuity snapshots unless explicitly designated;
+   - may have hashes that differ from the main merge commit.
+
+5. Canonical accepted snapshots:
+   - should be created from `main` after Architecture acceptance / merge;
+   - should use the accepted main commit hash in the filename;
+   - should not be committed to the repo;
+   - should be referenced in project memory.
+
+6. Future handoffs must distinguish:
+   - feature commit;
+   - main merge commit;
+   - feature snapshot, if any;
+   - canonical accepted snapshot.
+
+## Current accepted nutrition serving-unit backend state
+
+Nutrition Serving Unit Logging Backend v1 is accepted and merged.
+
+Accepted implementation state:
+
+```text
+canonical_food_id + serving_unit_id + quantity
+-> backend validates canonical food
+-> backend validates serving unit
+-> backend verifies serving unit belongs to canonical food
+-> backend resolves serving quantity to grams
+-> backend writes resolved grams through food_entries
+-> backend persists serving-unit provenance metadata
+-> existing Target-vs-Actual reads resolved grams through existing actuals flow
+```
+
+Accepted backend artifacts:
+
+- Feature commit: `8b285c6 Add nutrition serving unit logging backend`
+- Main merge commit: `2279665 Merge nutrition serving unit logging backend v1`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
+
+Accepted backend behavior:
+
+- endpoint: `POST /nutrition/{user_id}/log-serving`;
+- companion provenance table: `nutrition_serving_unit_log_metadata`;
+- backend-owned validation for canonical food, serving unit, active state, ownership, and positive quantity;
+- backend-owned serving quantity to grams resolution;
+- existing `food_entries` row insertion using resolved grams;
+- companion provenance persistence;
+- public-safe serving-unit logging response;
+- existing raw/source `/nutrition/log` remains stable;
+- existing canonical grams `/nutrition/{user_id}/log-canonical` remains stable;
+- existing Target-vs-Actual actuals calculation remains grams-based;
+- missing nutrients remain missing/unknown, not zero;
+- no Streamlit behavior changed;
+- no AI/provider/Ollama/CrewAI behavior changed.
 
 ## Current nutrition foundation state
 
@@ -54,29 +145,6 @@ Accepted foundation:
 Nutrition Serving Unit Logging Contract Design v1 is accepted and merged.
 
 Project Memory Warning Review v1 is accepted and merged.
-
-Current project-memory baseline after warning review:
-
-```text
-PASS=620 WARN=28 FAIL=0
-```
-
-Remaining project-memory warnings are accepted as historical/archive/non-actionable continuity noise unless future checks prove otherwise.
-
-## Current serving-unit logging backend milestone
-
-Nutrition Serving Unit Logging Backend v1 is authorized from `main` at `d74ddec`.
-
-This branch implements the smallest safe backend vertical slice:
-
-- dedicated endpoint: `POST /nutrition/{user_id}/log-serving`;
-- backend validation for canonical food, serving unit, active state, ownership, and positive quantity;
-- backend-owned serving quantity to grams resolution;
-- existing `food_entries` row insertion using resolved grams;
-- companion provenance table: `nutrition_serving_unit_log_metadata`;
-- public-safe serving-unit logging response;
-- focused service/API/Target-vs-Actual regression tests;
-- project-memory updates.
 
 ## Current serving-unit design decision baseline
 
@@ -103,6 +171,7 @@ Architecture accepted these directions for the implementation milestone:
 
 ## Scope still not implemented
 
+- no public-safe serving-unit discovery API exists yet;
 - no Streamlit serving-unit logging UI exists yet;
 - no Target-vs-Actual confidence display for serving estimates exists yet;
 - no provider/Ollama/CrewAI serving-unit path exists;
@@ -110,8 +179,11 @@ Architecture accepted these directions for the implementation milestone:
 
 ## Strict current non-goals
 
-The backend implementation milestone must not change:
+The docs/process closeout milestone must not change:
 
+- Python runtime code;
+- API behavior;
+- schema/database behavior;
 - Streamlit;
 - Target-vs-Actual behavior/design;
 - provider/Ollama/CrewAI behavior;
@@ -120,7 +192,7 @@ The backend implementation milestone must not change:
 - meal planning;
 - workout/recovery/report behavior;
 - raw/source food import behavior;
-- canonical food normalization/search behavior beyond existing compatibility.
+- canonical food normalization/search behavior.
 
 ## Recent accepted nutrition milestones
 
@@ -162,33 +234,74 @@ Accepted and merged.
 
 - Feature commit: `68ca6c3`
 - Main merge commit: `4abf453`
-- Snapshot: `fitness_ai_snapshot_2026-06-26_68ca6c3_nutrition-serving-unit-logging-contract-design-v1.zip`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_68ca6c3_nutrition-serving-unit-logging-contract-design-v1.zip`
 
 Accepted scope: docs-only backend contract for future serving-unit logging. No runtime behavior changed.
 
-## Recommended next milestone after this warning review
+### Project Memory Warning Review v1
 
-Nutrition Serving Unit Logging Backend v1
+Accepted and merged.
 
-Expected scope:
+- Feature commit: `b395e0a`
+- Main merge commit: `d74ddec`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_b395e0a_review-project-memory-warning-baseline.zip`
 
-- add backend service/endpoint for serving-unit logging;
-- resolve serving-unit quantity to grams;
-- persist grams to `food_entries`;
-- persist serving-unit provenance in a companion table;
-- preserve existing Target-vs-Actual behavior;
-- preserve existing grams/canonical logging;
-- no Streamlit change until backend path is stable;
-- no AI/provider involvement.
+Accepted scope: docs-only current project-memory cleanup. Current warning baseline after review: `PASS=620 WARN=28 FAIL=0`. Remaining warnings are accepted as historical/archive/non-actionable continuity noise unless future checks prove otherwise.
 
-Likely follow-up:
+### Nutrition Serving Unit Logging Backend v1
 
-Nutrition Actuals Confidence Model v1
+Accepted and merged.
 
-Purpose:
+- Feature commit: `8b285c6`
+- Main merge commit: `2279665`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
+- QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`
 
-- define confidence semantics for weighed grams vs grams-entered vs serving-unit estimates;
-- define display-safe language for estimated actuals.
+Accepted scope: backend service, endpoint, companion provenance table, tests, and project-memory updates for canonical-food serving-unit logging. No Streamlit or AI/provider behavior changed.
+
+## Recommended next implementation milestone
+
+Canonical Serving Unit Discovery API v1
+
+Expected owner: Backend Development / Data Layer.
+
+Goal:
+
+Expose active serving units for an active canonical food through a public-safe backend endpoint so Streamlit can later build a serving-unit picker without direct database lookup or invented mappings.
+
+Potential endpoint:
+
+`GET /foods/canonical/{canonical_food_id}/serving-units`
+
+Expected response:
+
+- `success`;
+- `canonical_food_id`;
+- canonical food `display_name`;
+- `serving_units` list:
+  - `serving_unit_id`;
+  - `display_name`;
+  - `grams_default`;
+  - `grams_min`;
+  - `grams_max`;
+  - `confidence`;
+  - `amount_source`;
+  - `sort_order` / display order if supported.
+
+Rules:
+
+- only active canonical foods;
+- only active serving units;
+- no raw source payloads;
+- no raw SQL/debug output;
+- no AI/provider involvement;
+- no Streamlit mapping/inference;
+- backend remains source of truth.
+
+This should precede:
+
+Nutrition Serving Unit Logging Streamlit UI v1
 
 ## Historical continuity anchors
 
@@ -216,6 +329,6 @@ These phrases are retained to keep the project-memory checker and future-agent c
 
 ## Current final status target
 
-Expected final proposed status after Architecture accepts this docs-only warning review:
+Expected final proposed status after Architecture accepts this docs/process closeout:
 
-`PROJECT_MEMORY_WARNING_REVIEW_V1_ACCEPTED`
+`SNAPSHOT_OWNERSHIP_MAIN_ACCEPTANCE_ARTIFACT_POLICY_V1_ACCEPTED`

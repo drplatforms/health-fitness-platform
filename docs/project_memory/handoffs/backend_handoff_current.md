@@ -1,62 +1,108 @@
 # Backend Handoff Current
 
-Milestone: Nutrition Serving Unit Logging Backend v1
+Milestone: Snapshot Ownership / Main Acceptance Artifact Policy v1
 
-Status: authorized for backend implementation / patch drafted.
+Status: authorized docs/process + artifact closeout.
 
-Source baseline: `main` at `d74ddec`.
+Source baseline: `main` at `2279665`.
 
-Branch: `feature/nutrition-serving-unit-logging-backend-v1`.
+Branch: `feature/snapshot-ownership-main-acceptance-policy-v1`.
 
-Milestone type: backend implementation / service / endpoint / tests / project memory.
+Milestone type: docs/process + artifact closeout.
 
-Commit-check mode: code.
+Commit-check mode: docs.
 
 ## Why this exists
 
-Nutrition Serving Unit Data Model v1 and Nutrition Serving Unit Logging Contract Design v1 are accepted and merged.
+Nutrition Serving Unit Logging Backend v1 is accepted and merged.
 
-Project Memory Warning Review v1 is accepted and merged with current memory baseline:
+Current accepted serving-unit backend state:
 
-```text
-PASS=620 WARN=28 FAIL=0
-```
+- Feature commit: `8b285c6 Add nutrition serving unit logging backend`
+- Main merge commit: `2279665 Merge nutrition serving unit logging backend v1`
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`
+- QA result: `NUTRITION_SERVING_UNIT_LOGGING_QA_V1_PASS`
 
-Remaining warnings are accepted historical/archive/non-actionable continuity noise unless future checks prove otherwise.
+QA noted that no new main snapshot was created after merge.
 
-Backend is now authorized to implement the serving-unit logging vertical slice.
+That is technically explainable but operationally confusing, because feature-branch implementation artifacts and canonical accepted main artifacts can have different hashes.
 
 ## Current task
 
-Implement backend-owned canonical food serving-unit logging:
+Create/record the canonical accepted main snapshot and update project memory with the artifact ownership policy.
+
+Canonical accepted snapshot for this milestone:
+
+`fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`
+
+## Snapshot ownership policy to document
+
+Backend owns:
+
+- implementation;
+- focused tests;
+- validation;
+- feature branch;
+- feature commit;
+- implementation handoff;
+- optional feature implementation snapshot.
+
+Architecture / TPM / Project Memory owns:
+
+- accepted milestone state;
+- merge-to-main authorization;
+- canonical main commit tracking;
+- canonical accepted snapshot naming;
+- continuity artifact policy.
+
+QA owns:
+
+- validation against accepted main;
+- pass/fail evidence;
+- defect routing.
+
+Feature snapshots:
+
+- may exist as implementation artifacts;
+- are not final accepted continuity snapshots unless explicitly designated;
+- may have hashes that differ from main merge commits.
+
+Canonical accepted snapshots:
+
+- should be created from `main` after Architecture acceptance / merge;
+- should use the accepted main commit hash in the filename;
+- should not be committed to the repo;
+- should be referenced in project memory.
+
+Future handoffs must distinguish:
+
+- feature commit;
+- main merge commit;
+- feature snapshot, if any;
+- canonical accepted snapshot.
+
+## Serving-unit backend accepted behavior
+
+Accepted behavior from Nutrition Serving Unit Logging Backend v1:
 
 ```text
 canonical_food_id + serving_unit_id + quantity
--> backend validates canonical food and serving unit
--> backend resolves grams
--> backend writes resolved grams to food_entries
--> backend writes serving-unit provenance metadata
--> Target-vs-Actual reads grams exactly as it does today
+-> backend validates canonical food
+-> backend validates serving unit
+-> backend verifies serving unit belongs to canonical food
+-> backend resolves serving quantity to grams
+-> backend writes resolved grams through food_entries
+-> backend persists serving-unit provenance metadata
+-> existing Target-vs-Actual reads resolved grams through existing actuals flow
 ```
-
-## Expected implementation
-
-- Add companion provenance table: `nutrition_serving_unit_log_metadata`.
-- Add backend service behavior for serving-unit logging.
-- Add dedicated endpoint: `POST /nutrition/{user_id}/log-serving`.
-- Validate canonical food exists and is active.
-- Validate serving unit exists and is active.
-- Validate serving unit belongs to the requested canonical food.
-- Validate quantity is positive.
-- Resolve grams using backend-owned serving-unit metadata.
-- Persist resolved grams through the existing canonical grams logging path.
-- Persist serving-unit provenance metadata.
-- Return public-safe fields only.
 
 ## Scope preserved
 
 Do not change:
 
+- Python runtime code;
+- API routes;
+- schema/database behavior;
 - Streamlit;
 - AI/provider/Ollama/CrewAI behavior;
 - Target-vs-Actual behavior/design;
@@ -64,24 +110,34 @@ Do not change:
 - food suggestions;
 - meal planning;
 - workout/recovery/report behavior;
-- raw/source food import behavior;
-- canonical search behavior.
+- tests unless docs/tooling checks require it.
 
-## Required tests
+Do not use repo-wide mutating formatter commands for this docs/process milestone.
 
-Focused tests should cover:
+## Required project-memory updates
 
-- service grams resolution and gram range resolution;
-- positive decimal quantities;
-- zero/negative quantity rejection;
-- missing/inactive/wrong-food serving units;
-- resolved grams persisted into `food_entries`;
-- serving-unit metadata persisted;
-- missing optional ranges remain missing, not zero;
-- serving-unit logs appear in daily nutrition/Target-vs-Actual actuals;
-- existing raw/source grams logging remains stable;
-- existing canonical grams logging remains stable;
-- public-safe API response.
+Update current project-memory files so they show:
+
+- Nutrition Serving Unit Logging Backend v1 accepted and merged.
+- Feature commit: `8b285c6`.
+- Main merge commit: `2279665`.
+- Feature snapshot: `fitness_ai_snapshot_2026-06-26_8b285c6_nutrition-serving-unit-logging-backend-v1.zip`.
+- Canonical accepted snapshot: `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip`.
+- Next implementation milestone: Canonical Serving Unit Discovery API v1.
+
+## Expected next implementation milestone
+
+Canonical Serving Unit Discovery API v1.
+
+Goal:
+
+Expose active serving units for an active canonical food through a public-safe endpoint.
+
+Potential endpoint:
+
+`GET /foods/canonical/{canonical_food_id}/serving-units`
+
+This should precede Nutrition Serving Unit Logging Streamlit UI v1.
 
 ## Process notes
 
@@ -98,19 +154,9 @@ Linux pull/validation should use explicit commands only:
 ```bash
 cd ~/projects/fitness-ai-platform
 git fetch origin --prune
-git switch feature/nutrition-serving-unit-logging-backend-v1
-git pull --ff-only origin feature/nutrition-serving-unit-logging-backend-v1
+git switch feature/snapshot-ownership-main-acceptance-policy-v1
+git pull --ff-only origin feature/snapshot-ownership-main-acceptance-policy-v1
 source .venv/bin/activate
 ```
 
 Do not use `lpush`.
-
-## Runtime command continuity anchor
-
-Local Command Menu App Runtime Correction v1 remains in effect.
-
-`app` restarts Linux FastAPI + Streamlit through SSH.
-
-`wapp` remains Windows-local only.
-
-No backend app runtime code changed.

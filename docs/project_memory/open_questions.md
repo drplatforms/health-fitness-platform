@@ -2,27 +2,50 @@
 
 ## Current milestone questions
 
-### Nutrition Serving Unit Logging Backend v1
+### Snapshot Ownership / Main Acceptance Artifact Policy v1
 
-Status: implementation authorized.
+Status: authorized docs/process closeout.
 
-Architecture has answered the core design questions:
+Architecture has answered the core process question:
 
-- Keep `food_entries` as the grams-based actuals bridge.
-- Add a companion serving-unit provenance table.
-- Use a dedicated endpoint: `POST /nutrition/{user_id}/log-serving`.
-- Backend owns serving-unit validation and grams resolution.
-- Persist resolved grams, gram ranges, confidence, amount source, and original serving display.
-- Keep Target-vs-Actual behavior unchanged for this milestone.
-- Keep Streamlit and AI/provider out of serving-unit conversion.
+- Canonical accepted snapshots should be created from accepted `main` commits after Architecture acceptance / merge.
+- Feature snapshots may exist as temporary implementation artifacts.
+- Feature snapshots are not final accepted continuity snapshots unless explicitly designated.
+- Future handoffs must distinguish feature commit, main merge commit, feature snapshot, and canonical accepted snapshot.
 
-Remaining implementation-level questions to verify through tests/QA:
+Remaining closeout checks:
 
-1. Does the backend response include enough public-safe fields for a future Streamlit serving-unit picker?
-2. Does provenance metadata preserve the exact resolved grams and gram range used at log time?
-3. Does Target-vs-Actual continue to see serving-unit logs through existing grams actuals?
-4. Do missing optional gram ranges remain missing instead of becoming zero?
-5. Do existing raw/source and canonical grams logging routes remain unchanged?
+1. Was the canonical accepted snapshot created from `main` at `2279665`?
+2. Do current project-memory files identify `2279665` as the accepted main state?
+3. Do current project-memory files identify `fitness_ai_snapshot_2026-06-26_2279665_nutrition-serving-unit-logging-backend-v1.zip` as the canonical accepted snapshot?
+4. Do current handoffs distinguish the feature snapshot from the canonical accepted snapshot?
+5. Does the next milestone route to Canonical Serving Unit Discovery API v1?
+
+## Product/API follow-up discovered by QA
+
+### Canonical Serving Unit Discovery API v1
+
+Status: recommended next implementation milestone.
+
+QA found one non-blocking follow-up after Nutrition Serving Unit Logging Backend v1:
+
+Serving-unit IDs are not yet discoverable through a public-safe API response.
+
+Manual QA had to look up `serving_unit_id` directly in:
+
+`canonical_food_serving_units`
+
+This is acceptable for backend QA but blocks clean Streamlit serving-unit picker work.
+
+Open implementation questions for the next milestone:
+
+1. Should the endpoint live under `/foods/canonical/{canonical_food_id}/serving-units`?
+2. Should inactive canonical foods return 404 or a safe empty result?
+3. Should inactive serving units be omitted silently?
+4. Should response include source/source_note, or only public-safe amount confidence fields?
+5. Should response include `unit_name` and `unit_quantity`, or only display-ready text plus gram estimates?
+6. Should `amount_source` be explicit in the response for Streamlit display readiness?
+7. Should the route live in `api/routes/foods.py`, a canonical foods route module, or existing nutrition route structure?
 
 ## Deferred questions
 
@@ -37,7 +60,7 @@ Still open for a future milestone:
 
 ### Streamlit Serving Unit Logging UI v1
 
-Deferred until Backend v1 is accepted:
+Deferred until Backend discovery API is accepted:
 
 - How should the UI display active serving units for the selected canonical food?
 - Should users see gram ranges immediately, or only confidence/source language?
@@ -51,7 +74,7 @@ Deferred:
 - What approved summary fields should be allowed?
 - How do we prevent provider explanations from overstating serving-size certainty?
 
-## Closed by accepted contract design
+## Closed by accepted contract/backend milestones
 
 The following are no longer open for v1:
 
@@ -61,3 +84,7 @@ The following are no longer open for v1:
 - Whether grams override is allowed in serving-unit v1: no.
 - Whether Streamlit may invent mappings/conversions: no.
 - Whether AI/provider may invent serving conversions: no.
+- Whether backend serving-unit logging should persist provenance: yes.
+- Whether Target-vs-Actual sees serving-unit logs through resolved grams: yes.
+- Whether the 8b285c6 feature snapshot is the canonical accepted snapshot: no.
+- Whether the 2279665 main snapshot is the canonical accepted snapshot: yes.
