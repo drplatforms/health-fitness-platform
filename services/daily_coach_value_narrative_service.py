@@ -407,46 +407,109 @@ def call_openai_daily_coach_narrative(
     resolved_api_key = api_key or os.getenv(OPENAI_API_KEY_ENV)
     if not resolved_api_key:
         raise DailyCoachValueNarrativeError("openai_missing_api_key")
-    resolved_base_url = (
-        base_url or os.getenv(OPENAI_BASE_URL_ENV) or DEFAULT_OPENAI_BASE_URL
-    ).rstrip("/")
-    payload = {
-        "model": model_name,
-        "messages": [
-            {
-                "role": "system",
-                "content": "Return exact JSON only for the requested schema.",
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.1,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {
-                "name": "daily_coach_value_narrative",
-                "schema": _CANDIDATE_SCHEMA,
-                "strict": True,
-            },
-        },
-    }
-    request = urllib.request.Request(
-        f"{resolved_base_url}/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={
-            "Authorization": f"Bearer {resolved_api_key}",
-            "Content-Type": "application/json",
-        },
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
-        response_payload = json.loads(response.read().decode("utf-8"))
+
+    client_kwargs: dict[str, Any] = {"api_key": resolved_api_key}
+    configured_base_url = base_url or os.getenv(OPENAI_BASE_URL_ENV)
+    if configured_base_url:
+        client_kwargs["base_url"] = configured_base_url.rstrip("/")
+
     try:
-        raw_text = response_payload["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError) as exc:
-        raise DailyCoachValueNarrativeError("openai_malformed_response") from exc
+        from openai import OpenAI
+
+        client = OpenAI(**client_kwargs)
+        response = client.responses.create(
+            model=model_name,
+            instructions="Return exact JSON only for the requested schema.",
+            input=prompt,
+            max_output_tokens=1200,
+            timeout=timeout_seconds,
+        )
+    except Exception as exc:  # pragma: no cover - exercised via mocked SDK tests
+        reason = _classify_openai_provider_exception(exc)
+        raise DailyCoachValueNarrativeError(reason) from exc
+
+    raw_text = _extract_openai_response_text(response)
     if not isinstance(raw_text, str) or not raw_text.strip():
         raise DailyCoachValueNarrativeError("openai_missing_response")
     return raw_text
+
+
+def _extract_openai_response_text(response: Any) -> str | None:
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    output = getattr(response, "output", None)
+    if not isinstance(output, list):
+        return output_text if isinstance(output_text, str) else None
+
+    text_parts: list[str] = []
+    for item in output:
+        content = getattr(item, "content", None)
+        if not isinstance(content, list):
+            continue
+        for part in content:
+            text = getattr(part, "text", None)
+            if isinstance(text, str):
+                text_parts.append(text)
+    return "".join(text_parts) or (
+        output_text if isinstance(output_text, str) else None
+    )
+
+
+def _classify_openai_provider_exception(exc: Exception) -> str:
+    text = str(exc).lower()
+    class_name = exc.__class__.__name__.lower()
+    status_code = getattr(exc, "status_code", None)
+    error_code = _openai_error_code(exc)
+
+    if (
+        status_code in {401, 403}
+        or "authentication" in class_name
+        or "permissiondenied" in class_name
+        or "invalid api key" in text
+        or "incorrect api key" in text
+        or "authentication" in text
+    ):
+        return "openai_authentication_failed"
+    if (
+        status_code == 404
+        or error_code == "model_not_found"
+        or "model_not_found" in text
+        or "model not found" in text
+        or "does not exist" in text
+    ):
+        return "openai_model_not_found"
+    if (
+        error_code == "insufficient_quota"
+        or "insufficient_quota" in text
+        or "insufficient quota" in text
+        or "quota" in text
+    ):
+        return "openai_insufficient_quota"
+    if status_code == 429 or "ratelimit" in class_name or "rate limit" in text:
+        return "openai_rate_limited"
+    if "timeout" in class_name or "timed out" in text or "timeout" in text:
+        return "openai_timeout"
+    if "connection" in class_name or "network" in text or "connection" in text:
+        return "openai_connection_error"
+    if status_code is not None:
+        return "openai_api_response_error"
+    return "openai_provider_error"
+
+
+def _openai_error_code(exc: Exception) -> str | None:
+    code = getattr(exc, "code", None)
+    if isinstance(code, str):
+        return code.lower()
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            body_code = error.get("code")
+            if isinstance(body_code, str):
+                return body_code.lower()
+    return None
 
 
 def _resolve_provider_generate(

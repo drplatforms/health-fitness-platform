@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import SimpleNamespace
+
+import pytest
 
 from models.daily_coach_synthesis_models import DailyCoachSynthesis
 from services.daily_coach_value_narrative_service import (
     PROVIDER_DIRECT_OLLAMA,
     PROVIDER_OPENAI,
+    DailyCoachValueNarrativeError,
     build_daily_coach_value_aware_provider_context,
     build_daily_coach_value_narrative_from_synthesis,
     build_daily_coach_value_narrative_prompt,
     build_minimal_value_context_from_synthesis,
+    call_openai_daily_coach_narrative,
 )
 
 
@@ -163,6 +169,34 @@ def _valid_candidate() -> str:
     )
 
 
+def _install_fake_openai_sdk(
+    monkeypatch, *, output_text: str | None = None, exc: Exception | None = None
+):
+    calls: dict[str, object] = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            calls["responses_create_kwargs"] = kwargs
+            if exc is not None:
+                raise exc
+            return SimpleNamespace(output_text=output_text)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.responses = FakeResponses()
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    return calls
+
+
+class _FakeOpenAIStatusError(Exception):
+    def __init__(self, message: str, *, status_code: int, body: dict | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body or {}
+
+
 def test_deterministic_provider_is_default() -> None:
     result = build_daily_coach_value_narrative_from_synthesis(
         _synthesis(),
@@ -238,6 +272,104 @@ def test_openai_missing_api_key_falls_back_safely() -> None:
     assert metadata.fallback_used is True
     assert metadata.fallback_reason == "openai_missing_api_key"
     assert result.approved_daily_coach_narrative.source == "deterministic_fallback"
+
+
+def test_openai_provider_uses_responses_api_output_text(monkeypatch) -> None:
+    calls = _install_fake_openai_sdk(monkeypatch, output_text=_valid_candidate())
+
+    raw = call_openai_daily_coach_narrative(
+        "gpt-5.5",
+        "Return JSON",
+        7.0,
+        api_key="test-secret",
+        base_url="https://example.test/v1",
+    )
+
+    assert json.loads(raw)["headline"] == "Daily Coach"
+    assert calls["client_kwargs"] == {
+        "api_key": "test-secret",
+        "base_url": "https://example.test/v1",
+    }
+    assert calls["responses_create_kwargs"] == {
+        "model": "gpt-5.5",
+        "instructions": "Return exact JSON only for the requested schema.",
+        "input": "Return JSON",
+        "max_output_tokens": 1200,
+        "timeout": 7.0,
+    }
+
+
+def test_openai_responses_api_auth_error_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError("invalid api key", status_code=401),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="bad-key"
+        )
+
+    assert str(exc_info.value) == "openai_authentication_failed"
+
+
+def test_openai_responses_api_quota_error_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError(
+            "insufficient quota",
+            status_code=429,
+            body={"error": {"code": "insufficient_quota"}},
+        ),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_insufficient_quota"
+
+
+def test_openai_responses_api_model_not_found_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError(
+            "model not found",
+            status_code=404,
+            body={"error": {"code": "model_not_found"}},
+        ),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "not-a-model", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_model_not_found"
+
+
+def test_openai_responses_api_timeout_is_classified(monkeypatch) -> None:
+    timeout_error = type("APITimeoutError", (Exception,), {})("request timed out")
+    _install_fake_openai_sdk(monkeypatch, exc=timeout_error)
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_timeout"
+
+
+def test_openai_responses_api_missing_output_text_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(monkeypatch, output_text="")
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_missing_response"
 
 
 def test_provider_extra_keys_fall_back() -> None:
