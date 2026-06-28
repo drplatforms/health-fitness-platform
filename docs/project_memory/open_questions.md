@@ -1,3 +1,25 @@
+# Open Questions — Daily Coach Provider Prompt Lab / Voice Lab v1
+
+## Active
+
+1. Which prompt/context variant produces the best plainspoken Daily Coach output across rich, stable, sparse, and missing-domain scenarios?
+2. Do fewer examples reduce repeated sentence skeletons?
+3. Do fewer broad phrase bans improve naturalness without allowing user-rejected phrases back in?
+4. Does food display-language separation prevent canonical labels from leaking into visible copy?
+5. Does default no-name addressing improve QA outputs that previously over-addressed Dustin?
+6. Is the scoring template enough for QA/Architecture to choose a next provider contract, or does the lab need UX/scoring workflow v2?
+
+## Closed/unchanged boundaries
+
+- Prompt Lab is developer-only.
+- Normal Today behavior is unchanged.
+- Deterministic remains default.
+- OpenAI/direct_ollama remain explicit opt-in/evaluation-only.
+- Parser, quote/value validation, display permissions, and deterministic fallback remain mandatory.
+- Raw provider output is not written by default.
+
+---
+
 # Open Questions — Daily Coach Provider Plainspoken Voice & Action Clarity v5
 
 ## Active

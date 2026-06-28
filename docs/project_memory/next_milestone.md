@@ -1,3 +1,27 @@
+# Next Milestone — Daily Coach Provider Prompt Lab / Voice Lab v1
+
+Owner: Backend Development with Agent Engineering advisory and QA validation.
+
+Baseline: `main` at `2835d09`.
+
+Goal: build developer-only Prompt Lab / Voice Lab tooling so the team can compare Daily Coach prompt/context variants across fixed scenario days instead of continuing blind manual voice patches.
+
+Required outputs:
+
+- scenario registry;
+- prompt/context variant registry;
+- addressing policy diagnostics;
+- food display language checks;
+- sanitized selected outputs;
+- comparison table;
+- scoring template;
+- validation summary;
+- project memory contract.
+
+Requested final status: `DAILY_COACH_PROVIDER_PROMPT_LAB_VOICE_LAB_V1_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Next Milestone — Daily Coach Provider Plainspoken Voice & Action Clarity v5 QA
 
 Owner: QA / Regression Testing with Backend and Agent Engineering support.
