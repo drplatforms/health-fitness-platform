@@ -1,3 +1,21 @@
+# Current State — Daily Coach Natural Draft + Claim Audit v1
+
+Current source of truth: `main` at `b9b46c9 Merge daily coach prompt lab voice lab v1`.
+
+Active backend milestone: `Daily Coach Natural Draft + Claim Audit v1`.
+
+Status: Architecture approved for Backend implementation.
+
+Prompt Lab / Voice Lab v1 is merged as technical developer tooling, but product strategy has pivoted to Natural Draft + Claim Audit. The active architecture is: backend-approved coach brief → natural coach draft → deterministic claim extraction → backend claim audit → one targeted repair attempt → final approved copy or deterministic fallback.
+
+Core principle: loosen the writer, tighten the reviewer. GPT-5.5 may draft naturally from a clean `ApprovedCoachBrief`, but Backend remains final authority for facts, interpretations, claim audit, repair limits, fallback, and final approval.
+
+Boundaries remain unchanged: developer-only path; normal Today behavior unchanged; deterministic remains default; OpenAI/direct_ollama remain explicit opt-in/evaluation-only; no provider promotion; no public UI; no provider output persistence; no parser/validation/fallback relaxation; no raw DB access for provider; no RAG, embeddings, meal planning, workout generation, recovery-score, worker, scheduler, or queue changes.
+
+Requested final status: `DAILY_COACH_NATURAL_DRAFT_CLAIM_AUDIT_V1_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Provider Prompt Lab / Voice Lab v1
 
 Current source of truth: `main` at `2835d09 Merge daily coach plainspoken voice action clarity v5`.
