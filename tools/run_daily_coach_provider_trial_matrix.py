@@ -814,22 +814,17 @@ def _high_value_claims_used(
 
 
 def _preferred_claims_by_field_used(
-    provider_context_summary: dict[str, object] | None,
-    quoted_values_used: list[str],
+    approved: Any, provider_context_summary: Mapping[str, Any]
 ) -> dict[str, list[str]]:
-    if not provider_context_summary:
-        return {}
-    preferred = provider_context_summary.get("preferred_claims_by_field")
+    quoted = set(_quoted_values(approved))
+    preferred = provider_context_summary.get("preferred_claims_by_field") or {}
     if not isinstance(preferred, dict):
         return {}
-    quoted = set(_safe_string_list(quoted_values_used))
-    if not quoted:
-        return {}
     used: dict[str, list[str]] = {}
-    for field_key, claims in preferred.items():
+    for field_name, claims in preferred.items():
         field_used = [claim for claim in _safe_string_list(claims) if claim in quoted]
         if field_used:
-            used[str(field_key)] = field_used
+            used[str(field_name)] = field_used
     return used
 
 
