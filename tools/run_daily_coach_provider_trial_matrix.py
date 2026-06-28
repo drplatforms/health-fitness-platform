@@ -175,6 +175,17 @@ class TrialMatrixRow:
     manual_recovery_language_score: str = ""
     manual_priority_action_score: str = ""
     manual_product_readiness_score: str = ""
+    plainspoken_phrase_flags: list[str] = field(default_factory=list)
+    rejected_phrase_count: int = 0
+    canonical_food_label_used: bool = False
+    food_gap_reason_used: bool = False
+    food_condition_used: bool = False
+    training_action_directness_score: str = ""
+    recovery_implication_quality_score: str = ""
+    slogan_like_phrase_flags: list[str] = field(default_factory=list)
+    priority_action_specificity_score: str = ""
+    manual_plainspoken_score: str = ""
+    manual_product_voice_score: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -628,6 +639,19 @@ def _run_case(
         manual_recovery_language_score="",
         manual_priority_action_score="",
         manual_product_readiness_score="",
+        plainspoken_phrase_flags=_plainspoken_phrase_flags(approved),
+        rejected_phrase_count=len(_plainspoken_phrase_flags(approved)),
+        canonical_food_label_used=_canonical_food_label_used(
+            approved, internal_provider_context_summary
+        ),
+        food_gap_reason_used=_food_gap_reason_used(approved),
+        food_condition_used=_food_condition_used(approved),
+        training_action_directness_score="",
+        recovery_implication_quality_score="",
+        slogan_like_phrase_flags=_slogan_like_phrase_flags(approved),
+        priority_action_specificity_score="",
+        manual_plainspoken_score="",
+        manual_product_voice_score="",
     )
     if _should_cleanup_ollama(case, ollama_unload_after_run, skip_ollama_cleanup):
         cleanup_status = ollama_cleanup(
@@ -1256,6 +1280,12 @@ def _robotic_phrase_flags(approved: Any) -> list[str]:
         "support the day",
         "useful move",
         "if it fits your meals",
+        "if it fits your day",
+        "food move",
+        "protein bump",
+        "easy protein bump",
+        "clean work",
+        "the win is",
     ]
     return [fragment for fragment in fragments if fragment in text]
 
@@ -1275,6 +1305,7 @@ def _framework_phrase_flags(approved: Any) -> list[str]:
         "validator",
         "schema",
         "json",
+        "tuna, canned in water",
     ]
     return [fragment for fragment in fragments if fragment in text]
 
@@ -1443,6 +1474,12 @@ def _awkward_phrase_flags(approved: Any) -> list[str]:
         "support the day",
         "nutrition support",
         "if it fits your meals",
+        "if it fits your day",
+        "food move",
+        "protein bump",
+        "easy protein bump",
+        "clean work",
+        "the win is",
         "markers remain stable",
         "maintain the current direction",
         "progress gradually",
@@ -1464,6 +1501,61 @@ def _recovery_phrase_quality_flag(approved: Any) -> str:
 
 def _repeated_support_count(approved: Any) -> int:
     return _approved_public_text(approved).lower().count("support")
+
+
+def _plainspoken_phrase_flags(approved: Any) -> list[str]:
+    text = _approved_public_text(approved).lower()
+    fragments = [
+        "food move",
+        "clean work",
+        "make clean reps the win",
+        "the win is",
+        "useful move",
+        "main lever",
+        "support the work",
+        "support the day",
+        "nutrition support",
+        "effort anchor",
+        "planned effort range",
+        "bigger nutrition overhaul",
+        "rebuilding the whole plan",
+        "if it fits your meals",
+        "if it fits your day",
+        "protein bump",
+        "easy protein bump",
+        "markers remain stable",
+        "maintain the current direction",
+        "progress gradually",
+        "fatigue does not require backing off",
+        "tuna, canned in water",
+    ]
+    return [fragment for fragment in fragments if fragment in text]
+
+
+def _food_gap_reason_used(approved: Any) -> bool:
+    text = _approved_public_text(approved).lower()
+    return any(term in text for term in ["protein", "calories", "carbs", "fat"])
+
+
+def _food_condition_used(approved: Any) -> bool:
+    text = _approved_public_text(approved).lower()
+    return any(
+        term in text
+        for term in [
+            "if protein is still short",
+            "if you still need more protein",
+            "if the protein gap is still open",
+            "if your protein gap is still open",
+            "if calories are still short",
+            "if the gap is still open",
+        ]
+    )
+
+
+def _slogan_like_phrase_flags(approved: Any) -> list[str]:
+    text = _approved_public_text(approved).lower()
+    fragments = ["the win is", "make clean reps the win", "food move", "clean work"]
+    return [fragment for fragment in fragments if fragment in text]
 
 
 def _context_brief_claims_used(

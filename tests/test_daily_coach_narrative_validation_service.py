@@ -8,6 +8,8 @@ from models.daily_coach_narrative_models import (
     DAILY_COACH_NARRATIVE_VALIDATION_STATUS_APPROVED,
     DAILY_COACH_NARRATIVE_VALIDATION_STATUS_REJECTED,
 )
+from models.daily_coach_synthesis_models import DailyCoachSynthesis
+from models.daily_coach_value_narrative_models import CandidateDailyCoachValueNarrative
 from models.daily_next_action_models import DailyNextAction
 from services.daily_coach_narrative_context_service import (
     build_daily_coach_narrative_context_from_action,
@@ -15,6 +17,7 @@ from services.daily_coach_narrative_context_service import (
 from services.daily_coach_narrative_validation_service import (
     parse_daily_coach_narrative_candidate,
     validate_daily_coach_narrative_candidate,
+    validate_daily_coach_value_narrative_candidate,
 )
 
 
@@ -371,3 +374,170 @@ def test_validation_rejects_changed_workflow_target_reference():
         validation.validation_status == DAILY_COACH_NARRATIVE_VALIDATION_STATUS_REJECTED
     )
     assert any("workflow target" in error for error in validation.validation_errors)
+
+
+def _value_synthesis() -> DailyCoachSynthesis:
+    return DailyCoachSynthesis(
+        user_id=102,
+        synthesis_date="2026-06-05",
+        scenario="aligned_managed",
+        confidence="High",
+        today_summary="Today supports planned training with nutrition follow-through.",
+        recovery_signal="Readiness is high and fatigue risk is low.",
+        training_signal="Planned strength work is available.",
+        workout_guidance="Keep RIR 2-4.",
+        execution_context="Planned strength work is available.",
+        logging_focus="Calories and protein are below target.",
+        plan_fit_note="No plan fit issue is present.",
+        recommended_focus="Train as planned and close the protein gap.",
+        reason_codes=["unit_test"],
+        limitations=[],
+    )
+
+
+def _value_context_for_plainspoken_validation() -> dict:
+    return {
+        "approved_recovery": {
+            "readiness_level": "High",
+            "fatigue_risk": "Low",
+        },
+        "food_action_context": {
+            "available": True,
+            "primary_gap": "protein",
+            "friendly_food_options": [
+                {
+                    "friendly_name": "canned tuna",
+                    "canonical_name": "Tuna, Canned in Water",
+                    "macro_reason": "protein",
+                    "claim_keys": {
+                        "friendly_name": "nutrition.food_suggestion.1.friendly_name",
+                        "canonical_name": "nutrition.food_suggestion.1.display_name",
+                    },
+                }
+            ],
+        },
+        "food_suggestion_copy_context": {
+            "suggestions": [
+                {
+                    "friendly_name": "canned tuna",
+                    "canonical_name": "Tuna, Canned in Water",
+                    "macro_reason": "protein",
+                    "claim_keys": {
+                        "friendly_name": "nutrition.food_suggestion.1.friendly_name",
+                        "canonical_name": "nutrition.food_suggestion.1.display_name",
+                    },
+                }
+            ]
+        },
+        "approved_value_claims": [
+            {
+                "key": "recovery.readiness_level",
+                "label": "readiness",
+                "value": "High",
+                "aliases": ["readiness is High"],
+                "display_allowed": True,
+            },
+            {
+                "key": "recovery.fatigue_risk",
+                "label": "fatigue risk",
+                "value": "Low",
+                "aliases": ["fatigue risk is Low"],
+                "display_allowed": True,
+            },
+            {
+                "key": "nutrition.calories.status",
+                "label": "calories status",
+                "value": "below_target",
+                "aliases": ["calories are below target"],
+                "display_allowed": True,
+            },
+            {
+                "key": "nutrition.protein.status",
+                "label": "protein status",
+                "value": "below_target",
+                "aliases": ["protein is below target", "protein is still short"],
+                "display_allowed": True,
+            },
+            {
+                "key": "nutrition.food_suggestion.1.friendly_name",
+                "label": "friendly food suggestion",
+                "value": "canned tuna",
+                "aliases": ["canned tuna"],
+                "display_allowed": True,
+            },
+            {
+                "key": "training.rir_range",
+                "label": "RIR range",
+                "value": "2-4",
+                "aliases": ["RIR 2-4", "couple reps in reserve"],
+                "display_allowed": True,
+            },
+        ],
+    }
+
+
+def _plainspoken_candidate(**overrides) -> CandidateDailyCoachValueNarrative:
+    payload = {
+        "headline": "Clean Strength + Simple Protein",
+        "summary": "You can train as planned today, but do not turn it into a max-effort test.",
+        "nutrition_note": "Calories and protein are below target. Add canned tuna if you still need more protein.",
+        "training_note": "Prioritize clean reps, keep a couple reps in reserve, and stop before the set turns into a grind.",
+        "recovery_note": "Recovery looks good enough to train as planned today.",
+        "priority_action": "Do the planned workout, log what you actually eat, then add canned tuna if protein is still short.",
+        "confidence": "High",
+        "reason_codes": ["unit_test"],
+        "quoted_values_used": [
+            "recovery.readiness_level",
+            "recovery.fatigue_risk",
+            "nutrition.calories.status",
+            "nutrition.protein.status",
+            "nutrition.food_suggestion.1.friendly_name",
+            "training.rir_range",
+        ],
+    }
+    payload.update(overrides)
+    return CandidateDailyCoachValueNarrative(**payload)
+
+
+def test_value_narrative_validation_rejects_plainspoken_rejected_phrases():
+    candidate = _plainspoken_candidate(
+        summary="The win is clean work plus one simple food move.",
+        nutrition_note="Use an easy protein bump if it fits your meals.",
+    )
+
+    errors = validate_daily_coach_value_narrative_candidate(
+        candidate,
+        synthesis=_value_synthesis(),
+        value_context=_value_context_for_plainspoken_validation(),
+    )
+
+    joined = " ".join(errors)
+    assert "food move" in joined
+    assert "clean work" in joined
+    assert "protein bump" in joined
+
+
+def test_value_narrative_validation_allows_plainspoken_food_action():
+    errors = validate_daily_coach_value_narrative_candidate(
+        _plainspoken_candidate(),
+        synthesis=_value_synthesis(),
+        value_context=_value_context_for_plainspoken_validation(),
+    )
+
+    assert errors == []
+
+
+def test_value_narrative_validation_rejects_unbacked_timing_or_pairing():
+    candidate = _plainspoken_candidate(
+        nutrition_note="Add canned tuna after training with rice if you still need more protein."
+    )
+
+    errors = validate_daily_coach_value_narrative_candidate(
+        candidate,
+        synthesis=_value_synthesis(),
+        value_context=_value_context_for_plainspoken_validation(),
+    )
+
+    joined = " ".join(errors)
+    assert "timing" in joined
+    assert "pairings" in joined

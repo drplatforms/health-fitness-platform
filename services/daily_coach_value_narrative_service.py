@@ -99,13 +99,31 @@ _CANDIDATE_SCHEMA: dict[str, Any] = {
 }
 
 
-_V4_HARD_FAIL_STYLE_PHRASES = {
+_V5_REJECTED_PLAINSPOKEN_PHRASES = {
+    "food move",
+    "clean work",
+    "make clean reps the win",
+    "the win is",
+    "useful move",
     "main lever",
+    "support the work",
+    "support the day",
+    "nutrition support",
     "effort anchor",
     "planned effort range",
     "bigger nutrition overhaul",
     "rebuilding the whole plan",
+    "if it fits your meals",
+    "if it fits your day",
+    "protein bump",
+    "easy protein bump",
+    "markers remain stable",
+    "maintain the current direction",
+    "maintain current direction",
+    "progress gradually",
+    "fatigue does not require backing off today",
     "fatigue does not require backing off",
+    "tuna, canned in water",
     "backend-approved",
     "approved context",
     "claim keys",
@@ -116,24 +134,18 @@ _V4_HARD_FAIL_STYLE_PHRASES = {
     "as an ai coach",
 }
 
-_V4_AWKWARD_STYLE_PHRASES = {
-    "useful move",
-    "support the work",
-    "support the day",
-    "nutrition support",
-    "if it fits your meals",
-    "markers remain stable",
-    "maintain the current direction",
-    "maintain current direction",
-    "progress gradually",
-    "protein-support option",
-    "calorie-support option",
-    "macro-support option",
-    "make nutrition support",
+_V5_DIAGNOSTIC_STYLE_PHRASES = {
+    "option that fits",
+    "simple option",
+    "protein-focused option",
+    "clean execution framework",
+    "stay inside the plan",
     "keep training controlled",
     "supports confident training while staying inside",
 }
 
+_V4_HARD_FAIL_STYLE_PHRASES = _V5_REJECTED_PLAINSPOKEN_PHRASES
+_V4_AWKWARD_STYLE_PHRASES = _V5_DIAGNOSTIC_STYLE_PHRASES
 _V3_HARD_FAIL_STYLE_PHRASES = _V4_HARD_FAIL_STYLE_PHRASES
 _V3_ROBOTIC_PHRASES = _V4_AWKWARD_STYLE_PHRASES
 
@@ -377,18 +389,20 @@ def build_daily_coach_value_narrative_prompt(
     value_context: dict[str, Any],
 ) -> str:
     example = {
-        "headline": "Clean Strength Day",
-        "summary": "You are clear to train today, but nutrition should not be ignored.",
-        "nutrition_note": "Protein is the easiest fix today; use one approved option if it fits your meals.",
-        "training_note": "Keep a couple reps in reserve and make clean execution the win.",
-        "recovery_note": "Readiness is High and fatigue risk is Low, so you do not need to back off today.",
-        "priority_action": "Get the planned strength session done cleanly, then choose one simple approved protein option.",
+        "headline": "Clean Strength + Simple Protein",
+        "summary": "You can train as planned today, but do not turn it into a max-effort test.",
+        "nutrition_note": "Calories and protein are below target. Add canned tuna if you still need more protein.",
+        "training_note": "Prioritize clean reps, keep a couple reps in reserve, and stop before the set turns into a grind.",
+        "recovery_note": "Recovery looks good enough to train as planned today.",
+        "priority_action": "Do the planned workout, log what you actually eat, then add canned tuna if protein is still short.",
         "confidence": synthesis.confidence,
         "reason_codes": ["provider_candidate_value_aware"],
         "quoted_values_used": [
             "recovery.readiness_level",
             "recovery.fatigue_risk",
+            "nutrition.calories.status",
             "nutrition.protein.status",
+            "nutrition.food_suggestion.1.friendly_name",
             "training.rir_range",
         ],
     }
@@ -399,6 +413,9 @@ def build_daily_coach_value_narrative_prompt(
     verbosity_budget = value_context.get("verbosity_budget") or {}
     food_copy_context = value_context.get("food_suggestion_copy_context") or {}
     nutrition_action_context = value_context.get("nutrition_action_context") or {}
+    food_action_context = value_context.get("food_action_context") or {}
+    plainspoken_contract = value_context.get("plainspoken_voice_contract") or {}
+    rejected_phrase_registry = value_context.get("rejected_phrase_registry") or {}
     voice_examples = value_context.get("voice_examples") or _voice_examples()
     claim_rules = value_context.get("claim_usage_rules") or _claim_usage_rules(
         value_context.get("claim_budgets")
@@ -419,16 +436,20 @@ def build_daily_coach_value_narrative_prompt(
         "adaptive_verbosity_guidance": value_context.get("adaptive_verbosity_guidance"),
     }
     return (
-        "Write a Daily Coach card from the supplied safe facts and context.\n"
-        "The voice should sound like a real practical coach talking to a person.\n"
+        "Write a short Daily Coach card. Write like a real practical coach talking to Dustin.\n"
+        "Be plainspoken: say the actual action instead of packaging it as a slogan.\n"
+        "Answer the real questions: can I train, how should I train, what nutrition issue matters, what food action should I take, and what should I avoid overdoing?\n"
         "Target useful, grounded, scannable coaching; not maximum brevity and not a report.\n"
         "Use approved_context_brief as the conversation starter, then rewrite naturally instead of copying backend-shaped phrases.\n"
         "Use 3-6 high-value approved claims when context is rich; use fewer when context is thin, limited, or data-quality-limited.\n"
         "Use verbosity_budget to decide length. Allow more words only when they improve usefulness, connect nutrition/training/recovery, or clarify the priority action.\n"
         "Do not pad, repeat metrics, or turn the card into a report.\n"
-        "Prefer claim_backing_map allowed phrasings for natural language. Avoid every disallowed phrasing.\n"
+        "Prefer claim_backing_map user-facing phrase examples for natural language. Do not copy internal_meaning verbatim.\n"
         "Do not dump all claims. Prefer normal coach language over framework language.\n"
         "Use limitations as uncertainty/context, not as user blame.\n"
+        "Use friendly food names when available. Do not use canonical database food names when a friendly_name exists.\n"
+        "Food actions should name the friendly food, state the macro reason, and use a backed condition such as if protein is still short.\n"
+        "Do not invent serving sizes, food pairings, timing, or meal plans.\n"
         "Do not mention backend, approved context, validator, schema, provider, JSON, claim keys, or internal process in user-facing fields.\n"
         "Every concrete value/status/food/amount used in prose must be declared in quoted_values_used.\n"
         "quoted_values_used may contain only exact keys from approved_value_claims. Never use food names, amounts, or phrases as quote keys.\n"
@@ -438,7 +459,11 @@ def build_daily_coach_value_narrative_prompt(
         "Do not say the user is under-eating unless that exact claim is approved.\n"
         "Do not say the user needs calories unless calorie targets are display-approved.\n"
         "Do not prescribe exact food amounts unless approved food suggestions include those amounts.\n"
-        "Avoid these robotic phrases in user-facing fields: main lever, effort anchor, planned effort range, bigger nutrition overhaul, based on the provided data, as an AI coach.\n\n"
+        "Never use rejected phrases such as food move, clean work, make clean reps the win, the win is, useful move, support the work, support the day, nutrition support, effort anchor, planned effort range, protein bump, if it fits your meals, if it fits your day, or Tuna, Canned in Water.\n\n"
+        "PLAINSPOKEN_VOICE_CONTRACT:\n"
+        f"{json.dumps(plainspoken_contract, indent=2, default=str)}\n\n"
+        "REJECTED_PHRASE_REGISTRY:\n"
+        f"{json.dumps(rejected_phrase_registry, indent=2, default=str)}\n\n"
         "APPROVED_CONTEXT_BRIEF:\n"
         f"{json.dumps(approved_context_brief, indent=2, default=str)}\n\n"
         "CLAIM_BACKING_MAP:\n"
@@ -451,6 +476,8 @@ def build_daily_coach_value_narrative_prompt(
         f"{json.dumps(food_copy_context, indent=2, default=str)}\n\n"
         "NUTRITION_ACTION_CONTEXT:\n"
         f"{json.dumps(nutrition_action_context, indent=2, default=str)}\n\n"
+        "FOOD_ACTION_CONTEXT:\n"
+        f"{json.dumps(food_action_context, indent=2, default=str)}\n\n"
         "FIELD_ROLE_GUIDANCE:\n"
         f"{json.dumps(field_roles, indent=2, default=str)}\n\n"
         "CLAIM_USAGE_RULES:\n"
@@ -1247,6 +1274,9 @@ def _enrich_provider_context_packaging(context: dict[str, Any]) -> None:
     context["verbosity_budget"] = verbosity_budget.to_dict()
     context["food_suggestion_copy_context"] = _food_suggestion_copy_context(context)
     context["nutrition_action_context"] = _nutrition_action_context(context)
+    context["food_action_context"] = _food_action_context(context)
+    context["plainspoken_voice_contract"] = _plainspoken_voice_contract()
+    context["rejected_phrase_registry"] = _rejected_phrase_registry()
     context["approved_context_brief"] = _approved_context_brief(
         context, claims, today_story
     )
@@ -1304,30 +1334,26 @@ def _build_today_story(
         main_tension = (
             "There is usable context, but logging quality limits stronger conclusions."
         )
-        desired_move = (
-            "Keep the advice simple and make the next log entry easier to trust."
-        )
+        desired_move = "Make the next log entry easier to trust before drawing a bigger conclusion."
     elif has_nutrition and has_training and has_recovery:
         day_type = "nutrition_supported_strength_day"
-        human_label = "Clean Strength + Easy Fuel"
+        human_label = "Clean Strength + Simple Protein"
         main_tension = "Training is appropriate, but nutrition is lagging."
-        desired_move = "Train clean, log honestly, then make one easy food move."
+        desired_move = "Do the planned workout, log what you actually eat, then handle the protein gap with an approved food option."
     elif has_nutrition:
         day_type = "nutrition_support"
-        human_label = "Easy Food Move Day"
-        main_tension = "The clearest improvement today is one simple food action."
-        desired_move = (
-            "Add one easy approved food option or tighten the next log entry."
+        human_label = "Simple Food Action Day"
+        main_tension = (
+            "The clearest improvement today is one specific nutrition action."
         )
+        desired_move = "Use the approved food option if the matching gap is still open, or tighten the next log entry."
     elif has_training:
         day_type = "training_execution_focus"
         human_label = "Clean Training Day"
         main_tension = (
-            "The win today is doing the planned work without chasing max effort."
+            "Today is about doing the planned work without chasing max effort."
         )
-        desired_move = (
-            "Complete the planned work cleanly and keep a couple reps in reserve."
-        )
+        desired_move = "Complete the planned work and keep a couple reps in reserve."
     elif limitation_keys or limitations:
         day_type = "maintain_and_log"
         human_label = "Maintain and Log Day"
@@ -1357,12 +1383,12 @@ def _build_today_story(
     ]
 
     training_implication = (
-        "Do the planned strength work without chasing max effort."
+        "Do the planned workout without chasing max effort."
         if has_training
         else "Do not invent training details beyond the approved plan context."
     )
     nutrition_implication = (
-        "Use one simple approved food option to help close the gap."
+        "Use an approved food option if the matching nutrition gap is still open."
         if food_keys
         else (
             "Use nutrition status only when it makes the action clearer."
@@ -1375,7 +1401,7 @@ def _build_today_story(
         if has_recovery
         else "Avoid claiming recovery details that are not approved."
     )
-    avoid_overreaction = "Do not turn this into a max-effort workout, a full nutrition reset, or a trend claim."
+    avoid_overreaction = "Do not turn this into a max-effort workout, a full meal-plan reset, or a trend claim."
 
     return DailyCoachTodayStory(
         day_type=day_type,  # type: ignore[arg-type]
@@ -1555,12 +1581,12 @@ def _nutrition_action_context(context: dict[str, Any]) -> dict[str, Any]:
     primary_gap = gaps[0] if gaps else None
     secondary_gap = gaps[1] if len(gaps) > 1 else None
     timing_hint = None
-    action_type = "simple_add_on" if suggestions else "logging_or_simple_food_move"
+    action_type = "simple_add_on" if suggestions else "logging_or_simple_food_action"
     context_obj = DailyCoachNutritionActionContext(
         primary_gap=primary_gap,
         secondary_gap=secondary_gap,
         action_type=action_type,
-        user_goal="cover the obvious nutrition gap without overhauling the day",
+        user_goal="name the specific food action that helps cover the approved gap without overhauling the day",
         food_action_allowed=bool(suggestions),
         approved_food_option_count=(
             len(suggestions) if isinstance(suggestions, list) else 0
@@ -1570,6 +1596,7 @@ def _nutrition_action_context(context: dict[str, Any]) -> dict[str, Any]:
             "do not force extra workout intensity to compensate",
             "do not frame this as a full meal-plan reset",
             "do not imply the user failed",
+            "do not use slogans like food move or protein bump",
         ],
     )
     return context_obj.to_dict()
@@ -1702,9 +1729,9 @@ def _approved_context_brief(
             if "nutrition.protein.status" in available:
                 food_claims.append("nutrition.protein.status")
             add_sentence(
-                meaning="A simple food move is enough.",
+                meaning="A specific food action can help cover the gap.",
                 user_safe_context=(
-                    f"An approved option like {friendly_name} can help cover protein."
+                    f"Use {friendly_name} if the protein gap is still open."
                 ),
                 claim_keys=food_claims,
             )
@@ -1777,7 +1804,7 @@ def _claim_backing_map(claims: list[dict[str, Any]]) -> dict[str, dict[str, Any]
         internal_meaning="Training should stay within the approved effort range.",
         examples=[
             "Keep a couple reps in reserve.",
-            "Make clean reps the win.",
+            "Prioritize clean reps.",
             "Stop before the set turns into a grind.",
             "Do not turn this into a max-effort day.",
         ],
@@ -1795,7 +1822,7 @@ def _claim_backing_map(claims: list[dict[str, Any]]) -> dict[str, dict[str, Any]
         examples=[
             "Protein is the easiest fix today.",
             "Add an easy protein option.",
-            "One simple protein bump is enough.",
+            "Add canned tuna if you still need more protein.",
         ],
         disallowed=[
             "protein-support option",
@@ -1831,8 +1858,8 @@ def _claim_backing_map(claims: list[dict[str, Any]]) -> dict[str, dict[str, Any]
             internal_meaning="This food is an approved option from the backend.",
             examples=[
                 friendly_name,
-                f"an easy option like {friendly_name}",
-                f"something simple like {friendly_name}",
+                f"add {friendly_name} if you still need more protein",
+                f"use {friendly_name} if your protein gap is still open",
             ],
             disallowed=[
                 "Tuna, Canned in Water",
@@ -1843,42 +1870,121 @@ def _claim_backing_map(claims: list[dict[str, Any]]) -> dict[str, dict[str, Any]
     return {label: guide.to_dict() for label, guide in backing.items()}
 
 
+def _plainspoken_voice_contract() -> dict[str, Any]:
+    return {
+        "voice_target": "plainspoken practical coaching",
+        "do": [
+            "say the actual action",
+            "use normal food names",
+            "explain why a food is suggested",
+            "connect recovery to training behavior",
+            "use direct training instructions",
+            "keep the priority action concrete",
+        ],
+        "do_not": [
+            "brand the action",
+            "turn the day into a slogan",
+            "sound like a validator",
+            "sound like a report",
+            "sound like a motivational poster",
+            "invent meal plans, food pairings, serving units, or timing",
+        ],
+        "core_rule": "Say the actual action. Do not package it as a slogan.",
+    }
+
+
+def _rejected_phrase_registry() -> dict[str, Any]:
+    return {
+        "hard_fail_visible_output": sorted(_V5_REJECTED_PLAINSPOKEN_PHRASES),
+        "diagnostic_style_risk": sorted(_V5_DIAGNOSTIC_STYLE_PHRASES),
+    }
+
+
+def _food_action_context(context: dict[str, Any]) -> dict[str, Any]:
+    food_copy = _food_suggestion_copy_context(context)
+    nutrition_action = _nutrition_action_context(context)
+    suggestions = food_copy.get("suggestions") or []
+    friendly_options: list[dict[str, Any]] = []
+    if isinstance(suggestions, list):
+        for suggestion in suggestions[:2]:
+            if not isinstance(suggestion, dict):
+                continue
+            friendly_name = str(suggestion.get("friendly_name") or "").strip()
+            if not friendly_name:
+                continue
+            friendly_options.append(
+                {
+                    "friendly_name": friendly_name,
+                    "canonical_name": suggestion.get("canonical_name"),
+                    "macro_reason": suggestion.get("macro_reason"),
+                    "serving_display": suggestion.get("serving_display"),
+                    "claim_keys": suggestion.get("claim_keys") or {},
+                }
+            )
+    primary_gap = nutrition_action.get("primary_gap")
+    return {
+        "available": bool(friendly_options),
+        "primary_gap": primary_gap,
+        "secondary_gap": nutrition_action.get("secondary_gap"),
+        "friendly_food_options": friendly_options,
+        "preferred_food_sentence_patterns": [
+            "add {friendly_name} if you still need more {macro_reason}",
+            "use {friendly_name} if your {macro_reason} gap is still open",
+        ],
+        "banned_food_sentence_patterns": [
+            "if it fits your meals",
+            "if it fits your day",
+            "protein bump",
+            "food move",
+            "protein-support option",
+        ],
+        "food_action_rule": (
+            "Name the friendly food and the gap it helps cover; do not invent "
+            "servings, pairings, timing, or a meal plan."
+        ),
+    }
+
+
 def _voice_examples() -> dict[str, list[dict[str, str]]]:
     return {
         "examples": [
             {
-                "bad": "Make nutrition support the work.",
-                "better": "Fuel the session instead of trying to force more out of the workout.",
+                "bad": "The win is clean work plus one simple food move.",
+                "better": "Do the planned workout, log what you actually eat, then add canned tuna if protein is still short.",
             },
             {
-                "bad": "The useful move is simple.",
-                "better": "Keep it simple.",
-            },
-            {
-                "bad": "Choose one protein-focused option that fits your day.",
-                "better": "Add an easy protein option.",
-            },
-            {
-                "bad": "Fatigue does not require backing off today.",
-                "better": "You can train as planned; just do not turn it into a max-effort test.",
-            },
-            {
-                "bad": "Tuna, Canned in Water.",
-                "better": "canned tuna",
+                "bad": "Make clean reps the win.",
+                "better": "Prioritize clean reps and stop before the set turns into a grind.",
             },
             {
                 "bad": "Use RIR 2-4 as your effort anchor.",
                 "better": "Keep a couple reps in reserve.",
             },
             {
-                "bad": "Do not rebuild the whole plan.",
-                "better": "You do not need to overhaul the whole day.",
+                "bad": "Make nutrition support the work.",
+                "better": "Handle the protein gap with food instead of trying to force more out of the workout.",
+            },
+            {
+                "bad": "Add Tuna, Canned in Water if it fits your meals.",
+                "better": "Add canned tuna if you still need more protein.",
+            },
+            {
+                "bad": "Fatigue does not require backing off today.",
+                "better": "Recovery looks good enough to train as planned, but this is not a reason to turn it into a max-effort test.",
+            },
+            {
+                "bad": "Use an easy protein bump.",
+                "better": "Add an easy protein option if protein is still short.",
             },
         ],
         "style_rules": [
             {
+                "rule": "plainspoken",
+                "guidance": "Say the actual action. Do not package it as a slogan.",
+            },
+            {
                 "rule": "talk_to_user",
-                "guidance": "Write like a coach talking to Dustin, not a system report.",
+                "guidance": "Write like a practical coach talking to Dustin, not a system report.",
             },
             {
                 "rule": "avoid_backend_abstractions",
@@ -1890,7 +1996,7 @@ def _voice_examples() -> dict[str, list[dict[str, str]]]:
             },
             {
                 "rule": "servings",
-                "guidance": "Use grams only when suggested_grams is approved; do not invent cans, scoops, cups, bowls, or handfuls.",
+                "guidance": "Use grams only when suggested_grams is approved; do not invent cans, scoops, cups, bowls, timing, or pairings.",
             },
         ],
     }
@@ -1990,8 +2096,8 @@ def _provider_task_context(
 ) -> dict[str, Any]:
     synthesis = context.get("daily_coach_synthesis") or {}
     return {
-        "task": "Write one grounded, scannable Daily Coach card from safe facts and natural context.",
-        "tone": "direct practical coach, natural, specific, calm, useful, not a report dump",
+        "task": "Write one grounded Daily Coach card that says the actual action plainly.",
+        "tone": "plainspoken practical coach, direct, specific, calm, useful, not a slogan and not a report dump",
         "target_total_claims": (
             f"{claim_budgets['total']['min']}-{claim_budgets['total']['max']}"
         ),
@@ -2075,7 +2181,7 @@ def _claim_usage_rules(claim_budgets: dict[str, Any]) -> dict[str, Any]:
             f"{claim_budgets['total']['min']}-{claim_budgets['total']['max']}"
         ),
         "use_fewer_when": claim_budgets["total"].get("use_fewer_when"),
-        "adaptive_verbosity_target": "useful, grounded, scannable coaching",
+        "adaptive_verbosity_target": "plainspoken, useful, grounded, scannable coaching",
         "exact_values_require_quoted_values_used": True,
         "do_not_dump_all_claims": True,
         "prefer_status_over_numbers_when_numbers_are_not_needed": True,
@@ -2091,7 +2197,7 @@ def _field_role_guidance() -> dict[str, str]:
         "nutrition_note": "Concrete nutrition state plus one simple food/logging implication.",
         "training_note": "Approved training direction in normal effort language.",
         "recovery_note": "Recovery signal plus what it means for today's training choice.",
-        "priority_action": "One concrete action the user can do today.",
+        "priority_action": "One concrete action the user can do today, with the food or training action named plainly.",
     }
 
 
@@ -2142,6 +2248,13 @@ def _provider_context_summary(value_context: dict[str, Any]) -> dict[str, Any]:
         ),
         "nutrition_action_context": dict(
             value_context.get("nutrition_action_context") or {}
+        ),
+        "food_action_context": dict(value_context.get("food_action_context") or {}),
+        "plainspoken_voice_contract": dict(
+            value_context.get("plainspoken_voice_contract") or {}
+        ),
+        "rejected_phrase_registry": dict(
+            value_context.get("rejected_phrase_registry") or {}
         ),
     }
 

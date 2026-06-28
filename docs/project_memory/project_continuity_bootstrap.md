@@ -1,3 +1,27 @@
+# Project Continuity Bootstrap — Daily Coach Provider Plainspoken Voice & Action Clarity v5
+
+Current source of truth: `0ace3da Add daily coach provider human voice food action specificity v4`.
+
+Active milestone: `Daily Coach Provider Plainspoken Voice & Action Clarity v5`.
+
+Architecture status: approved for Backend implementation.
+
+## Current work
+
+V5 is the final manual voice-correction milestone before Prompt Lab / Voice Lab should become active. The goal is not more factual freedom. The goal is bounded provider freedom: plainspoken synthesis from backend-approved facts, friendly food labels, backed macro-gap context, direct training instructions, clear recovery implication, strict quote/value validation, and deterministic fallback.
+
+Backend adds a plainspoken voice contract, rejected phrase registry, `food_action_context`, stronger prompt examples, validation for rejected phrases and unbacked food actions, and v5 trial-matrix diagnostics.
+
+## Standing boundaries
+
+Backend computes, validates, and approves facts. Provider output is candidate wording only. The backend parser, quote/value validator, approved narrative conversion, and deterministic fallback remain mandatory. Deterministic remains default. OpenAI and direct_ollama remain opt-in. Do not persist provider output, expose raw diagnostics publicly, add Streamlit provider controls, change nutrition/workout/recovery/report calculations, or add RAG/multi-agent/Prompt Lab work in this milestone.
+
+## Patch safety note
+
+Do not use broad variable-removal scripts for reused local variables such as `nutrition` or `recovery`; scope edits by function/block anchors.
+
+---
+
 # Project Continuity Bootstrap — Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
 
 Current source of truth: `2cd7708 Add daily coach context selection coaching synthesis v2`.

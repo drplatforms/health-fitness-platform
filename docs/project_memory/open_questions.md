@@ -1,3 +1,23 @@
+# Open Questions — Daily Coach Provider Plainspoken Voice & Action Clarity v5
+
+## Active
+
+1. Does `gpt-5.5` stop using user-rejected phrasing such as `food move`, `clean work`, `the win is`, `protein bump`, and `if it fits your meals`?
+2. Does `food_action_context` cause the provider to name the friendly food, the macro reason, and the backed condition without inventing serving labels, timing, or pairings?
+3. Does the provider avoid canonical labels such as `Tuna, Canned in Water` when a friendly label such as `canned tuna` exists?
+4. Does the training copy say the actual behavior plainly: prioritize clean reps, keep a couple reps in reserve, and stop before the set turns into a grind?
+5. Does recovery wording explain what recovery means today without saying fatigue is irrelevant, performance is guaranteed, or the user is fully recovered?
+6. If v5 still misses product voice, should the next milestone become Daily Coach Provider Prompt Lab / Voice Lab v1 instead of another one-off patch?
+
+## Closed/unchanged boundaries
+
+- Provider factual authority is not expanded.
+- Parser, quote/value validation, and deterministic fallback remain mandatory.
+- Deterministic remains default; OpenAI/direct_ollama remain opt-in/evaluation-only.
+- Raw provider output remains local-only diagnostic material.
+
+---
+
 # Open Questions — Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
 
 ## Active

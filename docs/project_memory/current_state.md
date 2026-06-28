@@ -1,3 +1,29 @@
+# Current State — Daily Coach Provider Plainspoken Voice & Action Clarity v5
+
+Current source of truth: `feature/daily-coach-provider-human-voice-food-action-specificity-v4` at `0ace3da`.
+
+Active backend milestone: `Daily Coach Provider Plainspoken Voice & Action Clarity v5`.
+
+Architecture status: approved for Backend implementation after the green v4 baseline snapshot.
+
+Status: backend implementation patch ready for local validation.
+
+V5 replaces phrase-ban-only tuning with a plainspoken coaching contract. The Daily Coach should say the actual action, use friendly food labels, explain the food reason, connect recovery to training behavior, and keep the priority action concrete without motivational packaging or backend/framework language.
+
+Implemented direction:
+
+- plainspoken voice contract and rejected phrase registry;
+- `food_action_context` with friendly food options, macro reason, and backed food-action sentence patterns;
+- prompt rewrite around plain examples and anti-examples;
+- stronger visible-output validation for user-rejected phrases, canonical food leakage, unbacked food action, invented timing, invented pairings, and invented serving labels;
+- trial-matrix v5 diagnostics for plainspoken phrase flags, food-gap reason use, food condition use, slogan-like phrases, and manual product voice scoring.
+
+Boundaries remain unchanged: deterministic is default; OpenAI/direct_ollama remain opt-in/evaluation-only; provider output is parsed, quote/value validated, approved, or deterministically fallen back; no raw provider output is public; no provider output persistence, Streamlit provider controls, nutrition/workout/recovery/report changes, RAG, Prompt Lab, embeddings, or multi-agent orchestration are included.
+
+Requested final status: `DAILY_COACH_PROVIDER_PLAINSPOKEN_VOICE_ACTION_CLARITY_V5_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
 
 Current source of truth: `feature/daily-coach-context-selection-coaching-synthesis-v2` at `2cd7708`.

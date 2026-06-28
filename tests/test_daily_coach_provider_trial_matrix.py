@@ -801,3 +801,67 @@ def test_trial_matrix_includes_copy_grounding_review_fields(tmp_path: Path) -> N
     assert "today_story_day_type" in summary
     assert "high_value_claims_used" in summary
     assert "actionability_score" in summary
+
+
+def test_trial_matrix_records_v5_plainspoken_food_diagnostics(tmp_path: Path) -> None:
+    class V5Result(FakeResult):
+        def to_public_dict(self) -> dict[str, Any]:
+            payload = super().to_public_dict()
+            payload["approved_daily_coach_narrative"] = {
+                "headline": "Clean Strength + Simple Protein",
+                "summary": "You can train as planned today.",
+                "nutrition_note": "Add canned tuna if you still need more protein.",
+                "training_note": "Prioritize clean reps and keep a couple reps in reserve.",
+                "recovery_note": "Recovery looks good enough to train as planned today.",
+                "priority_action": "Do the planned workout, then add canned tuna if protein is still short.",
+                "confidence": "High",
+                "source": self.narrative.source,
+                "reason_codes": ["unit_test"],
+                "limitations": [],
+                "quoted_values_used": [
+                    "nutrition.protein.status",
+                    "nutrition.food_suggestion.1.friendly_name",
+                ],
+            }
+            payload["rendered_narrative"] = json.dumps(
+                payload["approved_daily_coach_narrative"]
+            )
+            return payload
+
+        def to_debug_dict(self) -> dict[str, Any]:
+            payload = super().to_debug_dict()
+            payload.update(self.to_public_dict())
+            payload["provider_context_summary"] = {
+                "food_suggestion_copy_context": {
+                    "suggestions": [
+                        {
+                            "friendly_name": "canned tuna",
+                            "canonical_name": "Tuna, Canned in Water",
+                            "macro_reason": "protein",
+                        }
+                    ]
+                },
+                "nutrition_action_context": {
+                    "primary_gap": "protein",
+                    "action_type": "simple_add_on",
+                    "approved_food_option_count": 1,
+                },
+            }
+            return payload
+
+    rows = run_trial_matrix(
+        users=[102],
+        trial_date="2026-06-05",
+        providers=[PROVIDER_DETERMINISTIC],
+        output_dir=tmp_path,
+        narrative_builder=lambda user_id, target_date=None: V5Result(user_id=user_id),
+    )
+
+    row = rows[0]
+    assert row.plainspoken_phrase_flags == []
+    assert row.rejected_phrase_count == 0
+    assert row.friendly_food_labels_available is True
+    assert row.friendly_food_labels_used is True
+    assert row.food_gap_reason_used is True
+    assert row.food_condition_used is True
+    assert row.slogan_like_phrase_flags == []
