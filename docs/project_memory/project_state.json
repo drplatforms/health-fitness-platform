@@ -14,23 +14,23 @@
         "previous_accepted_milestone": "Daily Coach OpenAI Provider Responses Runtime Fix v1",
         "previous_main_merge_commit": "60fe77b",
         "previous_snapshot": "fitness_ai_snapshot_2026-06-27_60fe77b_use-openai-responses-api-for-daily-coach-narrative-provider.zip",
-        "current_source_of_truth": "v4 technical branch at 0ace3da",
+        "current_source_of_truth": "main at b9b46c9",
         "active_project_memory_milestone": "Future Feature & Technology Inventory v1",
         "active_project_memory_status": "docs/project-memory update complete / ready for Architecture review",
-        "active_backend_milestone": "Daily Coach Provider Plainspoken Voice & Action Clarity v5",
+        "active_backend_milestone": "Daily Coach Natural Draft + Claim Audit v1",
         "active_backend_status": "backend implementation patch candidate ready for validation",
-        "latest_technical_baseline_commit": "0ace3da",
-        "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-28_0ace3da_daily-coach-provider-human-voice-food-action-specificity-v4.zip"
+        "latest_technical_baseline_commit": "b9b46c9",
+        "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-28_b9b46c9_main_merge-daily-coach-prompt-lab-voice-lab-v1.zip"
     },
     "active_roadmap": {
-        "current_recommended_milestone": "Daily Coach Provider Plainspoken Voice & Action Clarity v5 QA",
-        "current_recommended_status": "IMPLEMENTATION_COMPLETE_PENDING_QA",
-        "recommended_owner": "QA / Regression Testing",
-        "source_main_commit": "0ace3da",
-        "baseline_snapshot": "fitness_ai_snapshot_2026-06-28_0ace3da_daily-coach-provider-human-voice-food-action-specificity-v4.zip",
+        "current_recommended_milestone": "Daily Coach Natural Draft + Claim Audit v1",
+        "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
+        "recommended_owner": "Backend Development",
+        "source_main_commit": "b9b46c9",
+        "baseline_snapshot": "fitness_ai_snapshot_2026-06-28_b9b46c9_main_merge-daily-coach-prompt-lab-voice-lab-v1.zip",
         "commit_check_mode": "code",
         "qa_class": "CLASS 2 / CLASS 5 HYBRID",
-        "primary_question": "Can gpt-5.5 produce plainspoken Daily Coach copy that says the actual action, uses friendly food labels, names the food reason and condition, and preserves quote/value validation?",
+        "primary_question": "Can natural draft plus deterministic claim audit produce better user-facing coaching while preserving backend approval, one repair attempt, and deterministic fallback?",
         "secondary_owner": "Agent Engineering"
     },
     "boundaries": {
