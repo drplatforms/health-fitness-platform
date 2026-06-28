@@ -6,29 +6,29 @@
     "canonical_branch": "main"
   },
   "current_baseline": {
-    "latest_accepted_milestone": "Daily Coach OpenAI Provider Responses Runtime Fix v1",
-    "latest_final_status": "DAILY_COACH_OPENAI_PROVIDER_RESPONSES_RUNTIME_FIX_V1_ACCEPTED_PENDING_ARCHITECTURE_CLOSEOUT",
-    "latest_accepted_commit": "60fe77b",
-    "latest_main_merge_commit": "60fe77b",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-27_60fe77b_use-openai-responses-api-for-daily-coach-narrative-provider.zip",
-    "previous_accepted_milestone": "Daily Coach Provider Trial Diagnostics v1",
-    "previous_main_merge_commit": "f47d7dc",
-    "previous_snapshot": "fitness_ai_snapshot_2026-06-27_4641c91_provider-trial-matrix-local.zip",
-    "current_source_of_truth": "runtime-fix baseline at 60fe77b",
+    "latest_accepted_milestone": "Daily Coach Provider Copy Grounding & Approved Context Enrichment v1",
+    "latest_final_status": "DAILY_COACH_PROVIDER_COPY_GROUNDING_APPROVED_CONTEXT_ENRICHMENT_V1_ACCEPTED_AND_QA_PASSED",
+    "latest_accepted_commit": "2bbffdb",
+    "latest_main_merge_commit": "2bbffdb",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-27_2bbffdb_feature-daily-coach-provider-copy-grounding-context-enrichment-v1_add-daily-coach-provider-copy-grounding-context-enrichment.zip",
+    "previous_accepted_milestone": "Daily Coach OpenAI Provider Responses Runtime Fix v1",
+    "previous_main_merge_commit": "60fe77b",
+    "previous_snapshot": "fitness_ai_snapshot_2026-06-27_60fe77b_use-openai-responses-api-for-daily-coach-narrative-provider.zip",
+    "current_source_of_truth": "copy-grounding baseline at 2bbffdb",
     "active_project_memory_milestone": "Future Feature & Technology Inventory v1",
     "active_project_memory_status": "docs/project-memory update complete / ready for Architecture review",
-    "active_backend_milestone": "Daily Coach Provider Copy Grounding & Approved Context Enrichment v1",
-    "active_backend_status": "approved for backend implementation / implementation in progress"
+    "active_backend_milestone": "Daily Coach Provider Context Selection & Coaching Synthesis v2",
+    "active_backend_status": "backend implementation complete pending Architecture review"
   },
   "active_roadmap": {
-    "current_recommended_milestone": "Daily Coach Provider Copy Grounding & Approved Context Enrichment v1",
-    "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
-    "recommended_owner": "Backend Development / Provider Runtime",
-    "source_main_commit": "60fe77b",
-    "baseline_snapshot": "fitness_ai_snapshot_2026-06-27_60fe77b_use-openai-responses-api-for-daily-coach-narrative-provider.zip",
+    "current_recommended_milestone": "Daily Coach Provider Context Selection & Coaching Synthesis v2 QA",
+    "current_recommended_status": "IMPLEMENTATION_COMPLETE_PENDING_QA",
+    "recommended_owner": "QA / Regression Testing",
+    "source_main_commit": "2bbffdb",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-06-27_2bbffdb_feature-daily-coach-provider-copy-grounding-context-enrichment-v1_add-daily-coach-provider-copy-grounding-context-enrichment.zip",
     "commit_check_mode": "code",
     "qa_class": "CLASS 2 / CLASS 5 HYBRID",
-    "primary_question": "Can gpt-5.5 produce more specific, coach-like Daily Coach copy using 2-4 high-value backend-approved facts without weakening quote/value validation?",
+    "primary_question": "Can gpt-5.5 use today_story, 3-6 approved claims, field budgets, and adaptive verbosity to produce more specific, useful, scannable coaching without weakening quote/value validation?",
     "secondary_owner": "Agent Engineering"
   },
   "boundaries": {
@@ -184,7 +184,17 @@
     "trial_matrix_copy_quality_diagnostics": true,
     "no_provider_default_change_for_copy_grounding": true,
     "quote_value_validation_mandatory_for_copy_grounding": true,
-    "no_raw_provider_output_public_for_copy_grounding": true
+    "no_raw_provider_output_public_for_copy_grounding": true,
+    "daily_coach_context_selection_coaching_synthesis_v2": true,
+    "daily_coach_today_story_backend_derived": true,
+    "daily_coach_claim_budgets_v2": true,
+    "daily_coach_adaptive_verbosity_guidance_v2": true,
+    "daily_coach_trial_matrix_v2_quality_diagnostics": true,
+    "no_parser_relaxation_for_context_selection_v2": true,
+    "no_quote_value_validation_relaxation_for_context_selection_v2": true,
+    "no_provider_default_change_for_context_selection_v2": true,
+    "no_streamlit_controls_for_context_selection_v2": true,
+    "no_provider_output_persistence_for_context_selection_v2": true
   },
   "process_doctrine": {
     "complex_backend_quality_gate": [

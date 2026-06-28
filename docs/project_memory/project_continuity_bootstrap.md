@@ -40,3 +40,9 @@ Implemented/targeted diagnostics:
 ## Standing boundaries
 
 Do not make OpenAI or direct_ollama default. Do not change normal Daily Coach endpoints. Do not relax parser/validator/quote-value safety. Do not commit raw provider outputs or secrets. Do not add Streamlit controls, persistence, RAG, multi-agent orchestration, nutrition/workout/recovery/report behavior changes, or schema changes.
+
+---
+
+## Continuity update — Daily Coach Provider Context Selection & Coaching Synthesis v2
+
+V2 adds backend-derived today_story, expanded high-value claim selection, field-specific claim budgets, adaptive verbosity guidance, and trial-matrix v2 diagnostics. Deterministic remains default, OpenAI/direct_ollama remain opt-in, quote/value validation remains mandatory, and raw provider output remains local-only diagnostics.

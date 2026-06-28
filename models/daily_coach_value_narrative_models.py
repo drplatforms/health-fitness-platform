@@ -104,6 +104,33 @@ class ApprovedNarrativeValueClaim:
 
 
 @dataclass(frozen=True)
+class DailyCoachTodayStory:
+    """Backend-derived, claim-key-backed story of the day for provider synthesis."""
+
+    day_type: Literal[
+        "controlled_progress",
+        "recovery_first",
+        "nutrition_support",
+        "data_quality_check",
+        "maintain_and_log",
+        "managed_deload_return",
+        "training_execution_focus",
+    ]
+    why: str
+    nutrition_angle: str
+    training_angle: str
+    recovery_angle: str
+    priority_angle: str
+    avoid_overreaction_angle: str
+    primary_claim_keys: list[str] = field(default_factory=list)
+    optional_action_claim_keys: list[str] = field(default_factory=list)
+    limitation_claim_keys: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
 class CandidateDailyCoachValueNarrative:
     """Strict provider candidate for value-aware Daily Coach narrative copy.
 

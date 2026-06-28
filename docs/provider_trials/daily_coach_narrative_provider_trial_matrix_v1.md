@@ -111,3 +111,33 @@ Provider trial rows now include diagnostic review fields for context-specific co
 - manual copy quality, specificity, coaching usefulness, and fact-dump score placeholders
 
 These fields are review aids for Architecture/Product/Agent Engineering. They do not weaken parser, quote/value validation, deterministic fallback, or artifact safety. Raw provider output remains local-only and explicit diagnostic mode only.
+
+---
+
+## V2 Context Selection & Coaching Synthesis Review Fields
+
+Daily Coach Provider Context Selection & Coaching Synthesis v2 extends the trial matrix with diagnostics for before/after provider review.
+
+New review fields may include:
+
+- `today_story_day_type`
+- `today_story_primary_claim_keys`
+- `today_story_optional_action_claim_keys`
+- `high_value_claims_available_count`
+- `high_value_claims_used_count`
+- `preferred_claims_used_by_field`
+- `claim_budget_min`
+- `claim_budget_max`
+- `quoted_claim_count`
+- `today_story_used`
+- `food_suggestion_available`
+- `food_suggestion_used`
+- `field_budget_flags`
+- `weak_priority_action_flag`
+- `fact_dumping_flag`
+- `synthesis_quality_notes`
+- `manual_actionability_score`
+
+These diagnostics are review aids. They do not replace parser validation, quote/value validation, or deterministic fallback.
+
+Adaptive verbosity should be judged by usefulness and scannability, not word count alone. Longer copy is acceptable when it connects approved nutrition, training, and recovery context into a clearer priority action. Longer copy is not acceptable when it becomes generic, repetitive, report-like, or unsupported.

@@ -618,6 +618,7 @@ class FakeEnrichedResult(FakeResult):
         payload = super().to_debug_dict()
         payload["provider_context_summary"] = {
             "approved_value_claim_count": 4,
+            "approved_food_suggestion_count": 1,
             "high_value_claims_available": [
                 "recovery.readiness_level",
                 "recovery.fatigue_risk",
@@ -629,6 +630,22 @@ class FakeEnrichedResult(FakeResult):
                     "recovery.fatigue_risk",
                 ],
                 "training_note": ["training.rir_range"],
+            },
+            "today_story": {
+                "day_type": "training_execution_focus",
+                "primary_claim_keys": [
+                    "recovery.readiness_level",
+                    "recovery.fatigue_risk",
+                    "training.rir_range",
+                ],
+                "optional_action_claim_keys": [
+                    "nutrition.food_suggestion.1.display_name"
+                ],
+            },
+            "claim_budgets": {
+                "total": {"min": 3, "max": 6},
+                "recovery_note": {"min": 1, "max": 2},
+                "training_note": {"min": 1, "max": 1},
             },
         }
         return payload
@@ -662,8 +679,28 @@ def test_trial_matrix_includes_copy_grounding_review_fields(tmp_path: Path) -> N
         ]
     }
     assert row.declared_claim_count == 2
+    assert row.today_story_day_type == "training_execution_focus"
+    assert row.today_story_primary_claim_keys == [
+        "recovery.readiness_level",
+        "recovery.fatigue_risk",
+        "training.rir_range",
+    ]
+    assert row.high_value_claims_available_count == 3
+    assert row.high_value_claims_used_count == 2
+    assert row.claim_budget_min == 3
+    assert row.claim_budget_max == 6
+    assert row.quoted_claim_count == 2
+    assert row.today_story_used is True
+    assert row.food_suggestion_available is True
+    assert row.food_suggestion_used is False
+    assert "training_note:below_min" in row.field_budget_flags
+    assert row.fact_dumping_flag is False
+    assert "food_suggestion_available_but_unused" in row.synthesis_quality_notes
     payload = json.loads((tmp_path / "trial_matrix.jsonl").read_text().splitlines()[0])
     assert payload["declared_claim_count"] == 2
+    assert payload["today_story_day_type"] == "training_execution_focus"
+    assert payload["claim_budget_max"] == 6
     summary = (tmp_path / "trial_matrix_summary.md").read_text(encoding="utf-8")
+    assert "today_story_day_type" in summary
     assert "high_value_claims_used" in summary
-    assert "specificity_score" in summary
+    assert "actionability_score" in summary

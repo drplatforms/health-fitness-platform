@@ -1,3 +1,33 @@
+# Next Milestone — Daily Coach Provider Context Selection & Coaching Synthesis v2 QA
+
+Owner: QA / Regression Testing with Backend and Agent Engineering support.
+
+Baseline: implementation branch `feature/daily-coach-context-selection-coaching-synthesis-v2`.
+
+Recommended QA status: `DAILY_COACH_PROVIDER_CONTEXT_SELECTION_COACHING_SYNTHESIS_V2_QA_PASS`.
+
+## Goal
+
+Validate that v2 improves context selection, today_story usage, adaptive verbosity, priority-action specificity, and gpt-5.5 coaching usefulness while preserving deterministic default, opt-in providers, parser behavior, quote/value validation, and sanitized diagnostics.
+
+## Primary case
+
+- user_id: 102
+- date: 2026-06-27
+- provider: openai
+- model: gpt-5.5
+
+## Pass focus
+
+- output uses 3-6 approved claims when context supports it;
+- every concrete value/status/food/amount is declared in quoted_values_used;
+- today_story improves specificity;
+- priority_action is concrete;
+- adaptive verbosity is useful and scannable, not generic or report-like;
+- no raw provider output or secrets are committed.
+
+---
+
 # Next Milestone — Daily Coach Provider Copy Grounding & Approved Context Enrichment v1
 
 Owner: Backend Development with Agent Engineering guidance.

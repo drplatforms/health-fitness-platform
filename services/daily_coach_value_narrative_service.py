@@ -23,6 +23,7 @@ from models.daily_coach_value_narrative_models import (
     ApprovedDailyCoachValueNarrative,
     ApprovedNarrativeValueClaim,
     CandidateDailyCoachValueNarrative,
+    DailyCoachTodayStory,
     DailyCoachValueNarrativeResult,
     DailyCoachValueNarrativeRuntimeMetadata,
 )
@@ -141,6 +142,7 @@ def build_daily_coach_value_narrative_from_synthesis(
     value_context = value_context or build_minimal_value_context_from_synthesis(
         synthesis
     )
+    _enrich_provider_context_packaging(value_context)
 
     if configured_provider == PROVIDER_DETERMINISTIC:
         approved = _deterministic_narrative(
@@ -346,12 +348,30 @@ def build_daily_coach_value_narrative_prompt(
             "training.rir_range",
         ],
     }
+    _enrich_provider_context_packaging(value_context)
     field_roles = value_context.get("field_role_guidance") or _field_role_guidance()
-    claim_rules = value_context.get("claim_usage_rules") or _claim_usage_rules()
+    claim_rules = value_context.get("claim_usage_rules") or _claim_usage_rules(
+        value_context.get("claim_budgets")
+        or _claim_budgets(
+            value_context,
+            _display_allowed_claims(value_context.get("approved_value_claims") or []),
+            _build_today_story(
+                value_context,
+                _display_allowed_claims(
+                    value_context.get("approved_value_claims") or []
+                ),
+            ),
+        )
+    )
     return (
-        "Write a short Daily Coach card from backend-approved facts.\n"
+        "Write a Daily Coach card from backend-approved facts.\n"
+        "Target useful, grounded, scannable coaching; not maximum brevity and not a report.\n"
         "Sound like a practical coach: specific, calm, concise, and useful.\n"
-        "Use 2-4 high-value approved claims total. Prefer high_value_claims and preferred_claims_by_field.\n"
+        "Use 3-6 high-value approved claims when context is rich; use fewer when context is thin, limited, or data-quality-limited.\n"
+        "Connect nutrition, training, and recovery only when the approved today_story supports it.\n"
+        "Allow more words only when they improve the priority action, connect multiple domains, or explain food/training/recovery context clearly.\n"
+        "Keep wording shorter when context is sparse, wording becomes generic, prose becomes a report, metrics repeat, or explanations are unsupported.\n"
+        "Prefer high_value_claims, preferred_claims_by_field, today_story, and claim_budgets.\n"
         "Do not dump all claims. Prefer status over numbers when exact numbers are not necessary.\n"
         "Use limitations as uncertainty/context, not as user blame.\n"
         "Do not mention backend, approved context, validator, schema, provider, JSON, or internal process in user-facing fields.\n"
@@ -368,6 +388,19 @@ def build_daily_coach_value_narrative_prompt(
         f"{json.dumps(field_roles, indent=2, default=str)}\n\n"
         "CLAIM_USAGE_RULES:\n"
         f"{json.dumps(claim_rules, indent=2, default=str)}\n\n"
+        "TODAY_STORY_AND_CLAIM_BUDGETS:\n"
+        + json.dumps(
+            {
+                "today_story": value_context.get("today_story"),
+                "claim_budgets": value_context.get("claim_budgets"),
+                "adaptive_verbosity_guidance": value_context.get(
+                    "adaptive_verbosity_guidance"
+                ),
+            },
+            indent=2,
+            default=str,
+        )
+        + "\n\n"
         "REQUIRED_JSON_SCHEMA:\n"
         f"{json.dumps(_CANDIDATE_SCHEMA, indent=2)}\n\n"
         "VALID_EXAMPLE_SHAPE_ONLY:\n"
@@ -1002,7 +1035,7 @@ def _build_approved_value_claims(context: dict[str, Any]) -> list[dict[str, Any]
     if isinstance(training, dict):
         training_text = " ".join(str(value) for value in training.values() if value)
         rir_match = re.search(
-            r"RIR\s*(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)",
+            r"RIR\s*(\d+(?:\.\d+)?)\s*[-â€“]\s*(\d+(?:\.\d+)?)",
             training_text,
             re.IGNORECASE,
         )
@@ -1093,12 +1126,176 @@ def _add_claim(
 
 
 def _enrich_provider_context_packaging(context: dict[str, Any]) -> None:
+    if not isinstance(context.get("approved_value_claims"), list):
+        context["approved_value_claims"] = _build_approved_value_claims(context)
     claims = _display_allowed_claims(context.get("approved_value_claims") or [])
-    context["provider_task_context"] = _provider_task_context(context, claims)
-    context["high_value_claims"] = _high_value_claim_keys(claims)
-    context["preferred_claims_by_field"] = _preferred_claims_by_field(claims)
-    context["claim_usage_rules"] = _claim_usage_rules()
+    today_story = _build_today_story(context, claims)
+    claim_budgets = _claim_budgets(context, claims, today_story)
+    context["today_story"] = today_story.to_dict()
+    context["claim_budgets"] = claim_budgets
+    context["adaptive_verbosity_guidance"] = _adaptive_verbosity_guidance(
+        context, claims, claim_budgets
+    )
+    context["provider_task_context"] = _provider_task_context(
+        context, claims, claim_budgets
+    )
+    context["high_value_claims"] = _high_value_claim_keys(
+        claims, max_claims=int(claim_budgets["total"]["max"])
+    )
+    context["preferred_claims_by_field"] = _preferred_claims_by_field(
+        claims, claim_budgets
+    )
+    context["claim_usage_rules"] = _claim_usage_rules(claim_budgets)
     context["field_role_guidance"] = _field_role_guidance()
+
+
+def _build_today_story(
+    context: dict[str, Any], claims: list[dict[str, Any]]
+) -> DailyCoachTodayStory:
+    claim_keys = {str(claim.get("key")) for claim in claims}
+    synthesis = context.get("daily_coach_synthesis") or {}
+    nutrition = context.get("approved_nutrition") or {}
+    limitations = context.get("approved_limitations") or []
+    food_keys = [
+        key for key in claim_keys if key.startswith("nutrition.food_suggestion")
+    ]
+    protein_key = (
+        "nutrition.protein.status" if "nutrition.protein.status" in claim_keys else None
+    )
+    rir_key = "training.rir_range" if "training.rir_range" in claim_keys else None
+    readiness_key = (
+        "recovery.readiness_level" if "recovery.readiness_level" in claim_keys else None
+    )
+    fatigue_key = (
+        "recovery.fatigue_risk" if "recovery.fatigue_risk" in claim_keys else None
+    )
+    limitation_keys = [key for key in claim_keys if key.startswith("limitation.")]
+
+    if isinstance(nutrition, dict) and (
+        protein_key or food_keys or nutrition.get("available")
+    ):
+        day_type = "nutrition_support"
+        why = "Approved nutrition context can make today's action more specific."
+        priority_angle = "Use one approved nutrition-support action if it fits the day."
+    elif rir_key:
+        day_type = "training_execution_focus"
+        why = "Training guidance has an approved execution anchor."
+        priority_angle = "Complete the planned work with the approved effort anchor."
+    elif limitation_keys or limitations:
+        day_type = "data_quality_check"
+        why = "Available context is useful but limited, so avoid over-interpreting it."
+        priority_angle = "Improve logging quality before drawing stronger conclusions."
+    else:
+        day_type = "controlled_progress"
+        why = "Approved context supports steady execution without overcorrection."
+        priority_angle = str(
+            synthesis.get("recommended_focus")
+            or "Keep the next action simple and specific."
+        )
+
+    primary_claim_keys = [
+        key
+        for key in [protein_key, rir_key, readiness_key, fatigue_key]
+        if key is not None
+    ]
+    for key in sorted(food_keys):
+        if len(primary_claim_keys) >= 6:
+            break
+        if key.endswith(".display_name"):
+            primary_claim_keys.append(key)
+    optional_action_claim_keys = [
+        key for key in sorted(food_keys) if key not in primary_claim_keys
+    ]
+
+    return DailyCoachTodayStory(
+        day_type=day_type,  # type: ignore[arg-type]
+        why=why,
+        nutrition_angle=(
+            "Use approved nutrition status and food suggestions only when they make the action clearer."
+            if isinstance(nutrition, dict) and nutrition.get("available")
+            else "Nutrition context is limited; keep nutrition language cautious."
+        ),
+        training_angle=(
+            "Anchor training language to the approved RIR/execution context."
+            if rir_key
+            else "Do not invent training details beyond the approved plan context."
+        ),
+        recovery_angle=(
+            "Use readiness/fatigue status to explain training confidence without overclaiming."
+            if readiness_key or fatigue_key
+            else "Avoid claiming recovery details that are not approved."
+        ),
+        priority_angle=priority_angle,
+        avoid_overreaction_angle="Do not turn one day of context into a trend, diagnosis, deficit, surplus, or prescription.",
+        primary_claim_keys=primary_claim_keys,
+        optional_action_claim_keys=optional_action_claim_keys[:3],
+        limitation_claim_keys=sorted(limitation_keys)[:2],
+    )
+
+
+def _claim_budgets(
+    context: dict[str, Any],
+    claims: list[dict[str, Any]],
+    today_story: DailyCoachTodayStory,
+) -> dict[str, Any]:
+    rich_context = _rich_context_available(context, claims, today_story)
+    total_min = 3 if rich_context else 1
+    total_max = 6 if rich_context else min(4, max(1, len(claims)))
+    return {
+        "total": {
+            "min": total_min,
+            "max": total_max,
+            "use_fewer_when": "context is thin, limited, sparse, or data-quality-limited",
+        },
+        "summary": {"min": 1 if rich_context else 0, "max": 2},
+        "nutrition_note": {"min": 1 if rich_context else 0, "max": 2},
+        "training_note": {"min": 1 if rich_context else 0, "max": 1},
+        "recovery_note": {"min": 1 if rich_context else 0, "max": 2},
+        "priority_action": {"min": 1 if rich_context else 0, "max": 2},
+    }
+
+
+def _rich_context_available(
+    context: dict[str, Any],
+    claims: list[dict[str, Any]],
+    today_story: DailyCoachTodayStory,
+) -> bool:
+    domain_count = sum(
+        1
+        for prefix in ["nutrition.", "training.", "recovery."]
+        if any(str(claim.get("key") or "").startswith(prefix) for claim in claims)
+    )
+    return (
+        len(claims) >= 5 and domain_count >= 2 and bool(today_story.primary_claim_keys)
+    )
+
+
+def _adaptive_verbosity_guidance(
+    context: dict[str, Any],
+    claims: list[dict[str, Any]],
+    claim_budgets: dict[str, Any],
+) -> dict[str, Any]:
+    rich = int(claim_budgets["total"]["max"]) >= 6
+    return {
+        "target": "useful, grounded, scannable coaching",
+        "not_the_target": "maximum brevity or maximum verbosity",
+        "recommended_word_budget": "90-140" if rich else "55-95",
+        "allow_more_words_when": [
+            "approved context is rich",
+            "extra words improve the priority action",
+            "multiple domains need to be connected",
+            "food/training/recovery context must be explained clearly",
+        ],
+        "keep_shorter_when": [
+            "context is sparse",
+            "wording becomes generic",
+            "prose becomes a report",
+            "the model repeats metrics",
+            "the model adds unsupported explanations",
+        ],
+        "claim_budget_max": claim_budgets["total"]["max"],
+        "available_claim_count": len(claims),
+    }
 
 
 def _display_allowed_claims(claims: Any) -> list[dict[str, Any]]:
@@ -1110,34 +1307,104 @@ def _display_allowed_claims(claims: Any) -> list[dict[str, Any]]:
             continue
         key = claim.get("key")
         if isinstance(key, str) and key.strip():
-            allowed.append(claim)
+            allowed.append(_claim_with_default_metadata(claim))
     return allowed
 
 
+def _claim_with_default_metadata(claim: dict[str, Any]) -> dict[str, Any]:
+    enriched = dict(claim)
+    key = str(enriched.get("key") or "")
+    claim_type = str(enriched.get("claim_type") or "")
+    if not enriched.get("section_hint"):
+        if key.startswith("nutrition.food_suggestion"):
+            enriched["section_hint"] = "priority_action"
+        elif key.startswith("nutrition."):
+            enriched["section_hint"] = "nutrition_note"
+        elif key.startswith("training."):
+            enriched["section_hint"] = "training_note"
+        elif key.startswith("recovery."):
+            enriched["section_hint"] = "recovery_note"
+        elif key.startswith("limitation.") or claim_type == "limitation":
+            enriched["section_hint"] = "summary"
+    if not enriched.get("priority"):
+        if key in {
+            "recovery.readiness_level",
+            "recovery.fatigue_risk",
+            "training.rir_range",
+            "nutrition.protein.status",
+        }:
+            enriched["priority"] = 1
+        elif key.startswith("nutrition.food_suggestion"):
+            enriched["priority"] = 2
+        else:
+            enriched["priority"] = 3
+    if not enriched.get("coaching_use"):
+        if key.startswith("nutrition.food_suggestion"):
+            enriched["coaching_use"] = "prioritize_action"
+        elif key.startswith("nutrition."):
+            enriched["coaching_use"] = "support_nutrition_action"
+        elif key.startswith("training."):
+            enriched["coaching_use"] = "support_training_action"
+        elif key.startswith("recovery."):
+            enriched["coaching_use"] = "support_recovery_action"
+        elif key.startswith("limitation."):
+            enriched["coaching_use"] = "contextualize_limit"
+    return enriched
+
+
 def _provider_task_context(
-    context: dict[str, Any], claims: list[dict[str, Any]]
+    context: dict[str, Any],
+    claims: list[dict[str, Any]],
+    claim_budgets: dict[str, Any],
 ) -> dict[str, Any]:
     synthesis = context.get("daily_coach_synthesis") or {}
     return {
-        "task": "Write one compact Daily Coach card from approved claims.",
-        "tone": "practical coach, specific, concise, not a report dump",
-        "target_total_claims": "2-4",
-        "confidence": synthesis.get("confidence")
-        if isinstance(synthesis, dict)
-        else None,
+        "task": "Write one grounded, scannable Daily Coach card from approved claims.",
+        "tone": "practical coach, specific, calm, useful, not a report dump",
+        "target_total_claims": (
+            f"{claim_budgets['total']['min']}-{claim_budgets['total']['max']}"
+        ),
+        "adaptive_verbosity_target": "useful_grounded_scannable_coaching",
+        "confidence": (
+            synthesis.get("confidence") if isinstance(synthesis, dict) else None
+        ),
         "claim_count_available": len(claims),
         "highest_priority_claim_count": sum(
             1 for claim in claims if int(claim.get("priority") or 3) == 1
         ),
+        "today_story_day_type": (
+            (context.get("today_story") or {}).get("day_type")
+            if isinstance(context.get("today_story"), dict)
+            else None
+        ),
     }
 
 
-def _high_value_claim_keys(claims: list[dict[str, Any]]) -> list[str]:
+def _high_value_claim_keys(
+    claims: list[dict[str, Any]], *, max_claims: int
+) -> list[str]:
     sorted_claims = sorted(claims, key=_claim_priority_sort_key)
-    return [str(claim["key"]) for claim in sorted_claims[:4]]
+    selected: list[str] = []
+    seen_sections: set[str] = set()
+    for claim in sorted_claims:
+        section = str(claim.get("section_hint") or "")
+        if section and section not in seen_sections:
+            selected.append(str(claim["key"]))
+            seen_sections.add(section)
+        if len(selected) >= max_claims:
+            return selected
+    for claim in sorted_claims:
+        key = str(claim["key"])
+        if key not in selected:
+            selected.append(key)
+        if len(selected) >= max_claims:
+            break
+    return selected
 
 
-def _preferred_claims_by_field(claims: list[dict[str, Any]]) -> dict[str, list[str]]:
+def _preferred_claims_by_field(
+    claims: list[dict[str, Any]], claim_budgets: dict[str, Any]
+) -> dict[str, list[str]]:
     fields = [
         "summary",
         "nutrition_note",
@@ -1148,7 +1415,11 @@ def _preferred_claims_by_field(claims: list[dict[str, Any]]) -> dict[str, list[s
     preferred: dict[str, list[str]] = {field: [] for field in fields}
     for claim in sorted(claims, key=_claim_priority_sort_key):
         field = claim.get("section_hint")
-        if field in preferred and len(preferred[str(field)]) < 3:
+        if field not in preferred:
+            continue
+        field_budget = claim_budgets.get(str(field), {})
+        field_max = int(field_budget.get("max", 2))
+        if len(preferred[str(field)]) < field_max:
             preferred[str(field)].append(str(claim["key"]))
     return preferred
 
@@ -1167,9 +1438,13 @@ def _claim_priority_sort_key(claim: dict[str, Any]) -> tuple[int, int, str]:
     return (priority, type_rank, str(claim.get("key") or ""))
 
 
-def _claim_usage_rules() -> dict[str, Any]:
+def _claim_usage_rules(claim_budgets: dict[str, Any]) -> dict[str, Any]:
     return {
-        "target_total_claims": "2-4",
+        "target_total_claims": (
+            f"{claim_budgets['total']['min']}-{claim_budgets['total']['max']}"
+        ),
+        "use_fewer_when": claim_budgets["total"].get("use_fewer_when"),
+        "adaptive_verbosity_target": "useful, grounded, scannable coaching",
         "exact_values_require_quoted_values_used": True,
         "do_not_dump_all_claims": True,
         "prefer_status_over_numbers_when_numbers_are_not_needed": True,
@@ -1221,6 +1496,11 @@ def _provider_context_summary(value_context: dict[str, Any]) -> dict[str, Any]:
         "high_value_claims_available": list(high_value_claims),
         "preferred_claims_by_field": dict(preferred_claims),
         "claim_usage_rules": dict(value_context.get("claim_usage_rules") or {}),
+        "today_story": dict(value_context.get("today_story") or {}),
+        "claim_budgets": dict(value_context.get("claim_budgets") or {}),
+        "adaptive_verbosity_guidance": dict(
+            value_context.get("adaptive_verbosity_guidance") or {}
+        ),
     }
 
 

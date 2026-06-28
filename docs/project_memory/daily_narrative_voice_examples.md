@@ -182,3 +182,31 @@ Why it fails:
 - It exposes process/schema language.
 - It reads like a debug artifact.
 - It fact-dumps claim keys instead of writing user-facing coaching copy.
+
+---
+
+## Daily Coach Provider Context Selection & Coaching Synthesis v2 examples
+
+### Good adaptive verbosity
+
+Use a slightly fuller card when approved nutrition, training, and recovery context all matter to the same decision.
+
+Example pattern:
+
+- summary identifies the kind of day;
+- nutrition_note uses one approved status or food option;
+- training_note uses the approved RIR/execution anchor;
+- recovery_note explains readiness/fatigue without overclaiming;
+- priority_action turns the story into one concrete action.
+
+### Bad adaptive verbosity
+
+Do not add words that repeat metrics, summarize every claim, or sound like a report.
+
+Bad patterns:
+
+- listing every macro and recovery value;
+- explaining hidden causes;
+- turning a daily gap into a trend;
+- using generic filler to make the card longer;
+- mentioning backend, schema, validator, provider, JSON, or context packets.

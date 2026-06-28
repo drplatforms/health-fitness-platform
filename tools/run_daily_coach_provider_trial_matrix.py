@@ -115,6 +115,23 @@ class TrialMatrixRow:
     manual_specificity_score: str = ""
     manual_coaching_usefulness_score: str = ""
     fact_dump_score: str = ""
+    today_story_day_type: str = ""
+    today_story_primary_claim_keys: list[str] = field(default_factory=list)
+    today_story_optional_action_claim_keys: list[str] = field(default_factory=list)
+    high_value_claims_available_count: int = 0
+    high_value_claims_used_count: int = 0
+    preferred_claims_used_by_field: dict[str, list[str]] = field(default_factory=dict)
+    claim_budget_min: int | None = None
+    claim_budget_max: int | None = None
+    quoted_claim_count: int = 0
+    today_story_used: bool = False
+    food_suggestion_available: bool = False
+    food_suggestion_used: bool = False
+    field_budget_flags: list[str] = field(default_factory=list)
+    weak_priority_action_flag: bool = False
+    fact_dumping_flag: bool = False
+    synthesis_quality_notes: list[str] = field(default_factory=list)
+    manual_actionability_score: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -436,6 +453,48 @@ def _run_case(
         manual_specificity_score="",
         manual_coaching_usefulness_score="",
         fact_dump_score="",
+        today_story_day_type=_today_story_day_type(internal_provider_context_summary),
+        today_story_primary_claim_keys=_today_story_primary_claim_keys(
+            internal_provider_context_summary
+        ),
+        today_story_optional_action_claim_keys=_today_story_optional_action_claim_keys(
+            internal_provider_context_summary
+        ),
+        high_value_claims_available_count=len(
+            _safe_string_list(
+                internal_provider_context_summary.get("high_value_claims_available")
+            )
+        ),
+        high_value_claims_used_count=len(
+            _high_value_claims_used(approved, internal_provider_context_summary)
+        ),
+        preferred_claims_used_by_field=_preferred_claims_by_field_used(
+            approved, internal_provider_context_summary
+        ),
+        claim_budget_min=_claim_budget_limit(
+            internal_provider_context_summary, limit_name="min"
+        ),
+        claim_budget_max=_claim_budget_limit(
+            internal_provider_context_summary, limit_name="max"
+        ),
+        quoted_claim_count=_declared_claim_count(approved),
+        today_story_used=_today_story_used(approved, internal_provider_context_summary),
+        food_suggestion_available=_food_suggestion_available(
+            internal_provider_context_summary
+        ),
+        food_suggestion_used=_food_suggestion_used(approved),
+        field_budget_flags=_field_budget_flags(
+            approved, internal_provider_context_summary
+        ),
+        weak_priority_action_flag="weak_priority_action"
+        in _section_role_flags(approved),
+        fact_dumping_flag=_fact_dumping_flag(
+            approved, internal_provider_context_summary
+        ),
+        synthesis_quality_notes=_synthesis_quality_notes(
+            approved, internal_provider_context_summary
+        ),
+        manual_actionability_score="",
     )
     if _should_cleanup_ollama(case, ollama_unload_after_run, skip_ollama_cleanup):
         cleanup_status = ollama_cleanup(
@@ -605,8 +664,8 @@ def render_summary_markdown(
         "",
         "## Comparison table",
         "",
-        "| user_id | date | case_label | provider | model | final_source | fallback_used | fallback_reason | provider_error_type | parse_status | validation_status | quote_validation_status | latency_ms | quoted_values_used | high_value_claims_used | declared_claim_count | generic_copy_flags | unsupported_claim_flags | section_role_flags | recovery_parity | training_parity | nutrition_parity | value_quote_accuracy | copy_quality_notes | specificity_score | coaching_usefulness_score | fact_dump_score |",
-        "|---:|---|---|---|---|---|---|---|---|---|---|---|---:|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|",
+        "| user_id | date | case_label | provider | model | final_source | fallback_used | fallback_reason | provider_error_type | parse_status | validation_status | quote_validation_status | latency_ms | quoted_values_used | today_story_day_type | high_value_claims_used | high_value_used_count | claim_budget | today_story_used | food_suggestion_used | field_budget_flags | generic_copy_flags | unsupported_claim_flags | section_role_flags | recovery_parity | training_parity | nutrition_parity | value_quote_accuracy | copy_quality_notes | specificity_score | coaching_usefulness_score | actionability_score | fact_dump_score |",
+        "|---:|---|---|---|---|---|---|---|---|---|---|---|---:|---|---|---|---:|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row in rows:
         metadata = row.runtime_metadata
@@ -636,8 +695,13 @@ def render_summary_markdown(
                     _md(_quote_validation_status(row)),
                     str(row.latency_ms if row.latency_ms is not None else ""),
                     _md(", ".join(str(item) for item in quoted)),
+                    _md(row.today_story_day_type),
                     _md(", ".join(row.high_value_claims_used)),
-                    str(row.declared_claim_count),
+                    str(row.high_value_claims_used_count),
+                    _md(f"{row.claim_budget_min}-{row.claim_budget_max}"),
+                    _md(str(row.today_story_used)),
+                    _md(str(row.food_suggestion_used)),
+                    _md(", ".join(row.field_budget_flags)),
                     _md(", ".join(row.generic_copy_flags)),
                     _md(", ".join(row.unsupported_claim_flags)),
                     _md(", ".join(row.section_role_flags)),
@@ -648,6 +712,7 @@ def render_summary_markdown(
                     row.manual_copy_quality_score,
                     row.manual_specificity_score,
                     row.manual_coaching_usefulness_score,
+                    row.manual_actionability_score,
                     row.fact_dump_score,
                 ]
             )
@@ -691,6 +756,8 @@ def render_summary_markdown(
             "12. Is direct_ollama still useful as offline developer mode?",
             "13. Should deterministic remain default? Expected answer: yes.",
             "14. Should any provider become default now? Expected answer: no.",
+            "15. Did today_story improve specificity without creating a fact dump?",
+            "16. Did adaptive verbosity improve actionability while staying scannable?",
             "",
             "## Manual review notes",
             "",
@@ -826,6 +893,124 @@ def _preferred_claims_by_field_used(
         if field_used:
             used[str(field_name)] = field_used
     return used
+
+
+def _today_story(provider_context_summary: Mapping[str, Any]) -> dict[str, Any]:
+    value = provider_context_summary.get("today_story") or {}
+    return value if isinstance(value, dict) else {}
+
+
+def _today_story_day_type(provider_context_summary: Mapping[str, Any]) -> str:
+    day_type = _today_story(provider_context_summary).get("day_type")
+    return str(day_type) if day_type else ""
+
+
+def _today_story_primary_claim_keys(
+    provider_context_summary: Mapping[str, Any],
+) -> list[str]:
+    return _safe_string_list(
+        _today_story(provider_context_summary).get("primary_claim_keys")
+    )
+
+
+def _today_story_optional_action_claim_keys(
+    provider_context_summary: Mapping[str, Any],
+) -> list[str]:
+    return _safe_string_list(
+        _today_story(provider_context_summary).get("optional_action_claim_keys")
+    )
+
+
+def _claim_budget_limit(
+    provider_context_summary: Mapping[str, Any], *, limit_name: str
+) -> int | None:
+    budgets = provider_context_summary.get("claim_budgets") or {}
+    if not isinstance(budgets, dict):
+        return None
+    total = budgets.get("total") or {}
+    if not isinstance(total, dict):
+        return None
+    value = total.get(limit_name)
+    return (
+        int(value)
+        if isinstance(value, int | float | str) and str(value).isdigit()
+        else None
+    )
+
+
+def _today_story_used(
+    approved: Any, provider_context_summary: Mapping[str, Any]
+) -> bool:
+    quoted = set(_quoted_values(approved))
+    story_keys = set(_today_story_primary_claim_keys(provider_context_summary)) | set(
+        _today_story_optional_action_claim_keys(provider_context_summary)
+    )
+    return bool(quoted & story_keys)
+
+
+def _food_suggestion_available(provider_context_summary: Mapping[str, Any]) -> bool:
+    if int(provider_context_summary.get("approved_food_suggestion_count") or 0) > 0:
+        return True
+    claims = _safe_string_list(
+        provider_context_summary.get("high_value_claims_available")
+    )
+    return any(claim.startswith("nutrition.food_suggestion") for claim in claims)
+
+
+def _food_suggestion_used(approved: Any) -> bool:
+    return any(
+        claim.startswith("nutrition.food_suggestion")
+        for claim in _quoted_values(approved)
+    )
+
+
+def _field_budget_flags(
+    approved: Any, provider_context_summary: Mapping[str, Any]
+) -> list[str]:
+    budgets = provider_context_summary.get("claim_budgets") or {}
+    if not isinstance(budgets, dict):
+        return []
+    preferred_used = _preferred_claims_by_field_used(approved, provider_context_summary)
+    flags: list[str] = []
+    for field_name, budget in budgets.items():
+        if field_name == "total" or not isinstance(budget, dict):
+            continue
+        used_count = len(preferred_used.get(str(field_name), []))
+        min_count = int(budget.get("min") or 0)
+        max_count = int(budget.get("max") or 99)
+        if used_count < min_count:
+            flags.append(f"{field_name}:below_min")
+        if used_count > max_count:
+            flags.append(f"{field_name}:above_max")
+    return flags
+
+
+def _fact_dumping_flag(
+    approved: Any, provider_context_summary: Mapping[str, Any]
+) -> bool:
+    max_budget = _claim_budget_limit(provider_context_summary, limit_name="max")
+    if max_budget is None:
+        return _declared_claim_count(approved) > 6
+    return _declared_claim_count(approved) > max_budget
+
+
+def _synthesis_quality_notes(
+    approved: Any, provider_context_summary: Mapping[str, Any]
+) -> list[str]:
+    notes: list[str] = []
+    if not _today_story_used(approved, provider_context_summary):
+        notes.append("today_story_unused")
+    if _food_suggestion_available(
+        provider_context_summary
+    ) and not _food_suggestion_used(approved):
+        notes.append("food_suggestion_available_but_unused")
+    if _fact_dumping_flag(approved, provider_context_summary):
+        notes.append("possible_fact_dumping")
+    if "weak_priority_action" in _section_role_flags(approved):
+        notes.append("weak_priority_action")
+    if not notes:
+        notes.append("manual_review")
+    return notes
 
 
 def _generic_copy_flags(approved: Any) -> list[str]:

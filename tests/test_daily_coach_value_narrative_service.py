@@ -687,7 +687,8 @@ def test_approved_claim_metadata_is_backward_compatible_and_enriched() -> None:
 def test_provider_context_packaging_adds_high_value_and_preferred_claims() -> None:
     context = build_minimal_value_context_from_synthesis(_synthesis())
 
-    assert context["provider_task_context"]["target_total_claims"] == "2-4"
+    assert context["provider_task_context"]["target_total_claims"] == "1-2"
+    assert context["claim_budgets"]["total"]["max"] <= 4
     assert "training.rir_range" in context["high_value_claims"]
     assert "training.rir_range" in context["preferred_claims_by_field"]["training_note"]
     assert context["claim_usage_rules"]["do_not_dump_all_claims"] is True
@@ -700,10 +701,53 @@ def test_prompt_includes_copy_grounding_field_roles_and_claim_rules() -> None:
         value_context=build_minimal_value_context_from_synthesis(_synthesis()),
     )
 
-    assert "Use 2-4 high-value approved claims" in prompt
+    assert "Use 3-6 high-value approved claims when context is rich" in prompt
+    assert "Target useful, grounded, scannable coaching" in prompt
+    assert "Allow more words only when" in prompt
     assert "Do not dump all claims" in prompt
     assert "FIELD_ROLE_GUIDANCE" in prompt
     assert "CLAIM_USAGE_RULES" in prompt
     assert "quoted_values_used may contain only exact keys" in prompt
     assert "Do not mention backend" in prompt
     assert "Return one raw JSON object only" in prompt
+
+
+def test_rich_context_uses_v2_today_story_claim_budgets_and_adaptive_verbosity() -> (
+    None
+):
+    context = _value_context()
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=context,
+        environ={},
+    )
+
+    summary = result.provider_context_summary
+    today_story = summary["today_story"]
+    assert today_story["day_type"] in {
+        "nutrition_support",
+        "training_execution_focus",
+        "controlled_progress",
+    }
+    assert "nutrition.protein.status" in today_story["primary_claim_keys"]
+    assert summary["claim_budgets"]["total"]["min"] == 3
+    assert summary["claim_budgets"]["total"]["max"] == 6
+    assert len(summary["high_value_claims_available"]) >= 3
+    assert summary["adaptive_verbosity_guidance"]["target"] == (
+        "useful, grounded, scannable coaching"
+    )
+    assert "maximum brevity" in summary["adaptive_verbosity_guidance"]["not_the_target"]
+
+
+def test_prompt_includes_today_story_budgets_and_adaptive_verbosity_guidance() -> None:
+    context = _value_context()
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(), value_context=context
+    )
+
+    assert "TODAY_STORY_AND_CLAIM_BUDGETS" in prompt
+    assert "claim_budgets" in prompt
+    assert "adaptive_verbosity_guidance" in prompt
+    assert "What kind of day" not in prompt
+    assert "useful, grounded, scannable coaching" in prompt
+    assert "model repeats metrics" in prompt

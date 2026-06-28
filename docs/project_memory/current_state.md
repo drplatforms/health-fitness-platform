@@ -1,3 +1,23 @@
+# Current State — Daily Coach Provider Context Selection & Coaching Synthesis v2
+
+Current source of truth: accepted copy-grounding branch baseline at `2bbffdb`.
+
+Active backend milestone: `Daily Coach Provider Context Selection & Coaching Synthesis v2`.
+
+Architecture status: approved for Backend implementation.
+
+Status: backend implementation complete pending validation/handoff.
+
+This milestone improves provider context selection and coaching synthesis by adding deterministic `today_story`, expanded high-value claim selection, field-specific claim budgets, adaptive verbosity guidance, prompt synthesis framing, and v2 trial-matrix diagnostics.
+
+Adaptive verbosity rule: the target is useful, grounded, scannable coaching, not maximum brevity. More words are allowed only when approved context is rich and the extra words improve actionability, connect multiple domains, or explain food/training/recovery context clearly. Shorter copy is required when context is sparse, generic, report-like, repetitive, or unsupported.
+
+Boundaries remain unchanged: deterministic is default; OpenAI/direct_ollama are opt-in; provider output is parsed, quote/value validated, approved, or deterministically fallen back; no raw provider output is public; no provider output persistence, Streamlit provider controls, nutrition/workout/recovery/report changes, RAG, Prompt Lab, embeddings, or multi-agent orchestration are included.
+
+Requested final status: `DAILY_COACH_PROVIDER_CONTEXT_SELECTION_COACHING_SYNTHESIS_V2_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Provider Copy Grounding & Approved Context Enrichment v1
 
 Current source of truth: `main` / accepted runtime-fix baseline at `60fe77b`.

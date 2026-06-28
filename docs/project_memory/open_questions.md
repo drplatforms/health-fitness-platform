@@ -33,3 +33,12 @@
 - direct_ollama/openai remain opt-in.
 - Trial diagnostics must not change normal product runtime behavior.
 - Automated tests must not call live providers.
+
+---
+
+## Daily Coach Provider Context Selection & Coaching Synthesis v2 open QA questions
+
+- Does gpt-5.5 use today_story and high-value claims to become more specific without becoming report-like?
+- Does adaptive verbosity improve priority_action usefulness without metric repetition?
+- Does food suggestion usage improve actionability when approved and quote-valid?
+- Do field-specific claim budgets correctly flag too-few/too-many claim usage without weakening hard safety validation?
