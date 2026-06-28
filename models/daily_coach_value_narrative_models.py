@@ -64,6 +64,148 @@ class ApprovedNarrativeValueClaim:
     display_allowed: bool = True
     source: str = "backend"
     confidence: str | None = None
+    priority: int = 3
+    section_hint: (
+        Literal[
+            "summary",
+            "nutrition_note",
+            "training_note",
+            "recovery_note",
+            "priority_action",
+        ]
+        | None
+    ) = None
+    coaching_use: (
+        Literal[
+            "explain_today",
+            "prioritize_action",
+            "contextualize_limit",
+            "support_nutrition_action",
+            "support_training_action",
+            "support_recovery_action",
+            "avoid_overclaiming",
+        ]
+        | None
+    ) = None
+    display_hint: str | None = None
+    value_style: (
+        Literal[
+            "status_only",
+            "exact_value_allowed",
+            "range_allowed",
+            "food_option",
+            "limitation_only",
+        ]
+        | None
+    ) = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachTodayStory:
+    """Backend-derived, claim-key-backed story of the day for provider synthesis."""
+
+    day_type: Literal[
+        "controlled_progress",
+        "recovery_first",
+        "nutrition_support",
+        "nutrition_supported_strength_day",
+        "data_quality_check",
+        "maintain_and_log",
+        "managed_deload_return",
+        "training_execution_focus",
+    ]
+    why: str
+    nutrition_angle: str
+    training_angle: str
+    recovery_angle: str
+    priority_angle: str
+    avoid_overreaction_angle: str
+    primary_claim_keys: list[str] = field(default_factory=list)
+    optional_action_claim_keys: list[str] = field(default_factory=list)
+    limitation_claim_keys: list[str] = field(default_factory=list)
+    human_label: str | None = None
+    main_tension: str | None = None
+    training_implication: str | None = None
+    nutrition_implication: str | None = None
+    recovery_implication: str | None = None
+    avoid_overreaction: str | None = None
+    desired_coaching_move: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachApprovedContextBriefSentence:
+    """Natural provider-facing context sentence backed by approved claim keys."""
+
+    text: str
+    claim_keys: list[str] = field(default_factory=list)
+    meaning: str | None = None
+    user_safe_context: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachClaimBackingGuide:
+    """Allowed natural phrasing for a specific approved claim key."""
+
+    claim_key: str
+    allowed_phrasings: list[str] = field(default_factory=list)
+    disallowed_phrasings: list[str] = field(default_factory=list)
+    internal_meaning: str | None = None
+    user_facing_phrase_examples: list[str] = field(default_factory=list)
+    disallowed_user_phrases: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachFoodSuggestionCopyItem:
+    """Provider-facing food copy contract for one approved suggestion."""
+
+    canonical_name: str
+    friendly_name: str
+    serving_display: str | None
+    macro_reason: str
+    user_facing_allowed: bool
+    claim_keys: dict[str, str | None] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachNutritionActionContext:
+    """Backend-derived food-action meaning for provider synthesis."""
+
+    primary_gap: str | None
+    secondary_gap: str | None
+    action_type: str
+    user_goal: str
+    food_action_allowed: bool
+    approved_food_option_count: int
+    avoid_actions: list[str] = field(default_factory=list)
+    timing_hint: dict[str, Any] | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class DailyCoachVerbosityBudget:
+    """Provider-facing word budget guidance for adaptive Daily Coach copy."""
+
+    mode: Literal["limited", "normal", "rich"]
+    target_words_min: int
+    target_words_max: int
+    guidance: str
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

@@ -95,3 +95,38 @@ Preferred direction:
 ## Model memory note
 
 Ollama `keep_alive` keeps a model loaded. It does not train the model or make it remember prior app interactions. This document is app-side memory and should be included in provider-facing style guidance where appropriate.
+
+---
+
+## Daily Coach Provider Copy Grounding Addendum v1
+
+Daily Coach value-aware provider copy should now use the enriched approved context packaging while preserving all previous voice rules.
+
+Additional provider-facing field roles:
+
+- `headline`: short title, not always `Daily Coach`.
+- `summary`: one sentence saying what matters most today.
+- `nutrition_note`: concrete nutrition state plus one approved implication.
+- `training_note`: approved training direction plus effort/execution anchor.
+- `recovery_note`: recovery signal plus what it means for today's training confidence.
+- `priority_action`: one concrete action the user can do today.
+
+Provider copy should use 2-4 high-value approved claims, prefer field-specific preferred claims, avoid fact dumping, and never mention backend, approved context, validator, schema, provider, JSON, or internal process in user-facing fields.
+
+Every concrete value/status/food/amount in prose must be declared with exact approved claim keys in `quoted_values_used`. Quote/value validation remains a hard backend safety fence.
+
+---
+
+## Provider Context Selection & Coaching Synthesis v2
+
+Daily Coach provider copy should use backend-derived `today_story`, high-value claims, field-specific claim budgets, and adaptive verbosity guidance.
+
+The target is useful, grounded, scannable coaching.
+
+The target is not maximum brevity.
+
+Allow more words when approved context is rich, the added words improve actionability, multiple domains must be connected, or food/training/recovery context must be explained clearly.
+
+Keep copy shorter when context is sparse, wording becomes generic, prose becomes report-like, metrics repeat, or explanations become unsupported.
+
+The provider must not mention backend/process/schema/validator language in user-facing fields. Every concrete value, status, food, amount, range, or readiness claim must be declared in `quoted_values_used` and approved by the backend claim registry.

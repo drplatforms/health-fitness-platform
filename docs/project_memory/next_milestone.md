@@ -1,73 +1,39 @@
-# Next Milestone — Daily Coach Narrative Approved Value Quote Validation v1
+# Next Milestone — Daily Coach Provider Plainspoken Voice & Action Clarity v5 QA
 
-Current backend milestone: Daily Coach Narrative Approved Value Quote Validation v1.
+Owner: QA / Regression Testing with Backend and Agent Engineering support.
 
-Owner: Backend Development / Data Layer.
+Baseline: implementation branch `feature/daily-coach-plainspoken-voice-action-clarity-v5`.
 
-Secondary owner: Agent Engineering for provider/prompt/schema review.
+Recommended QA status: `DAILY_COACH_PROVIDER_PLAINSPOKEN_VOICE_ACTION_CLARITY_V5_QA_PASS`.
 
-Status: authorized for backend implementation.
+## Goal
 
-Requested final status: `DAILY_COACH_NARRATIVE_APPROVED_VALUE_QUOTE_VALIDATION_V1_ACCEPTED`.
+Validate that v5 makes provider Daily Coach copy plainspoken, useful, and action-clear while preserving deterministic default, opt-in providers, strict parser behavior, approved-value quote validation, display permissions, and sanitized diagnostics.
 
-## Current accepted baseline
+## Primary cases
 
-Current source of truth: `main`.
+- user_id: 102 / date: 2026-06-05 / provider: openai / model: gpt-5.5
+- user_id: 102 / date: 2026-06-27 / provider: openai / model: gpt-5.5
+- user_id: 102 / date: 2026-06-03 / provider: openai / model: gpt-5.5
+- user_id: 102 / date: 2026-06-06 / provider: openai / model: gpt-5.5
 
-Required source main commit: `f13a898`.
+## Pass focus
 
-Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_f13a898_daily-coach-narrative-value-aware-provider-comparison-v1.zip`.
+- output says the actual action instead of packaging it as a slogan;
+- rejected phrases such as `food move`, `clean work`, `make clean reps the win`, `the win is`, `protein bump`, `if it fits your meals`, and `Tuna, Canned in Water` do not appear in visible approved copy;
+- friendly food labels are used when available;
+- food action names the food, the macro reason, and the backed condition;
+- training action is direct and natural;
+- recovery implication explains what recovery means today without overclaiming;
+- every concrete value/status/food/range remains declared in `quoted_values_used`;
+- normal artifacts remain sanitized and raw provider output remains local-only diagnostics.
 
-Previous status: `DAILY_COACH_NARRATIVE_VALUE_AWARE_PROVIDER_COMPARISON_V1_ACCEPTED_AND_QA_PASSED`.
+## Product-copy target
 
-## Implementation focus
-
-Add explicit quote/value validation for Daily Coach provider narratives:
-
-- add approved value claim model/registry;
-- add `approved_value_claims` to provider context;
-- add `quoted_values_used` to candidate and approved narratives;
-- require provider candidates to declare every quoted value;
-- reject quoted values not present in the approved value registry;
-- reject display-blocked values;
-- scan prose for undeclared numbers/statuses/target/gap claims;
-- fall back deterministically on quote/value validation failure.
-
-## QA expectation
-
-QA class: CLASS 5 / PROVIDER SAFETY + CLAIM VALIDATION.
-
-Recommended QA: focused backend/API/provider-contract smoke with mocked providers.
-
-Not required:
-
-- full Streamlit workflow QA;
-- live OpenAI calls;
-- live Ollama calls;
-- nutrition actuals full regression beyond adjacent focused tests;
-- workout/recovery/report full QA.
-
-## Post-acceptance routing
-
-After Architecture acceptance, route focused QA for quote/value validation and provider-safety regression.
-
-Potential follow-up: Daily Coach Narrative Provider Runtime Trial Matrix v1 or Developer Mode rendering of debug metadata.
-
-
-## Historical continuity anchors — reference-only
-
-- Daily Coach Async Provider Runtime Design v1
-- Deterministic fallback remains mandatory
-- AI candidate output must be parsed and validated before user display
-- Backend facts remain the source of truth
-
-## Historical continuity anchors — additional reference-only preservation
-
-- DAILY_COACH_ASYNC_PROVIDER_RUNTIME_DESIGN_V1_ACCEPTED
-- Project Continuity System v2
-- Daily Coach Async Persistence Design v1
-- DAILY_COACH_ASYNC_PERSISTENCE_DESIGN_V1_ACCEPTED
-- Daily Coach Async Persistence Contracts + Schema v1
-- feature/daily-coach-async-persistence-contracts-schema-v1
-- schema/contracts
-- NOT_AUTHORIZED_YET
+- plainspoken voice >= 4
+- action clarity >= 4
+- food specificity >= 4
+- training clarity >= 4
+- recovery implication >= 4
+- grounding = 5
+- product readiness >= 4

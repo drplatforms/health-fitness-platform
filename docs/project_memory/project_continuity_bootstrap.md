@@ -1,81 +1,99 @@
-# Project Continuity Bootstrap — Daily Coach Narrative Approved Value Quote Validation v1
+# Project Continuity Bootstrap — Daily Coach Provider Plainspoken Voice & Action Clarity v5
 
-Current source of truth: `main` at `f13a898`.
+Current source of truth: `0ace3da Add daily coach provider human voice food action specificity v4`.
 
-Canonical accepted baseline snapshot: `fitness_ai_snapshot_2026-06-27_f13a898_daily-coach-narrative-value-aware-provider-comparison-v1.zip`.
+Active milestone: `Daily Coach Provider Plainspoken Voice & Action Clarity v5`.
 
-Previous milestone status: `DAILY_COACH_NARRATIVE_VALUE_AWARE_PROVIDER_COMPARISON_V1_ACCEPTED_AND_QA_PASSED`.
+Architecture status: approved for Backend implementation.
 
-Current milestone: Daily Coach Narrative Approved Value Quote Validation v1.
+## Current work
 
-Branch: `feature/daily-coach-narrative-approved-value-quote-validation-v1`.
+V5 is the final manual voice-correction milestone before Prompt Lab / Voice Lab should become active. The goal is not more factual freedom. The goal is bounded provider freedom: plainspoken synthesis from backend-approved facts, friendly food labels, backed macro-gap context, direct training instructions, clear recovery implication, strict quote/value validation, and deterministic fallback.
 
-Status: authorized for backend implementation.
+Backend adds a plainspoken voice contract, rejected phrase registry, `food_action_context`, stronger prompt examples, validation for rejected phrases and unbacked food actions, and v5 trial-matrix diagnostics.
 
-The milestone adds an approved value claim registry plus quote/value validation fence for Daily Coach value-aware provider narratives.
+## Standing boundaries
 
-Provider candidates must declare quoted value keys through `quoted_values_used`, and the validator scans prose for undeclared/invented numeric or status claims.
+Backend computes, validates, and approves facts. Provider output is candidate wording only. The backend parser, quote/value validator, approved narrative conversion, and deterministic fallback remain mandatory. Deterministic remains default. OpenAI and direct_ollama remain opt-in. Do not persist provider output, expose raw diagnostics publicly, add Streamlit provider controls, change nutrition/workout/recovery/report calculations, or add RAG/multi-agent/Prompt Lab work in this milestone.
 
-## First files to read
+## Patch safety note
 
-1. `docs/project_memory/current_state.md`
-2. `docs/project_memory/next_milestone.md`
-3. `docs/project_memory/project_state.json`
-4. `docs/project_memory/handoffs/architecture_handoff_current.md`
-5. `docs/project_memory/handoffs/backend_handoff_current.md`
-6. `docs/project_memory/handoffs/qa_handoff_current.md`
-7. `models/daily_coach_value_narrative_models.py`
-8. `services/daily_coach_value_narrative_service.py`
-9. `services/daily_coach_narrative_validation_service.py`
-10. `api/routes/daily_coach.py`
+Do not use broad variable-removal scripts for reused local variables such as `nutrition` or `recovery`; scope edits by function/block anchors.
 
-## Doctrine to preserve
+---
 
-Backend owns facts, validation, persistence, provenance/confidence, and safety boundaries.
+# Project Continuity Bootstrap — Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
 
-Providers may produce candidate wording only.
+Current source of truth: `2cd7708 Add daily coach context selection coaching synthesis v2`.
 
-Provider output becomes user-facing only after strict parse, backend validation, and approval.
+Active milestone: `Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3`.
 
-Deterministic fallback remains mandatory.
+Architecture status: approved for Backend implementation.
 
-## Current workflow reminders
+## Current work
 
-- Use phase-separated delivery.
-- Never stage with `git add .`.
-- Temporary patch files live outside the repo, usually under `C:\projects`.
-- Use `git apply --check ..\<patch>.patch` before applying patches.
-- Do not run repo-wide mutating formatters for feature work.
-- Long handoffs must be in one copy/paste-ready code block.
-- Backend does not create final canonical accepted snapshots.
-- Linux pull validation follows Windows push.
+V3 keeps the strict provider safety fence from v1/v2 but changes the provider-facing context shape. The model gets a natural, claim-backed `approved_context_brief`, a `claim_backing_map`, cleaned today_story meaning, compact voice examples/anti-examples, and an explicit `verbosity_budget` so rich context can produce useful, grounded, scannable coaching instead of robotic report-like copy.
 
-## Historical continuity anchors
+## Standing boundaries
 
-- Project Continuity System v2
-- Daily Coach Async Provider Runtime Design v1
-- Daily Coach Async Persistence Design v1
-- Provider Narrative QA Matrix v2
-- qwen3:32b research / future premium async candidate only
-- normal Today provider call remains disallowed unless explicitly configured
-- sound right and be right
+Backend computes, validates, and approves facts. Provider output is candidate wording only. The backend parser, quote/value validator, approved narrative conversion, and deterministic fallback remain mandatory. Deterministic remains default. OpenAI and direct_ollama remain opt-in. Do not persist provider output, expose raw diagnostics publicly, add Streamlit provider controls, change nutrition/workout/recovery/report calculations, or add RAG/multi-agent/Prompt Lab work in this milestone.
 
-What Future Chats Must Do First: read current_state, project_state, next_milestone, current handoffs, and this bootstrap before acting.
+---
 
-## Accepted historical workflow anchors — reference-only
+# Project Continuity Bootstrap — Daily Coach Provider Copy Grounding & Approved Context Enrichment v1
 
-Sound right and be right remains the provider/coach-copy doctrine.
+Current baseline: `60fe77b Use OpenAI Responses API for Daily Coach narrative provider`.
 
-The app` command launches Linux runtime.
+Active milestone: `Daily Coach Provider Copy Grounding & Approved Context Enrichment v1`.
 
-qwen3 is not bridge-enabled.
+Architecture status: approved for Backend implementation.
 
-Daily Coach Async Service Shell / No Worker v1 remains service shell only.
+## Current work
 
-Historical async work added no provider runtime yet.
+Daily Coach provider runtime is now working through the OpenAI Responses API. The next bottleneck is copy/context quality.
 
-Daily Coach Async Developer-Only Prototype v1 remains a historical accepted milestone.
+This milestone enriches approved context packaging so providers can use 2-4 high-value backend-approved facts instead of writing generic or mechanical copy. It adds optional claim metadata, high-value/preferred claim lists, field-role guidance, prompt framing, and trial-matrix copy-quality diagnostics.
 
-Developer Mode-only manual lifecycle prototype remains reference-only.
+## Standing boundaries
 
-Current Accepted Milestone Stack is maintained by current_state.md and project_state.json.
+Backend computes, validates, and approves facts. Provider output is candidate wording only. The backend parser, quote/value validator, approved narrative conversion, and deterministic fallback remain mandatory. Deterministic remains default. OpenAI and direct_ollama remain opt-in. Do not persist provider output, expose raw diagnostics publicly, add Streamlit provider controls, change nutrition/workout/recovery/report calculations, or add RAG/multi-agent/Prompt Lab work in this milestone.
+
+# Project Continuity Bootstrap — Daily Coach Provider Trial Diagnostics v1
+
+Current source of truth: `main` at `a6cd8d0` plus Daily Coach Narrative Provider Trial Matrix v1 tooling at `4641c91`.
+
+Active milestone: `Daily Coach Provider Trial Diagnostics v1`.
+
+Architecture status: `DAILY_COACH_PROVIDER_TRIAL_DIAGNOSTICS_V1_APPROVED_FOR_BACKEND`.
+
+## Current work
+
+Add diagnostics to `tools/run_daily_coach_provider_trial_matrix.py` so provider failures can be understood without changing product behavior.
+
+Implemented/targeted diagnostics:
+
+- explicit local raw-provider-output diagnostic mode;
+- normal artifact sanitization remains default;
+- safe OpenAI config/key presence metadata;
+- provider error type classification;
+- optional Ollama unload cleanup metadata;
+- tests proving no live OpenAI/Ollama calls are required.
+
+## Standing boundaries
+
+Do not make OpenAI or direct_ollama default. Do not change normal Daily Coach endpoints. Do not relax parser/validator/quote-value safety. Do not commit raw provider outputs or secrets. Do not add Streamlit controls, persistence, RAG, multi-agent orchestration, nutrition/workout/recovery/report behavior changes, or schema changes.
+
+---
+
+## Continuity update — Daily Coach Provider Context Selection & Coaching Synthesis v2
+
+V2 adds backend-derived today_story, expanded high-value claim selection, field-specific claim budgets, adaptive verbosity guidance, and trial-matrix v2 diagnostics. Deterministic remains default, OpenAI/direct_ollama remain opt-in, quote/value validation remains mandatory, and raw provider output remains local-only diagnostics.
+
+
+---
+
+# Continuity Note — Daily Coach Provider Human Voice & Food Action Specificity v4
+
+Use v3 commit `e23a435` as the v4 baseline. v4 is not a provider authority expansion. It is a provider-materials and validation hardening milestone focused on human voice, friendly food labels, serving-display safety, nutrition action context, and banned awkward phrases.
+
+Important patch lesson: do not use broad variable-removal scripts for reused local variables like `nutrition` or `recovery`; scope edits by function/block anchors.

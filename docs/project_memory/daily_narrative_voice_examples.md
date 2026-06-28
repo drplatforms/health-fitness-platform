@@ -157,3 +157,56 @@ Preferred:
 - Reduce colon-heavy labels and comma-heavy run-ons.
 - Keep the factual boundary, but make the sentence sound like a coach, not a debug trace.
 - Runtime feedback captured through the Voice Lab should preserve scenario, candidate, reason-code, and preferred-rewrite context without storing raw logs or private data.
+
+---
+
+## daily_coach_provider_copy_grounding_v1
+
+Allowed facts:
+- Recovery readiness and fatigue risk may be quoted only when display-approved and declared.
+- RIR may be quoted only through the approved `training.rir_range` claim key.
+- Nutrition status/food options may be quoted only through approved claim keys.
+
+Preferred:
+> Recovery is supportive today, so keep the plan controlled and specific. Use the approved strength plan and keep RIR 2-4 as the effort anchor.
+
+Why it works:
+- It uses a specific approved recovery/training signal.
+- It avoids dumping every available value.
+- It sounds like a coach rather than a report.
+
+Avoid:
+> Based on the approved context and schema, your recovery.readiness_level is High, fatigue_risk is Low, and training.rir_range is 2-4.
+
+Why it fails:
+- It exposes process/schema language.
+- It reads like a debug artifact.
+- It fact-dumps claim keys instead of writing user-facing coaching copy.
+
+---
+
+## Daily Coach Provider Context Selection & Coaching Synthesis v2 examples
+
+### Good adaptive verbosity
+
+Use a slightly fuller card when approved nutrition, training, and recovery context all matter to the same decision.
+
+Example pattern:
+
+- summary identifies the kind of day;
+- nutrition_note uses one approved status or food option;
+- training_note uses the approved RIR/execution anchor;
+- recovery_note explains readiness/fatigue without overclaiming;
+- priority_action turns the story into one concrete action.
+
+### Bad adaptive verbosity
+
+Do not add words that repeat metrics, summarize every claim, or sound like a report.
+
+Bad patterns:
+
+- listing every macro and recovery value;
+- explaining hidden causes;
+- turning a daily gap into a trend;
+- using generic filler to make the card longer;
+- mentioning backend, schema, validator, provider, JSON, or context packets.

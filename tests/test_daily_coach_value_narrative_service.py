@@ -1,15 +1,22 @@
 from __future__ import annotations
 
 import json
+import sys
+from types import SimpleNamespace
+
+import pytest
 
 from models.daily_coach_synthesis_models import DailyCoachSynthesis
 from services.daily_coach_value_narrative_service import (
     PROVIDER_DIRECT_OLLAMA,
     PROVIDER_OPENAI,
+    DailyCoachValueNarrativeError,
     build_daily_coach_value_aware_provider_context,
     build_daily_coach_value_narrative_from_synthesis,
     build_daily_coach_value_narrative_prompt,
     build_minimal_value_context_from_synthesis,
+    call_openai_daily_coach_narrative,
+    render_daily_coach_value_narrative,
 )
 
 
@@ -163,6 +170,34 @@ def _valid_candidate() -> str:
     )
 
 
+def _install_fake_openai_sdk(
+    monkeypatch, *, output_text: str | None = None, exc: Exception | None = None
+):
+    calls: dict[str, object] = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            calls["responses_create_kwargs"] = kwargs
+            if exc is not None:
+                raise exc
+            return SimpleNamespace(output_text=output_text)
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            calls["client_kwargs"] = kwargs
+            self.responses = FakeResponses()
+
+    monkeypatch.setitem(sys.modules, "openai", SimpleNamespace(OpenAI=FakeOpenAI))
+    return calls
+
+
+class _FakeOpenAIStatusError(Exception):
+    def __init__(self, message: str, *, status_code: int, body: dict | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = body or {}
+
+
 def test_deterministic_provider_is_default() -> None:
     result = build_daily_coach_value_narrative_from_synthesis(
         _synthesis(),
@@ -238,6 +273,104 @@ def test_openai_missing_api_key_falls_back_safely() -> None:
     assert metadata.fallback_used is True
     assert metadata.fallback_reason == "openai_missing_api_key"
     assert result.approved_daily_coach_narrative.source == "deterministic_fallback"
+
+
+def test_openai_provider_uses_responses_api_output_text(monkeypatch) -> None:
+    calls = _install_fake_openai_sdk(monkeypatch, output_text=_valid_candidate())
+
+    raw = call_openai_daily_coach_narrative(
+        "gpt-5.5",
+        "Return JSON",
+        7.0,
+        api_key="test-secret",
+        base_url="https://example.test/v1",
+    )
+
+    assert json.loads(raw)["headline"] == "Daily Coach"
+    assert calls["client_kwargs"] == {
+        "api_key": "test-secret",
+        "base_url": "https://example.test/v1",
+    }
+    assert calls["responses_create_kwargs"] == {
+        "model": "gpt-5.5",
+        "instructions": "Return exact JSON only for the requested schema.",
+        "input": "Return JSON",
+        "max_output_tokens": 1200,
+        "timeout": 7.0,
+    }
+
+
+def test_openai_responses_api_auth_error_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError("invalid api key", status_code=401),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="bad-key"
+        )
+
+    assert str(exc_info.value) == "openai_authentication_failed"
+
+
+def test_openai_responses_api_quota_error_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError(
+            "insufficient quota",
+            status_code=429,
+            body={"error": {"code": "insufficient_quota"}},
+        ),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_insufficient_quota"
+
+
+def test_openai_responses_api_model_not_found_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(
+        monkeypatch,
+        exc=_FakeOpenAIStatusError(
+            "model not found",
+            status_code=404,
+            body={"error": {"code": "model_not_found"}},
+        ),
+    )
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "not-a-model", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_model_not_found"
+
+
+def test_openai_responses_api_timeout_is_classified(monkeypatch) -> None:
+    timeout_error = type("APITimeoutError", (Exception,), {})("request timed out")
+    _install_fake_openai_sdk(monkeypatch, exc=timeout_error)
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_timeout"
+
+
+def test_openai_responses_api_missing_output_text_is_classified(monkeypatch) -> None:
+    _install_fake_openai_sdk(monkeypatch, output_text="")
+
+    with pytest.raises(DailyCoachValueNarrativeError) as exc_info:
+        call_openai_daily_coach_narrative(
+            "gpt-5.5", "Return JSON", 7.0, api_key="test-secret"
+        )
+
+    assert str(exc_info.value) == "openai_missing_response"
 
 
 def test_provider_extra_keys_fall_back() -> None:
@@ -534,3 +667,418 @@ def test_invalid_provider_config_falls_back_to_deterministic() -> None:
     assert result.runtime_metadata.selected_provider == "deterministic"
     assert result.runtime_metadata.fallback_reason == "invalid_provider"
     assert result.approved_daily_coach_narrative.source == "deterministic_fallback"
+
+
+def test_approved_claim_metadata_is_backward_compatible_and_enriched() -> None:
+    context = build_minimal_value_context_from_synthesis(_synthesis())
+    claims = {claim["key"]: claim for claim in context["approved_value_claims"]}
+
+    rir_claim = claims["training.rir_range"]
+    assert rir_claim["display_allowed"] is True
+    assert rir_claim["priority"] == 1
+    assert rir_claim["section_hint"] == "training_note"
+    assert rir_claim["coaching_use"] == "support_training_action"
+    assert rir_claim["value_style"] == "range_allowed"
+
+    limitation_claim = claims["limitation.1"]
+    assert limitation_claim["priority"] == 2
+    assert limitation_claim["value_style"] == "limitation_only"
+
+
+def test_provider_context_packaging_adds_high_value_and_preferred_claims() -> None:
+    context = build_minimal_value_context_from_synthesis(_synthesis())
+
+    assert context["provider_task_context"]["target_total_claims"] == "1-2"
+    assert context["claim_budgets"]["total"]["max"] <= 4
+    assert "training.rir_range" in context["high_value_claims"]
+    assert "training.rir_range" in context["preferred_claims_by_field"]["training_note"]
+    assert context["claim_usage_rules"]["do_not_dump_all_claims"] is True
+    assert "priority_action" in context["field_role_guidance"]
+
+
+def test_prompt_includes_copy_grounding_field_roles_and_claim_rules() -> None:
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(),
+        value_context=build_minimal_value_context_from_synthesis(_synthesis()),
+    )
+
+    assert "Use 3-6 high-value approved claims when context is rich" in prompt
+    assert "Target useful, grounded, scannable coaching" in prompt
+    assert "Allow more words only when" in prompt
+    assert "Do not dump all claims" in prompt
+    assert "FIELD_ROLE_GUIDANCE" in prompt
+    assert "CLAIM_USAGE_RULES" in prompt
+    assert "quoted_values_used may contain only exact keys" in prompt
+    assert "Do not mention backend" in prompt
+    assert "Return one raw JSON object only" in prompt
+
+
+def test_rich_context_uses_v2_today_story_claim_budgets_and_adaptive_verbosity() -> (
+    None
+):
+    context = _value_context()
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=context,
+        environ={},
+    )
+
+    summary = result.provider_context_summary
+    today_story = summary["today_story"]
+    assert today_story["day_type"] in {
+        "nutrition_support",
+        "nutrition_supported_strength_day",
+        "training_execution_focus",
+        "controlled_progress",
+    }
+    assert "nutrition.protein.status" in today_story["primary_claim_keys"]
+    assert summary["claim_budgets"]["total"]["min"] == 3
+    assert summary["claim_budgets"]["total"]["max"] == 6
+    assert len(summary["high_value_claims_available"]) >= 3
+    assert summary["adaptive_verbosity_guidance"]["target"] == (
+        "useful, grounded, scannable coaching"
+    )
+    assert "maximum brevity" in summary["adaptive_verbosity_guidance"]["not_the_target"]
+
+
+def test_prompt_includes_today_story_budgets_and_adaptive_verbosity_guidance() -> None:
+    context = _value_context()
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(), value_context=context
+    )
+
+    assert "TODAY_STORY_AND_CLAIM_BUDGETS" in prompt
+    assert "claim_budgets" in prompt
+    assert "adaptive_verbosity_guidance" in prompt
+    assert "What kind of day" not in prompt
+    assert "useful, grounded, scannable coaching" in prompt
+    assert "model repeats metrics" in prompt
+
+
+def test_v3_context_includes_context_brief_backing_map_and_verbosity_budget() -> None:
+    context = _value_context()
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=context,
+        environ={},
+    )
+
+    summary = result.provider_context_summary
+    brief = summary["approved_context_brief"]
+    assert brief["sentences"]
+    assert all(sentence["claim_keys"] for sentence in brief["sentences"])
+    brief_text = " ".join(sentence["text"] for sentence in brief["sentences"])
+    for banned in ["main lever", "effort anchor", "planned effort range"]:
+        assert banned not in brief_text.lower()
+
+    backing_map = summary["claim_backing_map"]
+    assert backing_map
+    assert any(
+        item["claim_key"] == "training.rir_range" for item in backing_map.values()
+    )
+    assert summary["verbosity_budget"]["mode"] in {"normal", "rich"}
+    assert summary["verbosity_budget"]["target_words_min"] > 0
+
+
+def test_v3_prompt_includes_natural_voice_examples_and_context_brief() -> None:
+    context = _value_context()
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(), value_context=context
+    )
+
+    assert "APPROVED_CONTEXT_BRIEF" in prompt
+    assert "CLAIM_BACKING_MAP" in prompt
+    assert "VOICE_EXAMPLES" in prompt
+    assert "VERBOSITY_BUDGET" in prompt
+    assert "real practical coach" in prompt
+    assert "Keep a couple reps in reserve" in prompt
+    assert "main lever" in prompt
+
+
+def test_v3_framework_phrase_candidate_falls_back() -> None:
+    def fake_generate(model: str, prompt: str, timeout: float) -> str:
+        payload = json.loads(_valid_candidate())
+        payload["summary"] = "Make nutrition support the main lever today."
+        payload["training_note"] = "Use RIR 2-4 as your effort anchor."
+        payload["quoted_values_used"] = [
+            "nutrition.protein.status",
+            "training.rir_range",
+        ]
+        return json.dumps(payload)
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_value_context(),
+        environ={
+            "DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA,
+            "DAILY_COACH_NARRATIVE_MODEL": "ollama/test",
+        },
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert result.runtime_metadata.fallback_reason == "candidate_validation_failure"
+    assert any(
+        "main lever" in error for error in result.runtime_metadata.validation_errors
+    )
+
+
+def test_v3_raw_claim_key_candidate_falls_back() -> None:
+    def fake_generate(model: str, prompt: str, timeout: float) -> str:
+        payload = json.loads(_valid_candidate())
+        payload["priority_action"] = "Use nutrition.protein.status to guide the day."
+        return json.dumps(payload)
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_value_context(),
+        environ={
+            "DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA,
+            "DAILY_COACH_NARRATIVE_MODEL": "ollama/test",
+        },
+        direct_ollama_generate=fake_generate,
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert any(
+        "raw claim keys" in error for error in result.runtime_metadata.validation_errors
+    )
+
+
+def _tuna_value_context() -> dict:
+    context = _value_context()
+    context["approved_nutrition"] = {
+        **context["approved_nutrition"],
+        "macro_status": {
+            "protein": {"display_allowed": True, "target_status": "below_target"},
+            "calories": {"display_allowed": True, "target_status": "below_target"},
+        },
+        "approved_food_suggestions": [
+            {
+                "display_name": "Tuna, Canned in Water",
+                "suggested_grams": 100,
+                "macro_gap_addressed": "protein_g",
+                "confidence": "Moderate",
+            }
+        ],
+    }
+    context["approved_training"] = {
+        **context.get("approved_training", {}),
+        "workout_guidance": "Keep RIR 2-4 for the planned work.",
+    }
+    context.pop("approved_value_claims", None)
+    return context
+
+
+def test_v4_context_adds_friendly_food_label_and_action_context() -> None:
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={},
+    )
+
+    summary = result.provider_context_summary
+    food_copy = summary["food_suggestion_copy_context"]
+    suggestion = food_copy["suggestions"][0]
+    assert suggestion["canonical_name"] == "Tuna, Canned in Water"
+    assert suggestion["friendly_name"] == "canned tuna"
+    assert suggestion["claim_keys"]["friendly_name"] == (
+        "nutrition.food_suggestion.1.friendly_name"
+    )
+    nutrition_action = summary["nutrition_action_context"]
+    assert nutrition_action["primary_gap"] == "protein"
+    assert nutrition_action["action_type"] == "simple_add_on"
+    assert nutrition_action["approved_food_option_count"] == 1
+
+
+def test_v4_prompt_includes_food_copy_context_and_bans_rejected_phrases() -> None:
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+    )
+
+    assert "FOOD_SUGGESTION_COPY_CONTEXT" in prompt
+    assert "NUTRITION_ACTION_CONTEXT" in prompt
+    assert "canned tuna" in prompt
+    assert "Make nutrition support the work" in prompt
+    assert "Fuel the session instead" in prompt
+    assert "fatigue does not require backing off" in prompt
+
+
+def test_v4_friendly_food_label_passes_when_quote_backed() -> None:
+    good = json.loads(_valid_candidate())
+    good["nutrition_note"] = "Protein is below target; an easy option is canned tuna."
+    good["priority_action"] = "Add 100g canned tuna and keep the workout clean."
+    good["quoted_values_used"] = [
+        "recovery.readiness_level",
+        "recovery.fatigue_risk",
+        "nutrition.protein.status",
+        "nutrition.food_suggestion.1.friendly_name",
+        "nutrition.food_suggestion.1.suggested_grams",
+    ]
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(good),
+    )
+
+    assert result.runtime_metadata.fallback_used is False
+    assert "nutrition.food_suggestion.1.friendly_name" in (
+        result.approved_daily_coach_narrative.quoted_values_used
+    )
+
+
+def test_v4_canonical_food_label_falls_back_when_friendly_label_exists() -> None:
+    bad = json.loads(_valid_candidate())
+    bad["nutrition_note"] = "Protein is below target; use Tuna, Canned in Water."
+    bad["quoted_values_used"] = [
+        "nutrition.protein.status",
+        "nutrition.food_suggestion.1.display_name",
+    ]
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(bad),
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert any(
+        "friendly food label" in error
+        for error in result.runtime_metadata.validation_errors
+    )
+
+
+def test_v4_rejected_phrase_candidate_falls_back() -> None:
+    bad = json.loads(_valid_candidate())
+    bad["priority_action"] = (
+        "The useful move is simple: make nutrition support the work."
+    )
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(bad),
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert any(
+        "forbidden phrase" in error
+        for error in result.runtime_metadata.validation_errors
+    )
+
+
+def test_v4_unapproved_serving_display_falls_back() -> None:
+    bad = json.loads(_valid_candidate())
+    bad["nutrition_note"] = "Protein is below target; add one can of canned tuna."
+    bad["quoted_values_used"] = [
+        "nutrition.protein.status",
+        "nutrition.food_suggestion.1.friendly_name",
+    ]
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(bad),
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    assert any(
+        "serving display" in error
+        for error in result.runtime_metadata.validation_errors
+    )
+
+
+def test_v5_prompt_includes_plainspoken_contract_and_food_action_context() -> None:
+    prompt = build_daily_coach_value_narrative_prompt(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+    )
+
+    assert "PLAINSPOKEN_VOICE_CONTRACT" in prompt
+    assert "REJECTED_PHRASE_REGISTRY" in prompt
+    assert "FOOD_ACTION_CONTEXT" in prompt
+    assert "Say the actual action" in prompt
+    assert "Add canned tuna if you still need more protein" in prompt
+    assert "food move" in prompt
+
+
+def test_v5_context_exposes_food_action_patterns() -> None:
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={},
+    )
+
+    context = result.provider_context_summary["food_action_context"]
+    assert context["available"] is True
+    assert context["primary_gap"] == "protein"
+    assert context["friendly_food_options"][0]["friendly_name"] == "canned tuna"
+    assert (
+        "add {friendly_name} if you still need more {macro_reason}"
+        in (context["preferred_food_sentence_patterns"])
+    )
+    assert "food move" in context["banned_food_sentence_patterns"]
+
+
+def test_v5_rejected_user_correction_phrases_fall_back() -> None:
+    bad = json.loads(_valid_candidate())
+    bad["summary"] = "The win is clean work plus one simple food move."
+    bad["training_note"] = "Make clean reps the win."
+    bad["nutrition_note"] = "Use an easy protein bump if it fits your meals."
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(bad),
+    )
+
+    assert result.runtime_metadata.fallback_used is True
+    joined = " ".join(result.runtime_metadata.validation_errors)
+    assert "food move" in joined
+    assert "make clean reps the win" in joined
+    assert "protein bump" in joined
+
+
+def test_v5_valid_plainspoken_food_action_passes() -> None:
+    good = json.loads(_valid_candidate())
+    good["headline"] = "Clean Strength + Simple Protein"
+    good["summary"] = (
+        "You can train as planned today, but do not turn it into a max-effort test."
+    )
+    good["nutrition_note"] = (
+        "Calories and protein are below target. Add canned tuna if you still need more protein."
+    )
+    good["training_note"] = (
+        "Prioritize clean reps, keep a couple reps in reserve, and stop before the set turns into a grind."
+    )
+    good["recovery_note"] = "Recovery looks good enough to train as planned today."
+    good["priority_action"] = (
+        "Do the planned workout, log what you actually eat, then add canned tuna if protein is still short."
+    )
+    good["quoted_values_used"] = [
+        "recovery.readiness_level",
+        "recovery.fatigue_risk",
+        "nutrition.calories.status",
+        "nutrition.protein.status",
+        "nutrition.food_suggestion.1.friendly_name",
+        "training.rir_range",
+    ]
+
+    result = build_daily_coach_value_narrative_from_synthesis(
+        _synthesis(),
+        value_context=_tuna_value_context(),
+        environ={"DAILY_COACH_NARRATIVE_PROVIDER": PROVIDER_DIRECT_OLLAMA},
+        direct_ollama_generate=lambda model, prompt, timeout: json.dumps(good),
+    )
+
+    assert result.runtime_metadata.fallback_used is False
+    approved = result.approved_daily_coach_narrative
+    assert "canned tuna" in approved.nutrition_note
+    assert "food move" not in render_daily_coach_value_narrative(approved).lower()

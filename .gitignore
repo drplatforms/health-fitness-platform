@@ -69,3 +69,7 @@ dist/
 local_settings.py
 
 handoffs/
+# Local provider diagnostics / QA runs
+qa-runs/
+provider_diagnostics/
+fitness_ai_provider_diagnostics/

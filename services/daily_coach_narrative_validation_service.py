@@ -647,6 +647,36 @@ _VALUE_NARRATIVE_FORBIDDEN_FRAGMENTS = [
     "debug payload",
     "provider metadata",
     "internal validator",
+    "main lever",
+    "effort anchor",
+    "planned effort range",
+    "bigger nutrition overhaul",
+    "rebuilding the whole plan",
+    "fatigue does not require backing off",
+    "food move",
+    "clean work",
+    "make clean reps the win",
+    "the win is",
+    "support the work",
+    "support the day",
+    "nutrition support",
+    "protein-support option",
+    "calorie-support option",
+    "macro-support option",
+    "if it fits your meals",
+    "if it fits your day",
+    "protein bump",
+    "easy protein bump",
+    "useful move",
+    "tuna, canned in water",
+    "backend-approved",
+    "approved context",
+    "claim keys",
+    "validator",
+    "schema",
+    "json",
+    "based on the provided data",
+    "as an ai coach",
 ]
 
 _VALUE_NARRATIVE_MARKDOWN_FRAGMENTS = ["```", "###", "**", "- headline"]
@@ -767,8 +797,15 @@ def validate_daily_coach_value_narrative_candidate(
             "candidate must not recommend exact food amounts unless approved suggestions include them."
         )
 
+    errors.extend(_validate_v4_food_copy(candidate, value_context))
+    errors.extend(_validate_v5_plainspoken_food_action(candidate, value_context))
+    errors.extend(_validate_unapproved_serving_words(text_lower, value_context))
+
     if _contains_internal_metadata_value_narrative(text_lower):
         errors.append("candidate must not expose raw/debug/provider/internal metadata.")
+
+    if _contains_raw_claim_key(public_text):
+        errors.append("candidate must not expose raw claim keys in user-facing prose.")
 
     errors.extend(_validate_value_quote_claims(candidate, value_context))
 
@@ -849,6 +886,179 @@ def _validate_value_quote_claims(
         ):
             errors.append(f"narrative contains invented value claim: {fragment}")
     return errors
+
+
+def _validate_v4_food_copy(
+    candidate: CandidateDailyCoachValueNarrative, value_context: dict
+) -> list[str]:
+    errors: list[str] = []
+    text_lower = _daily_coach_value_candidate_text(candidate).lower()
+    declared = set(candidate.quoted_values_used)
+    copy_context = value_context.get("food_suggestion_copy_context") or {}
+    suggestions = copy_context.get("suggestions") or []
+    if not isinstance(suggestions, list):
+        return errors
+    for suggestion in suggestions:
+        if not isinstance(suggestion, dict):
+            continue
+        canonical = str(suggestion.get("canonical_name") or "").strip()
+        friendly = str(suggestion.get("friendly_name") or "").strip()
+        claim_keys = suggestion.get("claim_keys") or {}
+        friendly_key = claim_keys.get("friendly_name")
+        canonical_key = claim_keys.get("canonical_name")
+        if canonical and friendly and friendly.lower() != canonical.lower():
+            if canonical.lower() in text_lower:
+                errors.append(
+                    "candidate must use friendly food label when one is available."
+                )
+        if friendly and friendly.lower() in text_lower and friendly_key not in declared:
+            errors.append(
+                f"friendly food label requires quoted_values_used claim: {friendly_key}"
+            )
+        if (
+            canonical
+            and canonical.lower() in text_lower
+            and canonical_key not in declared
+        ):
+            errors.append(
+                f"canonical food label requires quoted_values_used claim: {canonical_key}"
+            )
+    return errors
+
+
+def _validate_v5_plainspoken_food_action(
+    candidate: CandidateDailyCoachValueNarrative, value_context: dict
+) -> list[str]:
+    errors: list[str] = []
+    public_text = _daily_coach_value_candidate_text(candidate)
+    text_lower = public_text.lower()
+    declared = set(candidate.quoted_values_used)
+    food_action = value_context.get("food_action_context") or {}
+    friendly_options = food_action.get("friendly_food_options") or []
+
+    for option in friendly_options if isinstance(friendly_options, list) else []:
+        if not isinstance(option, dict):
+            continue
+        friendly = str(option.get("friendly_name") or "").strip()
+        macro_reason = str(option.get("macro_reason") or "").strip().lower()
+        claim_keys = option.get("claim_keys") or {}
+        friendly_key = claim_keys.get("friendly_name")
+        macro_key = _macro_reason_claim_key(macro_reason, value_context)
+
+        if friendly and friendly.lower() in text_lower:
+            if friendly_key not in declared:
+                errors.append(
+                    f"food action friendly label requires quoted_values_used claim: {friendly_key}"
+                )
+            if macro_reason and macro_reason in {"protein", "calories", "carbs", "fat"}:
+                reason_terms = _food_reason_terms(macro_reason)
+                if not any(term in text_lower for term in reason_terms):
+                    errors.append(
+                        "food action must state the approved macro reason when using a friendly food label."
+                    )
+                if macro_key and macro_key not in declared:
+                    errors.append(
+                        f"food action macro reason requires quoted_values_used claim: {macro_key}"
+                    )
+
+    if _contains_unapproved_timing_hint(text_lower, value_context):
+        errors.append("candidate must not invent meal timing or post-workout timing.")
+    if _contains_unapproved_food_pairing(text_lower):
+        errors.append("candidate must not invent food pairings or meal combinations.")
+    return errors
+
+
+def _macro_reason_claim_key(macro_reason: str, value_context: dict) -> str | None:
+    macro_to_key = {
+        "protein": "nutrition.protein.status",
+        "calories": "nutrition.calories.status",
+        "carbs": "nutrition.carbohydrates.status",
+        "fat": "nutrition.fat.status",
+    }
+    key = macro_to_key.get(macro_reason)
+    if not key:
+        return None
+    approved_claims = _approved_value_claim_map(value_context)
+    return key if key in approved_claims else None
+
+
+def _food_reason_terms(macro_reason: str) -> list[str]:
+    if macro_reason == "protein":
+        return ["protein", "protein gap", "more protein"]
+    if macro_reason == "calories":
+        return ["calories", "calorie gap", "more calories"]
+    if macro_reason == "carbs":
+        return ["carbs", "carbohydrates", "carb gap"]
+    if macro_reason == "fat":
+        return ["fat", "fat gap"]
+    return [macro_reason]
+
+
+def _contains_unapproved_timing_hint(text_lower: str, value_context: dict) -> bool:
+    timing_terms = [
+        "after training",
+        "post-workout",
+        "post workout",
+        "before bed",
+        "with dinner",
+        "pre-workout",
+        "pre workout",
+    ]
+    if not any(term in text_lower for term in timing_terms):
+        return False
+    timing_hint = (value_context.get("food_action_context") or {}).get("timing_hint")
+    if isinstance(timing_hint, dict) and timing_hint.get("user_facing_allowed"):
+        approved_text = str(timing_hint.get("text") or "").lower()
+        return not any(term in approved_text for term in timing_terms)
+    return True
+
+
+def _contains_unapproved_food_pairing(text_lower: str) -> bool:
+    pairing_terms = [
+        "with rice",
+        "with yogurt",
+        "with oatmeal",
+        "with eggs",
+        "with a banana",
+        "alongside",
+        "pair it with",
+        "combine it with",
+    ]
+    return any(term in text_lower for term in pairing_terms)
+
+
+def _validate_unapproved_serving_words(
+    text_lower: str, value_context: dict
+) -> list[str]:
+    serving_words = [
+        "one can",
+        "1 can",
+        "one packet",
+        "1 packet",
+        "half cup",
+        "1/2 cup",
+        "one scoop",
+        "1 scoop",
+        "one bowl",
+        "1 bowl",
+        "one serving",
+        "1 serving",
+        "handful",
+        "plate",
+        "snack size",
+    ]
+    if not any(word in text_lower for word in serving_words):
+        return []
+    approved_claims = _approved_value_claim_map(value_context)
+    has_serving_display = any(
+        key.endswith(".serving_display") and bool(claim.get("display_allowed", True))
+        for key, claim in approved_claims.items()
+    )
+    if has_serving_display:
+        return []
+    return [
+        "candidate must not invent serving display such as cans, packets, scoops, cups, bowls, plates, or handfuls."
+    ]
 
 
 def _approved_value_claim_map(value_context: dict) -> dict[str, dict[str, Any]]:
@@ -1001,5 +1211,21 @@ def _contains_internal_metadata_value_narrative(text_lower: str) -> bool:
         "sql",
         "traceback",
         "json schema",
+        "backend-approved",
+        "approved context",
+        "claim keys",
+        "validator",
+        "schema",
+        "as an ai coach",
     ]
     return any(term in text_lower for term in internal_terms)
+
+
+def _contains_raw_claim_key(public_text: str) -> bool:
+    return bool(
+        re.search(
+            r"\b(?:nutrition|training|recovery|limitation)\.[a-z0-9_]+(?:\.[a-z0-9_]+)*\b",
+            public_text,
+            re.IGNORECASE,
+        )
+    )
