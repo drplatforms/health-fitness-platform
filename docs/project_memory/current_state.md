@@ -1,3 +1,21 @@
+# Current State — Daily Coach Provider Prompt Lab / Voice Lab v1
+
+Current source of truth: `main` at `2835d09 Merge daily coach plainspoken voice action clarity v5`.
+
+Active backend milestone: `Daily Coach Provider Prompt Lab / Voice Lab v1`.
+
+Status: Architecture approved for Backend implementation.
+
+V5 technically passed infrastructure but failed product voice. The current milestone is developer-only Prompt Lab / Voice Lab tooling, not another one-off phrase-hardening patch.
+
+The lab compares fixed scenario cases and prompt/context variants through the existing Daily Coach provider path, parser, validator, fallback boundary, sanitized artifacts, and manual scoring template.
+
+Deterministic remains default. OpenAI/direct_ollama remain explicit opt-in/evaluation-only. Normal Today behavior, product persistence, Streamlit provider controls, parser rules, quote/value validation, and fallback behavior remain unchanged.
+
+Requested final status: `DAILY_COACH_PROVIDER_PROMPT_LAB_VOICE_LAB_V1_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Provider Plainspoken Voice & Action Clarity v5
 
 Current source of truth: `feature/daily-coach-provider-human-voice-food-action-specificity-v4` at `0ace3da`.

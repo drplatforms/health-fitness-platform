@@ -417,6 +417,9 @@ def build_daily_coach_value_narrative_prompt(
     plainspoken_contract = value_context.get("plainspoken_voice_contract") or {}
     rejected_phrase_registry = value_context.get("rejected_phrase_registry") or {}
     voice_examples = value_context.get("voice_examples") or _voice_examples()
+    prompt_lab = value_context.get("prompt_lab") or {}
+    addressing_policy = value_context.get("addressing_policy") or {}
+    food_display_language = value_context.get("food_display_language") or []
     claim_rules = value_context.get("claim_usage_rules") or _claim_usage_rules(
         value_context.get("claim_budgets")
         or _claim_budgets(
@@ -436,7 +439,7 @@ def build_daily_coach_value_narrative_prompt(
         "adaptive_verbosity_guidance": value_context.get("adaptive_verbosity_guidance"),
     }
     return (
-        "Write a short Daily Coach card. Write like a real practical coach talking to Dustin.\n"
+        "Write a short Daily Coach card. Write like a real practical coach talking to the user.\n"
         "Be plainspoken: say the actual action instead of packaging it as a slogan.\n"
         "Answer the real questions: can I train, how should I train, what nutrition issue matters, what food action should I take, and what should I avoid overdoing?\n"
         "Target useful, grounded, scannable coaching; not maximum brevity and not a report.\n"
@@ -478,6 +481,12 @@ def build_daily_coach_value_narrative_prompt(
         f"{json.dumps(nutrition_action_context, indent=2, default=str)}\n\n"
         "FOOD_ACTION_CONTEXT:\n"
         f"{json.dumps(food_action_context, indent=2, default=str)}\n\n"
+        "PROMPT_LAB_CONTEXT_PACKAGE_DEVELOPER_ONLY:\n"
+        f"{json.dumps(prompt_lab, indent=2, default=str)}\n\n"
+        "ADDRESSING_POLICY:\n"
+        f"{json.dumps(addressing_policy, indent=2, default=str)}\n\n"
+        "FOOD_DISPLAY_LANGUAGE:\n"
+        f"{json.dumps(food_display_language, indent=2, default=str)}\n\n"
         "FIELD_ROLE_GUIDANCE:\n"
         f"{json.dumps(field_roles, indent=2, default=str)}\n\n"
         "CLAIM_USAGE_RULES:\n"
@@ -1984,7 +1993,7 @@ def _voice_examples() -> dict[str, list[dict[str, str]]]:
             },
             {
                 "rule": "talk_to_user",
-                "guidance": "Write like a practical coach talking to Dustin, not a system report.",
+                "guidance": "Write like a practical coach talking to the user, not a system report.",
             },
             {
                 "rule": "avoid_backend_abstractions",
@@ -2256,6 +2265,9 @@ def _provider_context_summary(value_context: dict[str, Any]) -> dict[str, Any]:
         "rejected_phrase_registry": dict(
             value_context.get("rejected_phrase_registry") or {}
         ),
+        "prompt_lab": dict(value_context.get("prompt_lab") or {}),
+        "addressing_policy": dict(value_context.get("addressing_policy") or {}),
+        "food_display_language": list(value_context.get("food_display_language") or []),
     }
 
 
