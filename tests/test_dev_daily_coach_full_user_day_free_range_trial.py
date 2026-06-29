@@ -205,3 +205,52 @@ def test_cli_run_matrix_json(monkeypatch, tmp_path: Path, capsys) -> None:
     assert exit_code == 0
     assert payload[0]["scenario_id"] == "aligned_managed"
     assert payload[0]["variants"][0]["first_pass_draft"].startswith("Train cleanly")
+
+
+def test_cli_run_scenario_accepts_v4_decaging_flags(
+    monkeypatch, tmp_path: Path, capsys
+) -> None:
+    def fake_run(**kwargs):
+        assert kwargs["write_model_facing_coach_facts"] is True
+        assert kwargs["write_decaging_summary"] is True
+        assert kwargs["write_backend_label_exposure_summary"] is True
+        assert kwargs["prefer_decaged_prompt"] is True
+        output_dir = kwargs["output_dir"]
+        result = _fake_result()
+        output_dir.mkdir(parents=True, exist_ok=True)
+        (output_dir / "pasteback_report.md").write_text("pasteback", encoding="utf-8")
+        (output_dir / "model_facing_coach_facts.md").write_text(
+            "facts", encoding="utf-8"
+        )
+        (output_dir / "decaging_summary.md").write_text("decaging", encoding="utf-8")
+        (output_dir / "backend_label_exposure_summary.md").write_text(
+            "labels", encoding="utf-8"
+        )
+        return result
+
+    monkeypatch.setattr(
+        cli, "run_daily_coach_full_user_day_free_range_scenario", fake_run
+    )
+
+    exit_code = cli.main(
+        [
+            "--run-scenario",
+            "aligned_managed",
+            "--output-dir",
+            str(tmp_path),
+            "--write-model-facing-coach-facts",
+            "--write-decaging-summary",
+            "--write-backend-label-exposure-summary",
+            "--prefer-decaged-prompt",
+            "--write-pasteback-report",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Model-facing coach facts" in captured.out
+    assert "facts" in captured.out
+    assert "Decaging summary" in captured.out
+    assert "decaging" in captured.out
+    assert "Backend label exposure summary" in captured.out
+    assert "labels" in captured.out

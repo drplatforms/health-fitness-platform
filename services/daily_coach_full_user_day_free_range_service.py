@@ -40,7 +40,9 @@ from services.daily_coach_value_narrative_service import (
 )
 from services.user_state_service import build_user_health_state
 
-DEFAULT_FULL_USER_DAY_OUTPUT_DIR = "docs/provider_trials/daily_coach_free_range_output_completion_coach_surface_polish_data_seeding_v3"
+DEFAULT_FULL_USER_DAY_OUTPUT_DIR = (
+    "docs/provider_trials/daily_coach_free_range_prompt_payload_decaging_v4"
+)
 DEFAULT_FULL_USER_DAY_MODEL = "gpt-5.5"
 DEFAULT_FULL_USER_DAY_PROVIDER = PROVIDER_DETERMINISTIC
 FULL_USER_DAY_PROVIDER_ENV = "DAILY_COACH_FULL_USER_DAY_PROVIDER"
@@ -103,6 +105,34 @@ CLAIM_RISK_PATTERNS: tuple[dict[str, str], ...] = (
     {"pattern": "you completed", "category": "unsupported_workout_completion_claim"},
 )
 
+BACKEND_LABELS_TO_DECAGE: tuple[str, ...] = (
+    "volume_load",
+    "main lever",
+    "confidence",
+    "limiter",
+    "anchor",
+    "gap",
+    "rapid increase",
+    "progressing",
+    "high",
+    "low",
+    "moderate",
+    "weight_change",
+    "internal_workout_model",
+    "value_precision",
+    "quote_style",
+    "macro_gap",
+    "training_load",
+    "set_level_data_available",
+)
+
+MODEL_FACING_DECAGING_POLICY = {
+    "debug_may_include_backend_labels": True,
+    "model_facing_uses_plain_language": True,
+    "first_pass_drafts_unmodified": True,
+    "post_hoc_audit_only": True,
+}
+
 FullUserDayProviderCallable = Callable[
     [str, str, float, Mapping[str, str]], DailyCoachFullUserDayProviderCallResult
 ]
@@ -151,7 +181,11 @@ def run_daily_coach_full_user_day_free_range_scenario(
     write_ai_snack_candidates: bool = False,
     write_number_formatting_summary: bool = False,
     write_voice_style_findings: bool = False,
+    write_model_facing_coach_facts: bool = False,
+    write_decaging_summary: bool = False,
+    write_backend_label_exposure_summary: bool = False,
     include_voice_variants: bool = False,
+    prefer_decaged_prompt: bool = False,
     environ: Mapping[str, str] | None = None,
     provider_generate: FullUserDayProviderCallable | None = None,
 ) -> DailyCoachFullUserDayTrialRunResult:
@@ -203,7 +237,11 @@ def run_daily_coach_full_user_day_free_range_scenario(
                 write_ai_snack_candidates=write_ai_snack_candidates,
                 write_number_formatting_summary=write_number_formatting_summary,
                 write_voice_style_findings=write_voice_style_findings,
+                write_model_facing_coach_facts=write_model_facing_coach_facts,
+                write_decaging_summary=write_decaging_summary,
+                write_backend_label_exposure_summary=write_backend_label_exposure_summary,
                 include_voice_variants=include_voice_variants,
+                prefer_decaged_prompt=prefer_decaged_prompt,
             )
         return result
     draft_results: list[DailyCoachFullUserDayDraftResult] = []
@@ -219,6 +257,7 @@ def run_daily_coach_full_user_day_free_range_scenario(
                     allow_live_provider=allow_live_provider,
                     environ=env,
                     provider_generate=provider_generate,
+                    prefer_decaged_prompt=prefer_decaged_prompt,
                 )
             )
     result = DailyCoachFullUserDayTrialRunResult(
@@ -248,7 +287,11 @@ def run_daily_coach_full_user_day_free_range_scenario(
             "ai_snack_candidates_available": write_ai_snack_candidates,
             "number_formatting_summary_available": write_number_formatting_summary,
             "voice_style_findings_available": write_voice_style_findings,
+            "model_facing_coach_facts_available": write_model_facing_coach_facts,
+            "decaging_summary_available": write_decaging_summary,
+            "backend_label_exposure_summary_available": write_backend_label_exposure_summary,
             "include_voice_variants": include_voice_variants,
+            "prefer_decaged_prompt": prefer_decaged_prompt,
         },
     )
     _assert_run_sanitized(result)
@@ -266,7 +309,11 @@ def run_daily_coach_full_user_day_free_range_scenario(
             write_ai_snack_candidates=write_ai_snack_candidates,
             write_number_formatting_summary=write_number_formatting_summary,
             write_voice_style_findings=write_voice_style_findings,
+            write_model_facing_coach_facts=write_model_facing_coach_facts,
+            write_decaging_summary=write_decaging_summary,
+            write_backend_label_exposure_summary=write_backend_label_exposure_summary,
             include_voice_variants=include_voice_variants,
+            prefer_decaged_prompt=prefer_decaged_prompt,
         )
     return result
 
@@ -290,7 +337,11 @@ def run_daily_coach_full_user_day_free_range_matrix(
     write_ai_snack_candidates: bool = False,
     write_number_formatting_summary: bool = False,
     write_voice_style_findings: bool = False,
+    write_model_facing_coach_facts: bool = False,
+    write_decaging_summary: bool = False,
+    write_backend_label_exposure_summary: bool = False,
     include_voice_variants: bool = False,
+    prefer_decaged_prompt: bool = False,
     environ: Mapping[str, str] | None = None,
     provider_generate: FullUserDayProviderCallable | None = None,
 ) -> list[DailyCoachFullUserDayTrialRunResult]:
@@ -309,7 +360,17 @@ def run_daily_coach_full_user_day_free_range_matrix(
             write_model_input_manifest=write_model_input_manifest,
             write_precision_summary=write_precision_summary,
             write_food_candidate_summary=write_food_candidate_summary,
+            write_completion_diagnostics=write_completion_diagnostics,
+            write_food_option_card=write_food_option_card,
+            write_macro_display_card=write_macro_display_card,
+            write_ai_snack_candidates=write_ai_snack_candidates,
+            write_number_formatting_summary=write_number_formatting_summary,
+            write_voice_style_findings=write_voice_style_findings,
+            write_model_facing_coach_facts=write_model_facing_coach_facts,
+            write_decaging_summary=write_decaging_summary,
+            write_backend_label_exposure_summary=write_backend_label_exposure_summary,
             include_voice_variants=include_voice_variants,
+            prefer_decaged_prompt=prefer_decaged_prompt,
         )
         for scenario_id in selected_scenarios
     ]
@@ -320,124 +381,19 @@ def run_daily_coach_full_user_day_free_range_matrix(
         write_model_input_manifest=write_model_input_manifest,
         write_precision_summary=write_precision_summary,
         write_food_candidate_summary=write_food_candidate_summary,
+        write_completion_diagnostics=write_completion_diagnostics,
+        write_food_option_card=write_food_option_card,
+        write_macro_display_card=write_macro_display_card,
+        write_ai_snack_candidates=write_ai_snack_candidates,
+        write_number_formatting_summary=write_number_formatting_summary,
+        write_voice_style_findings=write_voice_style_findings,
+        write_model_facing_coach_facts=write_model_facing_coach_facts,
+        write_decaging_summary=write_decaging_summary,
+        write_backend_label_exposure_summary=write_backend_label_exposure_summary,
         include_voice_variants=include_voice_variants,
+        prefer_decaged_prompt=prefer_decaged_prompt,
     )
     return results
-
-
-def _run_variant(
-    *,
-    packet: DailyCoachFullUserDayPacket,
-    variant_id: str,
-    repeat_index: int,
-    provider: str,
-    model: str,
-    allow_live_provider: bool,
-    environ: Mapping[str, str],
-    provider_generate: FullUserDayProviderCallable | None,
-) -> DailyCoachFullUserDayDraftResult:
-    variant = _resolve_variant(variant_id)
-    prompt = build_full_user_day_free_range_prompt(packet, variant.variant_id)
-    if provider != PROVIDER_DETERMINISTIC and not allow_live_provider:
-        return DailyCoachFullUserDayDraftResult(
-            scenario_id=packet.scenario_id,
-            user_id=packet.user_id,
-            date=packet.date,
-            provider=provider,  # type: ignore[arg-type]
-            model=model,
-            variant_id=variant.variant_id,
-            repeat_index=repeat_index,
-            skipped=True,
-            skip_reason="live_provider_not_allowed",
-            first_pass_draft="",
-            provider_input_prompt=prompt,
-            full_user_day_packet=packet,
-            runtime_metadata={
-                "developer_only": True,
-                "normal_today_unchanged": True,
-                "prompt_character_count": len(prompt),
-                "provider_attempted": False,
-                "repair_or_fallback_before_first_pass": False,
-            },
-        )
-    if provider == PROVIDER_DETERMINISTIC:
-        call_result = DailyCoachFullUserDayProviderCallResult(
-            raw_text=_deterministic_free_range_draft(packet, variant.variant_id),
-            cost_estimate_basis="deterministic_no_provider_cost",
-        )
-    else:
-        generate = provider_generate or _provider_generate(provider)
-        try:
-            call_result = generate(
-                model, prompt, _timeout_seconds(provider, environ), environ
-            )
-        except Exception as exc:  # noqa: BLE001 - developer trial captures provider failure safely
-            return DailyCoachFullUserDayDraftResult(
-                scenario_id=packet.scenario_id,
-                user_id=packet.user_id,
-                date=packet.date,
-                provider=provider,  # type: ignore[arg-type]
-                model=model,
-                variant_id=variant.variant_id,
-                repeat_index=repeat_index,
-                skipped=True,
-                skip_reason=_safe_error(exc),
-                first_pass_draft="",
-                provider_input_prompt=prompt,
-                full_user_day_packet=packet,
-                runtime_metadata={
-                    "developer_only": True,
-                    "normal_today_unchanged": True,
-                    "prompt_character_count": len(prompt),
-                    "provider_attempted": True,
-                    "provider_error": _safe_error(exc),
-                    "repair_or_fallback_before_first_pass": False,
-                },
-            )
-    return DailyCoachFullUserDayDraftResult(
-        scenario_id=packet.scenario_id,
-        user_id=packet.user_id,
-        date=packet.date,
-        provider=provider,  # type: ignore[arg-type]
-        model=model,
-        variant_id=variant.variant_id,
-        repeat_index=repeat_index,
-        skipped=False,
-        skip_reason=None,
-        first_pass_draft=call_result.raw_text.strip(),
-        provider_input_prompt=prompt,
-        full_user_day_packet=packet,
-        runtime_metadata={
-            "developer_only": True,
-            "normal_today_unchanged": True,
-            "prompt_character_count": len(prompt),
-            "provider_attempted": provider != PROVIDER_DETERMINISTIC,
-            "input_tokens": call_result.input_tokens,
-            "output_tokens": call_result.output_tokens,
-            "total_tokens": call_result.total_tokens,
-            "cached_input_tokens": call_result.cached_input_tokens,
-            "estimated_cost_usd": call_result.estimated_cost_usd,
-            "cost_estimate_basis": call_result.cost_estimate_basis,
-            "finish_reason": call_result.finish_reason,
-            "completion_status": call_result.completion_status,
-            "max_output_tokens": call_result.max_output_tokens,
-            "truncated": _completion_truncated(
-                call_result.raw_text,
-                output_tokens=call_result.output_tokens,
-                max_output_tokens=call_result.max_output_tokens,
-                finish_reason=call_result.finish_reason,
-            ),
-            "truncation_heuristics": _completion_truncation_reasons(
-                call_result.raw_text,
-                output_tokens=call_result.output_tokens,
-                max_output_tokens=call_result.max_output_tokens,
-                finish_reason=call_result.finish_reason,
-            ),
-            "raw_output_length": len(call_result.raw_text),
-            "raw_provider_envelope_persisted": False,
-            "repair_or_fallback_before_first_pass": False,
-        },
-    )
 
 
 def _skipped_setup_run(
@@ -493,212 +449,6 @@ def _skipped_setup_run(
             "setup_failed": True,
             "skip_reason": reason,
         },
-    )
-
-
-def _nutrition_payload(
-    value_context: Mapping[str, Any], health_state: Any
-) -> dict[str, Any]:
-    nutrition = (
-        value_context.get("approved_nutrition")
-        if isinstance(value_context, Mapping)
-        else {}
-    )
-    nutrition = nutrition if isinstance(nutrition, Mapping) else {}
-    health_nutrition = getattr(health_state, "nutrition_state", None)
-    macro_status = _safe_mapping(nutrition.get("macro_status") or {})
-    actuals = _safe_mapping(nutrition.get("actuals") or {})
-    macro_targets: dict[str, Any] = {}
-    for macro, comparison in macro_status.items():
-        if not isinstance(comparison, Mapping):
-            continue
-        macro_targets[str(macro)] = _drop_unknowns(
-            {
-                "actual": comparison.get("actual"),
-                "target_min": comparison.get("target_min"),
-                "target_max": comparison.get("target_max"),
-                "delta_min": comparison.get("delta_min"),
-                "delta_max": comparison.get("delta_max"),
-                "target_status": comparison.get("target_status"),
-                "confidence": comparison.get("confidence"),
-                "display_allowed": comparison.get("display_allowed"),
-                "limitations": comparison.get("limitations"),
-                "value_precision": _macro_value_precision(comparison),
-                "quote_style": _macro_quote_style(comparison),
-            }
-        )
-    return _drop_unknowns(
-        {
-            "available": nutrition.get("available"),
-            "date": nutrition.get("date"),
-            "logging_completeness": nutrition.get("logging_completeness"),
-            "confidence": nutrition.get("confidence"),
-            "actuals": actuals,
-            "macro_targets_actuals_deltas": macro_targets,
-            "calories": getattr(health_nutrition, "calories", None),
-            "protein_grams": getattr(health_nutrition, "protein_grams", None),
-            "carbohydrate_grams": getattr(health_nutrition, "carbohydrate_grams", None),
-            "fat_grams": getattr(health_nutrition, "fat_grams", None),
-            "protein_status": getattr(health_nutrition, "protein_status", None),
-            "calorie_status": getattr(health_nutrition, "calorie_status", None),
-            "recovery_nutrition_status": getattr(
-                health_nutrition, "recovery_nutrition_status", None
-            ),
-            "limitations": nutrition.get("limitations"),
-            "priority": _nutrition_priority(macro_targets),
-        }
-    )
-
-
-def _food_candidates(
-    brief: ApprovedCoachBrief,
-    value_context: Mapping[str, Any],
-    *,
-    limit: int,
-) -> list[dict[str, Any]]:
-    candidates: list[dict[str, Any]] = []
-    seen: set[str] = set()
-
-    def add(item: Mapping[str, Any], *, source: str | None = None) -> None:
-        plain_name = _plain_food_name(
-            item.get("plain_name_for_user")
-            or item.get("display_name")
-            or item.get("friendly_name")
-            or item.get("canonical_name")
-            or ""
-        )
-        if not plain_name:
-            return
-        key = plain_name.lower()
-        if key in seen:
-            return
-        seen.add(key)
-        serving_size = _format_serving_size(
-            item.get("serving_size")
-            or item.get("serving_display")
-            or item.get("suggested_grams")
-        )
-        precision = _food_value_precision(item, source=source)
-        quote_style = _food_quote_style(precision)
-        helps_with = _macro_label(
-            item.get("helps_with") or item.get("macro_gap_addressed")
-        )
-        candidate = _drop_unknowns(
-            {
-                "display_name": plain_name,
-                "plain_name_for_user": plain_name,
-                "serving_size": serving_size,
-                "estimated_calories": item.get("estimated_calories"),
-                "estimated_protein_g": item.get("estimated_protein_g"),
-                "estimated_carbs_g": item.get("estimated_carbs_g")
-                or item.get("estimated_carbohydrate_g"),
-                "estimated_fat_g": item.get("estimated_fat_g"),
-                "value_precision": precision,
-                "quote_style": quote_style,
-                "display_phrase": _food_display_phrase(
-                    plain_name=plain_name,
-                    serving_size=serving_size,
-                    calories=item.get("estimated_calories"),
-                    protein=item.get("estimated_protein_g"),
-                    carbs=item.get("estimated_carbs_g")
-                    or item.get("estimated_carbohydrate_g"),
-                    fat=item.get("estimated_fat_g"),
-                    quote_style=quote_style,
-                ),
-                "why_useful_today": _food_reason(
-                    item.get("why_useful_today")
-                    or item.get("macro_reason")
-                    or item.get("macro_gap_addressed")
-                    or item.get("summary")
-                ),
-                "helps_with": helps_with,
-                "category": _food_category(helps_with),
-                "source": source or item.get("source") or "nutrition_suggestion",
-                "confidence": item.get("confidence"),
-            }
-        )
-        candidates.append(candidate)
-
-    nutrition = (
-        value_context.get("approved_nutrition")
-        if isinstance(value_context, Mapping)
-        else {}
-    )
-    if isinstance(nutrition, Mapping):
-        for suggestion in nutrition.get("approved_food_suggestions") or []:
-            if isinstance(suggestion, Mapping):
-                add(suggestion, source="nutrition_food_suggestion")
-    for action in brief.approved_food_actions:
-        add(
-            {
-                "friendly_name": action.friendly_name,
-                "canonical_name": action.canonical_name,
-                "macro_reason": action.macro_reason,
-                "serving_display": (
-                    action.serving_display if action.serving_allowed else None
-                ),
-                "source": "coach_brief_food_action",
-                "confidence": "backend_selected",
-            },
-            source="coach_brief_food_action",
-        )
-    return candidates[:limit]
-
-
-def _training_payload(health_state: Any, synthesis: Any) -> dict[str, Any]:
-    training_state = getattr(health_state, "training_state", None)
-    candidate_text = " ".join(
-        str(getattr(synthesis, name, ""))
-        for name in (
-            "training_signal",
-            "workout_guidance",
-            "execution_context",
-            "plan_fit_note",
-        )
-    )
-    set_level_data = _set_level_training_data(training_state)
-    payload = {
-        "has_workout_data": getattr(training_state, "has_workout_data", None),
-        "workout_count": getattr(training_state, "workout_count", None),
-        "adherence_level": getattr(training_state, "adherence_level", None),
-        "training_trend": getattr(training_state, "training_trend", None),
-        "total_volume_load": getattr(training_state, "total_volume_load", None),
-        "avg_rir": getattr(training_state, "avg_rir", None),
-        "training_load": getattr(training_state, "training_load", None),
-        "recovery_demand": getattr(training_state, "recovery_demand", None),
-        "scheduled_session_name": _extract_session_name(candidate_text),
-        "training_suitability": _training_suitability(health_state),
-        "actual_set_logging_completeness": (
-            "available"
-            if getattr(training_state, "has_workout_data", None)
-            else "unknown"
-        ),
-        "set_level_data_available": bool(set_level_data),
-        "set_level_data": set_level_data,
-        "set_level_data_unavailable_reason": (
-            None
-            if set_level_data
-            else "no structured set-level data exposed by UserHealthState.training_state in this path"
-        ),
-    }
-    return _drop_unknowns(payload)
-
-
-def _recovery_payload(health_state: Any) -> dict[str, Any]:
-    recovery_state = getattr(health_state, "recovery_state", None)
-    return _drop_unknowns(
-        {
-            "readiness_level": getattr(recovery_state, "readiness_level", None),
-            "fatigue_risk": getattr(recovery_state, "fatigue_risk", None),
-            "recovery_score": getattr(recovery_state, "recovery_score", None),
-            "avg_sleep": getattr(recovery_state, "avg_sleep", None),
-            "avg_energy": getattr(recovery_state, "avg_energy", None),
-            "avg_soreness": getattr(recovery_state, "avg_soreness", None),
-            "sleep_trend": getattr(recovery_state, "sleep_trend", None),
-            "weight_trend": getattr(recovery_state, "weight_trend", None),
-            "weight_change": getattr(recovery_state, "weight_change", None),
-            "readiness_interpretation": _readiness_interpretation(recovery_state),
-        }
     )
 
 
@@ -1106,6 +856,30 @@ def _prompt_variants() -> dict[str, DailyCoachFullUserDayPromptVariant]:
             purpose="Full useful user-day data packet with direct, no-fluff coaching framing.",
             writer_instruction="Write today’s Daily Coach note directly. Be useful, specific, and concise.",
         ),
+        "free_range_full_user_day_direct_clean": DailyCoachFullUserDayPromptVariant(
+            variant_id="free_range_full_user_day_direct_clean",
+            label="Free-range full user-day direct clean",
+            purpose="Direct coach voice with clean plain-language facts and no decorative Markdown.",
+            writer_instruction="Write today’s Daily Coach note in a clean direct voice. Lead with the coaching message, use only the details that help, and keep it natural.",
+        ),
+        "free_range_full_user_day_hypeman_clean": DailyCoachFullUserDayPromptVariant(
+            variant_id="free_range_full_user_day_hypeman_clean",
+            label="Free-range full user-day hypeman clean",
+            purpose="High-energy coach voice with safety boundaries and no gym-bro clutter.",
+            writer_instruction="Write today’s Daily Coach note with high energy and a strong finish. Motivate hard work, but avoid reckless maxing, pain-ignoring, emoji spam, and decorative Markdown.",
+        ),
+        "free_range_full_user_day_practical_direct": DailyCoachFullUserDayPromptVariant(
+            variant_id="free_range_full_user_day_practical_direct",
+            label="Free-range full user-day practical direct",
+            purpose="Practical direct coaching that selects the few facts that matter most today.",
+            writer_instruction="Write today’s Daily Coach note as a practical direct coach. Choose what matters most today instead of mentioning every number.",
+        ),
+        "free_range_full_user_day_direct_with_hypeman_closer": DailyCoachFullUserDayPromptVariant(
+            variant_id="free_range_full_user_day_direct_with_hypeman_closer",
+            label="Free-range full user-day direct with hypeman closer",
+            purpose="Clean direct coaching with one energetic closing line when safe.",
+            writer_instruction="Write today’s Daily Coach note in a direct voice, then end with one energetic closer if the facts support it. Keep it safe and useful.",
+        ),
         "free_range_full_user_day_strict_coach": DailyCoachFullUserDayPromptVariant(
             variant_id="free_range_full_user_day_strict_coach",
             label="Free-range full user-day strict coach",
@@ -1136,6 +910,10 @@ def _default_variant_order(*, include_voice_variants: bool = False) -> tuple[str
     if not include_voice_variants:
         return base
     return base + (
+        "free_range_full_user_day_direct_clean",
+        "free_range_full_user_day_hypeman_clean",
+        "free_range_full_user_day_practical_direct",
+        "free_range_full_user_day_direct_with_hypeman_closer",
         "free_range_full_user_day_strict_coach",
         "free_range_full_user_day_empathetic_coach",
         "free_range_full_user_day_hypeman_coach",
@@ -1177,84 +955,6 @@ def _provider_generate(provider: str) -> FullUserDayProviderCallable:
     if provider == PROVIDER_DIRECT_OLLAMA:
         return _call_direct_ollama_full_user_day_note
     raise DailyCoachFullUserDayFreeRangeError(f"unsupported_provider:{provider}")
-
-
-def _call_openai_full_user_day_note(
-    model: str,
-    prompt: str,
-    timeout_seconds: float,
-    env: Mapping[str, str],
-) -> DailyCoachFullUserDayProviderCallResult:
-    api_key = env.get(OPENAI_API_KEY_ENV)
-    if not api_key:
-        raise DailyCoachFullUserDayFreeRangeError("openai_missing_api_key")
-    try:
-        from openai import OpenAI
-
-        client_kwargs: dict[str, Any] = {"api_key": api_key}
-        base_url = env.get(OPENAI_BASE_URL_ENV)
-        if base_url:
-            client_kwargs["base_url"] = base_url.rstrip("/")
-        client = OpenAI(**client_kwargs)
-        response = client.responses.create(
-            model=model,
-            input=prompt,
-            max_output_tokens=_max_output_tokens(env),
-            timeout=timeout_seconds,
-        )
-    except Exception as exc:  # pragma: no cover - manual/live only
-        raise DailyCoachFullUserDayFreeRangeError(
-            f"openai_provider_error:{_safe_error(exc)}"
-        ) from exc
-    text = _extract_openai_text(response)
-    if not text:
-        raise DailyCoachFullUserDayFreeRangeError("openai_missing_response_text")
-    usage = _extract_usage(response)
-    return DailyCoachFullUserDayProviderCallResult(
-        raw_text=text,
-        input_tokens=usage.get("input_tokens"),
-        output_tokens=usage.get("output_tokens"),
-        total_tokens=usage.get("total_tokens"),
-        cached_input_tokens=usage.get("cached_input_tokens"),
-        estimated_cost_usd=_estimate_cost_usd(usage, env),
-        cost_estimate_basis=_cost_estimate_basis(usage, env),
-        finish_reason=_extract_finish_reason(response),
-        completion_status=_extract_completion_status(response),
-        max_output_tokens=_max_output_tokens(env),
-    )
-
-
-def _call_direct_ollama_full_user_day_note(
-    model: str,
-    prompt: str,
-    timeout_seconds: float,
-    env: Mapping[str, str],
-) -> DailyCoachFullUserDayProviderCallResult:
-    base_url = (env.get(OLLAMA_BASE_URL_ENV) or DEFAULT_OLLAMA_BASE_URL).rstrip("/")
-    payload = {
-        "model": model.removeprefix("ollama/"),
-        "prompt": prompt,
-        "stream": False,
-        "options": {"temperature": 0.4, "num_predict": _max_output_tokens(env)},
-    }
-    request = urllib.request.Request(
-        f"{base_url}/api/generate",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=timeout_seconds) as response:  # noqa: S310
-        response_payload = json.loads(response.read().decode("utf-8"))
-    text = str(response_payload.get("response") or "").strip()
-    if not text:
-        raise DailyCoachFullUserDayFreeRangeError("ollama_missing_response_text")
-    return DailyCoachFullUserDayProviderCallResult(
-        raw_text=text,
-        cost_estimate_basis="ollama_local_no_cost",
-        finish_reason=str(response_payload.get("done_reason") or "complete"),
-        completion_status="completed" if response_payload.get("done") else "unknown",
-        max_output_tokens=_max_output_tokens(env),
-    )
 
 
 def _extract_openai_text(response: Any) -> str:
@@ -1368,12 +1068,6 @@ def _deterministic_free_range_draft(
     ).strip()
 
 
-def _build_run_id(provider: str, scenario_id: str) -> str:
-    timestamp = datetime.now(UTC).replace(microsecond=0).isoformat()
-    safe_scenario = re.sub(r"[^a-zA-Z0-9_-]+", "_", scenario_id)
-    return f"daily_coach_free_range_voice_precision_payload_enrichment_v2_{safe_scenario}_{provider}_{timestamp.replace(':', '').replace('+', 'z')}"
-
-
 def _packet_summaries(
     results: Sequence[DailyCoachFullUserDayTrialRunResult],
 ) -> list[dict[str, Any]]:
@@ -1425,146 +1119,6 @@ def _render_prompt_variants() -> str:
                 "",
             ]
         )
-    return "\n".join(lines)
-
-
-def _render_voice_variant_summary() -> str:
-    lines = ["# Voice Variant Summary", ""]
-    for variant in _prompt_variants().values():
-        lines.extend(
-            [
-                f"## {variant.variant_id}",
-                f"Label: {variant.label}",
-                f"Purpose: {variant.purpose}",
-                "No phrase bans or old app-copy examples are included in this voice definition.",
-                "",
-            ]
-        )
-    return "\n".join(lines)
-
-
-def _render_precision_usage_summary(
-    results: Sequence[DailyCoachFullUserDayTrialRunResult],
-) -> str:
-    lines = [
-        "# Precision Usage Summary",
-        "",
-        "Precision contract: quote direct values directly when quote_style is direct; hedge only when quote_style is hedged or value_precision is an estimate.",
-        "",
-    ]
-    for packet in _packet_summaries(results):
-        lines.extend([f"## {packet['scenario_id']}", ""])
-        food_counts: dict[str, int] = {}
-        quote_counts: dict[str, int] = {}
-        for food in packet.get("food_candidates") or []:
-            food_counts[str(food.get("value_precision") or "missing")] = (
-                food_counts.get(str(food.get("value_precision") or "missing"), 0) + 1
-            )
-            quote_counts[str(food.get("quote_style") or "missing")] = (
-                quote_counts.get(str(food.get("quote_style") or "missing"), 0) + 1
-            )
-        lines.append(f"Food value precision: {food_counts or 'none'}")
-        lines.append(f"Food quote styles: {quote_counts or 'none'}")
-        macro_rows = (packet.get("nutrition") or {}).get(
-            "macro_targets_actuals_deltas", {}
-        )
-        if macro_rows:
-            lines.append("Macro precision:")
-            for macro, data in macro_rows.items():
-                lines.append(
-                    f"- {macro}: value_precision={data.get('value_precision')}; quote_style={data.get('quote_style')}"
-                )
-        else:
-            lines.append("Macro precision: none")
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _render_food_candidate_summary(
-    results: Sequence[DailyCoachFullUserDayTrialRunResult],
-) -> str:
-    lines = ["# Food Candidate Summary", ""]
-    for packet in _packet_summaries(results):
-        foods = packet.get("food_candidates") or []
-        lines.extend(
-            [
-                f"## {packet['scenario_id']}",
-                f"Food candidate count: {len(foods)}",
-                "",
-            ]
-        )
-        for food in foods:
-            lines.append(
-                f"- {food.get('display_phrase') or food.get('plain_name_for_user')}: category={food.get('category')}; value_precision={food.get('value_precision')}; quote_style={food.get('quote_style')}; source={food.get('source')}"
-            )
-        lines.append("")
-    return "\n".join(lines)
-
-
-def _render_model_input_manifest(
-    results: Sequence[DailyCoachFullUserDayTrialRunResult],
-) -> str:
-    lines = [
-        "# Model Input Manifest",
-        "",
-        "Answers what the provider saw. Developer-only diagnostic; raw provider envelopes and secrets are not persisted.",
-        "",
-    ]
-    for run in results:
-        lines.extend(
-            [
-                f"## {run.scenario_id}",
-                f"Provider/model: {run.provider} / {run.model or 'default'}",
-                "",
-            ]
-        )
-        packet = next(
-            (
-                variant.full_user_day_packet
-                for variant in run.variants
-                if variant.full_user_day_packet
-            ),
-            None,
-        )
-        prompt = (
-            next(
-                (
-                    variant.provider_input_prompt
-                    for variant in run.variants
-                    if variant.provider_input_prompt
-                ),
-                "",
-            )
-            or ""
-        )
-        if not packet:
-            lines.extend(["Packet unavailable.", ""])
-            continue
-        packet_text = json.dumps(packet.to_dict(), default=str)
-        lines.extend(
-            [
-                f"Prompt character count: {len(prompt)}",
-                f"Food candidates seen: {len(packet.food_candidates)}",
-                f"Macro fields seen: {', '.join(packet.nutrition.get('macro_targets_actuals_deltas', {}).keys()) or 'none'}",
-                f"Training fields seen: {', '.join(packet.training.keys()) or 'none'}",
-                f"Set-level data available: {packet.training.get('set_level_data_available', False)}",
-                f"Set-level data reason: {packet.training.get('set_level_data_unavailable_reason', 'available')}",
-                f"Recovery fields seen: {', '.join(packet.recovery.keys()) or 'none'}",
-                f"UserHealthState included fields: {len(packet.user_health_state_field_coverage.get('included_fields') or [])}",
-                f"UserHealthState omitted fields: {len(packet.user_health_state_field_coverage.get('omitted_fields') or {})}",
-                f"Prompt app-copy findings: {scan_full_user_day_app_copy(prompt)}",
-                f"Packet app-copy findings: {scan_full_user_day_app_copy(packet_text)}",
-                f"Prompt contains phrase bans: {_contains_phrase_ban(prompt)}",
-                f"Prompt contains old app examples: {_contains_old_app_example(prompt)}",
-                "",
-                "Food candidates:",
-            ]
-        )
-        for food in packet.food_candidates:
-            lines.append(
-                f"- {food.get('display_phrase') or food.get('plain_name_for_user')} | precision={food.get('value_precision')} | quote_style={food.get('quote_style')} | category={food.get('category')}"
-            )
-        lines.append("")
     return "\n".join(lines)
 
 
@@ -1950,78 +1504,6 @@ def _render_artifact_safety_summary(
     )
 
 
-def _render_pasteback_report(
-    results: Sequence[DailyCoachFullUserDayTrialRunResult],
-    write_provider_payload_debug: bool,
-) -> str:
-    lines = [
-        "# Daily Coach Free-Range Voice + Precision + Payload Enrichment v2 — Pasteback Report",
-        "",
-        f"Provider payload debug written: {write_provider_payload_debug}",
-        "Normal Today unchanged: True",
-        "Provider promotion: False",
-        "Repair/fallback before first-pass capture: False",
-        "Known baseline drift: tests/test_daily_narrative_rich_day_service.py",
-        "",
-    ]
-    for run in results:
-        lines.extend(
-            [
-                f"## {run.scenario_id}",
-                f"Run id: {run.run_id}",
-                f"Provider/model: {run.provider} / {run.model or 'default'}",
-                f"Variants/repeats: {len(run.variants)}",
-                "",
-            ]
-        )
-        packet = next(
-            (
-                variant.full_user_day_packet
-                for variant in run.variants
-                if variant.full_user_day_packet
-            ),
-            None,
-        )
-        if packet:
-            lines.extend(
-                [
-                    f"Food candidates: {len(packet.food_candidates)}",
-                    f"Macro fields: {', '.join(packet.nutrition.get('macro_targets_actuals_deltas', {}).keys()) or 'none'}",
-                    f"Set-level data available: {packet.training.get('set_level_data_available', False)}",
-                    f"Recovery fields: {', '.join(packet.recovery.keys()) or 'none'}",
-                    f"UserHealthState included fields: {len(packet.user_health_state_field_coverage.get('included_fields') or [])}",
-                    "",
-                    "Food candidate summary:",
-                    *[
-                        f"- {food.get('display_phrase') or food.get('plain_name_for_user')} | precision={food.get('value_precision')} | quote_style={food.get('quote_style')}"
-                        for food in packet.food_candidates[:15]
-                    ],
-                    "",
-                ]
-            )
-        best = _select_best_variant(run)
-        if best:
-            lines.extend(
-                [
-                    f"Best variant: {best.variant_id} / repeat {best.repeat_index}",
-                    "",
-                    "Full best-variant first-pass text:",
-                    "",
-                    best.first_pass_draft or "(no draft)",
-                    "",
-                ]
-            )
-        lines.extend(["Compact drafts:", ""])
-        for variant in run.variants:
-            lines.extend(
-                [
-                    f"- {variant.variant_id} / repeat {variant.repeat_index}: {_compact_text(variant.first_pass_draft or variant.skip_reason or '(no draft)', limit=500)}",
-                ]
-            )
-        lines.append("")
-    return "\n".join(lines)
-
-
 def _render_provider_input_prompt_debug(
     results: Sequence[DailyCoachFullUserDayTrialRunResult],
 ) -> str:
@@ -2046,84 +1528,6 @@ def _render_provider_input_prompt_debug(
                 ]
             )
     return "\n".join(lines)
-
-
-def _payload_debug(
-    results: Sequence[DailyCoachFullUserDayTrialRunResult],
-) -> dict[str, Any]:
-    rows: list[dict[str, Any]] = []
-    for run in results:
-        for variant in run.variants:
-            packet = variant.full_user_day_packet
-            prompt = variant.provider_input_prompt or ""
-            rows.append(
-                {
-                    "run_id": run.run_id,
-                    "scenario_id": run.scenario_id,
-                    "provider": run.provider,
-                    "model": run.model,
-                    "variant_id": variant.variant_id,
-                    "repeat_index": variant.repeat_index,
-                    "prompt_character_count": len(prompt),
-                    "provider_input_prompt": prompt,
-                    "full_user_day_packet": packet.to_dict() if packet else None,
-                    "product_language_scan_prompt": scan_full_user_day_app_copy(prompt),
-                    "product_language_scan_packet": (
-                        scan_full_user_day_app_copy(
-                            json.dumps(packet.to_dict(), default=str)
-                        )
-                        if packet
-                        else []
-                    ),
-                    "food_choices_passed": (
-                        list(packet.food_candidates) if packet else []
-                    ),
-                    "macro_fields_passed": list(
-                        (
-                            packet.nutrition.get("macro_targets_actuals_deltas", {})
-                            if packet
-                            else {}
-                        ).keys()
-                    ),
-                    "training_fields_passed": (
-                        list(packet.training.keys()) if packet else []
-                    ),
-                    "recovery_fields_passed": (
-                        list(packet.recovery.keys()) if packet else []
-                    ),
-                    "precision_summary": (
-                        _precision_debug_summary(packet) if packet else {}
-                    ),
-                    "food_candidate_count": (
-                        len(packet.food_candidates) if packet else 0
-                    ),
-                    "set_level_data_available": (
-                        packet.training.get("set_level_data_available")
-                        if packet
-                        else False
-                    ),
-                    "user_health_state_included_fields": (
-                        packet.user_health_state_field_coverage.get("included_fields")
-                        if packet
-                        else []
-                    ),
-                    "user_health_state_omitted_fields": (
-                        packet.user_health_state_field_coverage.get("omitted_fields")
-                        if packet
-                        else {}
-                    ),
-                    "redaction_safety_summary": {
-                        "raw_provider_envelope_persisted": False,
-                        "secrets_persisted": False,
-                        "raw_db_rows_persisted": False,
-                    },
-                }
-            )
-    return {
-        "milestone": "daily_coach_free_range_voice_precision_payload_enrichment_v2",
-        "debug_artifact_opt_in": True,
-        "records": rows,
-    }
 
 
 def _precision_debug_summary(
@@ -2256,6 +1660,366 @@ def _compact_text(value: str, *, limit: int = 900) -> str:
 
 def _blank(value: Any) -> str:
     return "" if value is None else str(value)
+
+
+def _model_facing_coach_facts(packet: DailyCoachFullUserDayPacket) -> dict[str, Any]:
+    macro_card = packet.macro_display_card or _macro_display_card_from_targets(
+        packet.nutrition.get("macro_targets_actuals_deltas", {})
+    )
+    food_card = packet.food_option_card or _food_option_card(packet.food_candidates)
+    snacks = list(packet.ai_snack_candidates)
+    training = packet.training
+    recovery = packet.recovery
+    facts = {
+        "packet_version": "model_facing_coach_facts_v4",
+        "user_context": _drop_unknowns(
+            {
+                "goal": packet.user_profile.get("primary_goal"),
+                "activity_level": _normalize_label(
+                    packet.user_profile.get("activity_level")
+                ),
+                "date": packet.date,
+                "scenario_id": packet.scenario_id,
+            }
+        ),
+        "today_for_the_coach": {
+            "main_job": "Choose the most useful coaching message from training, nutrition, recovery, and logging facts.",
+            "editorial_permission": "You do not need to mention every number. Lead with the coaching message and use details only when they support it.",
+            "logged_intake_context": "Nutrition values are logged intake so far, not necessarily the final day.",
+            "macro_range_context": "Do not frame broad macro ranges as panic-level deficits. Use the macro card for details and coach the next useful meal.",
+        },
+        "training_facts_for_coach": _drop_unknowns(
+            {
+                "summary": _plain_training_summary(training),
+                "session_name": training.get("user_facing_session_name")
+                or training.get("session_name"),
+                "session_type": training.get("session_type"),
+                "session_intensity": training.get("session_intensity"),
+                "session_name_source": training.get("session_name_source"),
+                "set_level_data_available": training.get("set_level_data_available"),
+                "set_level_note": _set_level_plain_note(training),
+                "coach_guidance": (
+                    "Train steadily, keep reps clean, and do not turn today into a max test."
+                    if training
+                    else None
+                ),
+            }
+        ),
+        "nutrition_facts_for_coach": _drop_unknowns(
+            {
+                "summary": _plain_nutrition_summary(packet.nutrition),
+                "macro_card": macro_card,
+                "next_meal_guidance": "Start with protein, then add carbs if meals remain or carbs are low.",
+            }
+        ),
+        "food_options_for_coach": {
+            "heading": "Food choices that fit today",
+            "display_policy": "Use natural names. Do not say approved option, anchor, gap, or limiter.",
+            "food_option_card": food_card,
+        },
+        "approximate_meal_options_for_coach": {
+            "heading": "Approximate meal options",
+            "display_policy": "Introduce these as approximate once; do not repeat roughly on every value and do not hedge zero values.",
+            "snack_candidates": snacks,
+        },
+        "recovery_facts_for_coach": _drop_unknowns(
+            {
+                "summary": _plain_recovery_summary(recovery),
+                "readiness_level": _normalize_label(recovery.get("readiness_level")),
+                "fatigue_risk": _normalize_label(recovery.get("fatigue_risk")),
+                "weight_trend_note": _plain_weight_note(recovery),
+            }
+        ),
+        "writing_guidance": {
+            "no_markdown_bold": True,
+            "no_emoji_headers": True,
+            "no_decorative_markdown": True,
+            "translate_technical_metrics": True,
+            "avoid_internal_labels": True,
+            "safe_energy_allowed": True,
+        },
+        "do_not_infer": list(packet.do_not_infer),
+    }
+    return _drop_backend_labels_from_model_facts(facts)
+
+
+def _plain_training_summary(training: Mapping[str, Any]) -> str:
+    if not training:
+        return "Training details are limited today."
+    load = _normalize_label(training.get("training_load"))
+    trend = _normalize_label(training.get("training_trend"))
+    rir = training.get("avg_rir_display") or training.get("avg_rir")
+    parts = []
+    if load:
+        parts.append(f"Recent training workload appears {load.lower()}.")
+    if trend:
+        parts.append(f"Training trend looks {trend.lower()} based on available logs.")
+    if rir:
+        parts.append(f"Recent effort looks controlled around {rir} RIR.")
+    return (
+        " ".join(parts)
+        or "Use the available training facts without overexplaining technical metrics."
+    )
+
+
+def _set_level_plain_note(training: Mapping[str, Any]) -> str:
+    if training.get("set_level_data_available"):
+        return "Structured set-level workout data is available for the coach to interpret plainly."
+    reason = (
+        training.get("set_level_data_unavailable_reason")
+        or "not available in this path"
+    )
+    return f"Set-level workout data is not available: {reason}."
+
+
+def _plain_nutrition_summary(nutrition: Mapping[str, Any]) -> str:
+    actuals = (
+        nutrition.get("actuals")
+        if isinstance(nutrition.get("actuals"), Mapping)
+        else {}
+    )
+    calories = actuals.get("logged_calories") if isinstance(actuals, Mapping) else None
+    protein = actuals.get("logged_protein_g") if isinstance(actuals, Mapping) else None
+    parts = []
+    if calories is not None:
+        parts.append(f"Logged intake so far is {_format_calories(calories)}.")
+    if protein is not None:
+        parts.append(f"Logged protein so far is {_format_grams(protein)} protein.")
+    parts.append(
+        "Use the macro card for exact display details instead of narrating every deficit."
+    )
+    return " ".join(parts)
+
+
+def _plain_recovery_summary(recovery: Mapping[str, Any]) -> str:
+    readiness = _normalize_label(recovery.get("readiness_level"))
+    fatigue = _normalize_label(recovery.get("fatigue_risk"))
+    if readiness and fatigue:
+        return f"Recovery looks {readiness.lower()} with {fatigue.lower()} fatigue risk based on available logs."
+    if readiness:
+        return f"Recovery looks {readiness.lower()} based on available logs."
+    return "Recovery facts are available only where logged."
+
+
+def _plain_weight_note(recovery: Mapping[str, Any]) -> str | None:
+    if not recovery:
+        return None
+    if recovery.get("weight_trend_surface_to_coach") is False:
+        reason = (
+            recovery.get("weight_trend_suppression_reason") or "insufficient confidence"
+        )
+        return f"Do not emphasize the recent weight trend in the coach note: {reason}."
+    change = recovery.get("weight_change_display")
+    if change:
+        return f"If useful, mention recent body-weight change as {change}, not as a raw decimal."
+    return None
+
+
+def _meal_display_phrase(
+    name: str,
+    protein: Any,
+    calories: Any,
+    carbs: Any,
+    fat: Any,
+    precision: str,
+) -> str:
+    values = []
+    if protein is not None:
+        values.append(f"{_format_grams(protein)} protein")
+    if calories is not None:
+        values.append(_format_calories(calories))
+    if carbs is not None:
+        values.append(f"{_format_grams(carbs)} carbs")
+    if fat is not None:
+        values.append(f"{_format_grams(fat)} fat")
+    prefix = "About " if precision == "generic_estimate" else ""
+    return f"{prefix}{name} — {', '.join(values)}"
+
+
+def _drop_backend_labels_from_model_facts(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {
+            _clean_model_key(str(key)): _drop_backend_labels_from_model_facts(item)
+            for key, item in value.items()
+            if _clean_model_key(str(key))
+        }
+    if isinstance(value, tuple):
+        return tuple(_drop_backend_labels_from_model_facts(item) for item in value)
+    if isinstance(value, list):
+        return [_drop_backend_labels_from_model_facts(item) for item in value]
+    if isinstance(value, str):
+        return _clean_model_text(value)
+    return value
+
+
+def _clean_model_key(key: str) -> str:
+    replacements = {
+        "value_precision": "number_reliability",
+        "quote_style": "number_wording",
+        "macro_gap": "macro_need",
+        "weight_change": "body_weight_change",
+        "volume_load": "training_workload",
+        "internal_workout_model": "workout_name_source",
+    }
+    return replacements.get(key, key)
+
+
+def _clean_model_text(text: str) -> str:
+    cleaned = text.replace("volume_load", "training workload")
+    cleaned = cleaned.replace("weight_change", "body-weight change")
+    cleaned = cleaned.replace("internal_workout_model", "internal workout label")
+    cleaned = cleaned.replace("value_precision", "number reliability")
+    cleaned = cleaned.replace("quote_style", "number wording")
+    cleaned = cleaned.replace("macro_gap", "macro need")
+    cleaned = cleaned.replace("Rapid Increase", "quick change")
+    cleaned = cleaned.replace("Progressing", "moving forward")
+    return cleaned
+
+
+def _model_facing_coach_facts_payload(
+    results: Sequence[DailyCoachFullUserDayTrialRunResult],
+) -> dict[str, Any]:
+    records = []
+    for run in results:
+        packet = next(
+            (
+                variant.full_user_day_packet
+                for variant in run.variants
+                if variant.full_user_day_packet
+            ),
+            None,
+        )
+        records.append(
+            {
+                "run_id": run.run_id,
+                "scenario_id": run.scenario_id,
+                "model_facing_coach_facts": (
+                    _model_facing_coach_facts(packet) if packet else None
+                ),
+            }
+        )
+    return {"records": records, "debug_payload_separate": True, "developer_only": True}
+
+
+def _render_model_facing_coach_facts(
+    results: Sequence[DailyCoachFullUserDayTrialRunResult],
+) -> str:
+    lines = [
+        "# Model-Facing Coach Facts",
+        "",
+        "Clean source material intended for the provider prompt when decaged mode is enabled.",
+        "Debug/internal labels remain in debug artifacts, not this coach-facing fact layer.",
+        "",
+    ]
+    for record in _model_facing_coach_facts_payload(results)["records"]:
+        lines.append(f"## {record['scenario_id']}")
+        facts = record.get("model_facing_coach_facts") or {}
+        lines.append("```json")
+        lines.append(json.dumps(facts, indent=2, sort_keys=True, default=str))
+        lines.append("```")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _backend_label_hits(text: str) -> list[str]:
+    lowered = text.lower()
+    return sorted({label for label in BACKEND_LABELS_TO_DECAGE if label in lowered})
+
+
+def _render_decaging_summary(
+    results: Sequence[DailyCoachFullUserDayTrialRunResult],
+) -> str:
+    payload = _model_facing_coach_facts_payload(results)
+    lines = [
+        "# Decaging Summary",
+        "",
+        "Backend computes facts. The decaged provider prompt uses clean coach facts and gives the model editorial judgment.",
+        "",
+    ]
+    for record in payload["records"]:
+        facts_text = json.dumps(
+            record.get("model_facing_coach_facts") or {}, default=str
+        )
+        lines.append(f"## {record['scenario_id']}")
+        lines.append(
+            f"- Backend labels in model-facing facts: {_backend_label_hits(facts_text) or []}"
+        )
+        lines.append(
+            "- Prompt policy: do not echo field labels or internal categories."
+        )
+        lines.append(
+            "- Editorial judgment: model may choose what matters and omit technical metrics."
+        )
+        lines.append(
+            "- Dense numeric detail: use compact cards when helpful, not main-paragraph overload."
+        )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def _backend_label_exposure_payload(
+    results: Sequence[DailyCoachFullUserDayTrialRunResult],
+) -> dict[str, Any]:
+    records = []
+    for run in results:
+        for variant in run.variants:
+            packet = variant.full_user_day_packet
+            debug_text = json.dumps(packet.to_dict(), default=str) if packet else ""
+            facts = _model_facing_coach_facts(packet) if packet else {}
+            facts_text = json.dumps(facts, default=str)
+            prompt = variant.provider_input_prompt or ""
+            draft = variant.first_pass_draft or ""
+            debug_labels = _backend_label_hits(debug_text)
+            facts_labels = _backend_label_hits(facts_text)
+            prompt_labels = _backend_label_hits(prompt)
+            output_labels = _backend_label_hits(draft)
+            records.append(
+                {
+                    "scenario_id": run.scenario_id,
+                    "variant_id": variant.variant_id,
+                    "repeat_index": variant.repeat_index,
+                    "debug_internal_labels_present": debug_labels,
+                    "removed_from_model_facing_facts": sorted(
+                        set(debug_labels) - set(facts_labels)
+                    ),
+                    "model_facing_labels_present": facts_labels,
+                    "provider_prompt_labels_present": prompt_labels,
+                    "first_pass_output_labels_present": output_labels,
+                }
+            )
+    return {"records": records, "developer_only": True, "post_hoc_only": True}
+
+
+def _render_backend_label_exposure_summary(
+    results: Sequence[DailyCoachFullUserDayTrialRunResult],
+) -> str:
+    lines = [
+        "# Backend Label Exposure Summary",
+        "",
+        "Post-hoc diagnostic: proves which internal labels stayed in debug, were removed from model-facing facts, reached the prompt, or appeared in first-pass output.",
+        "",
+    ]
+    for record in _backend_label_exposure_payload(results)["records"]:
+        lines.append(
+            f"## {record['scenario_id']} / {record['variant_id']} / repeat {record['repeat_index']}"
+        )
+        lines.append(
+            f"- Debug/internal labels present: {record['debug_internal_labels_present'] or []}"
+        )
+        lines.append(
+            f"- Removed from model-facing facts: {record['removed_from_model_facing_facts'] or []}"
+        )
+        lines.append(
+            f"- Still in model-facing facts: {record['model_facing_labels_present'] or []}"
+        )
+        lines.append(
+            f"- Reached provider prompt: {record['provider_prompt_labels_present'] or []}"
+        )
+        lines.append(
+            f"- Appeared in first-pass output: {record['first_pass_output_labels_present'] or []}"
+        )
+        lines.append("")
+    return "\n".join(lines)
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -3005,7 +2769,7 @@ def build_daily_coach_full_user_day_packet(
     food_card = _food_option_card(food_candidates)
     snacks = tuple(_ai_snack_candidates(food_candidates))
     packet = DailyCoachFullUserDayPacket(
-        packet_version="daily_coach_free_range_output_completion_coach_surface_polish_data_seeding_v3",
+        packet_version="daily_coach_free_range_prompt_payload_decaging_v4",
         user_id=user_id,
         date=target_date,
         scenario_id=scenario_id,
@@ -3058,23 +2822,49 @@ def build_daily_coach_full_user_day_packet(
 
 
 def build_full_user_day_free_range_prompt(
-    packet: DailyCoachFullUserDayPacket, variant_id: str
+    packet: DailyCoachFullUserDayPacket,
+    variant_id: str,
+    *,
+    prefer_decaged_prompt: bool = False,
 ) -> str:
     variant = _resolve_variant(variant_id)
-    packet_json = json.dumps(packet.to_dict(), indent=2, sort_keys=True, default=str)
-    prompt = (
-        f"{variant.writer_instruction}\n\n"
-        "Use the structured data packet below.\n"
-        "Write the full coach note; do not cut off mid-thought.\n"
-        "Sound like a practical human coach with useful energy.\n"
-        "Use display_ready values and display_phrase fields when quoting numbers.\n"
-        "Use precision metadata: quote direct values directly when quote_style is direct; use about/roughly only when quote_style is hedged or value_precision is an estimate.\n"
-        "If data is missing or uncertain, say that naturally.\n"
-        "Do not invent facts.\n"
-        "Return only the coach note.\n\n"
-        "DATA_PACKET_JSON:\n"
-        f"{packet_json}\n"
-    )
+    if prefer_decaged_prompt:
+        coach_facts = _model_facing_coach_facts(packet)
+        facts_json = json.dumps(coach_facts, indent=2, sort_keys=True, default=str)
+        prompt = (
+            f"{variant.writer_instruction}\n\n"
+            "Use the coach facts below as clean source material.\n"
+            "Write like a human coach, not a backend report.\n"
+            "Use the facts, but do not echo field labels, internal categories, enum values, or debug wording.\n"
+            "Do not copy backend wording into the note. If a detail sounds technical, translate it into normal coaching language or leave it out.\n"
+            "You may choose what matters most today. You do not need to mention every fact or every number.\n"
+            "Lead with the coaching message. Use details only when they support the message.\n"
+            "Dense numeric detail belongs in compact cards, not the main paragraph.\n"
+            "Food and meal-option numbers are estimates; introduce approximate sections once instead of repeating 'roughly' on every number. Do not hedge zero values.\n"
+            "Logged intake is what is logged so far, not necessarily the final day. Do not frame broad macro ranges as a panic-level deficit.\n"
+            "For Today-style coach prose: no Markdown bold, no emoji headers, and no decorative Markdown.\n"
+            "If anything is missing, say that naturally. Do not invent facts.\n"
+            "Return only the coach note.\n\n"
+            "MODEL_FACING_COACH_FACTS_JSON:\n"
+            f"{facts_json}\n"
+        )
+    else:
+        packet_json = json.dumps(
+            packet.to_dict(), indent=2, sort_keys=True, default=str
+        )
+        prompt = (
+            f"{variant.writer_instruction}\n\n"
+            "Use the structured data packet below.\n"
+            "Write the full coach note; do not cut off mid-thought.\n"
+            "Sound like a practical human coach with useful energy.\n"
+            "Use display_ready values and display_phrase fields when quoting numbers.\n"
+            "Use precision metadata: quote direct values directly when quote_style is direct; use about/roughly only when quote_style is hedged or value_precision is an estimate.\n"
+            "If data is missing or uncertain, say that naturally.\n"
+            "Do not invent facts.\n"
+            "Return only the coach note.\n\n"
+            "DATA_PACKET_JSON:\n"
+            f"{packet_json}\n"
+        )
     _assert_text_sanitized(prompt, label="full user-day provider input prompt")
     return prompt
 
@@ -3182,9 +2972,12 @@ def _run_variant(
     allow_live_provider: bool,
     environ: Mapping[str, str],
     provider_generate: FullUserDayProviderCallable | None,
+    prefer_decaged_prompt: bool = False,
 ) -> DailyCoachFullUserDayDraftResult:
     variant = _resolve_variant(variant_id)
-    prompt = build_full_user_day_free_range_prompt(packet, variant.variant_id)
+    prompt = build_full_user_day_free_range_prompt(
+        packet, variant.variant_id, prefer_decaged_prompt=prefer_decaged_prompt
+    )
     if provider != PROVIDER_DETERMINISTIC and not allow_live_provider:
         return DailyCoachFullUserDayDraftResult(
             scenario_id=packet.scenario_id,
@@ -3300,11 +3093,15 @@ def write_daily_coach_full_user_day_artifacts(
     write_ai_snack_candidates: bool = False,
     write_number_formatting_summary: bool = False,
     write_voice_style_findings: bool = False,
+    write_model_facing_coach_facts: bool = False,
+    write_decaging_summary: bool = False,
+    write_backend_label_exposure_summary: bool = False,
     include_voice_variants: bool = False,
+    prefer_decaged_prompt: bool = False,
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_config = {
-        "milestone": "daily_coach_free_range_output_completion_coach_surface_polish_data_seeding_v3",
+        "milestone": "daily_coach_free_range_prompt_payload_decaging_v4",
         "developer_only": True,
         "normal_today_unchanged": True,
         "run_count": len(results),
@@ -3319,7 +3116,11 @@ def write_daily_coach_full_user_day_artifacts(
         "write_ai_snack_candidates": write_ai_snack_candidates,
         "write_number_formatting_summary": write_number_formatting_summary,
         "write_voice_style_findings": write_voice_style_findings,
+        "write_model_facing_coach_facts": write_model_facing_coach_facts,
+        "write_decaging_summary": write_decaging_summary,
+        "write_backend_label_exposure_summary": write_backend_label_exposure_summary,
         "include_voice_variants": include_voice_variants,
+        "prefer_decaged_prompt": prefer_decaged_prompt,
         "baseline_drift": dict(BASELINE_DRIFT),
     }
     _write_json(output_dir / "run_config.json", run_config)
@@ -3373,6 +3174,22 @@ def write_daily_coach_full_user_day_artifacts(
     (output_dir / "voice_style_findings.md").write_text(
         _render_voice_style_findings(results), encoding="utf-8"
     )
+    if write_model_facing_coach_facts:
+        (output_dir / "model_facing_coach_facts.md").write_text(
+            _render_model_facing_coach_facts(results), encoding="utf-8"
+        )
+        _write_json(
+            output_dir / "model_facing_coach_facts.json",
+            _model_facing_coach_facts_payload(results),
+        )
+    if write_decaging_summary:
+        (output_dir / "decaging_summary.md").write_text(
+            _render_decaging_summary(results), encoding="utf-8"
+        )
+    if write_backend_label_exposure_summary:
+        (output_dir / "backend_label_exposure_summary.md").write_text(
+            _render_backend_label_exposure_summary(results), encoding="utf-8"
+        )
     (output_dir / "first_pass_drafts.md").write_text(
         _render_first_pass_drafts(results), encoding="utf-8"
     )
@@ -3459,74 +3276,75 @@ def _food_option_card(foods: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return {"rows": rows}
 
 
-def _ai_snack_candidates(foods: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _sum_numeric(values: Any) -> int | None:
+    total = 0
+    found = False
+    for value in values:
+        numeric = _optional_int(value)
+        if numeric is None:
+            continue
+        total += numeric
+        found = True
+    return total if found else None
+
+
+def _ai_snack_candidates(
+    foods: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, Any], ...]:
     by_name = {
-        str(
-            food.get("plain_name_for_user") or food.get("display_name") or ""
-        ).lower(): food
+        str(food.get("plain_name_for_user") or food.get("display_name")): food
         for food in foods
     }
     recipes = (
-        ("Greek yogurt + banana", ("greek yogurt", "banana"), "protein and carbs"),
-        ("tuna sandwich", ("canned tuna", "bread"), "protein and carbs"),
-        ("chicken breast + rice", ("chicken breast", "rice"), "protein and carbs"),
-        ("oatmeal + whey", ("oats", "whey protein"), "protein and carbs"),
-        ("turkey wrap", ("turkey breast", "wrap"), "protein and carbs"),
-        ("salmon + potatoes", ("salmon", "potatoes"), "protein, carbs, and fats"),
+        ("Greek yogurt + banana", ("Greek yogurt", "banana"), "protein and carbs"),
+        ("Tuna sandwich", ("canned tuna", "bread"), "protein and carbs"),
+        (
+            "Chicken breast + rice",
+            ("cooked chicken breast", "rice"),
+            "protein and carbs",
+        ),
+        ("Oatmeal + whey", ("oatmeal", "whey protein"), "protein and carbs"),
+        ("Turkey wrap", ("turkey breast", "wrap"), "protein and carbs"),
+        ("Salmon + potatoes", ("salmon", "potatoes"), "protein, calories, and carbs"),
     )
     snacks: list[dict[str, Any]] = []
-    for name, required, helps in recipes:
-        items = [by_name.get(item) for item in required]
-        if any(item is None for item in items):
+    for snack_name, names, helps_with in recipes:
+        parts = [by_name[name] for name in names if name in by_name]
+        if len(parts) != len(names):
             continue
-        included = [item for item in items if item is not None]
-        calories = sum(
-            _optional_float(item.get("estimated_calories")) or 0 for item in included
-        )
-        protein = sum(
-            _optional_float(item.get("estimated_protein_g")) or 0 for item in included
-        )
-        carbs = sum(
-            _optional_float(item.get("estimated_carbs_g")) or 0 for item in included
-        )
-        fat = sum(
-            _optional_float(item.get("estimated_fat_g")) or 0 for item in included
-        )
+        calories = _sum_numeric(part.get("estimated_calories") for part in parts)
+        protein = _sum_numeric(part.get("estimated_protein_g") for part in parts)
+        carbs = _sum_numeric(part.get("estimated_carbs_g") for part in parts)
+        fat = _sum_numeric(part.get("estimated_fat_g") for part in parts)
         precision = (
             "generic_estimate"
-            if any(str(item.get("quote_style")) == "hedged" for item in included)
+            if any(part.get("quote_style") == "hedged" for part in parts)
             else "database_calculated"
         )
-        quote_style = _food_quote_style(precision)
+        display_phrase = _meal_display_phrase(
+            snack_name, protein, calories, carbs, fat, precision
+        )
         snacks.append(
             _drop_unknowns(
                 {
-                    "snack_name": name,
-                    "foods_included": [
-                        item.get("plain_name_for_user") for item in included
-                    ],
-                    "serving_notes": ", ".join(
-                        filter(
-                            None,
-                            [str(item.get("serving_size") or "") for item in included],
-                        )
-                    ),
+                    "snack_name": snack_name,
+                    "foods_included": tuple(names),
+                    "serving_notes": "combine the listed foods as one practical mini-meal option",
                     "estimated_calories": calories,
                     "estimated_protein_g": protein,
                     "estimated_carbs_g": carbs,
                     "estimated_fat_g": fat,
-                    "calories_display": _format_calories(calories),
-                    "protein_display": _format_grams(protein),
-                    "carbs_display": _format_grams(carbs),
-                    "fat_display": _format_grams(fat),
-                    "helps_with": helps,
+                    "helps_with": helps_with,
                     "value_precision": precision,
-                    "quote_style": quote_style,
-                    "display_phrase": f"{name} — {_format_grams(protein)} protein, {_format_calories(calories)}",
+                    "quote_style": (
+                        "hedged" if precision == "generic_estimate" else "direct"
+                    ),
+                    "display_phrase": display_phrase,
+                    "display_policy": "aggregate ingredients before display; introduce meal options as approximate once rather than repeating roughly on every value",
                 }
             )
         )
-    return snacks
+    return tuple(snacks)
 
 
 def _number_formatting_summary_payload(
@@ -3652,28 +3470,62 @@ def _completion_diagnostics_payload(
                     "output_tokens": metadata.get("output_tokens"),
                     "max_output_tokens": metadata.get("max_output_tokens"),
                     "completion_status": metadata.get("completion_status"),
-                    "truncated": metadata.get("truncated"),
+                    "truncated": bool(metadata.get("truncated")),
                     "truncation_heuristics": metadata.get("truncation_heuristics")
                     or [],
                     "skipped": variant.skipped,
                     "skip_reason": variant.skip_reason,
                 }
             )
-    return {"records": records, "developer_only": True, "post_hoc_only": True}
+    expected = len(records)
+    skipped = sum(1 for record in records if record["skipped"])
+    truncated = sum(
+        1 for record in records if record["truncated"] and not record["skipped"]
+    )
+    captured = sum(1 for record in records if not record["skipped"])
+    complete = sum(
+        1 for record in records if not record["skipped"] and not record["truncated"]
+    )
+    return {
+        "summary": {
+            "expected_drafts": expected,
+            "captured_drafts": captured,
+            "complete_drafts": complete,
+            "truncated_drafts": truncated,
+            "skipped_drafts": skipped,
+            "acceptance_target": "0 truncated drafts",
+        },
+        "records": records,
+        "developer_only": True,
+        "post_hoc_only": True,
+    }
 
 
 def _render_completion_diagnostics(
     results: Sequence[DailyCoachFullUserDayTrialRunResult],
 ) -> str:
+    payload = _completion_diagnostics_payload(results)
+    summary = payload["summary"]
     lines = [
         "# Completion Diagnostics",
         "",
         "Post-hoc only. First-pass drafts are not modified.",
         "",
+        "## Summary",
+        "",
+        f"- expected_drafts: {summary['expected_drafts']}",
+        f"- captured_drafts: {summary['captured_drafts']}",
+        f"- complete_drafts: {summary['complete_drafts']}",
+        f"- truncated_drafts: {summary['truncated_drafts']}",
+        f"- skipped_drafts: {summary['skipped_drafts']}",
+        f"- acceptance_target: {summary['acceptance_target']}",
+        "",
+        "## Records",
+        "",
     ]
-    for record in _completion_diagnostics_payload(results)["records"]:
+    for record in payload["records"]:
         lines.append(
-            f"- {record['scenario_id']} / {record['variant_id']} / repeat {record['repeat_index']}: truncated={record['truncated']} finish_reason={record['finish_reason'] or 'unknown'} output_tokens={record['output_tokens'] or 'unknown'} max_output_tokens={record['max_output_tokens'] or 'unknown'} reasons={record['truncation_heuristics'] or []}"
+            f"- {record['scenario_id']} / {record['variant_id']} / repeat {record['repeat_index']}: truncated={record['truncated']} skipped={record['skipped']} finish_reason={record['finish_reason'] or 'unknown'} output_tokens={record['output_tokens'] or 'unknown'} max_output_tokens={record['max_output_tokens'] or 'unknown'} reasons={record['truncation_heuristics'] or []}"
         )
     return "\n".join(lines)
 
@@ -3766,12 +3618,15 @@ def _render_ai_snack_candidates(
         "# AI Snack Candidates",
         "",
         "Developer-only mini-meal candidates built only from known candidate foods.",
+        "Numbers are approximate meal-option estimates; avoid repeating roughly on every macro.",
         "",
     ]
     for group in _ai_snack_candidates_payload(results)["snacks"]:
         lines.append(f"## {group['scenario_id']}")
         if group.get("skipped_reason"):
             lines.append(f"Skipped: {group['skipped_reason']}")
+        else:
+            lines.append("Approximate meal options:")
         for snack in group.get("snack_candidates") or []:
             lines.append(
                 f"- {snack.get('display_phrase')} | foods={', '.join(snack.get('foods_included') or [])}"
@@ -3828,7 +3683,7 @@ def _render_pasteback_report(
     write_provider_payload_debug: bool,
 ) -> str:
     lines = [
-        "# Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3 — Pasteback Report",
+        "# Daily Coach Free-Range Prompt + Payload Decaging v4 — Pasteback Report",
         "",
         f"Provider payload debug written: {write_provider_payload_debug}",
         "Normal Today unchanged: True",
@@ -3836,38 +3691,63 @@ def _render_pasteback_report(
         "Repair/fallback before first-pass capture: False",
         "Known baseline drift: tests/test_daily_narrative_rich_day_service.py",
         "",
+        "## Deterministic Provider Regression Status",
+        "",
+        "Deterministic provider is allowed without --allow-live-provider. External/live providers still require explicit opt-in.",
+        "",
+        "## Completion / Truncation Counts",
+        "",
+        _render_completion_diagnostics(results),
+        "",
+        "## Model-Facing Coach Facts Summary",
+        "",
+        _render_model_facing_coach_facts(results),
+        "",
+        "## Decaging Summary",
+        "",
+        _render_decaging_summary(results),
+        "",
+        "## Backend Label Exposure Summary",
+        "",
+        _render_backend_label_exposure_summary(results),
+        "",
+        "## Macro Range Framing Review",
+        "",
+        "Logged intake should be treated as what is logged so far, not a panic-level final deficit. Macro details belong in the compact macro card unless they support the coaching message.",
+        "",
+        "## Food candidate summary:",
+        "",
+        _render_food_candidate_summary(results),
+        "",
+        "## Food / Snack Formatting Review",
+        "",
+        _render_ai_snack_candidates(results),
+        "",
+        "## Roughly Overuse Review",
+        "",
+        "Meal-option numbers are introduced as approximate once. Zero values are not hedged.",
+        "",
+        "## Markdown Leak Review",
+        "",
+        "Today-style coach prose prompt says no Markdown bold, emoji headers, or decorative Markdown. Tables remain artifact/card only.",
+        "",
+        "## Backend-Bound Language Review",
+        "",
+        "See backend_label_exposure_summary.md for prompt/output exposure details.",
+        "",
+        "## Macro Display Card",
+        "",
+        _render_macro_display_card(results),
+        "",
+        "## Food Option Card",
+        "",
+        _render_food_option_card(results),
+        "",
+        "## Number Formatting Summary",
+        "",
+        _render_number_formatting_summary(results),
+        "",
     ]
-    lines.extend(
-        [
-            "## Targeted Validation Result",
-            "",
-            "Backend targeted validation should be pasted from Windows/Linux run output.",
-            "",
-        ]
-    )
-    lines.extend(
-        [
-            "## Completion / Truncation Summary",
-            "",
-            _render_completion_diagnostics(results),
-            "",
-        ]
-    )
-    lines.extend(["## Macro Display Card", "", _render_macro_display_card(results), ""])
-    lines.extend(
-        ["## Food candidate summary:", "", _render_food_option_card(results), ""]
-    )
-    lines.extend(
-        ["## AI Snack Candidates", "", _render_ai_snack_candidates(results), ""]
-    )
-    lines.extend(
-        [
-            "## Number Formatting Summary",
-            "",
-            _render_number_formatting_summary(results),
-            "",
-        ]
-    )
     for run in results:
         lines.extend(
             [
@@ -3897,6 +3777,23 @@ def _render_pasteback_report(
                     "",
                 ]
             )
+        direct_or_hype = [
+            variant
+            for variant in run.variants
+            if "direct" in str(variant.variant_id)
+            or "hypeman" in str(variant.variant_id)
+        ]
+        if direct_or_hype:
+            lines.extend(["## Best Direct / Hypeman Outputs", ""])
+            for variant in direct_or_hype[:4]:
+                lines.extend(
+                    [
+                        f"### {variant.variant_id} / repeat {variant.repeat_index}",
+                        "",
+                        variant.first_pass_draft or "(no draft)",
+                        "",
+                    ]
+                )
         best = _select_best_variant(run)
         if best:
             lines.extend(
@@ -3949,6 +3846,23 @@ def _payload_debug(
                     "prompt_character_count": len(prompt),
                     "provider_input_prompt": prompt,
                     "full_user_day_packet": packet.to_dict() if packet else None,
+                    "model_facing_coach_facts": (
+                        _model_facing_coach_facts(packet) if packet else None
+                    ),
+                    "backend_label_exposure": _backend_label_exposure_payload(
+                        [
+                            DailyCoachFullUserDayTrialRunResult(
+                                run_id=run.run_id,
+                                scenario_id=run.scenario_id,
+                                user_id=run.user_id,
+                                date=run.date,
+                                provider=run.provider,
+                                model=run.model,
+                                variants=(variant,),
+                                baseline_drift=run.baseline_drift,
+                            )
+                        ]
+                    )["records"][0],
                     "product_language_scan_prompt": scan_full_user_day_app_copy(prompt),
                     "product_language_scan_packet": (
                         scan_full_user_day_app_copy(
@@ -4011,7 +3925,7 @@ def _payload_debug(
                 }
             )
     return {
-        "milestone": "daily_coach_free_range_output_completion_coach_surface_polish_data_seeding_v3",
+        "milestone": "daily_coach_free_range_prompt_payload_decaging_v4",
         "debug_artifact_opt_in": True,
         "records": rows,
     }
@@ -4022,6 +3936,6 @@ def _build_run_id(provider: str, scenario_id: str) -> str:
     safe_scenario = re.sub(r"[^a-zA-Z0-9_-]+", "_", scenario_id)
     safe_time = timestamp.replace(":", "").replace("+", "z")
     return (
-        "daily_coach_free_range_output_completion_coach_surface_polish_data_seeding_v3_"
+        "daily_coach_free_range_prompt_payload_decaging_v4_"
         f"{safe_scenario}_{provider}_{safe_time}"
     )

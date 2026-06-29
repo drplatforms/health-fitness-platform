@@ -1,3 +1,33 @@
+# Open Questions — Daily Coach Free-Range Prompt + Payload Decaging v4
+
+## Active
+
+1. Does the decaged model-facing facts layer reduce backend-bound language compared with the full backend/debug packet?
+2. Does `--prefer-decaged-prompt` improve direct and hypeman outputs without losing factual grounding?
+3. Do `model_facing_coach_facts.md/json` make it clear what GPT-5.5 saw versus what remained debug-only?
+4. Does `backend_label_exposure_summary.md` show that labels such as `volume_load`, `value_precision`, `quote_style`, `macro_gap`, and `internal_workout_model` were removed or translated before the prompt?
+5. Does completion diagnostics reach the v4 acceptance target of `0 truncated drafts` during live GPT-5.5 QA?
+6. Do food/snack cards aggregate mini-meal macros cleanly without `roughly 0g fat` or raw ingredient dumps?
+7. Do direct/hypeman clean variants preserve coach energy without reckless advice, emoji spam, Markdown bold, or gym-bro clutter?
+8. Is one more free-range iteration needed, or is the chain ready for Architecture to decide on merge/diagnostic baseline acceptance?
+
+## Known baseline drift
+
+- `tests/test_daily_narrative_rich_day_service.py` has copy-expectation drift.
+- Example mismatch: expected `Read the day before adding more`; actual `Consider the full day`.
+- Architecture decision: document this drift and do not patch it inside unrelated free-range experimentation.
+- Full-suite green must not be claimed if the drift remains.
+
+## Boundaries unchanged
+
+- Developer-only free-range experiment.
+- Normal Today behavior unchanged.
+- Deterministic fallback remains default for product paths.
+- OpenAI/direct_ollama remain opt-in/evaluation-only.
+- No provider promotion, public UI, Streamlit controls, raw provider envelope persistence, secrets, raw DB dumps, medical advice generation, production meal planning, workout generation, nutrition target changes, recovery-score changes, RAG, embeddings, multi-agent runtime, or full food expansion.
+
+---
+
 # Open Questions — Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3
 
 1. Does completion diagnostics prevent/identify cut-off free-range drafts clearly enough for QA to trust first-pass artifacts?

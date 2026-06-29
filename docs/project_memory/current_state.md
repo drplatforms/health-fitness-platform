@@ -403,3 +403,37 @@ Boundaries preserved:
 - no provider persistence;
 - no Streamlit changes;
 - no nutrition target, workout, recovery, or report architecture changes.
+
+
+---
+
+# Current Implementation Update — Daily Coach Free-Range Prompt + Payload Decaging v4
+
+Status: Backend v4 patch candidate built from v3 baseline `c36c50a`.
+
+This milestone continues the unmerged free-range Daily Coach experiment and addresses the v3 finding that the coach output was still too backend-bound. The implementation splits internal/debug payloads from the model-facing coach-facts surface, decages the provider prompt when explicitly requested, and adds direct/hypeman-clean variants while preserving exact first-pass output and post-hoc-only diagnostics.
+
+Implemented direction:
+
+- deterministic provider remains runnable without `--allow-live-provider` while OpenAI/direct_ollama remain explicit opt-in;
+- debug payloads may retain backend/internal fields, but `model_facing_coach_facts.md/json` exposes cleaner coaching source material;
+- `--prefer-decaged-prompt` uses `MODEL_FACING_COACH_FACTS_JSON` instead of the full backend-shaped packet;
+- the decaged prompt tells GPT-5.5 not to echo field labels/internal categories and to use editorial judgment;
+- the prompt specifically discourages main-note numeric overload, panic-level macro deficit framing, Markdown bold, emoji headers, decorative Markdown, and repeated `roughly` wording;
+- direct/hypeman-oriented clean variants were added for the v4 voice matrix;
+- completion diagnostics now report expected/captured/complete/truncated/skipped counts;
+- food/snack formatting aggregates mini-meal macros before display;
+- new artifacts include model-facing coach facts, decaging summary, and backend label exposure summary;
+- provider payload debug includes both debug packet and model-facing facts so Architecture/QA can inspect the split.
+
+Boundaries preserved:
+
+- developer-only experiment;
+- normal Today unchanged;
+- no production Today replacement;
+- no restrictive renderer/reviewer gate;
+- no OpenAI default or provider promotion;
+- no public UI or Streamlit controls;
+- no raw provider envelope persistence, secrets, or raw DB dumps;
+- no medical advice generation;
+- no meal planning, workout generation, nutrition target, recovery score, RAG, embeddings, multi-agent runtime, Headroom/context compression, local/cheaper model comparison, or full 450–500 food expansion.

@@ -1,15 +1,15 @@
 {
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_FEATURE_snapshot_2026-06-29_d731a6c_feature-daily-coach-free-range-voice-precision-payload-enrichment-v2_backend-baseline-for-free-range-v3.zip",
+    "baseline_snapshot": "fitness_ai_FEATURE_snapshot_2026-06-29_c36c50a_feature-daily-coach-free-range-output-completion-coach-surface-polish-data-seeding-v3_backend-baseline-for-free-range-v4.zip",
     "commit_check_mode": "code",
-    "current_recommended_milestone": "Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3",
+    "current_recommended_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
-    "primary_question": "Does v3 improve completion, number/display polish, food/snack context, and coach surface quality while preserving the full free-range note and post-hoc-only diagnostics?",
-    "qa_class": "DEVELOPER_ONLY_FREE_RANGE_PROVIDER_EXPERIMENT_OUTPUT_COMPLETION_SURFACE_POLISH_DATA_SEEDING",
+    "primary_question": "Does v4 reduce backend-bound output by splitting debug payloads from decaged model-facing coach facts while preserving free-range coach quality?",
+    "qa_class": "DEVELOPER_ONLY_FREE_RANGE_PROVIDER_EXPERIMENT_PROMPT_PAYLOAD_DECAGING",
     "recommended_owner": "Backend Development",
     "secondary_owner": "Architecture / QA / Agent Engineering",
-    "source_feature_branch": "feature/daily-coach-free-range-voice-precision-payload-enrichment-v2",
-    "source_feature_commit": "d731a6c",
+    "source_feature_branch": "feature/daily-coach-free-range-output-completion-coach-surface-polish-data-seeding-v3",
+    "source_feature_commit": "c36c50a",
     "source_main_commit": "490d2ae"
   },
   "boundaries": {
@@ -229,7 +229,13 @@
     "workout_page_canonical": true,
     "workout_preview_explicit_refresh_only": true,
     "workout_preview_full_slot_rotation": true,
-    "workout_selection_regression_preserved": true
+    "workout_selection_regression_preserved": true,
+    "daily_coach_free_range_prompt_payload_decaging_v4": true,
+    "daily_coach_model_facing_coach_facts_v4": true,
+    "daily_coach_decaged_prompt_v4": true,
+    "daily_coach_backend_label_exposure_summary_v4": true,
+    "daily_coach_direct_hypeman_clean_variants_v4": true,
+    "daily_coach_prompt_payload_debug_split_v4": true
   },
   "canonical_serving_unit_discovery_api_v1": {
     "branch": "feature/canonical-serving-unit-discovery-api-v1",

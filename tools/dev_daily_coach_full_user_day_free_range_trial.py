@@ -52,6 +52,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--write-ai-snack-candidates", action="store_true")
     parser.add_argument("--write-number-formatting-summary", action="store_true")
     parser.add_argument("--write-voice-style-findings", action="store_true")
+    parser.add_argument("--write-model-facing-coach-facts", action="store_true")
+    parser.add_argument("--write-decaging-summary", action="store_true")
+    parser.add_argument("--write-backend-label-exposure-summary", action="store_true")
+    parser.add_argument("--prefer-decaged-prompt", action="store_true")
     parser.add_argument("--include-voice-variants", action="store_true")
     parser.add_argument("--write-pasteback-report", action="store_true")
     parser.add_argument("--print-first-pass", action="store_true")
@@ -95,7 +99,11 @@ def main(argv: list[str] | None = None) -> int:
             write_ai_snack_candidates=args.write_ai_snack_candidates,
             write_number_formatting_summary=args.write_number_formatting_summary,
             write_voice_style_findings=args.write_voice_style_findings,
+            write_model_facing_coach_facts=args.write_model_facing_coach_facts,
+            write_decaging_summary=args.write_decaging_summary,
+            write_backend_label_exposure_summary=args.write_backend_label_exposure_summary,
             include_voice_variants=args.include_voice_variants,
+            prefer_decaged_prompt=args.prefer_decaged_prompt,
         )
         if args.json:
             print(json.dumps(result.to_dict(), indent=2, sort_keys=True, default=str))
@@ -123,7 +131,11 @@ def main(argv: list[str] | None = None) -> int:
             write_ai_snack_candidates=args.write_ai_snack_candidates,
             write_number_formatting_summary=args.write_number_formatting_summary,
             write_voice_style_findings=args.write_voice_style_findings,
+            write_model_facing_coach_facts=args.write_model_facing_coach_facts,
+            write_decaging_summary=args.write_decaging_summary,
+            write_backend_label_exposure_summary=args.write_backend_label_exposure_summary,
             include_voice_variants=args.include_voice_variants,
+            prefer_decaged_prompt=args.prefer_decaged_prompt,
         )
         if args.json:
             print(
@@ -226,6 +238,21 @@ def _print_requested_sections(args, output_dir: Path) -> None:
             args.write_voice_style_findings,
             "voice_style_findings.md",
             "Voice style findings",
+        ),
+        (
+            args.write_model_facing_coach_facts,
+            "model_facing_coach_facts.md",
+            "Model-facing coach facts",
+        ),
+        (
+            args.write_decaging_summary,
+            "decaging_summary.md",
+            "Decaging summary",
+        ),
+        (
+            args.write_backend_label_exposure_summary,
+            "backend_label_exposure_summary.md",
+            "Backend label exposure summary",
         ),
     )
     for enabled, filename, label in section_map:
