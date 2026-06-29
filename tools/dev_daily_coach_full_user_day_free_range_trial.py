@@ -43,6 +43,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-live-provider", action="store_true")
     parser.add_argument("--output-dir", default=DEFAULT_FULL_USER_DAY_OUTPUT_DIR)
     parser.add_argument("--write-provider-payload-debug", action="store_true")
+    parser.add_argument("--write-model-input-manifest", action="store_true")
+    parser.add_argument("--write-precision-summary", action="store_true")
+    parser.add_argument("--write-food-candidate-summary", action="store_true")
+    parser.add_argument("--write-completion-diagnostics", action="store_true")
+    parser.add_argument("--write-food-option-card", action="store_true")
+    parser.add_argument("--write-macro-display-card", action="store_true")
+    parser.add_argument("--write-ai-snack-candidates", action="store_true")
+    parser.add_argument("--write-number-formatting-summary", action="store_true")
+    parser.add_argument("--write-voice-style-findings", action="store_true")
+    parser.add_argument("--write-model-facing-coach-facts", action="store_true")
+    parser.add_argument("--write-decaging-summary", action="store_true")
+    parser.add_argument("--write-backend-label-exposure-summary", action="store_true")
+    parser.add_argument("--prefer-decaged-prompt", action="store_true")
+    parser.add_argument("--include-voice-variants", action="store_true")
     parser.add_argument("--write-pasteback-report", action="store_true")
     parser.add_argument("--print-first-pass", action="store_true")
     parser.add_argument("--print-best-variant", action="store_true")
@@ -76,6 +90,20 @@ def main(argv: list[str] | None = None) -> int:
             allow_live_provider=args.allow_live_provider,
             output_dir=output_dir,
             write_provider_payload_debug=args.write_provider_payload_debug,
+            write_model_input_manifest=args.write_model_input_manifest,
+            write_precision_summary=args.write_precision_summary,
+            write_food_candidate_summary=args.write_food_candidate_summary,
+            write_completion_diagnostics=args.write_completion_diagnostics,
+            write_food_option_card=args.write_food_option_card,
+            write_macro_display_card=args.write_macro_display_card,
+            write_ai_snack_candidates=args.write_ai_snack_candidates,
+            write_number_formatting_summary=args.write_number_formatting_summary,
+            write_voice_style_findings=args.write_voice_style_findings,
+            write_model_facing_coach_facts=args.write_model_facing_coach_facts,
+            write_decaging_summary=args.write_decaging_summary,
+            write_backend_label_exposure_summary=args.write_backend_label_exposure_summary,
+            include_voice_variants=args.include_voice_variants,
+            prefer_decaged_prompt=args.prefer_decaged_prompt,
         )
         if args.json:
             print(json.dumps(result.to_dict(), indent=2, sort_keys=True, default=str))
@@ -94,6 +122,20 @@ def main(argv: list[str] | None = None) -> int:
             allow_live_provider=args.allow_live_provider,
             output_dir=output_dir,
             write_provider_payload_debug=args.write_provider_payload_debug,
+            write_model_input_manifest=args.write_model_input_manifest,
+            write_precision_summary=args.write_precision_summary,
+            write_food_candidate_summary=args.write_food_candidate_summary,
+            write_completion_diagnostics=args.write_completion_diagnostics,
+            write_food_option_card=args.write_food_option_card,
+            write_macro_display_card=args.write_macro_display_card,
+            write_ai_snack_candidates=args.write_ai_snack_candidates,
+            write_number_formatting_summary=args.write_number_formatting_summary,
+            write_voice_style_findings=args.write_voice_style_findings,
+            write_model_facing_coach_facts=args.write_model_facing_coach_facts,
+            write_decaging_summary=args.write_decaging_summary,
+            write_backend_label_exposure_summary=args.write_backend_label_exposure_summary,
+            include_voice_variants=args.include_voice_variants,
+            prefer_decaged_prompt=args.prefer_decaged_prompt,
         )
         if args.json:
             print(
@@ -119,6 +161,9 @@ def _print_summary(results, output_dir: Path, debug_written: bool) -> None:
     print(f"Full User-Day Free-Range Trial runs: {len(results)}")
     print(f"Output dir: {output_dir}")
     print(f"Provider payload debug requested: {debug_written}")
+    print(
+        "Model input manifest / precision / food summaries are always written for this dev path when artifacts are produced."
+    )
     for result in results:
         skipped = sum(1 for variant in result.variants if variant.skipped)
         print(
@@ -148,6 +193,66 @@ def _print_requested_sections(args, output_dir: Path) -> None:
             args.print_payload_debug,
             "provider_input_prompt.md",
             "Provider input prompt debug",
+        ),
+        (
+            args.write_model_input_manifest,
+            "model_input_manifest.md",
+            "Model input manifest",
+        ),
+        (
+            args.write_precision_summary,
+            "precision_usage_summary.md",
+            "Precision usage summary",
+        ),
+        (
+            args.write_food_candidate_summary,
+            "food_candidate_summary.md",
+            "Food candidate summary",
+        ),
+        (
+            args.write_completion_diagnostics,
+            "completion_diagnostics.md",
+            "Completion diagnostics",
+        ),
+        (
+            args.write_food_option_card,
+            "food_option_card.md",
+            "Food option card",
+        ),
+        (
+            args.write_macro_display_card,
+            "macro_display_card.md",
+            "Macro display card",
+        ),
+        (
+            args.write_ai_snack_candidates,
+            "ai_snack_candidates.md",
+            "AI snack candidates",
+        ),
+        (
+            args.write_number_formatting_summary,
+            "number_formatting_summary.md",
+            "Number formatting summary",
+        ),
+        (
+            args.write_voice_style_findings,
+            "voice_style_findings.md",
+            "Voice style findings",
+        ),
+        (
+            args.write_model_facing_coach_facts,
+            "model_facing_coach_facts.md",
+            "Model-facing coach facts",
+        ),
+        (
+            args.write_decaging_summary,
+            "decaging_summary.md",
+            "Decaging summary",
+        ),
+        (
+            args.write_backend_label_exposure_summary,
+            "backend_label_exposure_summary.md",
+            "Backend label exposure summary",
         ),
     )
     for enabled, filename, label in section_map:

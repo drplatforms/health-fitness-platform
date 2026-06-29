@@ -1,3 +1,39 @@
+# Current State — Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3
+
+Current source of truth: `feature/daily-coach-free-range-voice-precision-payload-enrichment-v2` at `d731a6c Enrich free range voice precision payload`.
+
+Active backend milestone: `Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3`.
+
+Status: Architecture classified v2 as a promising partial with product signal, but found truncation, raw-number formatting leaks, thin food context, and one targeted regression. Backend is continuing the developer-only free-range experiment from the unmerged v2 feature branch, not `main`.
+
+Purpose: improve output completion, display-ready numeric surfaces, macro/food card artifacts, AI snack candidates, bounded food seeding, weight-anomaly handling, workout/session naming visibility, and voice-style diagnostics while preserving the full first-pass coach note.
+
+Implementation direction: keep first-pass drafts exact and unmodified; keep diagnostics post-hoc only; fix deterministic provider live-opt-in regression; add completion diagnostics; expand practical food candidates; add food option/macro display cards, AI snack candidates, number-formatting and voice-style summaries; preserve provider-input debug and model-input manifest artifacts.
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Architecture directed Backend to document this and not patch it inside unrelated Daily Coach provider milestones.
+
+Requested final status: `DAILY_COACH_FREE_RANGE_OUTPUT_COMPLETION_COACH_SURFACE_POLISH_DATA_SEEDING_V3_IMPLEMENTATION_COMPLETE`.
+
+---
+
+# Current State — Daily Coach Free-Range Voice + Precision + Payload Enrichment v2
+
+Current source of truth: `feature/daily-coach-full-user-day-free-range-payload-baseline-v1` at `eb26c59 Add daily coach full user-day free-range trial`.
+
+Active backend milestone: `Daily Coach Free-Range Voice + Precision + Payload Enrichment v2`.
+
+Status: Architecture accepted the v1 free-range thesis as materially better but requested one more developer-only iteration before merge/product-renderer work. Backend is enriching the free-range path with voice variants, precision metadata, broader inspectable food context, set-level data availability reporting, and stronger model-input manifest artifacts.
+
+Purpose: determine whether GPT-5.5 continues improving when it receives a broad neutral full user-day packet with clearer precision/quote metadata, more useful food candidate structure, multiple coach voices, and exact provider-input inspection.
+
+Implementation direction: keep the full coach note intact, preserve exact first-pass draft capture, add strict/empathetic/hypeman coach variants, expose food/macro precision and quote style, make model input inspectable through `model_input_manifest.md`, summarize food candidates and precision, and keep all audits post-hoc only.
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Architecture directed Backend to document this and not patch it inside unrelated Daily Coach provider milestones.
+
+Requested final status: `DAILY_COACH_FREE_RANGE_VOICE_PRECISION_PAYLOAD_ENRICHMENT_V2_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Full User-Day Free-Range Payload Baseline v1
 
 Current source of truth: `main` at `490d2ae Merge daily coach wide context copy cleanup qa readability v1`.
@@ -367,3 +403,37 @@ Boundaries preserved:
 - no provider persistence;
 - no Streamlit changes;
 - no nutrition target, workout, recovery, or report architecture changes.
+
+
+---
+
+# Current Implementation Update — Daily Coach Free-Range Prompt + Payload Decaging v4
+
+Status: Backend v4 patch candidate built from v3 baseline `c36c50a`.
+
+This milestone continues the unmerged free-range Daily Coach experiment and addresses the v3 finding that the coach output was still too backend-bound. The implementation splits internal/debug payloads from the model-facing coach-facts surface, decages the provider prompt when explicitly requested, and adds direct/hypeman-clean variants while preserving exact first-pass output and post-hoc-only diagnostics.
+
+Implemented direction:
+
+- deterministic provider remains runnable without `--allow-live-provider` while OpenAI/direct_ollama remain explicit opt-in;
+- debug payloads may retain backend/internal fields, but `model_facing_coach_facts.md/json` exposes cleaner coaching source material;
+- `--prefer-decaged-prompt` uses `MODEL_FACING_COACH_FACTS_JSON` instead of the full backend-shaped packet;
+- the decaged prompt tells GPT-5.5 not to echo field labels/internal categories and to use editorial judgment;
+- the prompt specifically discourages main-note numeric overload, panic-level macro deficit framing, Markdown bold, emoji headers, decorative Markdown, and repeated `roughly` wording;
+- direct/hypeman-oriented clean variants were added for the v4 voice matrix;
+- completion diagnostics now report expected/captured/complete/truncated/skipped counts;
+- food/snack formatting aggregates mini-meal macros before display;
+- new artifacts include model-facing coach facts, decaging summary, and backend label exposure summary;
+- provider payload debug includes both debug packet and model-facing facts so Architecture/QA can inspect the split.
+
+Boundaries preserved:
+
+- developer-only experiment;
+- normal Today unchanged;
+- no production Today replacement;
+- no restrictive renderer/reviewer gate;
+- no OpenAI default or provider promotion;
+- no public UI or Streamlit controls;
+- no raw provider envelope persistence, secrets, or raw DB dumps;
+- no medical advice generation;
+- no meal planning, workout generation, nutrition target, recovery score, RAG, embeddings, multi-agent runtime, Headroom/context compression, local/cheaper model comparison, or full 450–500 food expansion.
