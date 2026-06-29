@@ -1,3 +1,21 @@
+# Current State — Daily Coach Wide Context Copy Cleanup + QA Readability v1
+
+Current source of truth: `main` at `42d0bd4 Merge daily coach wide context ceiling trial v1`.
+
+Active backend milestone: `Daily Coach Wide Context Copy Cleanup + QA Readability v1`.
+
+Status: Backend implementation patch is ready for local validation after Architecture routed the merged wide-context ceiling-trial baseline back for a narrow copy/readability patch. Live QA classified the prior result as `CONTEXT_HELPED_BUT_NOT_ENOUGH`.
+
+Purpose: keep the wide-context ceiling-trial architecture, but clean backend-shaped wording from prompt/context packaging and make QA artifacts easier to inspect from the terminal. This remains developer-only. It is not production integration, not provider promotion, not normal Today replacement, and not another Product Voice Audit/fallback-gate milestone.
+
+Implementation direction: preserve backend truth and safety boundaries while making writer-facing context more human-facing; avoid wording such as `Nutrition is lagging`, `approved option`, `gap is still open`, and `planned workout as written`; add terminal-friendly compact artifacts, product-language findings, best-variant summary, and pasteback report support.
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches on the supplied 718c614/42d0bd4 lineage, including expected `Read the day before adding more` vs actual `Consider the full day`. Architecture directed Backend to document this and not patch it inside unrelated milestones unless directly scoped.
+
+Requested final status: `DAILY_COACH_WIDE_CONTEXT_COPY_CLEANUP_QA_READABILITY_V1_IMPLEMENTATION_COMPLETE`.
+
+---
+
 # Current State — Daily Coach Wide Context Uncaged GPT-5.5 Ceiling Trial v1
 
 Current source of truth: `main` at `718c614 Merge daily coach product voice audit gate fix v1`.
