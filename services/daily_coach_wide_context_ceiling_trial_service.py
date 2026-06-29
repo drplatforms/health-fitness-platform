@@ -76,6 +76,54 @@ BASELINE_DRIFT = {
     "patched_in_this_milestone": False,
 }
 
+PRODUCT_LANGUAGE_PATTERNS: tuple[dict[str, str], ...] = (
+    {
+        "pattern": "Nutrition is lagging",
+        "category": "nutrition_status_wording",
+        "suggestion": "Use 'Nutrition is lacking' or say calories/protein are still short.",
+    },
+    {
+        "pattern": "approved options",
+        "category": "backend_approval_language",
+        "suggestion": "Say the foods directly, such as canned tuna, chicken breast, or turkey breast.",
+    },
+    {
+        "pattern": "approved option",
+        "category": "backend_approval_language",
+        "suggestion": "Say the food directly instead of describing it as approved.",
+    },
+    {
+        "pattern": "use an approved option",
+        "category": "backend_approval_language",
+        "suggestion": "Use direct food language such as eat some canned tuna or chicken breast.",
+    },
+    {
+        "pattern": "protein gap is still open",
+        "category": "macro_gap_wording",
+        "suggestion": "Say if protein is still short or if you still need more protein.",
+    },
+    {
+        "pattern": "calorie gap is still open",
+        "category": "macro_gap_wording",
+        "suggestion": "Say if calories are still short or if you still need more calories.",
+    },
+    {
+        "pattern": "gap is still open",
+        "category": "macro_gap_wording",
+        "suggestion": "Say the specific macro is still short.",
+    },
+    {
+        "pattern": "do the planned workout as written",
+        "category": "training_action_wording",
+        "suggestion": "Use the session name or say do today’s strength session.",
+    },
+    {
+        "pattern": "planned workout as written",
+        "category": "training_action_wording",
+        "suggestion": "Use actual session language when available.",
+    },
+)
+
 WideContextProviderCallable = Callable[
     [str, str, float, Mapping[str, str]], DailyCoachWideContextProviderCallResult
 ]
@@ -91,6 +139,28 @@ def list_daily_coach_wide_context_scenarios() -> list[dict[str, Any]]:
 
 def list_daily_coach_wide_context_prompt_variants() -> list[dict[str, Any]]:
     return [variant.to_dict() for variant in _prompt_variants().values()]
+
+
+def scan_wide_context_product_language(text: str) -> list[dict[str, str]]:
+    """Return diagnostic product-language findings for QA readability.
+
+    This is not an approval gate. It highlights backend-shaped wording so QA can
+    quickly see whether first-pass copy still sounds like the system talking.
+    """
+
+    lowered = text.lower()
+    findings: list[dict[str, str]] = []
+    for rule in PRODUCT_LANGUAGE_PATTERNS:
+        pattern = rule["pattern"]
+        if pattern.lower() in lowered:
+            findings.append(
+                {
+                    "pattern": pattern,
+                    "category": rule["category"],
+                    "suggestion": rule["suggestion"],
+                }
+            )
+    return findings
 
 
 def build_daily_coach_wide_context_packet(
@@ -332,7 +402,7 @@ def write_wide_context_ceiling_trial_artifacts(
 ) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
     run_config = {
-        "milestone": "daily_coach_wide_context_uncaged_gpt55_ceiling_trial_v1",
+        "milestone": "daily_coach_wide_context_copy_cleanup_qa_readability_v1",
         "developer_only": True,
         "normal_today_unchanged": True,
         "run_count": len(results),
@@ -352,8 +422,20 @@ def write_wide_context_ceiling_trial_artifacts(
     (output_dir / "first_pass_drafts.md").write_text(
         _render_first_pass_drafts(results), encoding="utf-8"
     )
+    (output_dir / "first_pass_drafts_compact.md").write_text(
+        _render_first_pass_drafts_compact(results), encoding="utf-8"
+    )
     (output_dir / "side_by_side_comparison.md").write_text(
         _render_side_by_side_comparison(results), encoding="utf-8"
+    )
+    (output_dir / "variant_score_summary.md").write_text(
+        _render_variant_score_summary(results), encoding="utf-8"
+    )
+    (output_dir / "best_variant_summary.md").write_text(
+        _render_best_variant_summary(results), encoding="utf-8"
+    )
+    (output_dir / "product_language_findings.md").write_text(
+        _render_product_language_findings(results), encoding="utf-8"
     )
     (output_dir / "review_summary.md").write_text(
         _render_review_summary(results), encoding="utf-8"
@@ -370,6 +452,9 @@ def write_wide_context_ceiling_trial_artifacts(
     )
     (output_dir / "artifact_safety_summary.md").write_text(
         _render_artifact_safety_summary(results), encoding="utf-8"
+    )
+    (output_dir / "pasteback_report.md").write_text(
+        _render_pasteback_report(results), encoding="utf-8"
     )
     serialized = "\n".join(
         path.read_text(encoding="utf-8")
@@ -456,9 +541,9 @@ def _run_variant(
             model=model,
             variant_id=variant.variant_id,
             skipped=current_narrow_path_output is None,
-            skip_reason=None
-            if current_narrow_path_output
-            else "current_narrow_unavailable",
+            skip_reason=(
+                None if current_narrow_path_output else "current_narrow_unavailable"
+            ),
             first_pass_draft=current_narrow_path_output or "",
             writer_prompt=None,
             deterministic_baseline=deterministic_baseline,
@@ -573,12 +658,19 @@ def _run_variant(
 
 
 def _render_packet_for_writer(packet: DailyCoachWideContextPacket) -> str:
+    summary = _coach_friendly_text(
+        packet.day_context.get("summary") or "No summary available."
+    )
+    main_focus = _coach_friendly_text(
+        packet.day_context.get("recommended_focus")
+        or "Keep the next action simple and verifiable."
+    )
     sections = [
-        "Useful context for today:",
-        f"- Scenario: {packet.day_context.get('scenario') or packet.scenario_id}",
-        f"- Confidence: {packet.day_context.get('confidence') or 'Unknown'}",
-        f"- Summary: {packet.day_context.get('summary') or 'No summary available.'}",
-        f"- Main focus: {packet.day_context.get('recommended_focus') or 'Keep the next action simple and verifiable.'}",
+        "Useful coaching context for today:",
+        f"- Scenario: {_coach_friendly_text(packet.day_context.get('scenario') or packet.scenario_id)}",
+        f"- Confidence: {_coach_friendly_text(packet.day_context.get('confidence') or 'Unknown')}",
+        f"- Summary: {summary}",
+        f"- Main focus: {main_focus}",
     ]
     if packet.profile_context:
         sections.append("\nProfile context:")
@@ -593,28 +685,84 @@ def _render_packet_for_writer(packet: DailyCoachWideContextPacket) -> str:
         sections.append("\nNutrition context:")
         sections.extend(_render_mapping_lines(packet.nutrition_context, max_depth=2))
     if packet.food_choices:
-        sections.append("\nFood choices that may be mentioned if relevant:")
+        sections.append("\nFood ideas that may be mentioned if relevant:")
         for choice in packet.food_choices[:5]:
             name = choice.get("friendly_name") or choice.get("canonical_name")
             reason = choice.get("macro_reason") or choice.get("suggestion_summary")
             serving = choice.get("serving_display") or choice.get("suggested_grams")
-            parts = [str(name)] if name else []
+            parts = [_coach_friendly_text(name)] if name else []
             if reason:
-                parts.append(f"reason: {reason}")
+                parts.append(f"why: {_coach_friendly_text(reason)}")
             if serving:
-                parts.append(f"amount: {serving}")
+                parts.append(
+                    f"amount if explicitly useful: {_coach_friendly_text(serving)}"
+                )
             if parts:
                 sections.append(f"- {'; '.join(parts)}")
     if packet.allowed_interpretations:
         sections.append("\nInterpretations you may use:")
-        sections.extend(f"- {item}" for item in packet.allowed_interpretations[:8])
+        sections.extend(
+            f"- {_coach_friendly_text(item)}"
+            for item in packet.allowed_interpretations[:8]
+        )
     if packet.blocked_interpretations:
         sections.append("\nDo not say:")
         sections.extend(f"- {item}" for item in packet.blocked_interpretations)
     if packet.missing_daily_data:
         sections.append("\nMissing or uncertain data:")
-        sections.extend(f"- {item}" for item in packet.missing_daily_data)
+        sections.extend(
+            f"- {_missing_data_label(item)}" for item in packet.missing_daily_data
+        )
     return "\n".join(sections)
+
+
+def _coach_friendly_text(value: Any) -> str:
+    text = str(value)
+    replacements = (
+        (r"\b[Nn]utrition is lagging\b", "Nutrition is lacking"),
+        (r"\b[Nn]utrition lagging\b", "Nutrition lacking"),
+        (r"\blagging\b", "lacking"),
+        (
+            r"\b[Uu]se an approved option like\b",
+            "Eat a simple food like",
+        ),
+        (r"\b[Aa]pproved options include\b", "Food options include"),
+        (r"\bapproved options\b", "food options"),
+        (r"\bapproved option\b", "food option"),
+        (r"\bprotein gap is still open\b", "protein is still short"),
+        (r"\bcalorie gap is still open\b", "calories are still short"),
+        (r"\bgap is still open\b", "that need is still short"),
+        (
+            r"\b[Dd]o the planned workout as written\b",
+            "Do today’s strength session",
+        ),
+        (
+            r"\bplanned workout as written\b",
+            "today’s strength session",
+        ),
+    )
+    for pattern, replacement in replacements:
+        text = re.sub(pattern, replacement, text)
+    return text
+
+
+def _writer_label(key: Any) -> str:
+    label = str(key).replace("_", " ")
+    label = label.replace("macro gap addressed", "nutrition reason")
+    label = label.replace("macro reason", "food reason")
+    label = label.replace("canonical name", "food name")
+    label = label.replace("approved", "")
+    label = " ".join(label.split())
+    return _coach_friendly_text(label)
+
+
+def _missing_data_label(value: str) -> str:
+    labels = {
+        "complete_nutrition": "complete nutrition logging",
+        "training_context": "training context",
+        "recovery_context": "recovery context",
+    }
+    return labels.get(value, _coach_friendly_text(value.replace("_", " ")))
 
 
 def _render_mapping_lines(
@@ -624,7 +772,7 @@ def _render_mapping_lines(
     for key, item in value.items():
         if item in (None, "", "Unknown"):
             continue
-        label = str(key).replace("_", " ")
+        label = _writer_label(key)
         if isinstance(item, Mapping) and depth < max_depth:
             lines.append(f"- {label}:")
             for child in _render_mapping_lines(
@@ -634,10 +782,10 @@ def _render_mapping_lines(
         elif isinstance(item, list | tuple):
             if item:
                 lines.append(
-                    f"- {label}: {', '.join(str(child) for child in item[:5])}"
+                    f"- {label}: {', '.join(_coach_friendly_text(child) for child in item[:5])}"
                 )
         else:
-            lines.append(f"- {label}: {item}")
+            lines.append(f"- {label}: {_coach_friendly_text(item)}")
     return lines
 
 
@@ -875,11 +1023,13 @@ def _deterministic_wide_context_draft(
     )
     food_line = ""
     if food:
-        name = food.get("friendly_name") or food.get("canonical_name")
-        reason = food.get("macro_reason") or "the relevant nutrition gap"
-        food_line = (
-            f" For food, {name} is the backed option if {reason} still matters today."
+        name = _coach_friendly_text(
+            food.get("friendly_name") or food.get("canonical_name")
         )
+        reason = _coach_friendly_text(
+            food.get("macro_reason") or "nutrition is still short"
+        )
+        food_line = f" If {reason}, eat some {name}."
     prefix = "" if variant_id == "wide_context_no_style_guidance" else "Today, "
     return (
         f"{prefix}{summary} {training_line} {recovery_line} "
@@ -951,13 +1101,18 @@ def _food_choices(
         choices.append(
             _drop_unknowns(
                 {
-                    "friendly_name": action.friendly_name,
-                    "canonical_name": action.canonical_name,
-                    "macro_reason": action.macro_reason,
-                    "allowed_conditions": list(action.allowed_conditions),
-                    "serving_display": action.serving_display
-                    if action.serving_allowed
-                    else None,
+                    "friendly_name": _coach_friendly_text(action.friendly_name),
+                    "canonical_name": _coach_friendly_text(action.canonical_name),
+                    "macro_reason": _coach_friendly_text(action.macro_reason),
+                    "allowed_conditions": [
+                        _coach_friendly_text(condition)
+                        for condition in action.allowed_conditions
+                    ],
+                    "serving_display": (
+                        _coach_friendly_text(action.serving_display)
+                        if action.serving_allowed
+                        else None
+                    ),
                 }
             )
         )
@@ -975,9 +1130,13 @@ def _food_choices(
                 continue
             item = _drop_unknowns(
                 {
-                    "friendly_name": display_name,
-                    "macro_reason": suggestion.get("macro_gap_addressed"),
-                    "suggestion_summary": suggestion.get("summary"),
+                    "friendly_name": _coach_friendly_text(display_name),
+                    "macro_reason": _coach_friendly_text(
+                        suggestion.get("macro_gap_addressed") or ""
+                    ),
+                    "suggestion_summary": _coach_friendly_text(
+                        suggestion.get("summary") or ""
+                    ),
                     "suggested_grams": suggestion.get("suggested_grams"),
                     "estimated_calories": suggestion.get("estimated_calories"),
                     "estimated_protein_g": suggestion.get("estimated_protein_g"),
@@ -1039,9 +1198,11 @@ def _public_safe_mapping(value: Any, *, depth: int = 0) -> dict[str, Any]:
             safe[key_text] = _public_safe_mapping(item, depth=depth + 1)
         elif isinstance(item, list | tuple):
             safe[key_text] = [
-                _public_safe_mapping(child, depth=depth + 1)
-                if isinstance(child, Mapping)
-                else child
+                (
+                    _public_safe_mapping(child, depth=depth + 1)
+                    if isinstance(child, Mapping)
+                    else child
+                )
                 for child in item[:8]
                 if _safe_scalar_or_collection(child)
             ]
@@ -1078,7 +1239,7 @@ def _prompt_variants() -> dict[str, DailyCoachWideContextPromptVariant]:
         "wide_context_minimal_prompt": DailyCoachWideContextPromptVariant(
             variant_id="wide_context_minimal_prompt",
             label="Wide context minimal prompt",
-            purpose="Rich backend-safe context with the smallest useful writing instruction.",
+            purpose="Rich verified context with the smallest useful writing instruction.",
             writer_instruction=(
                 "You are writing one Daily Coach note for a fitness app. Write like a practical coach talking directly to the user. Tell them what matters today."
             ),
@@ -1215,6 +1376,292 @@ def _render_prompt_variants() -> str:
             lines.extend(["", variant.writer_instruction])
         lines.append("")
     return "\n".join(lines)
+
+
+def _render_first_pass_drafts_compact(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "# Compact First-Pass Drafts",
+        "",
+        "Terminal-friendly view of returned coach-note text. Raw provider envelopes are not persisted.",
+        "",
+    ]
+    for run in results:
+        lines.extend(
+            [
+                f"## {run.scenario_id}",
+                f"Run id: {run.run_id}",
+                f"Provider/model: {run.provider} / {run.model or 'default'}",
+                "",
+            ]
+        )
+        for variant in run.variants:
+            status = "skipped" if variant.skipped else "captured"
+            lines.extend(
+                [
+                    f"### {variant.variant_id} — {status}",
+                    _compact_text(
+                        variant.first_pass_draft or variant.skip_reason or "(no draft)"
+                    ),
+                    "",
+                ]
+            )
+    return "\n".join(lines)
+
+
+def _render_variant_score_summary(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "# Variant Score Summary",
+        "",
+        "Heuristic QA-readability summary only. This is not an approval gate.",
+        "",
+        "| Scenario | Variant | Skipped | Product language findings | Heuristic score |",
+        "|---|---|---:|---:|---:|",
+    ]
+    for run in results:
+        for variant in run.variants:
+            finding_count = len(_variant_product_language_findings(variant))
+            score = _variant_heuristic_score(variant)
+            lines.append(
+                f"| {run.scenario_id} | {variant.variant_id} | {variant.skipped} | {finding_count} | {score} |"
+            )
+    return "\n".join(lines) + "\n"
+
+
+def _render_best_variant_summary(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "# Best Variant Summary",
+        "",
+        "Best variant is selected with a simple QA-readability heuristic: prefer non-skipped wide-context drafts, fewer product-language findings, and the practical-coach variant when tied.",
+        "",
+    ]
+    for run in results:
+        best = _select_best_variant(run)
+        if best is None:
+            lines.extend([f"## {run.scenario_id}", "Best variant: unavailable", ""])
+            continue
+        findings = _variant_product_language_findings(best)
+        lines.extend(
+            [
+                f"## {run.scenario_id}",
+                f"Best variant: {best.variant_id}",
+                f"Provider/model: {best.provider} / {best.model or 'default'}",
+                f"Product language findings: {len(findings)}",
+                f"Skipped: {best.skipped}",
+                "",
+                "Compact draft:",
+                "",
+                _compact_text(best.first_pass_draft or "(no draft)", limit=1200),
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _render_product_language_findings(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "# Product Language Findings",
+        "",
+        "Diagnostic scan for backend-shaped wording. This is not a final approval gate.",
+        "",
+    ]
+    total = 0
+    for run in results:
+        lines.extend([f"## {run.scenario_id}", ""])
+        for variant in run.variants:
+            findings = _variant_product_language_findings(variant)
+            total += len(findings)
+            lines.append(f"### {variant.variant_id}")
+            if not findings:
+                lines.extend(["No configured product-language findings.", ""])
+                continue
+            for finding in findings:
+                lines.extend(
+                    [
+                        f"- Source: {finding['source']}",
+                        f"  Pattern: {finding['pattern']}",
+                        f"  Category: {finding['category']}",
+                        f"  Suggestion: {finding['suggestion']}",
+                    ]
+                )
+            lines.append("")
+    lines.extend(["---", "", f"Total findings: {total}", ""])
+    return "\n".join(lines)
+
+
+def _render_pasteback_report(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "# Wide Context Ceiling Trial Pasteback Report",
+        "",
+        'Terminal-friendly QA report. Print with `cat "$out/pasteback_report.md"`.',
+        "",
+        "## Run Summary",
+        "",
+    ]
+    run_ids = ", ".join(run.run_id for run in results) or "none"
+    scenarios = ", ".join(run.scenario_id for run in results) or "none"
+    provider_models = (
+        ", ".join(f"{run.provider}/{run.model or 'default'}" for run in results)
+        or "none"
+    )
+    best_labels = []
+    for run in results:
+        best = _select_best_variant(run)
+        best_labels.append(
+            f"{run.scenario_id}: {best.variant_id if best else 'unavailable'}"
+        )
+    lines.extend(
+        [
+            f"- Run id(s): {run_ids}",
+            "- Branch/commit: capture from Git/QA runtime if available",
+            f"- Provider/model: {provider_models}",
+            f"- Scenario(s): {scenarios}",
+            f"- Best variant(s): {', '.join(best_labels) if best_labels else 'unavailable'}",
+            "- Recommended QA classification: PENDING_QA_REVIEW",
+            "",
+            "## Compact First-Pass Drafts",
+            "",
+            _render_first_pass_drafts_compact(results),
+            "",
+            "## Compact Side-by-Side Comparison",
+            "",
+            _render_compact_side_by_side_comparison(results),
+            "",
+            "## Product Language Findings",
+            "",
+            _render_product_language_findings(results),
+            "",
+            "## Token / Cost Summary",
+            "",
+            _render_compact_token_cost_summary(results),
+            "",
+            "## Artifact Safety Result",
+            "",
+            "- Developer-only artifacts: True",
+            "- Raw provider envelopes persisted: False",
+            "- Secrets persisted: False",
+            "- Raw DB rows persisted: False",
+            "- Normal Today behavior changed: False",
+            "",
+            "## Known Baseline Drift",
+            "",
+            f"- Test file: {BASELINE_DRIFT['test_file']}",
+            f"- Example expected: {BASELINE_DRIFT['example_expected']}",
+            f"- Example actual: {BASELINE_DRIFT['example_actual']}",
+            "- Architecture decision: document / do not block this milestone",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _render_compact_side_by_side_comparison(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = []
+    for run in results:
+        baseline = run.variants[0].deterministic_baseline if run.variants else ""
+        narrow = run.variants[0].current_narrow_path_output if run.variants else None
+        lines.extend(
+            [
+                f"### {run.scenario_id}",
+                "Deterministic baseline:",
+                _compact_text(baseline or "(unavailable)", limit=700),
+                "",
+                "Current narrow path:",
+                _compact_text(narrow or "(unavailable)", limit=700),
+                "",
+            ]
+        )
+        best = _select_best_variant(run)
+        if best:
+            lines.extend(
+                [
+                    f"Best wide-context variant: {best.variant_id}",
+                    _compact_text(best.first_pass_draft or "(no draft)", limit=900),
+                    "",
+                ]
+            )
+    return "\n".join(lines)
+
+
+def _render_compact_token_cost_summary(
+    results: Sequence[DailyCoachWideContextTrialRunResult],
+) -> str:
+    lines = [
+        "| Scenario | Variant | Total tokens | Estimated cost USD | Cost basis |",
+        "|---|---|---:|---:|---|",
+    ]
+    for run in results:
+        for variant in run.variants:
+            meta = variant.runtime_metadata
+            lines.append(
+                f"| {run.scenario_id} | {variant.variant_id} | {_blank(meta.get('total_tokens'))} | {_blank(meta.get('estimated_cost_usd'))} | {meta.get('cost_estimate_basis') or ''} |"
+            )
+    return "\n".join(lines)
+
+
+def _select_best_variant(
+    run: DailyCoachWideContextTrialRunResult,
+) -> DailyCoachWideContextDraftResult | None:
+    candidates = [
+        variant
+        for variant in run.variants
+        if not variant.skipped and variant.variant_id != "current_narrow_path"
+    ]
+    if not candidates:
+        candidates = [variant for variant in run.variants if not variant.skipped]
+    if not candidates:
+        return None
+    return max(candidates, key=_variant_heuristic_score)
+
+
+def _variant_heuristic_score(variant: DailyCoachWideContextDraftResult) -> int:
+    if variant.skipped:
+        return -100
+    score = 50
+    score -= len(_variant_product_language_findings(variant)) * 8
+    if variant.variant_id == "wide_context_practical_coach":
+        score += 6
+    elif variant.variant_id == "wide_context_direct_coach":
+        score += 4
+    elif variant.variant_id == "wide_context_minimal_prompt":
+        score += 3
+    elif variant.variant_id == "current_narrow_path":
+        score -= 4
+    if len(variant.first_pass_draft.strip()) >= 120:
+        score += 2
+    return score
+
+
+def _variant_product_language_findings(
+    variant: DailyCoachWideContextDraftResult,
+) -> list[dict[str, str]]:
+    findings: list[dict[str, str]] = []
+    sources = {
+        "first_pass_draft": variant.first_pass_draft or "",
+        "writer_prompt": variant.writer_prompt or "",
+    }
+    for source, text in sources.items():
+        for finding in scan_wide_context_product_language(text):
+            findings.append({**finding, "source": source})
+    return findings
+
+
+def _compact_text(value: str, *, limit: int = 900) -> str:
+    normalized = " ".join(value.split())
+    if len(normalized) <= limit:
+        return normalized
+    return f"{normalized[: limit - 3].rstrip()}..."
 
 
 def _render_first_pass_drafts(

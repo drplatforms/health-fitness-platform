@@ -41,6 +41,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model", default=None)
     parser.add_argument("--allow-live-provider", action="store_true")
     parser.add_argument("--output-dir", default=DEFAULT_WIDE_CONTEXT_OUTPUT_DIR)
+    parser.add_argument("--print-first-pass", action="store_true")
+    parser.add_argument("--print-compact-comparison", action="store_true")
+    parser.add_argument("--print-best-variant", action="store_true")
+    parser.add_argument("--print-product-issues", action="store_true")
+    parser.add_argument("--write-pasteback-report", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
@@ -72,7 +77,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.json:
             print(json.dumps(result.to_dict(), indent=2, sort_keys=True, default=str))
         else:
-            _print_summary([result], Path(args.output_dir))
+            output_dir = Path(args.output_dir)
+            _print_summary([result], output_dir)
+            _print_requested_sections(args, output_dir)
         return 0
 
     if args.run_matrix:
@@ -95,7 +102,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         else:
-            _print_summary(results, Path(args.output_dir))
+            output_dir = Path(args.output_dir)
+            _print_summary(results, output_dir)
+            _print_requested_sections(args, output_dir)
         return 0
 
     parser.error(
@@ -115,6 +124,38 @@ def _print_summary(results, output_dir: Path) -> None:
     print(
         "Known baseline drift documented: tests/test_daily_narrative_rich_day_service.py"
     )
+
+
+def _print_requested_sections(args, output_dir: Path) -> None:
+    section_map = (
+        (
+            args.print_first_pass,
+            "first_pass_drafts_compact.md",
+            "Compact first-pass drafts",
+        ),
+        (
+            args.print_compact_comparison,
+            "side_by_side_comparison.md",
+            "Side-by-side comparison",
+        ),
+        (args.print_best_variant, "best_variant_summary.md", "Best variant summary"),
+        (
+            args.print_product_issues,
+            "product_language_findings.md",
+            "Product language findings",
+        ),
+    )
+    if args.write_pasteback_report:
+        print(f"Pasteback report: {output_dir / 'pasteback_report.md'}")
+    for enabled, filename, label in section_map:
+        if not enabled:
+            continue
+        path = output_dir / filename
+        print(f"\n--- {label}: {path} ---")
+        if path.exists():
+            print(path.read_text(encoding="utf-8"))
+        else:
+            print("(artifact not found)")
 
 
 if __name__ == "__main__":

@@ -25,6 +25,7 @@ from services.daily_coach_wide_context_ceiling_trial_service import (
     build_wide_context_writer_prompt,
     list_daily_coach_wide_context_prompt_variants,
     run_daily_coach_wide_context_ceiling_trial_scenario,
+    scan_wide_context_product_language,
     write_wide_context_ceiling_trial_artifacts,
 )
 
@@ -282,7 +283,7 @@ def test_mocked_provider_result_records_token_and_cost_metadata(monkeypatch) -> 
 
     def fake_provider(model: str, prompt: str, timeout: float, env: dict):
         assert model == "gpt-5.5"
-        assert "Useful context for today" in prompt
+        assert "Useful coaching context for today" in prompt
         return DailyCoachWideContextProviderCallResult(
             raw_text="Train as planned, keep most sets around RIR 2-3, and use Greek yogurt if protein is still short.",
             input_tokens=1200,
@@ -357,6 +358,11 @@ def test_wide_context_artifacts_are_written_and_sanitized(
         "scoring_template.md",
         "baseline_drift.md",
         "artifact_safety_summary.md",
+        "first_pass_drafts_compact.md",
+        "variant_score_summary.md",
+        "best_variant_summary.md",
+        "product_language_findings.md",
+        "pasteback_report.md",
     }
     assert expected_files.issubset({path.name for path in tmp_path.iterdir()})
     combined = "\n".join(
@@ -423,3 +429,174 @@ def test_current_narrow_path_variant_uses_existing_audit_result(monkeypatch) -> 
     assert variant.variant_id == "current_narrow_path"
     assert variant.first_pass_draft == "Narrow\n\nExisting narrow-path draft."
     assert variant.runtime_metadata["uses_existing_narrow_path"] is True
+
+
+def test_writer_prompt_cleans_backend_shaped_food_language() -> None:
+    bad_brief = ApprovedCoachBrief(
+        brief_id="test-brief-bad-language",
+        user_id=102,
+        date="2026-06-27",
+        scenario="aligned_managed",
+        today_intent="Nutrition is lagging.",
+        addressing_policy=AddressingPolicy(),
+        approved_facts=(),
+        approved_interpretations=(
+            "Nutrition is lagging and protein gap is still open.",
+        ),
+        approved_food_actions=(
+            ApprovedFoodAction(
+                food_claim_key="nutrition.food_suggestion.1",
+                canonical_name="Canned Tuna",
+                friendly_name="canned tuna",
+                macro_reason="protein gap is still open",
+                allowed_conditions=("if protein gap is still open",),
+                serving_display=None,
+                serving_allowed=False,
+            ),
+        ),
+    )
+    bad_context = _fake_value_context()
+    bad_context["approved_nutrition"]["approved_food_suggestions"] = [
+        {
+            "display_name": "Chicken Breast",
+            "macro_gap_addressed": "calorie gap is still open",
+            "summary": "Use an approved option like chicken breast.",
+        }
+    ]
+    packet = build_daily_coach_wide_context_packet(
+        user_id=102,
+        target_date="2026-06-27",
+        scenario_id="aligned_managed",
+        brief=bad_brief,
+        synthesis=_fake_synthesis(),
+        health_state=_fake_health_state(),
+        value_context=bad_context,
+    )
+
+    prompt = build_wide_context_writer_prompt(packet, "wide_context_practical_coach")
+    lowered = prompt.lower()
+
+    assert "approved option" not in lowered
+    assert "nutrition is lagging" not in lowered
+    assert "protein gap is still open" not in lowered
+    assert "calorie gap is still open" not in lowered
+    assert "protein is still short" in lowered
+    assert "calories are still short" in lowered
+    assert "canned tuna" in lowered
+    assert "chicken breast" in lowered
+
+
+def test_product_language_scan_flags_required_backend_shaped_phrases() -> None:
+    text = " ".join(
+        [
+            "Nutrition is lagging.",
+            "Approved options include tuna.",
+            "Use an approved option like chicken.",
+            "The protein gap is still open.",
+            "The calorie gap is still open.",
+            "Do the planned workout as written.",
+        ]
+    )
+
+    findings = scan_wide_context_product_language(text)
+    patterns = {finding["pattern"] for finding in findings}
+
+    assert "Nutrition is lagging" in patterns
+    assert "approved options" in patterns
+    assert "approved option" in patterns
+    assert "use an approved option" in patterns
+    assert "protein gap is still open" in patterns
+    assert "calorie gap is still open" in patterns
+    assert "gap is still open" in patterns
+    assert "do the planned workout as written" in patterns
+    assert "planned workout as written" in patterns
+
+
+def test_product_language_findings_artifact_flags_bad_first_pass_copy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        "services.daily_coach_wide_context_ceiling_trial_service.get_daily_coach_natural_draft_scenario",
+        lambda scenario_id: {
+            "scenario_id": scenario_id,
+            "user_id": 102,
+            "target_date": "2026-06-27",
+        },
+    )
+    monkeypatch.setattr(
+        "services.daily_coach_wide_context_ceiling_trial_service.build_daily_coach_wide_context_packet",
+        lambda **kwargs: build_daily_coach_wide_context_packet(
+            user_id=102,
+            target_date="2026-06-27",
+            scenario_id="aligned_managed",
+            brief=_fake_brief(),
+            synthesis=_fake_synthesis(),
+            health_state=_fake_health_state(),
+            value_context=_fake_value_context(),
+        ),
+    )
+
+    def fake_provider(model: str, prompt: str, timeout: float, env: dict):
+        return DailyCoachWideContextProviderCallResult(
+            raw_text="Nutrition is lagging. Use an approved option like tuna because the protein gap is still open. Do the planned workout as written."
+        )
+
+    result = run_daily_coach_wide_context_ceiling_trial_scenario(
+        scenario_id="aligned_managed",
+        provider="openai",
+        model="gpt-5.5",
+        variants=["wide_context_practical_coach"],
+        allow_live_provider=True,
+        environ={"OPENAI_API_KEY": "test-key"},
+        provider_generate=fake_provider,
+        output_dir=tmp_path,
+    )
+
+    write_wide_context_ceiling_trial_artifacts(tmp_path, [result])
+    findings = (tmp_path / "product_language_findings.md").read_text(encoding="utf-8")
+
+    assert "Nutrition is lagging" in findings
+    assert "approved option" in findings
+    assert "protein gap is still open" in findings
+    assert "planned workout as written" in findings
+    assert "Total findings:" in findings
+
+
+def test_pasteback_report_is_terminal_friendly(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "services.daily_coach_wide_context_ceiling_trial_service.get_daily_coach_natural_draft_scenario",
+        lambda scenario_id: {
+            "scenario_id": scenario_id,
+            "user_id": 102,
+            "target_date": "2026-06-27",
+        },
+    )
+    monkeypatch.setattr(
+        "services.daily_coach_wide_context_ceiling_trial_service.build_daily_coach_wide_context_packet",
+        lambda **kwargs: build_daily_coach_wide_context_packet(
+            user_id=102,
+            target_date="2026-06-27",
+            scenario_id="aligned_managed",
+            brief=_fake_brief(),
+            synthesis=_fake_synthesis(),
+            health_state=_fake_health_state(),
+            value_context=_fake_value_context(),
+        ),
+    )
+
+    run_daily_coach_wide_context_ceiling_trial_scenario(
+        scenario_id="aligned_managed",
+        provider="deterministic",
+        variants=["wide_context_practical_coach"],
+        output_dir=tmp_path,
+    )
+
+    report = (tmp_path / "pasteback_report.md").read_text(encoding="utf-8")
+
+    assert "Run id" in report
+    assert "Best variant" in report
+    assert "Compact First-Pass Drafts" in report
+    assert "Product Language Findings" in report
+    assert "Token / Cost Summary" in report
+    assert "Known Baseline Drift" in report
+    assert BASELINE_DRIFT["test_file"] in report
