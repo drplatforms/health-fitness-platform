@@ -1,3 +1,56 @@
+# Next Milestone — Platform North Star + Future Stack Canonicalization v1
+
+Baseline:
+
+```text
+main @ 123d115
+fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip
+```
+
+Active milestone:
+
+```text
+Platform North Star + Future Stack Canonicalization v1
+```
+
+Owner:
+
+```text
+Backend Development
+```
+
+Purpose:
+
+```text
+Create the canonical long-term platform vision and future technology stack source of truth before archiving the current Architecture chat and onboarding a new Architecture chat.
+```
+
+Primary deliverable:
+
+```text
+docs/project_memory/architecture/platform_north_star_and_future_stack.md
+```
+
+Existing docs should reference the north-star file rather than duplicate it.
+
+After this milestone:
+
+```text
+Archive current Architecture chat.
+Onboard new Architecture chat from the latest accepted snapshot and project memory.
+Resume Backend Intelligence Foundation planning.
+```
+
+Expected next architecture planning target after the new Architecture chat is onboarded:
+
+```text
+Recovery Intelligence v2
+```
+
+This milestone is docs-only and does not authorize runtime behavior, provider behavior, UI, schema, RAG/vector/agent, SaaS infrastructure, or product feature implementation.
+
+---
+
 # Next Milestone — Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2
 
 Baseline:

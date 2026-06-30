@@ -1,3 +1,64 @@
+# Current State — Platform North Star + Future Stack Canonicalization v1
+
+Current accepted main:
+
+```text
+123d115 main_merge-daily-coach-workout-set-intelligence-v1
+```
+
+Current accepted snapshot:
+
+```text
+fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip
+```
+
+Latest Backend Intelligence Foundation evidence:
+
+- Recovery Intelligence v1 is accepted and merged.
+- Workout Set Intelligence v1 + Daily Coach Intelligence Snapshot v2 is accepted and merged at `123d115`.
+- Daily Coach Intelligence Snapshot v2 carries recovery and workout-set intelligence as read-only deterministic source-data layers.
+- Provider voice iteration remains paused.
+
+Active milestone:
+
+```text
+Platform North Star + Future Stack Canonicalization v1
+```
+
+Requested status:
+
+```text
+PLATFORM_NORTH_STAR_FUTURE_STACK_CANONICALIZATION_V1_IMPLEMENTATION_COMPLETE
+```
+
+Purpose:
+
+```text
+Create a durable strategic source of truth before archiving the current Architecture chat and onboarding a new Architecture chat.
+```
+
+Canonical north-star file:
+
+```text
+docs/project_memory/architecture/platform_north_star_and_future_stack.md
+```
+
+Read the north-star file before making future-stack, SaaS, RAG, vector, agent, model-routing, or product-platform decisions.
+
+Next after this docs-only milestone:
+
+```text
+Archive current Architecture chat.
+Onboard new Architecture chat from the latest snapshot, current project memory, and the north-star file.
+Then resume Backend Intelligence Foundation planning, with Recovery Intelligence v2 expected as the next architecture target unless Architecture changes course.
+```
+
+No runtime/product behavior changes are authorized or implemented by this milestone.
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Do not patch that drift inside this docs-only milestone.
+
+---
+
 # Current State — Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2
 
 Current accepted main:

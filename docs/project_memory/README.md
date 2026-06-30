@@ -1,14 +1,20 @@
-# Current Project Memory Status — 23b5378
+# Current Project Memory Status — 123d115
 
-Active milestone: `Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1`.
+Active milestone: `Platform North Star + Future Stack Canonicalization v1`.
 
-Latest accepted main evidence: `Daily Coach Fully Free Source-Data Lab evidence v1 @ 23b5378`.
+Latest accepted main evidence: `Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2 @ 123d115`.
 
-Fully Free Source-Data Lab v1 is accepted as developer-only evidence, not as a copy breakthrough.
+Canonical long-term platform vision and future technology stack:
+
+```text
+docs/project_memory/architecture/platform_north_star_and_future_stack.md
+```
+
+Read the north-star file before making future-stack, SaaS, RAG, vector, agent, model-routing, or product-platform decisions.
 
 Provider voice iteration is paused.
 
-Next after docs cleanup: `Daily Coach Backend Intelligence Foundation`.
+Next after this docs-only milestone: archive current Architecture chat, onboard new Architecture chat, then resume Backend Intelligence Foundation planning.
 
 Canonical seven visible team lanes are recorded in `team_routing_contract.md`.
 
@@ -61,15 +67,13 @@ Installation and reload guidance live in `local_developer_command_menu.md`. The 
 
 The command menu preserves `fitness`, `app`, `lstop`, `lrestart`, and `lupdate`, and adds workflow safety commands including `fsnap`, `fbranch`, `fmerge`, `fsweep`, `fmem`, `fports`, `fkill`, `fdoctor`, `lpull`, `lvalidate`, and `lollama`.
 
-## Active Daily Coach provider docs
+## Active strategic architecture docs
 
-Daily Coach narrative product voice polish is tracked in:
+The current canonical long-term platform vision and future technology stack is:
 
-- `milestones/daily_coach_narrative_product_voice_polish_v1.md`
-- `reviews/daily_coach_narrative_product_voice_polish_v1.md`
-- `runtime_qa/daily_coach_narrative_product_voice_polish_v1_results.md`
+- `docs/project_memory/architecture/platform_north_star_and_future_stack.md`
 
-This milestone improves approved narrative copy inside the accepted manual same-session bridge only. It does not authorize provider default changes, persistence, normal-load AI, qwen3 bridge use, or model promotion.
+This file is a strategic compass. It does not authorize immediate implementation of RAG, vector databases, agents, provider promotion, SaaS infrastructure, UI rewrites, or runtime behavior changes.
 
 ## Historical docs
 

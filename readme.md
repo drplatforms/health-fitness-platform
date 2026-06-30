@@ -1,12 +1,20 @@
-# Current Development Status — 23b5378
+# Current Development Status — 123d115
 
-Latest accepted lab evidence: `23b5378 Merge daily coach fully free source-data lab evidence v1`.
+Latest accepted main: `123d115 main_merge-daily-coach-workout-set-intelligence-v1`.
 
-Daily Coach provider trials are developer-only evidence, not production behavior. The v4 decaging diagnostic baseline is preserved, and Fully Free Source-Data Lab v1 was accepted as developer-only evidence but did not meaningfully beat v4.
+Latest accepted snapshot: `fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip`.
 
-Provider voice iteration is paused. After the docs/process/development-architecture refresh, the next architecture focus is `Daily Coach Backend Intelligence Foundation`: Recovery Intelligence, Workout Set Intelligence, Trend Engine, Six-Month Seed Data, and Food Knowledge Expansion.
+Workout Set Intelligence v1 + Daily Coach Intelligence Snapshot v2 is accepted and merged as the second Backend Intelligence Foundation implementation slice.
 
-No RAG, vector search, embeddings, multi-agent orchestration, provider promotion, or production Today provider display is authorized by this status.
+Active docs-only milestone: `Platform North Star + Future Stack Canonicalization v1`.
+
+Canonical long-term platform vision and future technology stack: `docs/project_memory/architecture/platform_north_star_and_future_stack.md`.
+
+Daily Coach provider trials remain developer-only evidence, not production behavior. Provider voice iteration is paused.
+
+After this docs-only milestone is accepted and snapshotted, the current Architecture chat should be archived and a new Architecture chat should onboard from the latest snapshot and north-star/project-memory docs.
+
+No RAG, vector search, embeddings, multi-agent orchestration, provider promotion, production Today provider display, SaaS infrastructure, UI rewrite, or runtime behavior change is authorized by this status.
 
 ---
 

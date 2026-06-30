@@ -1,8 +1,9 @@
 # Team Quickstarts — AI Health Coach / fitness_ai
 
-**Current accepted main:** `23b5378 Merge daily coach fully free source-data lab evidence v1`
-**Active milestone:** Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1
-**Next product center after docs cleanup:** Backend Intelligence Foundation
+**Current accepted main:** `123d115 main_merge-daily-coach-workout-set-intelligence-v1`
+**Active milestone:** Platform North Star + Future Stack Canonicalization v1
+**Canonical north-star file:** `docs/project_memory/architecture/platform_north_star_and_future_stack.md`
+**Next after this docs-only milestone:** Archive current Architecture chat, onboard new Architecture chat, then resume Backend Intelligence Foundation planning.
 
 Read this first when starting a fresh project chat.
 
@@ -14,7 +15,7 @@ All teams should read `AGENTS.md`, `readme.md`, `docs/project_memory/current_sta
 
 Owns product/system architecture, sequencing, acceptance, scope boundaries, roadmap discipline, and cross-team routing. Does not own routine implementation after scope is accepted.
 
-Current state: Fully Free Source-Data Lab v1 is accepted as developer-only evidence at `23b5378`; it was useful but not meaningfully better than v4; provider voice iteration is paused; Backend Intelligence Foundation is next.
+Current state: Workout Set Intelligence v1 is accepted at `123d115`; provider voice iteration is paused; active work is docs-only north-star canonicalization; Backend Intelligence Foundation resumes after the new Architecture chat is onboarded.
 
 Return format: architecture decision, accepted/rejected status, next owner, required docs updates, non-goals.
 
@@ -32,7 +33,7 @@ Common mistakes: broad formatters on docs-only work, skipping project-memory upd
 
 Owns validation evidence, runtime checks, artifact inspection, pass/fail classification, and user-path validation. Does not rewrite architecture decisions.
 
-Current QA focus: docs-only consistency at `23b5378`; known baseline drift remains in `tests/test_daily_narrative_rich_day_service.py`.
+Current QA focus: docs-only consistency at `123d115` and verifying `docs/project_memory/architecture/platform_north_star_and_future_stack.md` is referenced correctly; known baseline drift remains in `tests/test_daily_narrative_rich_day_service.py`.
 
 Return format: commands run, pass/fail counts, artifact paths, classification, known warnings/drift.
 

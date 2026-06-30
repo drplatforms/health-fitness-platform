@@ -1,23 +1,28 @@
-# Open Questions — Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2
+# Open Questions — Platform North Star + Future Stack Canonicalization v1
 
-## Active questions
+Active questions:
 
-1. Does Workout Set Intelligence v1 use completed planned workout executions only?
-2. Does it avoid using unlinked manual `workout_sets` as planned-vs-actual evidence?
-3. Are completion, effort, rep range, load, logging quality, and confidence indicators bounded to the allowed deterministic values?
-4. Does `actual_rir - planned_rir_midpoint` correctly treat lower actual RIR as harder than planned and higher actual RIR as easier than planned?
-5. Do missing actual reps, actual RIR, actual weight, skips, substitutions, and incomplete set logging lower confidence or add reason codes/limitations?
-6. Does `coach_safe_summary` avoid forbidden training language and automatic progression/deload recommendations?
-7. Does Daily Coach Intelligence Snapshot v2 include `workout_set_intelligence` while preserving Recovery Intelligence v1, Training Execution Summary, and Nutrition Trend Window evidence?
-8. Does `foundation_layer_status` honestly report `workout_set_intelligence: implemented_v1` without pretending Trend Engine, Seed Data refinement, or Food Knowledge Expansion are complete?
-9. Does the developer tool produce terminal-friendly workout set indicator artifacts for users 101-105 when QA seed data exists?
-10. Does the snapshot avoid provider calls, DB mutation, Today UI changes, API/schema changes, and production behavior changes?
-11. Is this source-data contract strong enough for Architecture to route Recovery Intelligence v2 next?
+1. Does `docs/project_memory/architecture/platform_north_star_and_future_stack.md` preserve the huge future platform vision?
+2. Does it clearly separate future candidates from authorized implementation?
+3. Does it preserve SaaS/cost realism around model routing?
+4. Does it clearly say backend intelligence comes before advanced AI orchestration?
+5. Does it point new Architecture chats to the right decision source?
+6. Does it include the full technology inventory without forcing immediate implementation?
+7. Do updated docs reference the north-star file instead of duplicating the full future-stack content?
+8. Does the project-level instruction draft fit the Fitness AI Platform project instructions without becoming too verbose?
+9. After this milestone is accepted and snapshotted, what exact onboarding packet should the new Architecture chat receive?
 
-## Closed / carried-forward questions
+Closed / answered before this milestone:
 
-Recovery Intelligence v1 was accepted as the first Backend Intelligence Foundation slice and remains read-only in this milestone.
+- Workout Set Intelligence v1 was accepted and merged at `123d115`.
+- Daily Coach Intelligence Snapshot v2 now carries recovery and workout-set intelligence.
+- Provider voice iteration remains paused.
+- RAG/vector/agent work remains future/parked behind backend intelligence.
 
-Provider voice iteration remains paused after v4 and Fully Free Source-Data Lab evidence. Do not restart same-lane prompt/provider tuning from this milestone.
+Known baseline drift remains documented and intentionally out of scope:
 
-RAG, vector search, embeddings, and multi-agent orchestration remain parked behind Backend Intelligence Foundation layers.
+```text
+tests/test_daily_narrative_rich_day_service.py
+expected: Read the day before adding more
+actual: Consider the full day
+```

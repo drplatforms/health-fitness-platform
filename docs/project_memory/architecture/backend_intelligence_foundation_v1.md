@@ -1,7 +1,7 @@
 # Backend Intelligence Foundation v1
 
 **Status:** Next product architecture center after docs/process cleanup
-**Current accepted main:** `23b5378 Merge daily coach fully free source-data lab evidence v1`
+**Current accepted main:** `123d115 main_merge-daily-coach-workout-set-intelligence-v1`
 
 Backend Intelligence Foundation is the product-brain prerequisite for advanced provider, RAG, vector, and agent architecture.
 
@@ -81,4 +81,15 @@ Scope:
 
 Provider voice iteration remains paused. This slice improves source-data truth, not prompt style.
 
-Future next architecture target after acceptance: `Recovery Intelligence v2`.
+Workout Set Intelligence v1 is accepted as of `123d115`. Future next architecture target after north-star canonicalization and Architecture chat onboarding: `Recovery Intelligence v2`.
+
+
+## Platform North Star Reference
+
+The canonical long-term platform vision and future technology stack lives in:
+
+```text
+docs/project_memory/architecture/platform_north_star_and_future_stack.md
+```
+
+Backend Intelligence Foundation remains the product-brain prerequisite described by the north-star file. Future RAG, vector search, model routing, multi-agent orchestration, and SaaS-grade platform architecture stay parked until Architecture scopes them after the backend source-data contracts are mature enough.

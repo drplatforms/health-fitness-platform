@@ -1,7 +1,7 @@
 # Development Architecture — ChatGPT Project Workflow v1
 
 **Status:** Active development-workflow architecture
-**Current accepted main:** `23b5378 Merge daily coach fully free source-data lab evidence v1`
+**Current accepted main:** `123d115 main_merge-daily-coach-workout-set-intelligence-v1`
 
 This ChatGPT Project is a seven-team development workspace, not a single chat with perfect memory.
 
@@ -31,4 +31,15 @@ Prompt Lab is an engineering workflow, not a production runtime feature. It supp
 
 ## Current State
 
-Fully Free Source-Data Lab v1 was merged as developer-only evidence at `23b5378`. It was technically valid but not meaningfully better than v4. Provider voice iteration is paused. The next product center after docs cleanup is Backend Intelligence Foundation.
+Workout Set Intelligence v1 was merged at `123d115`. Provider voice iteration is paused. Active work is docs-only north-star canonicalization. After this milestone is accepted and snapshotted, archive the current Architecture chat and onboard a new Architecture chat from the latest snapshot, project memory, and the north-star file.
+
+
+## Platform North Star Reference
+
+The canonical long-term platform vision and future technology stack lives in:
+
+```text
+docs/project_memory/architecture/platform_north_star_and_future_stack.md
+```
+
+Read it before making future-stack, SaaS, RAG, vector, agent, model-routing, or product-platform decisions.
