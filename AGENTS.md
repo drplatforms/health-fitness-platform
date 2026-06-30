@@ -1,16 +1,22 @@
-# Current Accepted Baseline — 23b5378
+# Current Accepted Baseline — 123d115
 
-Current accepted baseline: `23b5378 Merge daily coach fully free source-data lab evidence v1`.
+Current accepted baseline: `123d115 main_merge-daily-coach-workout-set-intelligence-v1`.
 
-Current accepted snapshot: `fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip`.
+Current accepted snapshot: `fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip`.
 
-Provider voice iteration is paused after v4 and Fully Free Source-Data Lab v1 evidence.
+Workout Set Intelligence v1 + Daily Coach Intelligence Snapshot v2 is accepted and merged.
 
-Backend Intelligence Foundation is the next center of gravity: Recovery Intelligence, Workout Set Intelligence, Trend Engine, Six-Month Seed Data, Food Knowledge Expansion.
+Active docs-only milestone: `Platform North Star + Future Stack Canonicalization v1`.
 
-Do not introduce RAG, vector search, embeddings, multi-agent orchestration, LangGraph, CrewAI, LlamaIndex, or production-grade agent architecture before backend intelligence and source-data contracts are robust enough to feed them.
+Canonical long-term platform vision and future technology stack: `docs/project_memory/architecture/platform_north_star_and_future_stack.md`.
+
+Provider voice iteration remains paused. Backend Intelligence Foundation remains the product-brain center of gravity after this docs-only milestone.
+
+Do not introduce RAG, vector search, embeddings, multi-agent orchestration, LangGraph, CrewAI, LlamaIndex, custom GPT, SaaS infrastructure, or production-grade agent architecture before Architecture scopes a milestone and the backend intelligence/source-data contracts are robust enough to feed them.
 
 Canonical seven visible team lanes: Architecture, Backend Development, QA, Agent Engineering, Streamlit UI / UX, Portfolio Packaging, DevOps & Tooling.
+
+Read the north-star file before making future-stack, SaaS, RAG, vector, agent, model-routing, or product-platform decisions.
 
 ---
 

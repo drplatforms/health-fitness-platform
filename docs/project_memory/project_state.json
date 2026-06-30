@@ -22,31 +22,41 @@
       "source_feature_branch": "feature/daily-coach-intelligence-snapshot-recovery-v1",
       "source_feature_commit": "fb77575 Add daily coach intelligence snapshot recovery v1",
       "status": "DAILY_COACH_INTELLIGENCE_SNAPSHOT_RECOVERY_V1_ACCEPTED"
+    },
+    "daily_coach_workout_set_intelligence_v1": {
+      "main_commit": "123d115",
+      "meaning": "second Backend Intelligence Foundation implementation slice; Workout Set Intelligence v1 plus Daily Coach Intelligence Snapshot v2",
+      "snapshot": "fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip",
+      "source_feature_branch": "feature/daily-coach-workout-set-intelligence-v1",
+      "source_feature_commit": "c961446 Add daily coach workout set intelligence v1",
+      "status": "DAILY_COACH_WORKOUT_SET_INTELLIGENCE_V1_ACCEPTED"
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-06-30_43927d4_main_merge-daily-coach-intelligence-snapshot-recovery-v1.zip",
-    "commit_check_mode": "targeted-backend-and-docs",
-    "current_authorized_milestone": "Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2",
-    "current_recommended_milestone": "Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip",
+    "commit_check_mode": "docs-only",
+    "current_authorized_milestone": "Platform North Star + Future Stack Canonicalization v1",
+    "current_recommended_milestone": "Platform North Star + Future Stack Canonicalization v1",
     "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
-    "primary_question": "Can Workout Set Intelligence v1 and Daily Coach Intelligence Snapshot v2 provide a stable backend-owned set/exercise training source-data contract?",
-    "qa_class": "BACKEND_INTELLIGENCE_FOUNDATION_READ_ONLY_SET_LEVEL_TRAINING_SOURCE_DATA_CONTRACT",
-    "recommended_next_milestone_after_acceptance": "Recovery Intelligence v2",
+    "primary_question": "Can the repo preserve the long-term platform north star and future technology stack without authorizing premature implementation?",
+    "qa_class": "DOCS_ONLY_NORTH_STAR_FUTURE_STACK_CANONICALIZATION",
+    "recommended_next_milestone_after_acceptance": "Archive current Architecture chat and onboard new Architecture chat, then resume Backend Intelligence Foundation planning",
     "recommended_owner": "Backend Development",
     "source_feature_branch": null,
     "source_feature_commit": null,
-    "source_main_commit": "43927d4"
+    "source_main_commit": "123d115"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
       "Recovery Intelligence",
       "Workout Set Intelligence",
-      "Trend Engine",
+      "Cross-Domain Trend Engine",
       "Six-Month Seed Data",
-      "Food Knowledge Expansion"
+      "Food Knowledge Expansion",
+      "Unified Daily Coach Intelligence Snapshot"
     ],
-    "next_center_of_gravity": "Daily Coach Backend Intelligence Foundation",
+    "next_center_of_gravity": "Platform North Star + Future Stack Canonicalization v1, then Backend Intelligence Foundation planning in a new Architecture chat",
+    "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "sequencing_rule": "No serious RAG/vector/embeddings/multi-agent/orchestration until backend intelligence layers and source-data contracts are robust enough to feed them."
   },
   "backend_intelligence_foundation": {
@@ -61,11 +71,13 @@
     "daily_coach_workout_set_intelligence_v1": {
       "baseline_commit": "43927d4",
       "future_next_architecture_target_after_acceptance": "Recovery Intelligence v2",
+      "main_commit": "123d115",
       "milestone": "Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2",
       "provider_voice_iteration": "paused",
       "runtime_behavior_change": false,
       "scope": "Workout Set Intelligence v1 plus read-only Daily Coach Intelligence Snapshot v2",
-      "status": "APPROVED_FOR_BACKEND_IMPLEMENTATION"
+      "snapshot": "fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip",
+      "status": "ACCEPTED_AND_MERGED"
     }
   },
   "boundaries": {
@@ -254,6 +266,7 @@
     "no_workout_generation_changes_for_current_docs_milestone": true,
     "normal_today_unchanged": true,
     "normal_today_unchanged_for_wide_context_trial": true,
+    "north_star_docs_only_no_runtime_changes": true,
     "nutrition_action_context_backend_derived": true,
     "nutrition_actuals_confidence_missing": true,
     "nutrition_catalog_diagnostic_read_only": true,
@@ -267,6 +280,7 @@
     "patch_first_delivery": true,
     "patch_stacking_stop_conditions": true,
     "paused_catalog_utilization_branch_checkpoint_only": true,
+    "platform_north_star_future_stack_canonicalization_v1": true,
     "product_language_scan_diagnostic_only": true,
     "product_voice_audit_separate_from_claim_audit": true,
     "provider_high_value_claim_packaging": true,
@@ -327,20 +341,21 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2",
+    "active_backend_milestone": "Platform North Star + Future Stack Canonicalization v1",
     "active_backend_status": "approved for Backend implementation",
-    "active_project_memory_milestone": "Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1",
-    "active_project_memory_status": "docs/process/development architecture refresh active",
-    "current_source_of_truth": "main at 43927d4 main_merge-daily-coach-intelligence-snapshot-recovery-v1",
+    "active_project_memory_milestone": "Platform North Star + Future Stack Canonicalization v1",
+    "active_project_memory_status": "docs-only strategic architecture canonicalization active",
+    "current_source_of_truth": "main at 123d115 main_merge-daily-coach-workout-set-intelligence-v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "43927d4",
-    "latest_accepted_milestone": "Daily Coach Intelligence Snapshot + Recovery Intelligence v1",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-30_43927d4_main_merge-daily-coach-intelligence-snapshot-recovery-v1.zip",
-    "latest_final_status": "DAILY_COACH_INTELLIGENCE_SNAPSHOT_RECOVERY_V1_ACCEPTED",
+    "latest_accepted_commit": "123d115",
+    "latest_accepted_milestone": "Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip",
+    "latest_final_status": "DAILY_COACH_WORKOUT_SET_INTELLIGENCE_V1_ACCEPTED",
     "latest_main_merge_commit": "23b5378",
     "latest_technical_baseline_commit": "23b5378",
     "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip",
-    "next_product_architecture_center": "Daily Coach Backend Intelligence Foundation",
+    "next_product_architecture_center": "Platform North Star + Future Stack Canonicalization v1, then Backend Intelligence Foundation",
+    "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "previous_accepted_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "previous_main_merge_commit": "56d63c4",
     "previous_snapshot": "fitness_ai_snapshot_2026-06-29_56d63c4_main_merge-daily-coach-free-range-decaging-diagnostic-baseline-v4.zip",
