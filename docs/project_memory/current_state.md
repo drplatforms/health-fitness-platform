@@ -1,3 +1,106 @@
+# Current State — Daily Coach Provider Preview Raw Data Payload v1
+
+Current accepted baseline:
+
+```text
+e26c4e0 Merge daily coach note copy QA matrix v1
+```
+
+Current accepted snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip
+```
+
+Latest accepted milestone:
+
+```text
+Daily Coach Note Copy QA Matrix v1
+```
+
+Active backend implementation milestone:
+
+```text
+Daily Coach Provider Preview Raw Data Payload v1
+```
+
+Requested status:
+
+```text
+DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE
+```
+
+Purpose:
+
+```text
+Create a developer-only raw data payload for future Daily Coach Note provider preview from backend-owned deterministic source data.
+```
+
+Implemented scope:
+
+- Added `DailyCoachProviderPreviewRawDataPayload` as a developer-only read-only payload model.
+- Added a service that builds the provider-preview raw data payload from a `DailyCoachIntelligenceSnapshot` object.
+- Added a service path that builds the same payload from a serialized snapshot dictionary.
+- Added a convenience service path that builds the payload for `user_id` and `target_date` by first building the existing Daily Coach Intelligence Snapshot.
+- Added a developer terminal tool that prints the payload as JSON.
+- Preserved raw deterministic source sections under `source_data` instead of collapsing them into a polished paragraph.
+- Preserved recovery intelligence, recovery intelligence v2, workout set intelligence, training execution summary, nutrition trend window, foundation layer status, data completeness, source data gaps, reason codes, and limitations where present.
+- Added explicit backend truth contract metadata.
+- Added explicit provider voice-space metadata that preserves the Uncaged Provider Voice Principle.
+- Added provider input guidance that rejects sentence banks, final copy authorization, and normal Today surface authorization.
+- Added forbidden provider authority categories for future provider-preview work.
+
+This milestone creates the model's future data pasture.
+
+This milestone preserves the Uncaged Provider Voice Principle.
+
+This milestone gives future provider work raw deterministic backend data, not backend-written sentence banks.
+
+This milestone does not call providers.
+
+This milestone does not generate Daily Coach Note copy.
+
+This milestone does not change Today UI.
+
+This milestone does not change API/schema/persistence/report/recommendation behavior.
+
+This milestone does not change Daily Next Action selection.
+
+This milestone does not add OpenAI/Ollama/CrewAI/RAG/agent behavior.
+
+This milestone does not add model routing or Prompt Lab runtime behavior.
+
+This milestone does not add workout plan, nutrition target, automatic deload, automatic progression, wearable/HRV, or medical interpretation behavior.
+
+Developer-only payload boundaries:
+
+```text
+developer_preview_only = true
+provider_call_allowed = false
+persistence_allowed = false
+product_surface_allowed = false
+```
+
+Backend chat operating rule remains active:
+
+```text
+Architecture prepares Backend implementation handoffs/tasks.
+Architecture separately prepares QA testing instructions.
+Backend implements the Architecture-provided task.
+Backend reports branch, commit, and validation evidence when requested.
+Architecture owns final acceptance, merge, snapshot, and next milestone selection.
+```
+
+Hard workflow rule remains active:
+
+```text
+Windows is the only commit/merge/push/snapshot machine.
+Linux is pull/validate/runtime QA only and must never commit, merge, or push.
+```
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Do not patch that drift inside unrelated Daily Coach Provider Preview Raw Data Payload work.
+
+---
 # Current State — Daily Coach Note Copy QA Matrix v1
 
 Current accepted baseline:
