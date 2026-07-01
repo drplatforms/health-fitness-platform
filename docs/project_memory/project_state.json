@@ -53,21 +53,27 @@
       "source_feature_branch": "feature/recovery-intelligence-v2-architecture-planning-v1",
       "source_feature_commit": "c2b0b7b Document recovery intelligence v2 architecture plan",
       "status": "RECOVERY_INTELLIGENCE_V2_ARCHITECTURE_PLAN_ACCEPTED_AND_MERGED"
+    },
+    "recovery_intelligence_v2_service_v1": {
+      "main_commit": "09c6581",
+      "meaning": "read-only Recovery Intelligence v2 service built from daily_checkins; no Daily Coach Note/UI/API/provider/schema integration",
+      "snapshot": "fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip",
+      "status": "RECOVERY_INTELLIGENCE_V2_SERVICE_V1_ACCEPTED_AND_MERGED"
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-06-30_dd6db0f_main_merge-recovery-intelligence-v2-model-contract-v1.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Recovery Intelligence v2 Service v1",
-    "current_recommended_milestone": "Recovery Intelligence v2 Service v1",
+    "current_authorized_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1",
+    "current_recommended_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1",
     "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
-    "primary_question": "Can the accepted Recovery Intelligence v2 model contract be populated from daily_checkins as a read-only service without changing Daily Coach, provider, UI, API, schema, recommendation, report, or persistence behavior?",
-    "qa_class": "READ_ONLY_RECOVERY_INTELLIGENCE_V2_SERVICE",
-    "recommended_next_milestone_after_acceptance": "Architecture to choose: Recovery Intelligence v2 developer artifact/inspection tool or Daily Coach Intelligence Snapshot v3 integration",
-    "recommended_owner": "Backend Development / Service Implementation",
+    "primary_question": "Can the accepted Recovery Intelligence v2 service be inspected from a terminal-friendly developer tool without changing Daily Coach Note, provider, UI, API, schema, recommendation, report, or persistence behavior?",
+    "qa_class": "DEVELOPER_ARTIFACT_RECOVERY_INTELLIGENCE_V2_INSPECTION_TOOL",
+    "recommended_next_milestone_after_acceptance": "Architecture to choose: Recovery Intelligence v2 QA Seed Matrix Validation v1 or Daily Coach Note Recovery v2 Integration v1",
+    "recommended_owner": "Backend Development / Developer Artifact Implementation",
     "source_feature_branch": null,
     "source_feature_commit": null,
-    "source_main_commit": "dd6db0f"
+    "source_main_commit": "09c6581"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -78,7 +84,7 @@
       "Food Knowledge Expansion",
       "Unified Daily Coach Intelligence Snapshot"
     ],
-    "next_center_of_gravity": "Recovery Intelligence v2 Model Contract v1, followed by Recovery Intelligence v2 Service v1 after acceptance",
+    "next_center_of_gravity": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1, followed by Architecture selection of QA Seed Matrix Validation or Daily Coach Note integration after acceptance",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "sequencing_rule": "No serious RAG/vector/embeddings/multi-agent/orchestration until backend intelligence layers and source-data contracts are robust enough to feed them.",
     "recovery_intelligence_v2_plan": "docs/project_memory/architecture/recovery_intelligence_v2_plan.md"
@@ -119,6 +125,15 @@
       "runtime_behavior_change": false,
       "status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
       "next_recommended_milestone": "Recovery Intelligence v2 Service v1"
+    },
+    "recovery_intelligence_v2_service_v1": {
+      "baseline_commit": "dd6db0f",
+      "snapshot": "fitness_ai_snapshot_2026-06-30_dd6db0f_main_merge-recovery-intelligence-v2-model-contract-v1.zip",
+      "milestone": "Recovery Intelligence v2 Service v1",
+      "scope": "Read-only Recovery Intelligence v2 service implementation using daily_checkins",
+      "runtime_behavior_change": false,
+      "status": "ACCEPTED_AND_MERGED",
+      "next_recommended_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1"
     }
   },
   "boundaries": {
@@ -386,20 +401,20 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "Recovery Intelligence v2 Service v1",
-    "active_backend_status": "approved_for_backend_service_implementation",
-    "active_project_memory_milestone": "Recovery Intelligence v2 Service v1",
-    "active_project_memory_status": "service_implementation_active",
-    "current_source_of_truth": "main at dd6db0f main_merge-recovery-intelligence-v2-model-contract-v1",
+    "active_backend_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1",
+    "active_backend_status": "approved_for_backend_dev_inspection_tool_implementation",
+    "active_project_memory_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1",
+    "active_project_memory_status": "dev_inspection_tool_implementation_active",
+    "current_source_of_truth": "main at 09c6581 main_merge-recovery-intelligence-v2-service-v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "dd6db0f",
-    "latest_accepted_milestone": "Recovery Intelligence v2 Model Contract v1",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-06-30_dd6db0f_main_merge-recovery-intelligence-v2-model-contract-v1.zip",
-    "latest_final_status": "RECOVERY_INTELLIGENCE_V2_MODEL_CONTRACT_V1_ACCEPTED_AND_MERGED",
-    "latest_main_merge_commit": "dd6db0f",
+    "latest_accepted_commit": "09c6581",
+    "latest_accepted_milestone": "Recovery Intelligence v2 Service v1",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip",
+    "latest_final_status": "RECOVERY_INTELLIGENCE_V2_SERVICE_V1_ACCEPTED_AND_MERGED",
+    "latest_main_merge_commit": "09c6581",
     "latest_technical_baseline_commit": "23b5378",
     "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip",
-    "next_product_architecture_center": "Backend Intelligence Foundation: Recovery Intelligence v2 Service v1, then Architecture chooses the next v2 slice",
+    "next_product_architecture_center": "Backend Intelligence Foundation: Recovery Intelligence v2 Developer Artifact / Inspection Tool v1, then Architecture chooses QA seed matrix or Daily Coach Note integration",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "previous_accepted_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "previous_main_merge_commit": "56d63c4",
@@ -527,7 +542,7 @@
     "north_star": "Fitness AI Platform is a personal AI health operating system.",
     "primary_doc": "docs/project_memory/future_feature_technology_inventory_v1.md",
     "purpose": "Preserve future product, technology, architecture, AI, workflow, UX, learning, and platform ideas without authorizing implementation.",
-    "qa_class": "CLASS 0 \u2014 DOCS / PROJECT MEMORY ONLY",
+    "qa_class": "CLASS 0 — DOCS / PROJECT MEMORY ONLY",
     "requested_final_status": "FUTURE_FEATURE_TECHNOLOGY_INVENTORY_V1_ACCEPTED",
     "source_main_commit": "9d66514",
     "status": "docs/project-memory update complete / ready for Architecture review"
@@ -625,7 +640,7 @@
       "low_confidence",
       "unknown"
     ],
-    "qa_class": "CLASS 3 \u2014 PERSISTENCE / DATA INTEGRITY / ACTUALS SEMANTICS",
+    "qa_class": "CLASS 3 — PERSISTENCE / DATA INTEGRITY / ACTUALS SEMANTICS",
     "qa_result": "NUTRITION_ACTUALS_PROVENANCE_CONFIDENCE_MODEL_QA_V1_PASS",
     "requested_final_status": "NUTRITION_ACTUALS_PROVENANCE_CONFIDENCE_MODEL_V1_ACCEPTED",
     "sandbox_validation": {
@@ -1029,7 +1044,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "RECOVERY_INTELLIGENCE_V2_SERVICE_V1_IMPLEMENTATION_COMPLETE",
+  "requested_backend_status": "RECOVERY_INTELLIGENCE_V2_DEV_INSPECTION_TOOL_V1_IMPLEMENTATION_COMPLETE",
   "runtime_split": {
     "linux": [
       "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
@@ -1039,9 +1054,9 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "Recovery Intelligence v2 Model Contract v1",
-    "active_backend_status": "backend_model_contract_implementation_active",
-    "requested_final_status": "RECOVERY_INTELLIGENCE_V2_MODEL_CONTRACT_V1_IMPLEMENTATION_COMPLETE"
+    "active_backend_milestone": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1",
+    "active_backend_status": "backend_dev_inspection_tool_implementation_active",
+    "requested_final_status": "RECOVERY_INTELLIGENCE_V2_DEV_INSPECTION_TOOL_V1_IMPLEMENTATION_COMPLETE"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
@@ -1071,5 +1086,33 @@
     "run_apply_scripts_from_repo_as": "Run temporary apply scripts from the repo root using python ..\\<script>.py.",
     "temporary_apply_artifact_root": "C:\\projects",
     "temporary_apply_artifacts_outside_repo": "Temporary patches and apply scripts stay outside the repo."
+  },
+  "recovery_intelligence_v2_dev_inspection_tool_v1": {
+    "status": "authorized for backend implementation",
+    "source_main_commit": "09c6581",
+    "source_snapshot": "fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip",
+    "feature_branch": "feature/recovery-intelligence-v2-dev-inspection-tool-v1",
+    "requested_final_status": "RECOVERY_INTELLIGENCE_V2_DEV_INSPECTION_TOOL_V1_IMPLEMENTATION_COMPLETE",
+    "scope": "developer inspection artifact only",
+    "primary_tool": "tools/dev_recovery_intelligence_v2.py",
+    "primary_tests": [
+      "tests/test_dev_recovery_intelligence_v2_tool.py"
+    ],
+    "future_integration_language": "Daily Coach Note",
+    "non_goals": [
+      "no Daily Coach Note integration",
+      "no Daily Coach behavior changes",
+      "no report behavior changes",
+      "no recommendation behavior changes",
+      "no API routes",
+      "no Streamlit UI",
+      "no provider behavior",
+      "no database schema or migrations",
+      "no persistence behavior",
+      "no RAG/vector/agent work",
+      "no wearable/HRV integration",
+      "no automatic deload/progression logic",
+      "no medical interpretation"
+    ]
   }
 }

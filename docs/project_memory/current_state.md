@@ -1,3 +1,72 @@
+# Current State — Recovery Intelligence v2 Developer Artifact / Inspection Tool v1
+
+Current accepted baseline:
+
+```text
+09c6581 main_merge-recovery-intelligence-v2-service-v1
+```
+
+Current accepted snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip
+```
+
+Latest accepted milestone:
+
+```text
+Recovery Intelligence v2 Service v1
+```
+
+Active backend implementation milestone:
+
+```text
+Recovery Intelligence v2 Developer Artifact / Inspection Tool v1
+```
+
+Requested status:
+
+```text
+RECOVERY_INTELLIGENCE_V2_DEV_INSPECTION_TOOL_V1_IMPLEMENTATION_COMPLETE
+```
+
+Purpose:
+
+```text
+Add a terminal-friendly developer inspection tool that lets Architecture, QA, Backend, and future agents inspect build_recovery_intelligence_v2() output for a user/date before any Daily Coach Note, UI, API, report, recommendation, provider, or schema integration is authorized.
+```
+
+Expected implementation files:
+
+```text
+tools/dev_recovery_intelligence_v2.py
+tests/test_dev_recovery_intelligence_v2_tool.py
+docs/project_memory/milestones/recovery_intelligence_v2_dev_inspection_tool_v1.md
+```
+
+Scope is limited to a developer artifact that calls the accepted Recovery Intelligence v2 service:
+
+- text inspection output
+- valid JSON output from `RecoveryIntelligenceV2Summary.to_dict()`
+- compact terminal output
+- optional source-fact visibility controls
+- focused tests proving the tool uses `build_recovery_intelligence_v2()` instead of duplicating service calculations
+
+New roadmap/docs language should prefer `Daily Coach Note` when referring to the future user-facing coach context layer. Existing code names such as `DailyCoachIntelligenceSnapshot` are not renamed in this milestone.
+
+No Daily Coach Note integration, provider behavior, UI behavior, API behavior, schema/migration behavior, recommendation behavior, report behavior, persistence behavior, RAG/vector/agent work, wearable integration, automatic deload/progression behavior, or medical interpretation is authorized by this implementation slice.
+
+Hard workflow rule remains active:
+
+```text
+Windows is the only commit/merge/push/snapshot machine.
+Linux is pull/validate/runtime QA only and must never commit, merge, or push.
+```
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Do not patch that drift inside unrelated recovery intelligence or developer-artifact milestones.
+
+---
+
 # Current State — Recovery Intelligence v2 Service v1
 
 Current accepted baseline:
