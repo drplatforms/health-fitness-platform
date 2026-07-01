@@ -1,3 +1,105 @@
+# Current State — Daily Coach Note Copy QA Matrix v1
+
+Current accepted baseline:
+
+```text
+33ebf18 Merge daily coach note recovery-aware language v1
+```
+
+Current accepted snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_33ebf18_main_merge-daily-coach-note-recovery-aware-language-v1.zip
+```
+
+Latest accepted milestone:
+
+```text
+Daily Coach Note Recovery-Aware Language v1
+```
+
+Active backend implementation milestone:
+
+```text
+Daily Coach Note Copy QA Matrix v1
+```
+
+Requested status:
+
+```text
+DAILY_COACH_NOTE_COPY_QA_MATRIX_V1_IMPLEMENTATION_COMPLETE
+```
+
+Purpose:
+
+```text
+Add a focused QA/test/documentation matrix for Daily Coach Note public copy after the first recovery-aware language integration.
+```
+
+Expected implementation files:
+
+```text
+tests/test_daily_coach_today_card_copy_matrix.py
+docs/project_memory/current_state.md
+docs/project_memory/next_milestone.md
+docs/project_memory/project_state.json
+docs/project_memory/milestones/daily_coach_note_copy_qa_matrix_v1.md
+```
+
+Implemented scope:
+
+- Added a focused Daily Coach Note copy QA matrix.
+- Covered all approved Daily Next Action classes.
+- Covered no-contract, unavailable, limited, low-pressure, moderate-pressure, and high-pressure recovery contract states.
+- Verified no-contract Daily Coach Note behavior remains backward compatible.
+- Verified recovery contract object input remains valid.
+- Verified serialized recovery contract dictionary input remains valid.
+- Verified limited/unavailable recovery context uses cautious wording.
+- Verified low/moderate/high recovery pressure copy remains bounded.
+- Verified public payload does not expose provider/debug/internal contract terminology.
+- Verified public payload does not expose unsafe medical, injury, overtraining, automatic deload, automatic progression, or unsafe-to-train claims.
+- Verified `coach_note` remains capped at 520 characters.
+- Verified Daily Next Action fields are unchanged by recovery copy.
+- Verified deterministic public copy remains stable for the same inputs.
+- Verified provider calls do not occur in the deterministic Today card matrix path.
+
+This milestone adds QA/test/documentation coverage only.
+
+This milestone does not implement provider behavior.
+
+This milestone does not add OpenAI/Ollama/CrewAI/RAG/agent behavior.
+
+This milestone does not add UI/API/schema/persistence/report/recommendation behavior.
+
+This milestone records the Uncaged Provider Voice Principle for future provider work.
+
+This milestone cages evaluation, not model voice.
+
+Future provider voice should receive raw deterministic backend data, not only backend-written prose summaries.
+
+Repeated-template risk is explicitly recorded as a future provider evaluation concern.
+
+Backend chat operating rule remains active:
+
+```text
+Architecture prepares Backend implementation handoffs/tasks.
+Architecture separately prepares QA testing instructions.
+Backend implements the Architecture-provided task.
+Backend reports branch, commit, and validation evidence when requested.
+Architecture owns final acceptance, merge, snapshot, and next milestone selection.
+```
+
+Hard workflow rule remains active:
+
+```text
+Windows is the only commit/merge/push/snapshot machine.
+Linux is pull/validate/runtime QA only and must never commit, merge, or push.
+```
+
+Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Do not patch that drift inside unrelated Daily Coach Note Copy QA Matrix work.
+
+---
+
 # Current State — Daily Coach Note Recovery-Aware Language v1
 
 Current accepted baseline:

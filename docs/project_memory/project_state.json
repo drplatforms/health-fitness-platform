@@ -1246,4 +1246,75 @@
       "no medical interpretation"
     ]
   }
+,
+  "daily_coach_note_copy_qa_matrix_v1": {
+    "status": "implementation_complete_ready_for_architecture_review",
+    "source_main_commit": "33ebf18",
+    "source_snapshot": "fitness_ai_snapshot_2026-07-01_33ebf18_main_merge-daily-coach-note-recovery-aware-language-v1.zip",
+    "feature_branch": "feature/daily-coach-note-copy-qa-matrix-v1",
+    "requested_final_status": "DAILY_COACH_NOTE_COPY_QA_MATRIX_V1_IMPLEMENTATION_COMPLETE",
+    "scope": "focused QA/test/documentation matrix for deterministic Daily Coach Note public copy",
+    "primary_tests": [
+      "tests/test_daily_coach_today_card_copy_matrix.py"
+    ],
+    "matrix_dimensions": {
+      "daily_next_action_classes": [
+        "complete_recovery_checkin",
+        "keep_training_conservative",
+        "log_food",
+        "review_workout",
+        "review_report_guidance",
+        "review_nutrition_targets"
+      ],
+      "recovery_contract_states": [
+        "none",
+        "unavailable",
+        "limited",
+        "usable_low_pressure",
+        "usable_moderate_pressure",
+        "usable_high_pressure"
+      ]
+    },
+    "behavior_verified": [
+      "no-contract Daily Coach Note behavior remains backward compatible",
+      "RecoveryAwareCoachCopyContract object path remains valid",
+      "serialized recovery contract dictionary path remains valid",
+      "limited/unavailable recovery context produces cautious public wording",
+      "low/moderate/high recovery pressure paths remain bounded",
+      "public payload does not expose provider/debug/internal contract terminology",
+      "public payload does not expose unsafe medical, injury, overtraining, automatic deload, automatic progression, or unsafe-to-train claims",
+      "coach_note remains <= 520 characters",
+      "Daily Next Action fields are not changed by recovery copy",
+      "public copy stays deterministic under the current service path",
+      "provider calls do not occur in the deterministic Today card matrix path"
+    ],
+    "uncaged_provider_voice_principle": [
+      "give the model rich deterministic source data",
+      "include source facts, confidence, limitations, recovery/training/nutrition indicators, and user context",
+      "do not reduce the input to a sanitized paragraph that already sounds like the final answer",
+      "do not force the model to choose from approved sentence templates",
+      "do not require repeated backend-authored sentence structures",
+      "evaluate the output after generation instead of pre-caging the voice",
+      "future provider voice should receive raw deterministic backend data, not only backend-written prose summaries"
+    ],
+    "future_provider_qa_risk": "repeated-template risk should be evaluated later without forcing provider output into backend-authored sentence banks",
+    "non_goals": [
+      "no provider behavior",
+      "no OpenAI/Ollama/CrewAI behavior",
+      "no RAG/vector/agent behavior",
+      "no model routing",
+      "no Prompt Lab runtime",
+      "no Streamlit UI changes",
+      "no API route changes",
+      "no database schema or migration changes",
+      "no persistence behavior changes",
+      "no report behavior changes",
+      "no recommendation behavior changes",
+      "no Daily Next Action selection changes",
+      "no workout plan behavior changes",
+      "no nutrition target behavior changes",
+      "no automatic deload/progression logic",
+      "no medical interpretation"
+    ]
+  }
 }
