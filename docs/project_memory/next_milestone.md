@@ -1,3 +1,73 @@
+# Next Milestone — Architecture Selection After Daily Coach Note Copy QA Matrix v1
+
+This next milestone should be selected only after Daily Coach Note Copy QA Matrix v1 is accepted, merged to `main`, pushed, and snapshotted.
+
+Current implementation milestone before this next step:
+
+```text
+Daily Coach Note Copy QA Matrix v1
+```
+
+Current implementation baseline:
+
+```text
+33ebf18 Merge daily coach note recovery-aware language v1
+```
+
+Current implementation snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_33ebf18_main_merge-daily-coach-note-recovery-aware-language-v1.zip
+```
+
+Likely next owner:
+
+```text
+Architecture
+```
+
+Likely next purpose:
+
+```text
+Review whether Daily Coach Note public-copy evaluation coverage is sufficient, then choose the next narrow Daily Coach Note or provider-preview slice.
+```
+
+Recommended next sequence:
+
+```text
+1. Architecture reviews Daily Coach Note Copy QA Matrix v1 evidence.
+2. QA verifies deterministic Today card copy remains safe, bounded, backward compatible, and unchanged without a supplied recovery contract.
+3. Architecture decides whether to authorize broader Daily Coach Note integration, provider-preview copy experimentation, or another documentation/QA hardening slice.
+```
+
+Future provider voice reminder:
+
+```text
+Future provider work should receive raw deterministic backend data, source facts, confidence, limitations, recovery/training/nutrition indicators, and user context. It should not be forced into backend-authored sentence banks or only backend-written prose summaries.
+```
+
+Non-goals unless Architecture explicitly authorizes them:
+
+```text
+provider-generated Daily Coach copy
+Daily Next Action selection changes
+API changes
+Streamlit layout changes
+database/schema changes
+OpenAI/Ollama/CrewAI behavior changes
+recommendation behavior changes
+report behavior changes
+automatic deloads
+automatic progression
+workout plan changes
+nutrition target changes
+RAG/vector/agent work
+wearable/HRV integration
+medical claims
+```
+
+---
+
 # Next Milestone — Architecture Selection After Daily Coach Note Recovery-Aware Language v1
 
 This next milestone should be selected only after Daily Coach Note Recovery-Aware Language v1 is accepted, merged to `main`, pushed, and snapshotted.
