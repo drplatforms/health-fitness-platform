@@ -1,3 +1,65 @@
+# Next Milestone — Architecture Selection After Recovery Intelligence v2 Dev Inspection Tool v1
+
+This next milestone should be selected only after Recovery Intelligence v2 Developer Artifact / Inspection Tool v1 is accepted, merged to `main`, pushed, and snapshotted.
+
+Current implementation milestone before this next step:
+
+```text
+Recovery Intelligence v2 Developer Artifact / Inspection Tool v1
+```
+
+Current implementation baseline:
+
+```text
+09c6581 main_merge-recovery-intelligence-v2-service-v1
+```
+
+Current implementation snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip
+```
+
+Likely next owner:
+
+```text
+Architecture
+```
+
+Likely next purpose:
+
+```text
+Choose the next Recovery Intelligence v2 slice after the developer inspection artifact exists. Candidate paths include QA Seed Matrix Validation v1 or future Daily Coach Note Recovery v2 Integration v1, but neither is authorized until Architecture scopes it.
+```
+
+Recommended next sequence:
+
+```text
+1. Recovery Intelligence v2 QA Seed Matrix Validation v1
+2. Daily Coach Note Recovery v2 Integration v1
+```
+
+Non-goals unless Architecture explicitly authorizes them:
+
+```text
+Daily Coach Note integration
+API changes
+Streamlit changes
+database/schema changes
+provider behavior changes
+OpenAI/Ollama/CrewAI changes
+recommendation behavior changes
+report behavior changes
+automatic deloads
+workout plan changes
+nutrition target changes
+RAG/vector/agent work
+wearable/HRV integration
+medical claims
+```
+
+---
+
 # Next Milestone — Architecture Selection After Recovery Intelligence v2 Service v1
 
 This next milestone should be selected only after Recovery Intelligence v2 Service v1 is accepted, merged to `main`, pushed, and snapshotted.
