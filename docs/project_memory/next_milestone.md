@@ -1,3 +1,75 @@
+# Next Milestone — Architecture Selection After Daily Coach Provider Preview Raw Data Payload v1
+
+This next milestone should be selected only after Daily Coach Provider Preview Raw Data Payload v1 is accepted, merged to `main`, pushed, and snapshotted.
+
+Current implementation milestone before this next step:
+
+```text
+Daily Coach Provider Preview Raw Data Payload v1
+```
+
+Current implementation baseline:
+
+```text
+e26c4e0 Merge daily coach note copy QA matrix v1
+```
+
+Current implementation snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip
+```
+
+Likely next owner:
+
+```text
+Architecture
+```
+
+Likely next purpose:
+
+```text
+Review whether the developer-only raw data payload is sufficient as the future provider-preview input surface before authorizing any provider call, provider prompt, or Daily Coach Note copy generation work.
+```
+
+Recommended next sequence:
+
+```text
+1. Architecture reviews Daily Coach Provider Preview Raw Data Payload v1 evidence.
+2. QA verifies the payload is developer-only, read-only, source-labeled, and free of final-copy/sentence-bank fields.
+3. Architecture decides whether to authorize a later provider-preview prompt/runtime slice, a payload inspection slice, or another source-data enrichment slice.
+```
+
+Future provider voice reminder:
+
+```text
+Future provider work should receive raw deterministic backend data, source facts, confidence, limitations, recovery/training/nutrition indicators, and user context. It should not be forced into backend-authored sentence banks or only backend-written prose summaries.
+```
+
+Non-goals unless Architecture explicitly authorizes them:
+
+```text
+provider-generated Daily Coach Note copy
+provider calls from normal Today load
+Daily Next Action selection changes
+API changes
+Streamlit layout changes
+database/schema changes
+OpenAI/Ollama/CrewAI behavior changes
+model routing
+Prompt Lab runtime behavior
+recommendation behavior changes
+report behavior changes
+automatic deloads
+automatic progression
+workout plan changes
+nutrition target changes
+RAG/vector/agent work
+wearable/HRV integration
+medical claims
+```
+
+---
 # Next Milestone — Architecture Selection After Daily Coach Note Copy QA Matrix v1
 
 This next milestone should be selected only after Daily Coach Note Copy QA Matrix v1 is accepted, merged to `main`, pushed, and snapshotted.

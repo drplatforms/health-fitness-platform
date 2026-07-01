@@ -68,16 +68,16 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-01_66a70d3_main_merge-daily-coach-note-recovery-v2-integration-v1.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Recovery-Aware Coach Copy Contract v1",
+    "current_authorized_milestone": "Daily Coach Provider Preview Raw Data Payload v1",
     "current_recommended_milestone": "Recovery-Aware Coach Copy Contract v1",
-    "current_recommended_status": "APPROVED_FOR_BACKEND_IMPLEMENTATION",
+    "current_recommended_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "primary_question": "Can Recovery Intelligence v2 facts be converted into a deterministic Daily Coach Note copy contract without changing user-facing behavior?",
     "qa_class": "BACKEND_CONTRACT_RECOVERY_AWARE_COACH_COPY",
-    "recommended_next_milestone_after_acceptance": "Architecture to choose a future Daily Coach Note recovery-aware language milestone only after contract review",
+    "recommended_next_milestone_after_acceptance": "Architecture Selection After Daily Coach Provider Preview Raw Data Payload v1",
     "recommended_owner": "Backend Development / Daily Coach Copy Contract",
-    "source_feature_branch": null,
+    "source_feature_branch": "feature/daily-coach-provider-preview-raw-data-payload-v1",
     "source_feature_commit": null,
     "source_main_commit": "66a70d3"
   },
@@ -420,15 +420,15 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "Daily Coach Note Recovery-Aware Language v1",
-    "active_backend_status": "daily_coach_note_recovery_aware_language_active",
+    "active_backend_milestone": "Daily Coach Provider Preview Raw Data Payload v1",
+    "active_backend_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "active_project_memory_milestone": "Daily Coach Note Recovery-Aware Language v1",
     "active_project_memory_status": "daily_coach_note_recovery_aware_language_active",
     "current_source_of_truth": "main at c940ff4 Merge recovery-aware coach copy contract v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "c940ff4",
-    "latest_accepted_milestone": "Recovery-Aware Coach Copy Contract v1",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-01_c940ff4_main_merge-recovery-aware-coach-copy-contract-v1.zip",
+    "latest_accepted_commit": "e26c4e0",
+    "latest_accepted_milestone": "Daily Coach Note Copy QA Matrix v1",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip",
     "latest_final_status": "RECOVERY_INTELLIGENCE_V2_QA_SEED_MATRIX_VALIDATION_V1_ACCEPTED_AND_MERGED",
     "latest_main_merge_commit": "c940ff4",
     "latest_technical_baseline_commit": "23b5378",
@@ -1049,7 +1049,7 @@
       "branch": "feature/nutrition-actuals-provenance-debug-integration-design-v1",
       "endpoint": "GET /nutrition/{user_id}/actuals-confidence/debug?date=YYYY-MM-DD",
       "qa_class": "CLASS 2 / CLASS 3 HYBRID",
-      "requested_final_status": "NUTRITION_ACTUALS_PROVENANCE_DEBUG_INTEGRATION_DESIGN_V1_ACCEPTED",
+      "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
       "status": "BACKEND_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
     },
     "platform_north_star_future_stack_canonicalization_v1": {
@@ -1063,7 +1063,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "DAILY_COACH_NOTE_RECOVERY_AWARE_LANGUAGE_V1_IMPLEMENTATION_COMPLETE",
+  "requested_backend_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
   "runtime_split": {
     "linux": [
       "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
@@ -1073,9 +1073,9 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "Daily Coach Note Recovery-Aware Language v1",
-    "active_backend_status": "backend_daily_coach_note_recovery_aware_language_active",
-    "requested_final_status": "DAILY_COACH_NOTE_RECOVERY_AWARE_LANGUAGE_V1_IMPLEMENTATION_COMPLETE"
+    "active_backend_milestone": "Daily Coach Provider Preview Raw Data Payload v1",
+    "active_backend_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
@@ -1111,7 +1111,7 @@
     "source_main_commit": "09c6581",
     "source_snapshot": "fitness_ai_snapshot_2026-07-01_09c6581_main_merge-recovery-intelligence-v2-service-v1.zip",
     "feature_branch": "feature/recovery-intelligence-v2-dev-inspection-tool-v1",
-    "requested_final_status": "RECOVERY_INTELLIGENCE_V2_DEV_INSPECTION_TOOL_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "scope": "developer inspection artifact only",
     "primary_tool": "tools/dev_recovery_intelligence_v2.py",
     "primary_tests": [
@@ -1140,7 +1140,7 @@
     "source_main_commit": "f50a1cb",
     "source_snapshot": "fitness_ai_snapshot_2026-07-01_f50a1cb_main_merge-recovery-intelligence-v2-product-language-docs-cleanup-v1.zip",
     "feature_branch": "feature/recovery-intelligence-v2-qa-seed-matrix-validation-v1",
-    "requested_final_status": "RECOVERY_INTELLIGENCE_V2_QA_SEED_MATRIX_VALIDATION_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "scope": "developer/QA validation artifact only",
     "primary_tool": "tools/dev_recovery_intelligence_v2_seed_matrix.py",
     "primary_tests": [
@@ -1182,7 +1182,7 @@
     "source_main_commit": "d2e0178",
     "source_snapshot": "fitness_ai_snapshot_2026-07-01_d2e0178_main_merge-recovery-intelligence-v2-qa-seed-matrix-validation-v1.zip",
     "feature_branch": "feature/daily-coach-note-recovery-v2-integration-v1",
-    "requested_final_status": "DAILY_COACH_NOTE_RECOVERY_V2_INTEGRATION_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "scope": "additive backend Daily Coach Note context integration only",
     "changed_context_fields": [
       "recovery_intelligence_v2",
@@ -1220,7 +1220,7 @@
     "source_main_commit": "c940ff4",
     "source_snapshot": "fitness_ai_snapshot_2026-07-01_c940ff4_main_merge-recovery-aware-coach-copy-contract-v1.zip",
     "feature_branch": "feature/daily-coach-note-recovery-aware-language-v1",
-    "requested_final_status": "DAILY_COACH_NOTE_RECOVERY_AWARE_LANGUAGE_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "scope": "add optional RecoveryAwareCoachCopyContract support to deterministic Daily Coach Note Today card copy path",
     "behavior": [
       "backward-compatible when no recovery contract is supplied",
@@ -1252,7 +1252,7 @@
     "source_main_commit": "33ebf18",
     "source_snapshot": "fitness_ai_snapshot_2026-07-01_33ebf18_main_merge-daily-coach-note-recovery-aware-language-v1.zip",
     "feature_branch": "feature/daily-coach-note-copy-qa-matrix-v1",
-    "requested_final_status": "DAILY_COACH_NOTE_COPY_QA_MATRIX_V1_IMPLEMENTATION_COMPLETE",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
     "scope": "focused QA/test/documentation matrix for deterministic Daily Coach Note public copy",
     "primary_tests": [
       "tests/test_daily_coach_today_card_copy_matrix.py"
@@ -1316,5 +1316,35 @@
       "no automatic deload/progression logic",
       "no medical interpretation"
     ]
+  },
+  "daily_coach_provider_preview_raw_data_payload_v1": {
+    "status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
+    "source_main_commit": "e26c4e0",
+    "source_snapshot": "fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip",
+    "feature_branch": "feature/daily-coach-provider-preview-raw-data-payload-v1",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
+    "scope": [
+      "developer-only raw data payload for future Daily Coach Note provider preview",
+      "builds from DailyCoachIntelligenceSnapshot object",
+      "builds from serialized snapshot dict",
+      "preserves raw source_data sections, source_services, data_completeness, gaps, reason_codes, and limitations",
+      "includes backend truth contract, provider voice space, provider input guidance, and forbidden provider authority",
+      "adds terminal JSON inspection tool"
+    ],
+    "boundaries": [
+      "does not call providers",
+      "does not generate Daily Coach Note copy",
+      "does not change Today UI",
+      "does not change API/schema/persistence/report/recommendation behavior",
+      "does not add OpenAI/Ollama/CrewAI/RAG/agent behavior",
+      "does not create sentence banks"
+    ],
+    "developer_only_flags": {
+      "developer_preview_only": true,
+      "provider_call_allowed": false,
+      "persistence_allowed": false,
+      "product_surface_allowed": false
+    },
+    "uncaged_provider_voice_principle": "Future provider work receives raw deterministic backend data and should not be forced into backend-written sentence banks or repeated backend-authored sentence structures."
   }
 }
