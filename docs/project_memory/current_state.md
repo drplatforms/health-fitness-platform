@@ -1,3 +1,79 @@
+# Current State Update — Daily Coach Provider Preview Runtime Spike v1
+
+Current accepted baseline:
+
+```text
+d5bfd29 Merge daily coach provider preview raw data payload v1
+```
+
+Current accepted snapshot:
+
+```text
+fitness_ai_snapshot_2026-07-01_d5bfd29_main_merge-daily-coach-provider-preview-raw-data-payload-v1.zip
+```
+
+Active backend implementation milestone:
+
+```text
+Daily Coach Provider Preview Runtime Spike v1
+```
+
+Requested status:
+
+```text
+DAILY_COACH_PROVIDER_PREVIEW_RUNTIME_SPIKE_V1_IMPLEMENTATION_COMPLETE
+```
+
+Implemented scope:
+
+- Added a developer-only runtime spike result model for raw provider output and metadata.
+- Added a free-voice provider-preview runtime service.
+- Added a minimal provider input builder that uses the raw provider-preview payload as the dominant input.
+- Added a low-level direct Ollama `/api/generate` runtime call for this developer tool only.
+- Added a terminal-only developer tool:
+
+```text
+python tools/dev_daily_coach_provider_preview_runtime_spike.py --user-id 102 --target-date 2026-06-14 --model qwen2.5:3b
+```
+
+- Added focused pytest coverage for the free-voice input, runtime result boundaries, provider error metadata, no database mutation from already-built payloads, no old caged narrative path import, Ollama request shape, and developer tool output behavior.
+
+This milestone runs the first developer-only provider-preview runtime spike.
+
+This milestone uses the raw provider-preview payload as the main input.
+
+This milestone intentionally avoids backend-authored Daily Coach Note sentence templates.
+
+This milestone does not use the old caged Daily Coach narrative prompt path.
+
+This milestone does not parse, validate, score, reject, or approve provider output.
+
+This milestone does not persist provider output.
+
+This milestone does not change Today UI.
+
+This milestone does not change Daily Coach Note public copy.
+
+This milestone does not change Daily Next Action.
+
+This milestone does not change API/schema/persistence/report/recommendation behavior.
+
+This milestone does not promote any model.
+
+This milestone lets the model roam in developer preview only.
+
+Developer-only runtime boundaries:
+
+```text
+developer_preview_only = true
+provider_call_was_opt_in = true
+persistence_allowed = false
+product_surface_allowed = false
+normal_today_surface_allowed = false
+```
+
+---
+
 # Current State — Daily Coach Provider Preview Raw Data Payload v1
 
 Current accepted baseline:

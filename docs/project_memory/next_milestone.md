@@ -1,3 +1,51 @@
+# Next Milestone Update — Architecture Selection Pending After Runtime Spike
+
+Current implementation milestone before the next step:
+
+```text
+Daily Coach Provider Preview Runtime Spike v1
+```
+
+Current implementation baseline:
+
+```text
+d5bfd29 Merge daily coach provider preview raw data payload v1
+```
+
+Current implementation branch:
+
+```text
+feature/daily-coach-provider-preview-runtime-spike-v1
+```
+
+Current requested final status:
+
+```text
+DAILY_COACH_PROVIDER_PREVIEW_RUNTIME_SPIKE_V1_IMPLEMENTATION_COMPLETE
+```
+
+Architecture owns the next milestone selection after reviewing the runtime spike output, validation evidence, QA findings, and provider behavior.
+
+Non-goals until Architecture explicitly selects them:
+
+```text
+Today UI integration
+Daily Coach Note public copy integration
+Daily Next Action changes
+provider output persistence
+recommendation/report integration
+schema or migration changes
+provider output validation/approval
+model promotion
+normal app provider calls
+CrewAI routing
+RAG/vector/agent behavior
+medical interpretation
+automatic deloads/progression
+```
+
+---
+
 # Next Milestone — Architecture Selection After Daily Coach Provider Preview Raw Data Payload v1
 
 This next milestone should be selected only after Daily Coach Provider Preview Raw Data Payload v1 is accepted, merged to `main`, pushed, and snapshotted.

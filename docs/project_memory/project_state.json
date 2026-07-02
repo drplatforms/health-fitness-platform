@@ -1346,5 +1346,52 @@
       "product_surface_allowed": false
     },
     "uncaged_provider_voice_principle": "Future provider work receives raw deterministic backend data and should not be forced into backend-written sentence banks or repeated backend-authored sentence structures."
+  },
+  "daily_coach_provider_preview_runtime_spike_v1": {
+    "status": "DAILY_COACH_PROVIDER_PREVIEW_RUNTIME_SPIKE_V1_IMPLEMENTATION_COMPLETE",
+    "source_main_commit": "d5bfd29",
+    "source_snapshot": "fitness_ai_snapshot_2026-07-01_d5bfd29_main_merge-daily-coach-provider-preview-raw-data-payload-v1.zip",
+    "feature_branch": "feature/daily-coach-provider-preview-runtime-spike-v1",
+    "requested_final_status": "DAILY_COACH_PROVIDER_PREVIEW_RUNTIME_SPIKE_V1_IMPLEMENTATION_COMPLETE",
+    "scope": [
+      "developer-only terminal runtime spike for Daily Coach provider preview",
+      "builds free-voice provider input from DailyCoachProviderPreviewRawDataPayload",
+      "passes raw structured payload JSON to local Ollama /api/generate",
+      "uses only minimal role and authority boundaries",
+      "prints raw model output through a developer tool",
+      "returns metadata for latency, model, payload version, and source snapshot version",
+      "returns error metadata when provider calls fail"
+    ],
+    "boundaries": [
+      "terminal-only",
+      "opt-in only",
+      "does not persist provider output",
+      "does not show output in Today UI",
+      "does not change Daily Coach Note public copy",
+      "does not change Daily Next Action",
+      "does not use output for reports",
+      "does not use output for recommendations",
+      "does not parse provider output",
+      "does not validate provider output",
+      "does not score provider output",
+      "does not approve provider output",
+      "does not use old caged Daily Coach narrative prompt path",
+      "does not promote any model"
+    ],
+    "developer_only_flags": {
+      "developer_preview_only": true,
+      "provider_call_was_opt_in": true,
+      "persistence_allowed": false,
+      "product_surface_allowed": false,
+      "normal_today_surface_allowed": false
+    },
+    "runtime_tool": "tools/dev_daily_coach_provider_preview_runtime_spike.py",
+    "example_command": "python tools/dev_daily_coach_provider_preview_runtime_spike.py --user-id 102 --target-date 2026-06-14 --model qwen2.5:3b",
+    "provider_input_shape": [
+      "short role instruction",
+      "short authority boundaries",
+      "RAW_BACKEND_PAYLOAD_JSON pretty JSON payload"
+    ],
+    "uncaged_provider_voice_principle": "This runtime spike lets the model roam over raw deterministic backend data in developer preview only, without backend-authored Daily Coach Note sentence templates or old caged narrative schemas."
   }
 }
