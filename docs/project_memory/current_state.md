@@ -1,3 +1,77 @@
+# Current State — Next.js Mobile Today Shell v0
+
+Current accepted baseline:
+
+```text
+9ac6b9b Merge daily driver core contract v0
+```
+
+Active frontend implementation milestone:
+
+```text
+Next.js Mobile Today Shell v0
+```
+
+Requested status:
+
+```text
+NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Create the first mobile-first Next.js frontend shell that renders the backend-owned Daily Driver Today contract for real daily use.
+```
+
+Implemented scope:
+
+- Added a new Next.js App Router frontend under `frontend/`.
+- Added TypeScript contract types that match the accepted backend `GET /api/today` response.
+- Added a server-side API helper that fetches Today from FastAPI using `FITNESS_API_BASE_URL` and `FITNESS_DEFAULT_USER_ID`.
+- Replaced the generated starter page with a mobile-first Today screen focused on readiness, workout, nutrition, next action, optional coach note, and quiet data-quality notes.
+- Added clear loading, error, and empty states without exposing raw backend JSON.
+- Added `frontend/.env.local.example` for local backend connectivity.
+
+Boundaries preserved:
+
+- Backend remains the owner of readiness, workout, nutrition, and next-action truth.
+- No backend truth was invented in the frontend.
+- No auth, hosting, sync, or multi-user work was added.
+- No PostgreSQL work was added.
+- No workout logging or nutrition logging was added.
+- No provider execution, OpenAI, Ollama, or CrewAI work was added.
+- No raw provider internals are exposed in the UI.
+- No Markdown rendering or rich-text rendering was added for coach note.
+- No Streamlit redesign or Streamlit removal was added.
+- No backend Today contract change was required for the frontend shell.
+
+Reference-only continuity anchors remain preserved:
+
+```text
+Project Memory Alignment + North Star Architecture v1
+feature/daily-coach-narrative-same-session-approved-preview-bridge-v1
+reference-only
+No provider may run on normal Today page load
+Provider Narrative QA Matrix v2
+Daily Coach Same-Session Approved Preview Bridge v1 Retry
+Same-Session Bridge Runtime QA v1
+Daily Coach Narrative Product Voice Polish v1
+Daily Coach Narrative Product Voice Runtime QA v1
+PASS_WITH_NOTE
+sound right and be right
+Local Developer Command Menu Audit + Repo-Owned Commands v1
+scripts/fitness_commands.ps1
+Local Command Menu App Runtime Correction v1
+Linux is the canonical
+wapp
+Daily Coach Async Service Shell / No Worker v1
+service shell only
+no provider execution added
+```
+
+---
+
 # Current State — Daily Driver Core Contract v0
 
 Current accepted baseline:
@@ -45,30 +119,6 @@ Boundaries preserved:
 - No raw provider internals are exposed in user-facing Today fields.
 - No Markdown is allowed in product-facing coach note text.
 - Backend remains the owner of readiness, workout, nutrition, and next-action truth.
-
-Reference-only continuity anchors remain preserved:
-
-```text
-Project Memory Alignment + North Star Architecture v1
-feature/daily-coach-narrative-same-session-approved-preview-bridge-v1
-reference-only
-No provider may run on normal Today page load
-Provider Narrative QA Matrix v2
-Daily Coach Same-Session Approved Preview Bridge v1 Retry
-Same-Session Bridge Runtime QA v1
-Daily Coach Narrative Product Voice Polish v1
-Daily Coach Narrative Product Voice Runtime QA v1
-PASS_WITH_NOTE
-sound right and be right
-Local Developer Command Menu Audit + Repo-Owned Commands v1
-scripts/fitness_commands.ps1
-Local Command Menu App Runtime Correction v1
-Linux is the canonical
-wapp
-Daily Coach Async Service Shell / No Worker v1
-service shell only
-no provider execution added
-```
 
 ---
 
