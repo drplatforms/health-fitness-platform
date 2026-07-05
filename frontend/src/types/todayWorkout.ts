@@ -59,6 +59,20 @@ export interface WorkoutPreviewResponse {
   rendered_workout_plan: string;
 }
 
+export interface PlannedWorkoutExerciseSummary {
+  id: number;
+  workout_plan_instance_id: number;
+  exercise_order: number;
+  name: string;
+  sets: number;
+  reps_min: number;
+  reps_max: number;
+  rir_min: number;
+  rir_max: number;
+  notes: string;
+  equipment_required: string[];
+}
+
 export interface WorkoutPlanInstanceSummary {
   id: number;
   user_id: number;
@@ -92,6 +106,7 @@ export interface WorkoutSelectPreviewResponse {
   scenario: string;
   confidence: string;
   workout_plan_instance: WorkoutPlanInstanceSummary;
+  planned_exercises: PlannedWorkoutExerciseSummary[];
   execution_session: WorkoutExecutionSessionSummary;
   approved_workout_plan: ApprovedWorkoutPlanPreview;
 }
@@ -103,6 +118,7 @@ export interface WorkoutStartResponse {
   scenario: string;
   confidence: string;
   workout_plan_instance: WorkoutPlanInstanceSummary;
+  planned_exercises: PlannedWorkoutExerciseSummary[];
   execution_session: WorkoutExecutionSessionSummary;
   approved_workout_plan: ApprovedWorkoutPlanPreview;
 }
@@ -111,20 +127,96 @@ export interface WorkoutDailyStateSummary {
   user_id: number;
   target_date: string;
   state: string;
-  workout_plan_instance_id: number | null;
-  workout_plan_execution_id: number | null;
+  selected_plan_id: number | null;
+  selected_plan_date: string | null;
+  active_plan_id: number | null;
+  active_plan_date: string | null;
+  completed_workout_id: number | null;
+  completed_plan_date: string | null;
+  expired_plan_id: number | null;
+  expired_plan_date: string | null;
+  stale_state_detected: boolean;
+  substitution_state_should_clear: boolean;
+  user_safe_message: string | null;
+  developer_metadata: Record<string, unknown>;
   selected_at: string | null;
   started_at: string | null;
   completed_at: string | null;
   updated_at: string | null;
 }
 
+export interface WorkoutActualSetSummary {
+  id: number;
+  workout_execution_session_id: number;
+  planned_workout_exercise_id: number | null;
+  workout_session_id: number | null;
+  workout_set_id: number | null;
+  exercise_name: string;
+  set_number: number;
+  planned_reps_min: number | null;
+  planned_reps_max: number | null;
+  planned_rir_min: number | null;
+  planned_rir_max: number | null;
+  actual_reps: number | null;
+  actual_weight: number | null;
+  actual_rir: number | null;
+  completed: boolean;
+  skipped: boolean;
+  substitution_for_planned_exercise_id: number | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WorkoutActiveSubstitutionSummary {
+  id: number;
+  workout_plan_instance_id: number;
+  workout_execution_session_id: number | null;
+  planned_workout_exercise_id: number;
+  original_exercise_name: string;
+  replacement_exercise_name: string;
+  replacement_catalog_exercise_id: number;
+  original_movement_pattern: string;
+  replacement_movement_pattern: string;
+  substitution_reason: string;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WorkoutPlannedVsActualSummary {
+  workout_plan_instance_id: number;
+  workout_execution_session_id: number | null;
+  planned_exercise_count: number;
+  completed_exercise_count: number;
+  skipped_exercise_count: number;
+  substituted_exercise_count: number;
+  planned_set_count: number;
+  actual_set_count: number;
+  completed_set_count: number;
+  skipped_set_count: number;
+  completion_percentage: number;
+  average_planned_rir: number | null;
+  average_actual_rir: number | null;
+  rir_deviation: number | null;
+  rep_deviation: {
+    sets_below_planned_reps: number;
+    sets_inside_planned_reps: number;
+    sets_above_planned_reps: number;
+  };
+  sets_below_planned_reps: number;
+  sets_inside_planned_reps: number;
+  sets_above_planned_reps: number;
+  notes: string[];
+  deviation_flags: string[];
+}
+
 export interface WorkoutCurrentExecutionState {
   workout_plan_instance: WorkoutPlanInstanceSummary;
   execution_session: WorkoutExecutionSessionSummary;
-  planned_exercises: Array<Record<string, unknown>>;
-  actual_sets: Array<Record<string, unknown>>;
-  active_substitutions: Array<Record<string, unknown>>;
+  planned_exercises: PlannedWorkoutExerciseSummary[];
+  actual_sets: WorkoutActualSetSummary[];
+  active_substitutions: WorkoutActiveSubstitutionSummary[];
   approved_workout_plan: ApprovedWorkoutPlanPreview;
 }
 
@@ -133,6 +225,46 @@ export interface WorkoutCurrentResponse {
   user_id: number;
   workout_daily_state: WorkoutDailyStateSummary;
   current_execution_state: WorkoutCurrentExecutionState | null;
+}
+
+export interface WorkoutActualSetCreatePayload {
+  planned_workout_exercise_id?: number;
+  exercise_name?: string;
+  set_number?: number;
+  actual_reps?: number;
+  actual_weight?: number;
+  actual_rir?: number;
+  completed?: boolean;
+  skipped?: boolean;
+  substitution_for_planned_exercise_id?: number;
+  notes?: string;
+}
+
+export interface WorkoutActualSetCreateResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  actual_set: WorkoutActualSetSummary;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  actual_sets: WorkoutActualSetSummary[];
+}
+
+export interface WorkoutCompleteResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  planned_vs_actual_summary: WorkoutPlannedVsActualSummary;
+}
+
+export interface WorkoutPlannedVsActualResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  planned_vs_actual_summary: WorkoutPlannedVsActualSummary;
+  planned_exercises: PlannedWorkoutExerciseSummary[];
+  actual_sets: WorkoutActualSetSummary[];
 }
 
 export interface TodayWorkoutExerciseItem {

@@ -6,16 +6,23 @@ import { DataQualityNote } from "@/components/DataQualityNote";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
+  completeWorkout,
   fetchWorkoutCurrent,
+  fetchWorkoutPlannedVsActual,
   fetchWorkoutPreview,
+  logWorkoutActualSet,
   selectWorkoutPreview,
   startWorkoutPlan,
 } from "@/lib/todayWorkoutApi";
 import {
   ApprovedWorkoutPlanPreview,
+  PlannedWorkoutExerciseSummary,
+  WorkoutActiveSubstitutionSummary,
+  WorkoutActualSetSummary,
   WorkoutCurrentResponse,
   WorkoutExecutionSessionSummary,
   WorkoutPlanInstanceSummary,
+  WorkoutPlannedVsActualSummary,
   WorkoutPreviewExercise,
   WorkoutPreviewResponse,
   WorkoutSizePreference,
@@ -45,6 +52,13 @@ const sizeOptions: Array<{
 interface WorkoutPreviewExperienceProps {
   userId: number;
   requestedDate: string | undefined;
+}
+
+interface ActualSetFormState {
+  actualReps: string;
+  actualWeight: string;
+  actualRir: string;
+  notes: string;
 }
 
 type WorkoutViewMode = "preview" | "persisted";
@@ -101,8 +115,65 @@ function hasPersistedWorkoutState(
 
   return (
     payload?.workout_daily_state.state === "selected_today" ||
-    payload?.workout_daily_state.state === "active_today"
+    payload?.workout_daily_state.state === "active_today" ||
+    payload?.workout_daily_state.state === "completed_today"
   );
+}
+
+function isSummaryEligibleStatus(status: string | null | undefined): boolean {
+  return status === "in_progress" || status === "completed";
+}
+
+function loggedSetsForExercise(
+  actualSets: WorkoutActualSetSummary[],
+  plannedExerciseId: number,
+): WorkoutActualSetSummary[] {
+  return actualSets.filter(
+    (actualSet) =>
+      actualSet.planned_workout_exercise_id === plannedExerciseId ||
+      actualSet.substitution_for_planned_exercise_id === plannedExerciseId,
+  );
+}
+
+function nextSetNumberForExercise(
+  actualSets: WorkoutActualSetSummary[],
+  plannedExerciseId: number,
+): number {
+  const relatedSets = loggedSetsForExercise(actualSets, plannedExerciseId);
+
+  if (!relatedSets.length) {
+    return 1;
+  }
+
+  return (
+    Math.max(...relatedSets.map((actualSet) => actualSet.set_number || 0)) + 1
+  );
+}
+
+function compactMetric(
+  value: number | string | null | undefined,
+  suffix = "",
+): string {
+  if (value === null || value === undefined || value === "") {
+    return "Not available";
+  }
+
+  return `${value}${suffix}`;
+}
+
+function statusSummaryLine(
+  approvedPlan: ApprovedWorkoutPlanPreview | null,
+  preview: WorkoutPreviewResponse | null,
+): string {
+  if (preview) {
+    return buildPreviewSummary(preview);
+  }
+
+  if (approvedPlan) {
+    return `${approvedPlan.exercises.length} exercises ready for today.`;
+  }
+
+  return "Load a workout preview.";
 }
 
 export function WorkoutPreviewExperience({
@@ -120,18 +191,80 @@ export function WorkoutPreviewExperience({
     useState<WorkoutPlanInstanceSummary | null>(null);
   const [executionSession, setExecutionSession] =
     useState<WorkoutExecutionSessionSummary | null>(null);
+  const [plannedExercises, setPlannedExercises] = useState<
+    PlannedWorkoutExerciseSummary[]
+  >([]);
+  const [actualSets, setActualSets] = useState<WorkoutActualSetSummary[]>([]);
+  const [activeSubstitutions, setActiveSubstitutions] = useState<
+    WorkoutActiveSubstitutionSummary[]
+  >([]);
+  const [plannedVsActualSummary, setPlannedVsActualSummary] =
+    useState<WorkoutPlannedVsActualSummary | null>(null);
+  const [formStateByExerciseId, setFormStateByExerciseId] = useState<
+    Record<number, ActualSetFormState>
+  >({});
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
+  const isPersistedState = viewMode === "persisted";
+  const statusLabel =
+    executionSession?.status ??
+    selectedPlan?.status ??
+    (approvedPlan ? "preview" : "not_available");
+  const statusTone = workoutToneMap[statusLabel] ?? "neutral";
+
+  const summaryItems =
+    plannedVsActualSummary?.notes.length
+      ? plannedVsActualSummary.notes
+      : approvedPlan === null && errorMessage
+        ? [errorMessage]
+        : approvedPlan
+          ? []
+          : ["Workout preview is not available right now."];
+
+  const activeSubstitutionByExerciseId = new Map(
+    activeSubstitutions.map((substitution) => [
+      substitution.planned_workout_exercise_id,
+      substitution,
+    ]),
+  );
+
+  async function loadPlannedVsActualSummary(
+    planInstanceId: number,
+    expectedStatus: string | null | undefined,
+  ) {
+    if (!isSummaryEligibleStatus(expectedStatus)) {
+      setPlannedVsActualSummary(null);
+      return;
+    }
+
+    const result = await fetchWorkoutPlannedVsActual(planInstanceId);
+
+    if (result.error) {
+      setPlannedVsActualSummary(null);
+      return;
+    }
+
+    setPlannedVsActualSummary(result.data?.planned_vs_actual_summary ?? null);
+    if (result.data?.planned_exercises.length) {
+      setPlannedExercises(result.data.planned_exercises);
+    }
+    if (result.data?.actual_sets.length) {
+      setActualSets(result.data.actual_sets);
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadPreview() {
+    async function loadWorkoutState() {
       setIsLoadingPreview(true);
       setErrorMessage(null);
       setActionMessage(null);
+
       try {
         const currentResult = await fetchWorkoutCurrent({
           userId,
@@ -143,21 +276,24 @@ export function WorkoutPreviewExperience({
         }
 
         if (hasPersistedWorkoutState(currentResult.data)) {
+          const currentExecution = currentResult.data.current_execution_state;
           setPreview(null);
           setViewMode("persisted");
-          setPersistedPlan(
-            currentResult.data.current_execution_state.approved_workout_plan,
-          );
-          setSelectedPlan(
-            currentResult.data.current_execution_state.workout_plan_instance,
-          );
-          setExecutionSession(
-            currentResult.data.current_execution_state.execution_session,
+          setPersistedPlan(currentExecution.approved_workout_plan);
+          setSelectedPlan(currentExecution.workout_plan_instance);
+          setExecutionSession(currentExecution.execution_session);
+          setPlannedExercises(currentExecution.planned_exercises);
+          setActualSets(currentExecution.actual_sets);
+          setActiveSubstitutions(currentExecution.active_substitutions);
+          setFormStateByExerciseId({});
+          await loadPlannedVsActualSummary(
+            currentExecution.workout_plan_instance.id,
+            currentExecution.execution_session.status,
           );
           return;
         }
 
-        const result = await fetchWorkoutPreview({
+        const previewResult = await fetchWorkoutPreview({
           userId,
           workoutSizePreference,
           previewVariationIndex,
@@ -167,26 +303,34 @@ export function WorkoutPreviewExperience({
           return;
         }
 
-        if (result.error) {
+        if (previewResult.error) {
           setPreview(null);
           setViewMode("preview");
           setPersistedPlan(null);
           setSelectedPlan(null);
           setExecutionSession(null);
+          setPlannedExercises([]);
+          setActualSets([]);
+          setActiveSubstitutions([]);
+          setPlannedVsActualSummary(null);
           setErrorMessage(
-            result.error.message ??
+            previewResult.error.message ??
               currentResult.error?.message ??
               "Workout preview is not available right now.",
           );
           return;
         }
 
-        if (!isPreviewPayload(result.data)) {
+        if (!isPreviewPayload(previewResult.data)) {
           setPreview(null);
           setViewMode("preview");
           setPersistedPlan(null);
           setSelectedPlan(null);
           setExecutionSession(null);
+          setPlannedExercises([]);
+          setActualSets([]);
+          setActiveSubstitutions([]);
+          setPlannedVsActualSummary(null);
           setErrorMessage(
             "The backend returned a workout preview, but it was missing the fields needed to render.",
           );
@@ -197,7 +341,12 @@ export function WorkoutPreviewExperience({
         setPersistedPlan(null);
         setSelectedPlan(null);
         setExecutionSession(null);
-        setPreview(result.data);
+        setPlannedExercises([]);
+        setActualSets([]);
+        setActiveSubstitutions([]);
+        setPlannedVsActualSummary(null);
+        setPreview(previewResult.data);
+        setFormStateByExerciseId({});
       } finally {
         if (!cancelled) {
           setIsLoadingPreview(false);
@@ -205,26 +354,12 @@ export function WorkoutPreviewExperience({
       }
     }
 
-    void loadPreview();
+    void loadWorkoutState();
 
     return () => {
       cancelled = true;
     };
   }, [previewVariationIndex, requestedDate, userId, workoutSizePreference]);
-
-  const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
-  const isPersistedState = viewMode === "persisted";
-  const statusLabel =
-    executionSession?.status ??
-    selectedPlan?.status ??
-    (approvedPlan ? "preview" : "not_available");
-  const statusTone = workoutToneMap[statusLabel] ?? "neutral";
-  const previewStateItems =
-    approvedPlan === null && errorMessage
-      ? [errorMessage]
-      : approvedPlan
-        ? []
-        : ["Workout preview is not available right now."];
 
   function handleSizeChange(nextValue: WorkoutSizePreference) {
     setWorkoutSizePreference(nextValue);
@@ -233,6 +368,10 @@ export function WorkoutPreviewExperience({
     setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
+    setPlannedExercises([]);
+    setActualSets([]);
+    setActiveSubstitutions([]);
+    setPlannedVsActualSummary(null);
     setActionMessage(null);
     setErrorMessage(null);
   }
@@ -243,8 +382,29 @@ export function WorkoutPreviewExperience({
     setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
+    setPlannedExercises([]);
+    setActualSets([]);
+    setActiveSubstitutions([]);
+    setPlannedVsActualSummary(null);
     setActionMessage(null);
     setErrorMessage(null);
+  }
+
+  function updateExerciseFormState(
+    plannedExerciseId: number,
+    field: keyof ActualSetFormState,
+    value: string,
+  ) {
+    setFormStateByExerciseId((current) => ({
+      ...current,
+      [plannedExerciseId]: {
+        actualReps: current[plannedExerciseId]?.actualReps ?? "",
+        actualWeight: current[plannedExerciseId]?.actualWeight ?? "",
+        actualRir: current[plannedExerciseId]?.actualRir ?? "",
+        notes: current[plannedExerciseId]?.notes ?? "",
+        [field]: value,
+      },
+    }));
   }
 
   async function handleSelectWorkout() {
@@ -263,10 +423,16 @@ export function WorkoutPreviewExperience({
         return;
       }
 
+      setPreview(null);
       setViewMode("persisted");
       setPersistedPlan(result.data?.approved_workout_plan ?? approvedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
+      setPlannedExercises(result.data?.planned_exercises ?? []);
+      setActualSets([]);
+      setActiveSubstitutions([]);
+      setPlannedVsActualSummary(null);
+      setFormStateByExerciseId({});
       setActionMessage(
         `Selected workout plan ${result.data?.workout_plan_instance.id}.`,
       );
@@ -295,11 +461,125 @@ export function WorkoutPreviewExperience({
       setPersistedPlan(result.data?.approved_workout_plan ?? persistedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
+      setPlannedExercises(result.data?.planned_exercises ?? plannedExercises);
+      setActualSets([]);
+      setActiveSubstitutions([]);
+      setPlannedVsActualSummary(null);
       setActionMessage(`Started workout plan ${selectedPlan.id}.`);
     } finally {
       setIsSubmitting(false);
     }
   }
+
+  async function handleLogSet(exercise: PlannedWorkoutExerciseSummary) {
+    if (selectedPlan === null) {
+      return;
+    }
+
+    const activeSubstitution = activeSubstitutionByExerciseId.get(exercise.id);
+    const formState = formStateByExerciseId[exercise.id];
+    const actualReps = formState?.actualReps || String(exercise.reps_min);
+    const actualWeight = formState?.actualWeight || "0";
+    const actualRir = formState?.actualRir || String(exercise.rir_max);
+    const notes = formState?.notes.trim() || undefined;
+
+    setIsSubmitting(true);
+    try {
+      setErrorMessage(null);
+      const result = await logWorkoutActualSet(selectedPlan.id, {
+        planned_workout_exercise_id: activeSubstitution ? undefined : exercise.id,
+        substitution_for_planned_exercise_id: activeSubstitution
+          ? exercise.id
+          : undefined,
+        exercise_name: activeSubstitution?.replacement_exercise_name,
+        set_number: nextSetNumberForExercise(actualSets, exercise.id),
+        actual_reps: Number(actualReps),
+        actual_weight: Number(actualWeight),
+        actual_rir: Number(actualRir),
+        completed: true,
+        skipped: false,
+        notes,
+      });
+
+      if (result.error) {
+        setActionMessage(null);
+        setErrorMessage(result.error.message);
+        return;
+      }
+
+      const latestPlan = result.data?.workout_plan_instance ?? selectedPlan;
+      const latestExecution = result.data?.execution_session ?? executionSession;
+      setSelectedPlan(latestPlan);
+      setExecutionSession(latestExecution);
+      setActualSets(result.data?.actual_sets ?? actualSets);
+      setViewMode("persisted");
+      setActionMessage(
+        `Logged ${result.data?.actual_set.exercise_name ?? exercise.name} set ${result.data?.actual_set.set_number ?? nextSetNumberForExercise(actualSets, exercise.id)}.`,
+      );
+      setFormStateByExerciseId((current) => ({
+        ...current,
+        [exercise.id]: {
+          actualReps: String(exercise.reps_min),
+          actualWeight: current[exercise.id]?.actualWeight ?? "0",
+          actualRir: String(exercise.rir_max),
+          notes: "",
+        },
+      }));
+
+      if (latestPlan && latestExecution) {
+        await loadPlannedVsActualSummary(latestPlan.id, latestExecution.status);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleCompleteWorkout() {
+    if (selectedPlan === null) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      setErrorMessage(null);
+      const result = await completeWorkout(selectedPlan.id);
+
+      if (result.error) {
+        setActionMessage(null);
+        setErrorMessage(result.error.message);
+        return;
+      }
+
+      setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
+      setExecutionSession(result.data?.execution_session ?? executionSession);
+      setPlannedVsActualSummary(result.data?.planned_vs_actual_summary ?? null);
+      setActionMessage("Workout completed successfully.");
+      await loadPlannedVsActualSummary(selectedPlan.id, "completed");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  const canStartWorkout =
+    selectedPlan !== null &&
+    executionSession !== null &&
+    selectedPlan.status === "selected" &&
+    executionSession.status === "selected";
+  const canLogWorkout =
+    selectedPlan !== null &&
+    executionSession !== null &&
+    (selectedPlan.status === "started" ||
+      selectedPlan.status === "in_progress" ||
+      executionSession.status === "started" ||
+      executionSession.status === "in_progress");
+  const canCompleteWorkout =
+    selectedPlan !== null &&
+    executionSession !== null &&
+    (selectedPlan.status === "in_progress" ||
+      executionSession.status === "in_progress");
+  const isCompletedWorkout =
+    selectedPlan?.status === "completed" ||
+    executionSession?.status === "completed";
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
@@ -313,11 +593,7 @@ export function WorkoutPreviewExperience({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="text-lg font-semibold text-slate-950">
-                {preview
-                  ? buildPreviewSummary(preview)
-                  : approvedPlan
-                    ? `${approvedPlan.exercises.length} exercises ready for today.`
-                    : "Load a workout preview."}
+                {statusSummaryLine(approvedPlan, preview)}
               </p>
               <p className="text-sm leading-6 text-slate-700">
                 {approvedPlan?.session_focus ??
@@ -400,19 +676,24 @@ export function WorkoutPreviewExperience({
                 Select this workout
               </button>
             ) : null}
-            {selectedPlan ? (
+            {canStartWorkout ? (
               <button
                 type="button"
                 onClick={() => void handleStartWorkout()}
-                disabled={
-                  isLoadingPreview ||
-                  isSubmitting ||
-                  executionSession?.status === "started" ||
-                  executionSession?.status === "in_progress"
-                }
+                disabled={isLoadingPreview || isSubmitting}
                 className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Start workout
+              </button>
+            ) : null}
+            {canCompleteWorkout ? (
+              <button
+                type="button"
+                onClick={() => void handleCompleteWorkout()}
+                disabled={isSubmitting}
+                className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Complete workout
               </button>
             ) : null}
           </div>
@@ -445,8 +726,8 @@ export function WorkoutPreviewExperience({
               Scenario
             </p>
             <p className="mt-2 text-sm font-semibold text-slate-900">
-              {(preview?.scenario ?? approvedPlan?.scenario)
-                ?.replaceAll("_", " ") ?? "Not available"}
+              {(preview?.scenario ?? approvedPlan?.scenario)?.replaceAll("_", " ") ??
+                "Not available"}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -475,14 +756,213 @@ export function WorkoutPreviewExperience({
               {selectedPlan ? `Plan ${selectedPlan.id}` : "No workout selected yet"}
             </p>
           </div>
+          {executionSession ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Execution
+              </p>
+              <p className="mt-2 text-sm font-semibold text-slate-900">
+                {executionSession.status.replaceAll("_", " ")}
+              </p>
+            </div>
+          ) : null}
         </div>
       </TodayCard>
 
       <TodayCard
-        title="Exercises"
+        title={canLogWorkout ? "Exercises And Logging" : "Exercises"}
         className="lg:col-start-1 lg:row-start-2"
       >
-        {approvedPlan?.exercises.length ? (
+        {plannedExercises.length ? (
+          <div className="space-y-3">
+            {plannedExercises.map((exercise) => {
+              const activeSubstitution = activeSubstitutionByExerciseId.get(
+                exercise.id,
+              );
+              const loggedSets = loggedSetsForExercise(actualSets, exercise.id);
+              const formState = formStateByExerciseId[exercise.id] ?? {
+                actualReps: String(exercise.reps_min),
+                actualWeight: "0",
+                actualRir: String(exercise.rir_max),
+                notes: "",
+              };
+
+              return (
+                <article
+                  key={exercise.id}
+                  className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                >
+                  <div className="space-y-2">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Exercise {exercise.exercise_order}
+                    </p>
+                    <h2 className="text-xl font-semibold text-slate-950">
+                      {activeSubstitution?.replacement_exercise_name ?? exercise.name}
+                    </h2>
+                    {activeSubstitution ? (
+                      <p className="text-sm text-emerald-900">
+                        Substituted from {exercise.name}
+                      </p>
+                    ) : null}
+                    <div className="flex flex-wrap gap-2">
+                      {exerciseMeta(exercise).map((item) => (
+                        <span
+                          key={`${exercise.id}-${item}`}
+                          className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                      {exercise.equipment_required.map((item) => (
+                        <span
+                          key={`${exercise.id}-${item}`}
+                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-700">
+                    {exercise.notes}
+                  </p>
+
+                  {canLogWorkout ? (
+                    <div className="mt-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-slate-200">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            Log next set
+                          </p>
+                          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                            Set {nextSetNumberForExercise(actualSets, exercise.id)}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleLogSet(exercise)}
+                          disabled={isSubmitting}
+                          className="rounded-2xl bg-emerald-900 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          Save set
+                        </button>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                        <label className="space-y-2 text-sm text-slate-700">
+                          <span className="font-medium">Reps</span>
+                          <input
+                            type="number"
+                            min="0"
+                            value={formState.actualReps}
+                            onChange={(event) =>
+                              updateExerciseFormState(
+                                exercise.id,
+                                "actualReps",
+                                event.target.value,
+                              )
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700">
+                          <span className="font-medium">Weight</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="5"
+                            value={formState.actualWeight}
+                            onChange={(event) =>
+                              updateExerciseFormState(
+                                exercise.id,
+                                "actualWeight",
+                                event.target.value,
+                              )
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                          />
+                        </label>
+                        <label className="space-y-2 text-sm text-slate-700">
+                          <span className="font-medium">RIR</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={formState.actualRir}
+                            onChange={(event) =>
+                              updateExerciseFormState(
+                                exercise.id,
+                                "actualRir",
+                                event.target.value,
+                              )
+                            }
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                          />
+                        </label>
+                      </div>
+
+                      <label className="mt-3 block space-y-2 text-sm text-slate-700">
+                        <span className="font-medium">Notes</span>
+                        <textarea
+                          rows={2}
+                          value={formState.notes}
+                          onChange={(event) =>
+                            updateExerciseFormState(
+                              exercise.id,
+                              "notes",
+                              event.target.value,
+                            )
+                          }
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                          placeholder="Optional: form note, pain note, or context."
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+
+                  {loggedSets.length ? (
+                    <div className="mt-5 space-y-2">
+                      <p className="text-sm font-semibold text-slate-950">
+                        Logged actual sets
+                      </p>
+                      {loggedSets.map((actualSet) => (
+                        <div
+                          key={actualSet.id}
+                          className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200"
+                        >
+                          <div className="flex flex-wrap gap-2">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                              Set {actualSet.set_number}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                              Reps {compactMetric(actualSet.actual_reps)}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                              Weight {compactMetric(actualSet.actual_weight)}
+                            </span>
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                              RIR {compactMetric(actualSet.actual_rir)}
+                            </span>
+                            {actualSet.skipped ? (
+                              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900">
+                                Skipped
+                              </span>
+                            ) : null}
+                          </div>
+                          {actualSet.notes ? (
+                            <p className="mt-3 text-sm leading-6 text-slate-700">
+                              {actualSet.notes}
+                            </p>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : approvedPlan?.exercises.length ? (
           <div className="space-y-3">
             {approvedPlan.exercises.map((exercise, index) => (
               <article
@@ -499,7 +979,7 @@ export function WorkoutPreviewExperience({
                   <div className="flex flex-wrap gap-2">
                     {exerciseMeta(exercise).map((item) => (
                       <span
-                        key={item}
+                        key={`${exercise.name}-${item}`}
                         className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
                       >
                         {item}
@@ -523,7 +1003,7 @@ export function WorkoutPreviewExperience({
           </div>
         ) : (
           <p className="text-sm leading-6 text-slate-700">
-            No exercise details are available for this preview yet.
+            No exercise details are available for this workout yet.
           </p>
         )}
       </TodayCard>
@@ -568,10 +1048,59 @@ export function WorkoutPreviewExperience({
         </div>
       </TodayCard>
 
+      {plannedVsActualSummary ? (
+        <TodayCard
+          title="Execution Summary"
+          className="lg:col-start-2 lg:row-start-3"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Completion
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {compactMetric(plannedVsActualSummary.completion_percentage, "%")}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Completed Sets
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {plannedVsActualSummary.completed_set_count}/
+                {plannedVsActualSummary.planned_set_count}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Average Actual RIR
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {compactMetric(plannedVsActualSummary.average_actual_rir)}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Rep Range Match
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {plannedVsActualSummary.sets_inside_planned_reps}
+              </p>
+            </div>
+          </div>
+        </TodayCard>
+      ) : null}
+
       <DataQualityNote
-        title="Preview State"
-        items={previewStateItems}
-        className="lg:col-start-2 lg:row-start-3"
+        title={plannedVsActualSummary ? "Execution Notes" : "Preview State"}
+        items={
+          summaryItems.length
+            ? summaryItems
+            : isCompletedWorkout
+              ? ["Completed workout data is available above."]
+              : ["Preview or execution data is available above."]
+        }
+        className="lg:col-start-2 lg:row-start-4"
       />
     </div>
   );

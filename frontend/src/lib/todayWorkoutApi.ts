@@ -6,7 +6,11 @@ import {
 } from "@/lib/dailyDriverApi";
 import {
   ApprovedWorkoutPlanPreview,
+  WorkoutActualSetCreatePayload,
+  WorkoutActualSetCreateResponse,
+  WorkoutCompleteResponse,
   WorkoutCurrentResponse,
+  WorkoutPlannedVsActualResponse,
   TodayWorkoutResponse,
   WorkoutPreviewResponse,
   WorkoutSelectPreviewResponse,
@@ -26,6 +30,11 @@ export interface TodayWorkoutApiResult {
 
 export interface WorkoutPreviewApiResult {
   data: WorkoutPreviewResponse | null;
+  error: DailyDriverApiError | null;
+}
+
+export interface WorkoutPlannedVsActualApiResult {
+  data: WorkoutPlannedVsActualResponse | null;
   error: DailyDriverApiError | null;
 }
 
@@ -314,6 +323,156 @@ export async function startWorkoutPlan(
         heading: "Backend unavailable",
         message:
           "Start the FastAPI server, then try starting the selected workout again.",
+      },
+    };
+  }
+}
+
+export async function logWorkoutActualSet(
+  planInstanceId: number,
+  payload: WorkoutActualSetCreatePayload,
+): Promise<WorkoutActionApiResult<WorkoutActualSetCreateResponse>> {
+  const endpoint = "/api/workout-actual-sets";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_instance_id: planInstanceId,
+        ...payload,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to log set",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not save that actual set.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutActualSetCreateResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message: "Start the FastAPI server, then try logging that set again.",
+      },
+    };
+  }
+}
+
+export async function completeWorkout(
+  planInstanceId: number,
+): Promise<WorkoutActionApiResult<WorkoutCompleteResponse>> {
+  const endpoint = "/api/workout-complete";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_instance_id: planInstanceId,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to complete workout",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not complete this workout.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutCompleteResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then try completing this workout again.",
+      },
+    };
+  }
+}
+
+export async function fetchWorkoutPlannedVsActual(
+  planInstanceId: number,
+): Promise<WorkoutPlannedVsActualApiResult> {
+  const params = new URLSearchParams({
+    plan_instance_id: String(planInstanceId),
+  });
+  const endpoint = `/api/workout-planned-vs-actual?${params.toString()}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load workout summary",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not return the planned-vs-actual summary.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutPlannedVsActualResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then refresh this page to load the workout summary.",
       },
     };
   }
