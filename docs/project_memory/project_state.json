@@ -68,18 +68,18 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-01_d5bfd29_main_merge-daily-coach-provider-preview-raw-data-payload-v1.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-04_9ac6b9b_main_merge-daily-driver-core-contract-v0.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Daily Driver Core Contract v0",
-    "current_recommended_milestone": "Architecture Review for Daily Driver Core Contract v0",
-    "current_recommended_status": "DAILY_DRIVER_CORE_CONTRACT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "primary_question": "Can the backend answer what to do today through one stable Today contract without requiring provider calls or a frontend rebuild?",
-    "qa_class": "BACKEND_CONTRACT_DAILY_DRIVER_CORE",
-    "recommended_next_milestone_after_acceptance": "Streamlit on Daily Contract v0",
-    "recommended_owner": "Backend Development / Daily Driver Core",
-    "source_feature_branch": "feature/daily-driver-core-contract-v0",
+    "current_authorized_milestone": "Next.js Mobile Today Shell v0",
+    "current_recommended_milestone": "Architecture Review for Next.js Mobile Today Shell v0",
+    "current_recommended_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "primary_question": "Can the product show one mobile-first Today screen that renders backend-owned daily-driver truth without rebuilding the full app?",
+    "qa_class": "FRONTEND_MOBILE_TODAY_SHELL",
+    "recommended_next_milestone_after_acceptance": "Architecture selection after Next.js Mobile Today Shell v0",
+    "recommended_owner": "Frontend Development / Next.js Mobile Today Shell",
+    "source_feature_branch": "feature/nextjs-mobile-today-shell-v0",
     "source_feature_commit": null,
-    "source_main_commit": "df2a56f"
+    "source_main_commit": "9ac6b9b"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -1063,7 +1063,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "DAILY_DRIVER_CORE_CONTRACT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+  "requested_backend_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
   "runtime_split": {
     "linux": [
       "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
@@ -1073,9 +1073,9 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "Daily Driver Core Contract v0",
-    "active_backend_status": "DAILY_DRIVER_CORE_CONTRACT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "requested_final_status": "DAILY_DRIVER_CORE_CONTRACT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
+    "active_backend_milestone": "Next.js Mobile Today Shell v0",
+    "active_backend_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "requested_final_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
@@ -1413,5 +1413,33 @@
       "no nutrition target rewrite"
     ],
     "next_recommended_milestone": "Streamlit on Daily Contract v0"
+  },
+  "nextjs_mobile_today_shell_v0": {
+    "baseline_commit": "9ac6b9b",
+    "milestone": "Next.js Mobile Today Shell v0",
+    "status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "feature_branch": "feature/nextjs-mobile-today-shell-v0",
+    "scope": "New mobile-first Next.js frontend shell under frontend/ that server-fetches and renders the backend-owned Daily Driver Today contract.",
+    "ui_route": "frontend/src/app/page.tsx",
+    "api_route": "GET /api/today",
+    "user_facing_behavior_change": true,
+    "provider_promotion": false,
+    "persistence_change": false,
+    "schema_change": false,
+    "ui_change": true,
+    "non_goals": [
+      "no auth",
+      "no hosting",
+      "no PostgreSQL",
+      "no workout logging",
+      "no nutrition logging",
+      "no backend truth in frontend",
+      "no provider calls",
+      "no raw JSON main UI",
+      "no Markdown renderer",
+      "no Streamlit redesign",
+      "no backend contract rewrite"
+    ],
+    "next_recommended_milestone": "Architecture Review for Next.js Mobile Today Shell v0"
   }
 }

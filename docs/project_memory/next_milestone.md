@@ -1,17 +1,17 @@
-# Next Milestone — Architecture Review for Daily Driver Core Contract v0
+# Next Milestone — Architecture Review for Next.js Mobile Today Shell v0
 
-This next milestone should be selected only after Daily Driver Core Contract v0 is reviewed by Architecture.
+This next milestone should be selected only after Next.js Mobile Today Shell v0 is reviewed by Architecture.
 
 Current implementation milestone before this next step:
 
 ```text
-Daily Driver Core Contract v0
+Next.js Mobile Today Shell v0
 ```
 
 Current implementation baseline:
 
 ```text
-df2a56f Merge daily coach gpt family human voice trial v1
+9ac6b9b Merge daily driver core contract v0
 ```
 
 Likely next owner:
@@ -23,15 +23,15 @@ Architecture
 Likely next purpose:
 
 ```text
-Review whether the new backend-owned Today contract is stable enough to become the baseline for Streamlit validation of the daily-driver workflow.
+Review whether the new Next.js mobile Today shell is good enough to become the first frontend foundation for daily-driver use.
 ```
 
 Recommended next sequence:
 
 ```text
-1. Architecture reviews Daily Driver Core Contract v0 implementation evidence.
-2. If accepted, Architecture may authorize Streamlit on Daily Contract v0.
-3. Any later frontend shell work should remain blocked until the Today contract survives real daily use.
+1. Architecture reviews Next.js Mobile Today Shell v0 implementation evidence.
+2. If accepted, Architecture chooses the next narrow daily-driver frontend slice.
+3. Future frontend work should stay contract-driven and should not duplicate backend truth.
 ```
 
 Non-goals unless Architecture explicitly authorizes them:
@@ -41,13 +41,14 @@ PostgreSQL
 auth
 hosting
 sync
-Next.js
-frontend shell rebuild
-Streamlit redesign
+backend contract rewrites
+workout logging
+nutrition logging
 provider expansion
 OpenAI/Ollama/CrewAI behavior changes
-report rewrites
-schema/contracts
+Markdown rendering
+Streamlit redesign
+full app rebuild
 NOT_AUTHORIZED_YET
 ```
 
