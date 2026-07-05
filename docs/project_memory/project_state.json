@@ -68,18 +68,18 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-04_9ac6b9b_main_merge-daily-driver-core-contract-v0.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-05_9192863_main_merge-nextjs-mobile-today-shell-v0.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Next.js Mobile Today Shell v0",
-    "current_recommended_milestone": "Architecture Review for Next.js Mobile Today Shell v0",
-    "current_recommended_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "primary_question": "Can the product show one mobile-first Today screen that renders backend-owned daily-driver truth without rebuilding the full app?",
-    "qa_class": "FRONTEND_MOBILE_TODAY_SHELL",
-    "recommended_next_milestone_after_acceptance": "Architecture selection after Next.js Mobile Today Shell v0",
-    "recommended_owner": "Frontend Development / Next.js Mobile Today Shell",
-    "source_feature_branch": "feature/nextjs-mobile-today-shell-v0",
+    "current_authorized_milestone": "Workout Generation + Today Workout View v0",
+    "current_recommended_milestone": "Architecture Review for Workout Generation + Today Workout View v0",
+    "current_recommended_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "primary_question": "Can the product expose backend-owned generated and planned workout details through Next.js without rebuilding the workout engine or duplicating frontend truth?",
+    "qa_class": "FRONTEND_WORKOUT_TODAY_VIEW",
+    "recommended_next_milestone_after_acceptance": "Architecture selection after Workout Generation + Today Workout View v0",
+    "recommended_owner": "Frontend Development / Workout Today View",
+    "source_feature_branch": "feature/workout-generation-today-view-v0",
     "source_feature_commit": null,
-    "source_main_commit": "9ac6b9b"
+    "source_main_commit": "9192863"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -1063,7 +1063,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+  "requested_backend_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
   "runtime_split": {
     "linux": [
       "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
@@ -1073,9 +1073,9 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "Next.js Mobile Today Shell v0",
-    "active_backend_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "requested_final_status": "NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
+    "active_backend_milestone": "Workout Generation + Today Workout View v0",
+    "active_backend_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "requested_final_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
@@ -1441,5 +1441,68 @@
       "no backend contract rewrite"
     ],
     "next_recommended_milestone": "Architecture Review for Next.js Mobile Today Shell v0"
+  },
+  "workout_generation_today_view_v0": {
+    "baseline_commit": "9192863",
+    "milestone": "Workout Generation + Today Workout View v0",
+    "status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+    "feature_branch": "feature/workout-generation-today-view-v0",
+    "scope": "Backend-owned Today workout detail contract plus a Next.js workout detail page wired from the existing Today shell.",
+    "api_route": "GET /api/today/workout",
+    "ui_route": "frontend/src/app/today/workout/page.tsx",
+    "backend_sources_reused": [
+      "services/workout_daily_state_service.py",
+      "services/workout_plan_persistence_service.py",
+      "services/workout_plan_service.py",
+      "api/routes/workout_plans.py",
+      "ui/streamlit_app.py"
+    ],
+    "user_facing_behavior_change": true,
+    "provider_promotion": false,
+    "persistence_change": false,
+    "schema_change": false,
+    "ui_change": true,
+    "files_changed": [
+      "api/routes/daily_driver.py",
+      "models/today_workout_view_models.py",
+      "services/today_workout_view_service.py",
+      "tests/test_today_workout_view_models.py",
+      "tests/test_today_workout_view_service.py",
+      "tests/test_today_workout_route.py",
+      "frontend/src/app/page.tsx",
+      "frontend/src/app/today/workout/page.tsx",
+      "frontend/src/components/NextActionCard.tsx",
+      "frontend/src/lib/dailyDriverApi.ts",
+      "frontend/src/lib/todayWorkoutApi.ts",
+      "frontend/src/types/todayWorkout.ts"
+    ],
+    "validation": [
+      "git diff --check",
+      "targeted ruff check on touched Python files",
+      "targeted black --check on touched Python files",
+      "py_compile on touched Python files",
+      "python -m pytest tests/test_daily_driver_contract_models.py tests/test_daily_driver_today_service.py tests/test_daily_driver_routes.py tests/test_today_workout_view_models.py tests/test_today_workout_view_service.py tests/test_today_workout_route.py tests/test_workout_daily_state_lifecycle_v1.py -q",
+      "cd frontend && npm run lint",
+      "cd frontend && npm run build"
+    ],
+    "known_limitations": [
+      "read/view path only; no full workout logging controls added to Next.js",
+      "preview path is read-only and does not mutate workout lifecycle state",
+      "Linux runtime-box manual smoke still required after Windows implementation"
+    ],
+    "non_goals": [
+      "no auth",
+      "no hosting",
+      "no PostgreSQL",
+      "no workout logging",
+      "no nutrition logging",
+      "no backend workout-engine rewrite",
+      "no provider calls",
+      "no raw JSON main UI",
+      "no Markdown renderer",
+      "no Streamlit redesign",
+      "no backend write-path changes"
+    ],
+    "next_recommended_milestone": "Architecture Review for Workout Generation + Today Workout View v0"
   }
 }

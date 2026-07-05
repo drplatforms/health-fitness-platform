@@ -19,11 +19,11 @@ export interface DailyDriverApiResult {
 const DEFAULT_API_BASE_URL = "http://localhost:8000";
 const DEFAULT_USER_ID = 102;
 
-function getApiBaseUrl(): string {
+export function getApiBaseUrl(): string {
   return process.env.FITNESS_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
 }
 
-function getDefaultUserId(): number {
+export function getDefaultUserId(): number {
   const rawValue = process.env.FITNESS_DEFAULT_USER_ID?.trim();
   if (!rawValue) {
     return DEFAULT_USER_ID;
