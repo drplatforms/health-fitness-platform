@@ -6,6 +6,7 @@ import {
 } from "@/lib/dailyDriverApi";
 import {
   ApprovedWorkoutPlanPreview,
+  WorkoutCurrentResponse,
   TodayWorkoutResponse,
   WorkoutPreviewResponse,
   WorkoutSelectPreviewResponse,
@@ -30,6 +31,11 @@ export interface WorkoutPreviewApiResult {
 
 export interface WorkoutActionApiResult<T> {
   data: T | null;
+  error: DailyDriverApiError | null;
+}
+
+export interface WorkoutCurrentApiResult {
+  data: WorkoutCurrentResponse | null;
   error: DailyDriverApiError | null;
 }
 
@@ -151,6 +157,61 @@ export async function fetchWorkoutPreview(
         heading: "Backend unavailable",
         message:
           "Start the FastAPI server, then refresh this page to load a workout preview.",
+      },
+    };
+  }
+}
+
+export async function fetchWorkoutCurrent(
+  options: DailyDriverRequestOptions = {},
+): Promise<WorkoutCurrentApiResult> {
+  const userId = options.userId ?? getDefaultUserId();
+  const params = new URLSearchParams({
+    user_id: String(userId),
+  });
+
+  if (options.date) {
+    params.set("date", options.date);
+  }
+
+  const endpoint = `/api/workout-current?${params.toString()}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load current workout",
+          message:
+            payload?.detail ??
+            payload?.message ??
+            "The backend could not return the current workout state right now.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutCurrentResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then refresh this page to load the current workout state.",
       },
     };
   }

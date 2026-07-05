@@ -6,11 +6,14 @@ import { DataQualityNote } from "@/components/DataQualityNote";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
+  fetchWorkoutCurrent,
   fetchWorkoutPreview,
   selectWorkoutPreview,
   startWorkoutPlan,
 } from "@/lib/todayWorkoutApi";
 import {
+  ApprovedWorkoutPlanPreview,
+  WorkoutCurrentResponse,
   WorkoutExecutionSessionSummary,
   WorkoutPlanInstanceSummary,
   WorkoutPreviewExercise,
@@ -44,6 +47,8 @@ interface WorkoutPreviewExperienceProps {
   requestedDate: string | undefined;
 }
 
+type WorkoutViewMode = "preview" | "persisted";
+
 function detailLabel(label: string, value: string | number | null): string | null {
   if (value === null || value === "") {
     return null;
@@ -69,6 +74,37 @@ function buildPreviewSummary(preview: WorkoutPreviewResponse): string {
   return `${plan.exercises.length} exercises focused on ${plan.session_focus.toLowerCase()}.`;
 }
 
+function isPreviewPayload(
+  payload: WorkoutPreviewResponse | null,
+): payload is WorkoutPreviewResponse {
+  if (payload === null) {
+    return false;
+  }
+
+  return (
+    typeof payload === "object" &&
+    payload.approved_workout_plan !== null &&
+    typeof payload.approved_workout_plan === "object" &&
+    typeof payload.approved_workout_plan.title === "string" &&
+    Array.isArray(payload.approved_workout_plan.exercises)
+  );
+}
+
+function hasPersistedWorkoutState(
+  payload: WorkoutCurrentResponse | null,
+): payload is WorkoutCurrentResponse & {
+  current_execution_state: NonNullable<WorkoutCurrentResponse["current_execution_state"]>;
+} {
+  if (payload?.current_execution_state === null) {
+    return false;
+  }
+
+  return (
+    payload?.workout_daily_state.state === "selected_today" ||
+    payload?.workout_daily_state.state === "active_today"
+  );
+}
+
 export function WorkoutPreviewExperience({
   userId,
   requestedDate,
@@ -77,6 +113,9 @@ export function WorkoutPreviewExperience({
     useState<WorkoutSizePreference>("standard");
   const [previewVariationIndex, setPreviewVariationIndex] = useState(0);
   const [preview, setPreview] = useState<WorkoutPreviewResponse | null>(null);
+  const [persistedPlan, setPersistedPlan] =
+    useState<ApprovedWorkoutPlanPreview | null>(null);
+  const [viewMode, setViewMode] = useState<WorkoutViewMode>("preview");
   const [selectedPlan, setSelectedPlan] =
     useState<WorkoutPlanInstanceSummary | null>(null);
   const [executionSession, setExecutionSession] =
@@ -93,26 +132,77 @@ export function WorkoutPreviewExperience({
       setIsLoadingPreview(true);
       setErrorMessage(null);
       setActionMessage(null);
+      try {
+        const currentResult = await fetchWorkoutCurrent({
+          userId,
+          date: requestedDate,
+        });
 
-      const result = await fetchWorkoutPreview({
-        userId,
-        workoutSizePreference,
-        previewVariationIndex,
-      });
+        if (cancelled) {
+          return;
+        }
 
-      if (cancelled) {
-        return;
+        if (hasPersistedWorkoutState(currentResult.data)) {
+          setPreview(null);
+          setViewMode("persisted");
+          setPersistedPlan(
+            currentResult.data.current_execution_state.approved_workout_plan,
+          );
+          setSelectedPlan(
+            currentResult.data.current_execution_state.workout_plan_instance,
+          );
+          setExecutionSession(
+            currentResult.data.current_execution_state.execution_session,
+          );
+          return;
+        }
+
+        const result = await fetchWorkoutPreview({
+          userId,
+          workoutSizePreference,
+          previewVariationIndex,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (result.error) {
+          setPreview(null);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setErrorMessage(
+            result.error.message ??
+              currentResult.error?.message ??
+              "Workout preview is not available right now.",
+          );
+          return;
+        }
+
+        if (!isPreviewPayload(result.data)) {
+          setPreview(null);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setErrorMessage(
+            "The backend returned a workout preview, but it was missing the fields needed to render.",
+          );
+          return;
+        }
+
+        setViewMode("preview");
+        setPersistedPlan(null);
+        setSelectedPlan(null);
+        setExecutionSession(null);
+        setPreview(result.data);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPreview(false);
+        }
       }
-
-      if (result.error) {
-        setPreview(null);
-        setErrorMessage(result.error.message);
-        setIsLoadingPreview(false);
-        return;
-      }
-
-      setPreview(result.data);
-      setIsLoadingPreview(false);
     }
 
     void loadPreview();
@@ -120,24 +210,27 @@ export function WorkoutPreviewExperience({
     return () => {
       cancelled = true;
     };
-  }, [previewVariationIndex, userId, workoutSizePreference]);
+  }, [previewVariationIndex, requestedDate, userId, workoutSizePreference]);
 
-  const approvedPlan = preview?.approved_workout_plan ?? null;
+  const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
+  const isPersistedState = viewMode === "persisted";
   const statusLabel =
     executionSession?.status ??
     selectedPlan?.status ??
-    (preview ? "preview" : "not_available");
+    (approvedPlan ? "preview" : "not_available");
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
   const previewStateItems =
-    preview === null && errorMessage
+    approvedPlan === null && errorMessage
       ? [errorMessage]
-      : preview
+      : approvedPlan
         ? []
         : ["Workout preview is not available right now."];
 
   function handleSizeChange(nextValue: WorkoutSizePreference) {
     setWorkoutSizePreference(nextValue);
     setPreviewVariationIndex(0);
+    setViewMode("preview");
+    setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
     setActionMessage(null);
@@ -146,6 +239,8 @@ export function WorkoutPreviewExperience({
 
   function handleTryDifferentVersion() {
     setPreviewVariationIndex((current) => current + 1);
+    setViewMode("preview");
+    setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
     setActionMessage(null);
@@ -168,6 +263,8 @@ export function WorkoutPreviewExperience({
         return;
       }
 
+      setViewMode("persisted");
+      setPersistedPlan(result.data?.approved_workout_plan ?? approvedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
       setActionMessage(
@@ -194,6 +291,8 @@ export function WorkoutPreviewExperience({
         return;
       }
 
+      setViewMode("persisted");
+      setPersistedPlan(result.data?.approved_workout_plan ?? persistedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
       setActionMessage(`Started workout plan ${selectedPlan.id}.`);
@@ -214,7 +313,11 @@ export function WorkoutPreviewExperience({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="text-lg font-semibold text-slate-950">
-                {preview ? buildPreviewSummary(preview) : "Load a workout preview."}
+                {preview
+                  ? buildPreviewSummary(preview)
+                  : approvedPlan
+                    ? `${approvedPlan.exercises.length} exercises ready for today.`
+                    : "Load a workout preview."}
               </p>
               <p className="text-sm leading-6 text-slate-700">
                 {approvedPlan?.session_focus ??
@@ -227,25 +330,27 @@ export function WorkoutPreviewExperience({
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {sizeOptions.map((option) => {
-              const isActive = option.value === workoutSizePreference;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => handleSizeChange(option.value)}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                    isActive
-                      ? "bg-emerald-900 text-emerald-50"
-                      : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-50"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
+          {!isPersistedState ? (
+            <div className="flex flex-wrap gap-2">
+              {sizeOptions.map((option) => {
+                const isActive = option.value === workoutSizePreference;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => handleSizeChange(option.value)}
+                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-emerald-900 text-emerald-50"
+                        : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-50"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -269,28 +374,32 @@ export function WorkoutPreviewExperience({
                 Variation
               </p>
               <p className="mt-2 font-semibold text-slate-900">
-                {previewVariationIndex + 1}
+                {isPersistedState ? "Selected" : previewVariationIndex + 1}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={handleTryDifferentVersion}
-              disabled={isLoadingPreview || isSubmitting}
-              className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Try different version
-            </button>
-            <button
-              type="button"
-              onClick={() => void handleSelectWorkout()}
-              disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
-              className="rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Select this workout
-            </button>
+            {!isPersistedState ? (
+              <button
+                type="button"
+                onClick={handleTryDifferentVersion}
+                disabled={isLoadingPreview || isSubmitting}
+                className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Try different version
+              </button>
+            ) : null}
+            {!isPersistedState ? (
+              <button
+                type="button"
+                onClick={() => void handleSelectWorkout()}
+                disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
+                className="rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Select this workout
+              </button>
+            ) : null}
             {selectedPlan ? (
               <button
                 type="button"
@@ -298,7 +407,8 @@ export function WorkoutPreviewExperience({
                 disabled={
                   isLoadingPreview ||
                   isSubmitting ||
-                  executionSession?.status === "started"
+                  executionSession?.status === "started" ||
+                  executionSession?.status === "in_progress"
                 }
                 className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
@@ -335,7 +445,8 @@ export function WorkoutPreviewExperience({
               Scenario
             </p>
             <p className="mt-2 text-sm font-semibold text-slate-900">
-              {preview?.scenario.replaceAll("_", " ") ?? "Not available"}
+              {(preview?.scenario ?? approvedPlan?.scenario)
+                ?.replaceAll("_", " ") ?? "Not available"}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -343,7 +454,7 @@ export function WorkoutPreviewExperience({
               Confidence
             </p>
             <p className="mt-2 text-sm font-semibold text-slate-900">
-              {preview?.confidence ?? "Not available"}
+              {preview?.confidence ?? approvedPlan?.confidence ?? "Not available"}
             </p>
           </div>
           <div className="rounded-2xl bg-slate-50 px-4 py-3">
@@ -352,6 +463,7 @@ export function WorkoutPreviewExperience({
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-700">
               {preview?.workout_exercise_count.user_safe_reason ??
+                preview?.workout_exercise_count.reason ??
                 "Preview a workout size to see the backend rationale."}
             </p>
           </div>
