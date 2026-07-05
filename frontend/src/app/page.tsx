@@ -65,25 +65,43 @@ export default async function Home({
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-4 pb-8">
-        <section className="rounded-[32px] bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,247,237,0.96))] p-6 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)]">
-          <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-amber-700">
-            Today
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">
-            What should I do now?
-          </h1>
-          <p className="mt-3 max-w-sm text-sm leading-6 text-slate-600">
-            Open one screen, see today&apos;s training direction, nutrition
-            mission, and the next action that matters.
-          </p>
-          {data ? (
-            <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-slate-600">
-              <span>User {data.user_id}</span>
-              <span className="text-slate-300">•</span>
-              <span>{data.target_date}</span>
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pb-8 lg:gap-6 lg:px-2">
+        <section className="rounded-[32px] bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,247,237,0.96))] p-6 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] lg:px-8 lg:py-7">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-amber-700">
+                Today
+              </p>
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 lg:text-[3.5rem]">
+                What should I do now?
+              </h1>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 lg:text-base">
+                Open one screen, see today&apos;s training direction, nutrition
+                mission, and the next action that matters.
+              </p>
             </div>
-          ) : null}
+
+            {data ? (
+              <div className="grid grid-cols-2 gap-3 sm:max-w-sm lg:min-w-[320px]">
+                <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    User
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-slate-900">
+                    {data.user_id}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
+                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    Date
+                  </p>
+                  <p className="mt-2 text-base font-semibold text-slate-900">
+                    {data.target_date}
+                  </p>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </section>
 
         {error ? (
@@ -108,10 +126,17 @@ export default async function Home({
         ) : null}
 
         {data ? (
-          <>
-            <NextActionCard action={data.next_action} />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
+            <NextActionCard
+              action={data.next_action}
+              className="lg:col-start-1 lg:row-start-1 lg:p-7"
+            />
 
-            <TodayCard title="Readiness" eyebrow="Daily Driver">
+            <TodayCard
+              title="Readiness"
+              eyebrow="Daily Driver"
+              className="lg:col-start-2 lg:row-start-1"
+            >
               <div className="space-y-3">
                 <StatusPill
                   label={data.readiness.status.replace("_", " ")}
@@ -129,7 +154,7 @@ export default async function Home({
               </div>
             </TodayCard>
 
-            <TodayCard title="Workout">
+            <TodayCard title="Workout" className="lg:col-start-1 lg:row-start-2">
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -151,7 +176,10 @@ export default async function Home({
               </div>
             </TodayCard>
 
-            <TodayCard title="Nutrition">
+            <TodayCard
+              title="Nutrition"
+              className="lg:col-start-2 lg:row-start-2"
+            >
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm leading-6 text-slate-700">
@@ -186,16 +214,28 @@ export default async function Home({
             </TodayCard>
 
             {data.coach_note.enabled && data.coach_note.text ? (
-              <TodayCard title="Coach Note" accent="warm">
+              <TodayCard
+                title="Coach Note"
+                accent="warm"
+                className="lg:col-start-1 lg:row-start-3"
+              >
                 <p className="text-sm leading-7 text-slate-800">
                   {data.coach_note.text}
                 </p>
               </TodayCard>
             ) : null}
 
-            <DataQualityNote title="Data Gaps" items={data.data_gaps} />
-            <DataQualityNote title="Limitations" items={data.limitations} />
-          </>
+            <DataQualityNote
+              title="Data Gaps"
+              items={data.data_gaps}
+              className="lg:col-start-2 lg:row-start-3"
+            />
+            <DataQualityNote
+              title="Limitations"
+              items={data.limitations}
+              className="lg:col-start-2 lg:row-start-4"
+            />
+          </div>
         ) : null}
       </div>
     </main>

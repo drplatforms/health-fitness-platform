@@ -5,6 +5,7 @@ interface TodayCardProps {
   title: string;
   children: ReactNode;
   accent?: "default" | "warm" | "highlight" | "subtle";
+  className?: string;
 }
 
 const ACCENT_CLASS_MAP = {
@@ -19,10 +20,11 @@ export function TodayCard({
   title,
   children,
   accent = "default",
+  className = "",
 }: TodayCardProps) {
   return (
     <section
-      className={`rounded-[28px] border p-5 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.45)] ${ACCENT_CLASS_MAP[accent]}`}
+      className={`rounded-[28px] border p-5 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.45)] ${ACCENT_CLASS_MAP[accent]} ${className}`}
     >
       <div className="flex flex-col gap-4">
         <div className="space-y-1">
