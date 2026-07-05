@@ -1,12 +1,16 @@
+import Link from "next/link";
+
 import { DailyDriverNextAction } from "@/types/dailyDriver";
 
 interface NextActionCardProps {
   action: DailyDriverNextAction;
+  href?: string | null;
   className?: string;
 }
 
 export function NextActionCard({
   action,
+  href = null,
   className = "",
 }: NextActionCardProps) {
   return (
@@ -25,9 +29,18 @@ export function NextActionCard({
             {action.context}
           </p>
         </div>
-        <div className="rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 md:max-w-sm">
-          What should I do now? Start here.
-        </div>
+        {href ? (
+          <Link
+            href={href}
+            className="inline-flex rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 transition hover:bg-emerald-900 md:max-w-sm"
+          >
+            Open workout details
+          </Link>
+        ) : (
+          <div className="rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 md:max-w-sm">
+            What should I do now? Start here.
+          </div>
+        )}
       </div>
     </section>
   );

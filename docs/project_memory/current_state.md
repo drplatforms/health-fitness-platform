@@ -1,37 +1,57 @@
-# Current State — Next.js Mobile Today Shell v0
+# Current State — Workout Generation + Today Workout View v0
 
 Current accepted baseline:
 
 ```text
-9ac6b9b Merge daily driver core contract v0
+9192863 Merge nextjs mobile today shell v0
 ```
 
 Active frontend implementation milestone:
 
 ```text
-Next.js Mobile Today Shell v0
+Workout Generation + Today Workout View v0
 ```
 
 Requested status:
 
 ```text
-NEXTJS_MOBILE_TODAY_SHELL_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
 ```
 
 Purpose:
 
 ```text
-Create the first mobile-first Next.js frontend shell that renders the backend-owned Daily Driver Today contract for real daily use.
+Expose the existing backend-owned workout generation and planned-workout flow through the Next.js daily-driver frontend so normal daily workout viewing no longer depends on Streamlit.
 ```
 
 Implemented scope:
 
-- Added a new Next.js App Router frontend under `frontend/`.
-- Added TypeScript contract types that match the accepted backend `GET /api/today` response.
-- Added a server-side API helper that fetches Today from FastAPI using `FITNESS_API_BASE_URL` and `FITNESS_DEFAULT_USER_ID`.
-- Replaced the generated starter page with a mobile-first Today screen focused on readiness, workout, nutrition, next action, optional coach note, and quiet data-quality notes.
-- Added clear loading, error, and empty states without exposing raw backend JSON.
-- Added `frontend/.env.local.example` for local backend connectivity.
+- Inspected and reused the existing workout planning path built around `services/workout_daily_state_service.py`, `services/workout_plan_persistence_service.py`, `services/workout_plan_service.py`, `api/routes/workout_plans.py`, and the existing Streamlit Workout/Today wiring.
+- Added a typed backend workout detail contract at `GET /api/today/workout`.
+- Added `models/today_workout_view_models.py` and `services/today_workout_view_service.py`.
+- Reused current-day persisted workout execution state when it exists.
+- Reused existing deterministic workout generation as a read-only preview when no current-day persisted plan exists.
+- Added focused backend tests for the new workout contract, service, and route.
+- Added frontend types and API client support for the workout detail contract.
+- Added a new Next.js route at `frontend/src/app/today/workout/page.tsx`.
+- Wired the Today Workout card to the workout detail page.
+- Wired the Next Action card to the workout detail page when the next action is workout-related.
+- Preserved mobile stacked rendering while adding a practical desktop workout detail layout.
+
+Files changed:
+
+- `api/routes/daily_driver.py`
+- `models/today_workout_view_models.py`
+- `services/today_workout_view_service.py`
+- `tests/test_today_workout_view_models.py`
+- `tests/test_today_workout_view_service.py`
+- `tests/test_today_workout_route.py`
+- `frontend/src/app/page.tsx`
+- `frontend/src/app/today/workout/page.tsx`
+- `frontend/src/components/NextActionCard.tsx`
+- `frontend/src/lib/dailyDriverApi.ts`
+- `frontend/src/lib/todayWorkoutApi.ts`
+- `frontend/src/types/todayWorkout.ts`
 
 Boundaries preserved:
 
@@ -44,7 +64,24 @@ Boundaries preserved:
 - No raw provider internals are exposed in the UI.
 - No Markdown rendering or rich-text rendering was added for coach note.
 - No Streamlit redesign or Streamlit removal was added.
-- No backend Today contract change was required for the frontend shell.
+- No backend Python write-path behavior was added for workout logging or selection.
+- No parallel frontend workout engine was created.
+
+Validation recorded:
+
+- `git diff --check`
+- targeted `ruff check` on touched Python files
+- targeted `black --check` on touched Python files
+- `py_compile` on touched Python files
+- `python -m pytest tests/test_daily_driver_contract_models.py tests/test_daily_driver_today_service.py tests/test_daily_driver_routes.py tests/test_today_workout_view_models.py tests/test_today_workout_view_service.py tests/test_today_workout_route.py tests/test_workout_daily_state_lifecycle_v1.py -q`
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+
+Open limitations:
+
+- This milestone exposes workout viewing only. It does not add full workout logging controls to Next.js.
+- The preview path is read-only and uses existing deterministic workout generation without mutating workout lifecycle state.
+- Linux runtime-box manual smoke is still required for final runtime confirmation outside this Windows implementation pass.
 
 Reference-only continuity anchors remain preserved:
 

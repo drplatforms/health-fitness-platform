@@ -1,17 +1,17 @@
-# Next Milestone — Architecture Review for Next.js Mobile Today Shell v0
+# Next Milestone — Architecture Review for Workout Generation + Today Workout View v0
 
-This next milestone should be selected only after Next.js Mobile Today Shell v0 is reviewed by Architecture.
+This next milestone should be selected only after Workout Generation + Today Workout View v0 is reviewed by Architecture.
 
 Current implementation milestone before this next step:
 
 ```text
-Next.js Mobile Today Shell v0
+Workout Generation + Today Workout View v0
 ```
 
 Current implementation baseline:
 
 ```text
-9ac6b9b Merge daily driver core contract v0
+9192863 Merge nextjs mobile today shell v0
 ```
 
 Likely next owner:
@@ -23,15 +23,15 @@ Architecture
 Likely next purpose:
 
 ```text
-Review whether the new Next.js mobile Today shell is good enough to become the first frontend foundation for daily-driver use.
+Review whether the new Next.js workout detail path is sharp enough to become the first real daily-driver workout surface without duplicating backend workout truth.
 ```
 
 Recommended next sequence:
 
 ```text
-1. Architecture reviews Next.js Mobile Today Shell v0 implementation evidence.
-2. If accepted, Architecture chooses the next narrow daily-driver frontend slice.
-3. Future frontend work should stay contract-driven and should not duplicate backend truth.
+1. Architecture reviews Workout Generation + Today Workout View v0 implementation evidence.
+2. If accepted, Architecture chooses the next narrow daily-driver workout interaction slice.
+3. Future frontend work should stay backend-contract-driven and should not duplicate workout generation or planning logic.
 ```
 
 Non-goals unless Architecture explicitly authorizes them:

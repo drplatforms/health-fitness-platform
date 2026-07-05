@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { DataQualityNote } from "@/components/DataQualityNote";
 import { NextActionCard } from "@/components/NextActionCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -6,8 +8,10 @@ import {
   fetchDailyDriverToday,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
+import { buildTodayWorkoutHref } from "@/lib/todayWorkoutApi";
 import {
   DailyDriverNutritionStatus,
+  DailyDriverNextActionType,
   DailyDriverReadinessStatus,
   DailyDriverWorkoutStatus,
 } from "@/types/dailyDriver";
@@ -54,6 +58,10 @@ function formatNumber(value: number | null, suffix = ""): string {
   return `${value.toLocaleString()}${suffix}`;
 }
 
+function isWorkoutAction(type: DailyDriverNextActionType): boolean {
+  return type === "start_workout" || type === "continue_workout";
+}
+
 export default async function Home({
   searchParams,
 }: {
@@ -62,6 +70,7 @@ export default async function Home({
   const resolvedSearchParams = await searchParams;
   const todayQuery = resolveTodayQuery(resolvedSearchParams);
   const { data, error } = await fetchDailyDriverToday(todayQuery);
+  const workoutHref = buildTodayWorkoutHref(todayQuery);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
@@ -129,6 +138,7 @@ export default async function Home({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
             <NextActionCard
               action={data.next_action}
+              href={isWorkoutAction(data.next_action.type) ? workoutHref : null}
               className="lg:col-start-1 lg:row-start-1 lg:p-7"
             />
 
@@ -173,6 +183,14 @@ export default async function Home({
                 <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm font-medium text-slate-800">
                   {data.workout.first_action_label}
                 </div>
+                {data.workout.planned ? (
+                  <Link
+                    href={workoutHref}
+                    className="inline-flex text-sm font-semibold text-emerald-700 transition hover:text-emerald-900"
+                  >
+                    Open workout details
+                  </Link>
+                ) : null}
               </div>
             </TodayCard>
 
