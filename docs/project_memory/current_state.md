@@ -1,3 +1,77 @@
+# Current State — Daily Driver Core Contract v0
+
+Current accepted baseline:
+
+```text
+df2a56f Merge daily coach gpt family human voice trial v1
+```
+
+Active backend implementation milestone:
+
+```text
+Daily Driver Core Contract v0
+```
+
+Requested status:
+
+```text
+DAILY_DRIVER_CORE_CONTRACT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Create the first backend-owned daily-driver Today contract so the app can answer what to do today without requiring provider calls or a frontend rebuild.
+```
+
+Implemented scope:
+
+- Added typed Daily Driver contract models for readiness, workout, nutrition, next action, coach note, and the Today response.
+- Added a deterministic `build_daily_driver_today_response()` service that composes existing backend-owned recovery, workout, nutrition, and next-action facts.
+- Added a minimal `GET /api/today` route with `user_id` and `date` inputs.
+- Added focused model, service, and route tests for the new contract.
+- Kept `coach_note` optional and disabled by default for v0.
+- Preserved graceful fallback behavior through `data_gaps` and `limitations` when some daily data is sparse.
+
+Boundaries preserved:
+
+- SQLite remains the current data store.
+- No PostgreSQL work was added.
+- No auth, hosting, sync, or multi-user work was added.
+- No Next.js or frontend-shell work was added.
+- No Streamlit redesign was added.
+- No provider expansion or provider promotion was added.
+- No OpenAI, Ollama, or CrewAI call is required for the Today contract.
+- No raw provider internals are exposed in user-facing Today fields.
+- No Markdown is allowed in product-facing coach note text.
+- Backend remains the owner of readiness, workout, nutrition, and next-action truth.
+
+Reference-only continuity anchors remain preserved:
+
+```text
+Project Memory Alignment + North Star Architecture v1
+feature/daily-coach-narrative-same-session-approved-preview-bridge-v1
+reference-only
+No provider may run on normal Today page load
+Provider Narrative QA Matrix v2
+Daily Coach Same-Session Approved Preview Bridge v1 Retry
+Same-Session Bridge Runtime QA v1
+Daily Coach Narrative Product Voice Polish v1
+Daily Coach Narrative Product Voice Runtime QA v1
+PASS_WITH_NOTE
+sound right and be right
+Local Developer Command Menu Audit + Repo-Owned Commands v1
+scripts/fitness_commands.ps1
+Local Command Menu App Runtime Correction v1
+Linux is the canonical
+wapp
+Daily Coach Async Service Shell / No Worker v1
+service shell only
+no provider execution added
+```
+
+---
+
 # Current State — Daily Coach GPT Family Human Voice Trial v1
 
 Current accepted baseline:
