@@ -74,6 +74,22 @@ function buildPreviewSummary(preview: WorkoutPreviewResponse): string {
   return `${plan.exercises.length} exercises focused on ${plan.session_focus.toLowerCase()}.`;
 }
 
+function isPreviewPayload(
+  payload: WorkoutPreviewResponse | null,
+): payload is WorkoutPreviewResponse {
+  if (payload === null) {
+    return false;
+  }
+
+  return (
+    typeof payload === "object" &&
+    payload.approved_workout_plan !== null &&
+    typeof payload.approved_workout_plan === "object" &&
+    typeof payload.approved_workout_plan.title === "string" &&
+    Array.isArray(payload.approved_workout_plan.exercises)
+  );
+}
+
 function hasPersistedWorkoutState(
   payload: WorkoutCurrentResponse | null,
 ): payload is WorkoutCurrentResponse & {
@@ -116,61 +132,77 @@ export function WorkoutPreviewExperience({
       setIsLoadingPreview(true);
       setErrorMessage(null);
       setActionMessage(null);
+      try {
+        const currentResult = await fetchWorkoutCurrent({
+          userId,
+          date: requestedDate,
+        });
 
-      const currentResult = await fetchWorkoutCurrent({
-        userId,
-        date: requestedDate,
-      });
+        if (cancelled) {
+          return;
+        }
 
-      if (cancelled) {
-        return;
-      }
+        if (hasPersistedWorkoutState(currentResult.data)) {
+          setPreview(null);
+          setViewMode("persisted");
+          setPersistedPlan(
+            currentResult.data.current_execution_state.approved_workout_plan,
+          );
+          setSelectedPlan(
+            currentResult.data.current_execution_state.workout_plan_instance,
+          );
+          setExecutionSession(
+            currentResult.data.current_execution_state.execution_session,
+          );
+          return;
+        }
 
-      if (hasPersistedWorkoutState(currentResult.data)) {
-        setPreview(null);
-        setViewMode("persisted");
-        setPersistedPlan(currentResult.data.current_execution_state.approved_workout_plan);
-        setSelectedPlan(
-          currentResult.data.current_execution_state.workout_plan_instance,
-        );
-        setExecutionSession(
-          currentResult.data.current_execution_state.execution_session,
-        );
-        setIsLoadingPreview(false);
-        return;
-      }
+        const result = await fetchWorkoutPreview({
+          userId,
+          workoutSizePreference,
+          previewVariationIndex,
+        });
 
-      const result = await fetchWorkoutPreview({
-        userId,
-        workoutSizePreference,
-        previewVariationIndex,
-      });
+        if (cancelled) {
+          return;
+        }
 
-      if (cancelled) {
-        return;
-      }
+        if (result.error) {
+          setPreview(null);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setErrorMessage(
+            result.error.message ??
+              currentResult.error?.message ??
+              "Workout preview is not available right now.",
+          );
+          return;
+        }
 
-      if (result.error) {
-        setPreview(null);
+        if (!isPreviewPayload(result.data)) {
+          setPreview(null);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setErrorMessage(
+            "The backend returned a workout preview, but it was missing the fields needed to render.",
+          );
+          return;
+        }
+
         setViewMode("preview");
         setPersistedPlan(null);
         setSelectedPlan(null);
         setExecutionSession(null);
-        setErrorMessage(
-          result.error.message ??
-            currentResult.error?.message ??
-            "Workout preview is not available right now.",
-        );
-        setIsLoadingPreview(false);
-        return;
+        setPreview(result.data);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingPreview(false);
+        }
       }
-
-      setViewMode("preview");
-      setPersistedPlan(null);
-      setSelectedPlan(null);
-      setExecutionSession(null);
-      setPreview(result.data);
-      setIsLoadingPreview(false);
     }
 
     void loadPreview();
@@ -431,6 +463,7 @@ export function WorkoutPreviewExperience({
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-700">
               {preview?.workout_exercise_count.user_safe_reason ??
+                preview?.workout_exercise_count.reason ??
                 "Preview a workout size to see the backend rationale."}
             </p>
           </div>
