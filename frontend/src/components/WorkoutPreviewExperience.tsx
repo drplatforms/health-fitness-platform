@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { DataQualityNote } from "@/components/DataQualityNote";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
@@ -215,15 +214,6 @@ export function WorkoutPreviewExperience({
     selectedPlan?.status ??
     (approvedPlan ? "preview" : "not_available");
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
-
-  const summaryItems =
-    plannedVsActualSummary?.notes.length
-      ? plannedVsActualSummary.notes
-      : approvedPlan === null && errorMessage
-        ? [errorMessage]
-        : approvedPlan
-          ? []
-          : ["Workout preview is not available right now."];
 
   const activeSubstitutionByExerciseId = new Map(
     activeSubstitutions.map((substitution) => [
@@ -577,10 +567,6 @@ export function WorkoutPreviewExperience({
     executionSession !== null &&
     (selectedPlan.status === "in_progress" ||
       executionSession.status === "in_progress");
-  const isCompletedWorkout =
-    selectedPlan?.status === "completed" ||
-    executionSession?.status === "completed";
-
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       <TodayCard
@@ -1091,17 +1077,6 @@ export function WorkoutPreviewExperience({
         </TodayCard>
       ) : null}
 
-      <DataQualityNote
-        title={plannedVsActualSummary ? "Execution Notes" : "Preview State"}
-        items={
-          summaryItems.length
-            ? summaryItems
-            : isCompletedWorkout
-              ? ["Completed workout data is available above."]
-              : ["Preview or execution data is available above."]
-        }
-        className="lg:col-start-2 lg:row-start-4"
-      />
     </div>
   );
 }
