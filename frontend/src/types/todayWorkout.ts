@@ -107,6 +107,34 @@ export interface WorkoutStartResponse {
   approved_workout_plan: ApprovedWorkoutPlanPreview;
 }
 
+export interface WorkoutDailyStateSummary {
+  user_id: number;
+  target_date: string;
+  state: string;
+  workout_plan_instance_id: number | null;
+  workout_plan_execution_id: number | null;
+  selected_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  updated_at: string | null;
+}
+
+export interface WorkoutCurrentExecutionState {
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  planned_exercises: Array<Record<string, unknown>>;
+  actual_sets: Array<Record<string, unknown>>;
+  active_substitutions: Array<Record<string, unknown>>;
+  approved_workout_plan: ApprovedWorkoutPlanPreview;
+}
+
+export interface WorkoutCurrentResponse {
+  success: boolean;
+  user_id: number;
+  workout_daily_state: WorkoutDailyStateSummary;
+  current_execution_state: WorkoutCurrentExecutionState | null;
+}
+
 export interface TodayWorkoutExerciseItem {
   exercise_id: string | null;
   name: string;
