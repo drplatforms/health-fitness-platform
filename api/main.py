@@ -8,6 +8,7 @@ from api.routes.ai_nutrition_explanation import (
     router as ai_nutrition_explanation_router,
 )
 from api.routes.daily_coach import router as daily_coach_router
+from api.routes.daily_driver import router as daily_driver_router
 from api.routes.equipment_profiles import router as equipment_profile_router
 from api.routes.food_canonical_search import router as food_canonical_search_router
 from api.routes.nutrition import router as nutrition_router
@@ -35,6 +36,7 @@ from api.routes.workouts import router as workout_router
 # =====================================
 
 app = FastAPI()
+app.include_router(daily_driver_router)
 app.include_router(workout_router)
 app.include_router(daily_coach_router)
 app.include_router(equipment_profile_router)

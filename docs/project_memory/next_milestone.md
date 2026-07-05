@@ -1,3 +1,58 @@
+# Next Milestone — Architecture Review for Daily Driver Core Contract v0
+
+This next milestone should be selected only after Daily Driver Core Contract v0 is reviewed by Architecture.
+
+Current implementation milestone before this next step:
+
+```text
+Daily Driver Core Contract v0
+```
+
+Current implementation baseline:
+
+```text
+df2a56f Merge daily coach gpt family human voice trial v1
+```
+
+Likely next owner:
+
+```text
+Architecture
+```
+
+Likely next purpose:
+
+```text
+Review whether the new backend-owned Today contract is stable enough to become the baseline for Streamlit validation of the daily-driver workflow.
+```
+
+Recommended next sequence:
+
+```text
+1. Architecture reviews Daily Driver Core Contract v0 implementation evidence.
+2. If accepted, Architecture may authorize Streamlit on Daily Contract v0.
+3. Any later frontend shell work should remain blocked until the Today contract survives real daily use.
+```
+
+Non-goals unless Architecture explicitly authorizes them:
+
+```text
+PostgreSQL
+auth
+hosting
+sync
+Next.js
+frontend shell rebuild
+Streamlit redesign
+provider expansion
+OpenAI/Ollama/CrewAI behavior changes
+report rewrites
+schema/contracts
+NOT_AUTHORIZED_YET
+```
+
+---
+
 # Next Milestone — Architecture Review After Daily Coach GPT Family Human Voice Trial v1
 
 This next milestone should be selected only after Daily Coach GPT Family Human Voice Trial v1 is accepted, pushed, and reviewed by Architecture.
