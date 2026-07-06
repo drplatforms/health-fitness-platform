@@ -35,6 +35,7 @@ export interface DailyDriverReadinessSummary {
   headline: string;
   reason: string;
   confidence: DailyDriverConfidence;
+  score: number | null;
 }
 
 export interface DailyDriverWorkoutSummary {

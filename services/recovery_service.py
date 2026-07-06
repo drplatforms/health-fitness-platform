@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from database import get_connection
 
@@ -110,26 +110,16 @@ def get_recent_recovery_reports(limit=5):
     return rows
 
 
-# =====================================
-# Save Recovery Check-In
-# =====================================
+def get_recovery_checkin(user_id: int, target_date: str | None = None):
+    checkin_date = target_date or date.today().isoformat()
 
-
-def save_recovery_checkin(
-    user_id: int,
-    body_weight: float,
-    sleep_hours: float,
-    energy_level: int,
-    soreness_level: int,
-    mood: str,
-    notes: str,
-) -> int:
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute(
         """
-        INSERT INTO daily_checkins (
+        SELECT
+            id,
             user_id,
             checkin_date,
             body_weight,
@@ -137,23 +127,119 @@ def save_recovery_checkin(
             energy_level,
             soreness_level,
             mood,
-            notes
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (
-            user_id,
-            datetime.now().strftime("%Y-%m-%d"),
-            body_weight,
-            sleep_hours,
-            energy_level,
-            soreness_level,
-            mood,
             notes,
-        ),
+            created_at
+        FROM daily_checkins
+        WHERE user_id = ?
+          AND checkin_date = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (user_id, checkin_date),
     )
 
-    checkin_id = cursor.lastrowid
+    row = cursor.fetchone()
+    conn.close()
+
+    if row is None:
+        return None
+
+    return {
+        "id": row["id"],
+        "user_id": row["user_id"],
+        "checkin_date": row["checkin_date"],
+        "body_weight": row["body_weight"],
+        "sleep_hours": row["sleep_hours"],
+        "energy_level": row["energy_level"],
+        "soreness_level": row["soreness_level"],
+        "mood": row["mood"],
+        "notes": row["notes"],
+        "created_at": row["created_at"],
+    }
+
+
+# =====================================
+# Save Recovery Check-In
+# =====================================
+
+
+def save_recovery_checkin(
+    user_id: int,
+    body_weight: float | None,
+    sleep_hours: float,
+    energy_level: int,
+    soreness_level: int,
+    mood: str | None,
+    notes: str | None,
+    target_date: str | None = None,
+) -> int:
+    checkin_date = target_date or date.today().isoformat()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT id
+        FROM daily_checkins
+        WHERE user_id = ?
+          AND checkin_date = ?
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        """,
+        (user_id, checkin_date),
+    )
+    existing_row = cursor.fetchone()
+
+    if existing_row is not None:
+        checkin_id = int(existing_row["id"])
+        cursor.execute(
+            """
+            UPDATE daily_checkins
+            SET body_weight = ?,
+                sleep_hours = ?,
+                energy_level = ?,
+                soreness_level = ?,
+                mood = ?,
+                notes = ?
+            WHERE id = ?
+            """,
+            (
+                body_weight,
+                sleep_hours,
+                energy_level,
+                soreness_level,
+                mood,
+                notes,
+                checkin_id,
+            ),
+        )
+    else:
+        cursor.execute(
+            """
+            INSERT INTO daily_checkins (
+                user_id,
+                checkin_date,
+                body_weight,
+                sleep_hours,
+                energy_level,
+                soreness_level,
+                mood,
+                notes
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                checkin_date,
+                body_weight,
+                sleep_hours,
+                energy_level,
+                soreness_level,
+                mood,
+                notes,
+            ),
+        )
+        checkin_id = cursor.lastrowid
 
     conn.commit()
     conn.close()

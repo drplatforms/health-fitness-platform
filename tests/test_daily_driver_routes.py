@@ -23,6 +23,7 @@ def _response() -> DailyDriverTodayResponse:
             headline="Ready to train",
             reason="Recovery signals support normal training today.",
             confidence="medium",
+            score=90,
         ),
         workout=DailyDriverWorkoutSummary(
             planned=True,
@@ -65,6 +66,7 @@ def test_daily_driver_today_route_returns_contract(monkeypatch) -> None:
     payload = response.json()
     assert payload["contract_version"] == "daily_driver_today_v0"
     assert payload["next_action"]["type"] == "start_workout"
+    assert payload["readiness"]["score"] == 90
     assert payload["coach_note"] == {"enabled": False, "text": None}
     assert "provider_output" not in str(payload)
 

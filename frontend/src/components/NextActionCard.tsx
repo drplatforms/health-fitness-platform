@@ -38,7 +38,7 @@ export function NextActionCard({
           </Link>
         ) : (
           <div className="rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 md:max-w-sm">
-            What should I do now? Start here.
+            Start here.
           </div>
         )}
       </div>

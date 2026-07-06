@@ -94,6 +94,7 @@ class DailyDriverReadinessSummary:
     headline: str
     reason: str
     confidence: str
+    score: int | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -124,6 +125,9 @@ class DailyDriverReadinessSummary:
                 "readiness.confidence",
             ),
         )
+        if self.score is not None:
+            if not isinstance(self.score, int) or self.score < 0:
+                raise ValueError("readiness.score must be a non-negative integer.")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
