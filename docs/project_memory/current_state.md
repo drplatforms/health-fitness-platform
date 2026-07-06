@@ -1,3 +1,60 @@
+# Current State — Next.js Nutrition Macro Card v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active frontend implementation milestone:
+
+```text
+Next.js Nutrition Macro Card v0
+```
+
+Requested status:
+
+```text
+NEXTJS_NUTRITION_MACRO_CARD_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Expose a small nutrition status surface on the Next.js Today page by reusing existing backend-owned nutrition targets and logged macro actuals without introducing a new food logging system.
+```
+
+Implemented scope:
+
+- Reused the existing backend-owned Today contract and nutrition target-vs-actual service as the source of nutrition truth.
+- Extended the Today nutrition summary to expose carbohydrate and fat targets plus logged carbohydrate and fat actuals alongside calories and protein.
+- Added a compact Next.js Nutrition Macro Card for Today that shows calories, protein, carbs, and fat with a simple status line.
+- Added a clean empty-state message when no nutrition has been logged yet for the selected user/date.
+- Preserved `user_id` routing through the existing Today query flow.
+- Added focused contract, route, and service test coverage for the expanded nutrition summary.
+
+Explicit deferral:
+
+- Manual macro total entry/update was deferred in this milestone.
+- The repo has nutrition logging routes for canonical foods/servings, but it does not have a small existing backend path for direct daily macro-total persistence.
+- No fake food database, meal database, AI food parser, or parallel nutrition write model was added.
+
+Boundaries preserved:
+
+- Backend remains the owner of nutrition targets, logging actuals, comparisons, and safe wording boundaries.
+- No nutrition target logic was moved into the frontend.
+- No Streamlit nutrition changes were added.
+- No USDA import, searchable foods table, meal builder, barcode flow, or long-term nutrition logging architecture was added.
+- No provider, RAG, vector, or agent behavior was added.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_daily_driver_contract_models.py tests/test_daily_driver_routes.py tests/test_daily_driver_today_service.py -q`
+- `cd frontend && npm run lint`
+- `cd frontend && npm run build`
+
+---
+
 # Current State — Workout Generation + Today Workout View v0
 
 Current accepted baseline:

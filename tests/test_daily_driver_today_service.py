@@ -293,6 +293,10 @@ def test_service_returns_contract_sections(monkeypatch) -> None:
     assert payload["readiness"]["score"] == 90
     assert payload["workout"]["title"] == "Upper Body Strength"
     assert payload["nutrition"]["status"] == "complete"
+    assert payload["nutrition"]["carbohydrate_target_g"] == 230
+    assert payload["nutrition"]["fat_target_g"] == 70
+    assert payload["nutrition"]["carbs_logged_g"] == 220
+    assert payload["nutrition"]["fat_logged_g"] == 70
     assert payload["next_action"]["type"] == "start_workout"
     assert payload["coach_note"] == {"enabled": False, "text": None}
     payload_text = str(payload).lower()

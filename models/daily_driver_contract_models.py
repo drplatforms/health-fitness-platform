@@ -180,8 +180,12 @@ class DailyDriverNutritionSummary:
     status: str
     calorie_target: int | None
     protein_target_g: int | None
+    carbohydrate_target_g: int | None
+    fat_target_g: int | None
     calories_logged: int | None
     protein_logged_g: int | None
+    carbs_logged_g: int | None
+    fat_logged_g: int | None
     today_mission: str
 
     def __post_init__(self) -> None:

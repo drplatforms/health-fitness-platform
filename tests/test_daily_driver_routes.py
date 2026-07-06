@@ -37,8 +37,12 @@ def _response() -> DailyDriverTodayResponse:
             status="behind",
             calorie_target=2300,
             protein_target_g=180,
+            carbohydrate_target_g=240,
+            fat_target_g=75,
             calories_logged=900,
             protein_logged_g=72,
+            carbs_logged_g=120,
+            fat_logged_g=35,
             today_mission="Get protein on track with your next meal.",
         ),
         next_action=DailyDriverNextAction(
@@ -67,6 +71,8 @@ def test_daily_driver_today_route_returns_contract(monkeypatch) -> None:
     assert payload["contract_version"] == "daily_driver_today_v0"
     assert payload["next_action"]["type"] == "start_workout"
     assert payload["readiness"]["score"] == 90
+    assert payload["nutrition"]["carbohydrate_target_g"] == 240
+    assert payload["nutrition"]["fat_logged_g"] == 35
     assert payload["coach_note"] == {"enabled": False, "text": None}
     assert "provider_output" not in str(payload)
 
