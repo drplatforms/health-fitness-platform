@@ -8,10 +8,10 @@ class UsdaFoodImportRow:
     fdc_id: int
     description: str
     data_type: str
-    calories_per_100g: float
-    protein_g_per_100g: float
-    carbs_g_per_100g: float
-    fat_g_per_100g: float
+    calories_per_100g: float | None
+    protein_g_per_100g: float | None
+    carbs_g_per_100g: float | None
+    fat_g_per_100g: float | None
     brand_owner: str | None = None
     gtin_upc: str | None = None
     serving_size: float | None = None
