@@ -18,7 +18,6 @@ import {
   PlannedWorkoutExerciseSummary,
   WorkoutActiveSubstitutionSummary,
   WorkoutActualSetSummary,
-  WorkoutCurrentResponse,
   WorkoutDailyStateSummary,
   WorkoutExecutionSessionSummary,
   WorkoutPlanInstanceSummary,
