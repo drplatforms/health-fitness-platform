@@ -1,3 +1,54 @@
+# Current State — Today Main Loop Density Polish v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active frontend implementation milestone:
+
+```text
+Today Main Loop Density Polish v0
+```
+
+Requested status:
+
+```text
+TODAY_MAIN_LOOP_DENSITY_POLISH_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Polish the Next.js Today page into a compact operator dashboard for the real daily loops: Nutrition / Log Food, Workout summary, and Recovery Check-In.
+```
+
+Implemented scope:
+
+- Removed the giant green Next Action card from prime Today page real estate.
+- Moved Nutrition and Log Food to the top of the Today layout.
+- Kept Nutrition and Log Food as adjacent existing components instead of adding a new combined nutrition system.
+- Compacted the Food Logging selected state so selected food appears once, search results hide after selection until the query changes, macro preview is inline, and success/error messages are small.
+- Converted completed workout state into a compact summary using existing Today workout payload data.
+- Removed redundant completed-workout instructional copy from the Today summary surface.
+- Preserved Recovery Check-In behavior while removing the internal-ish Recovery eyebrow.
+- Preserved mobile order as Nutrition / Log Food, Workout, then Recovery.
+
+Boundaries preserved:
+
+- No backend behavior, nutrition aggregation, canonical logging, recovery scoring, workout lifecycle, provider, or user-routing behavior changed.
+- No food diary/history, edit/delete flow, serving picker, meal builder, recent foods, favorites, barcode scanner, AI food parser, image recognition, dashboard state manager, or collapsible-card framework was added.
+- Full USDA datasets, generated DB files, CSVs, ZIPs, and runtime artifacts remain local-only artifacts.
+
+Validation target:
+
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+
+---
+
 # Current State — Next.js Canonical Food Logging UI v0
 
 Current accepted baseline:

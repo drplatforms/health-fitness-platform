@@ -253,11 +253,7 @@ export function RecoveryCheckInCard({
   }
 
   return (
-    <TodayCard
-      title="Recovery Check-In"
-      eyebrow="Daily Driver"
-      className="lg:col-start-2 lg:row-start-1"
-    >
+    <TodayCard title="Recovery Check-In" className="lg:col-start-2 lg:row-start-1">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
           <div className="rounded-2xl bg-slate-50 px-4 py-3">

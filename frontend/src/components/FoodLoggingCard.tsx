@@ -78,6 +78,7 @@ export function FoodLoggingCard({
   const [selectedFood, setSelectedFood] = useState<CanonicalFoodSearchResult | null>(
     null,
   );
+  const [selectedSearchQuery, setSelectedSearchQuery] = useState("");
   const [grams, setGrams] = useState("50");
   const [mealType, setMealType] = useState("snack");
   const [isSearching, setIsSearching] = useState(false);
@@ -138,6 +139,10 @@ export function FoodLoggingCard({
 
   const gramsValue = Number.parseFloat(grams);
   const gramsIsValid = Number.isFinite(gramsValue) && gramsValue > 0;
+  const searchChangedAfterSelection =
+    selectedFood !== null && query.trim() !== selectedSearchQuery;
+  const shouldShowResults =
+    results.length > 0 && (!selectedFood || searchChangedAfterSelection);
 
   const preview = useMemo(() => {
     if (!selectedFood || !gramsIsValid) {
@@ -211,7 +216,7 @@ export function FoodLoggingCard({
 
   return (
     <TodayCard title="Log Food" className={className}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div className="space-y-2">
           <label className="text-sm font-semibold text-slate-900" htmlFor="food-search">
             Search foods
@@ -242,7 +247,7 @@ export function FoodLoggingCard({
               setSearchMessage(null);
             }}
             placeholder="Search food..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
           />
         </div>
 
@@ -258,7 +263,7 @@ export function FoodLoggingCard({
           </p>
         ) : null}
 
-        {results.length > 0 ? (
+        {shouldShowResults ? (
           <div className="space-y-2">
             {results.map((food) => {
               const isSelected =
@@ -270,10 +275,11 @@ export function FoodLoggingCard({
                   type="button"
                   onClick={() => {
                     setSelectedFood(food);
+                    setSelectedSearchQuery(query.trim());
                     setActionMessage(null);
                     setErrorMessage(null);
                   }}
-                  className={`w-full rounded-[22px] border px-4 py-3 text-left transition ${
+                  className={`w-full rounded-[20px] border px-4 py-2.5 text-left transition ${
                     isSelected
                       ? "border-emerald-700 bg-emerald-50"
                       : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-white"
@@ -292,15 +298,12 @@ export function FoodLoggingCard({
         ) : null}
 
         {selectedFood ? (
-          <div className="space-y-4 rounded-[24px] bg-slate-50 px-4 py-4">
-            <div className="space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                Selected Food
+          <div className="space-y-3 rounded-[22px] bg-slate-50 px-4 py-3">
+            <div className="grid gap-1">
+              <p className="text-sm font-semibold text-slate-950">
+                Selected: {selectedFood.display_name}
               </p>
-              <p className="text-base font-semibold text-slate-950">
-                {selectedFood.display_name}
-              </p>
-              <p className="text-sm leading-6 text-slate-700">
+              <p className="text-xs leading-5 text-slate-600">
                 {formatMacroLine(selectedFood.nutrient_summary)}
               </p>
             </div>
@@ -319,7 +322,7 @@ export function FoodLoggingCard({
                       setActionMessage(null);
                       setErrorMessage(null);
                     }}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
                   />
                   <span className="text-sm font-semibold text-slate-600">g</span>
                 </div>
@@ -334,7 +337,7 @@ export function FoodLoggingCard({
                     setActionMessage(null);
                     setErrorMessage(null);
                   }}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
                 >
                   {MEAL_OPTIONS.map((option) => (
                     <option key={option.value || "any"} value={option.value}>
@@ -345,22 +348,19 @@ export function FoodLoggingCard({
               </label>
             </div>
 
-            <div className="rounded-2xl bg-white px-4 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                For {gramsIsValid ? formatCompactNumber(gramsValue) : "--"}g
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {preview ?? "Enter grams to preview this food."}
+            <div className="rounded-2xl bg-white px-4 py-2.5">
+              <p className="text-sm font-semibold text-slate-900">
+                Preview: {preview ?? "Enter grams to preview this food."}
               </p>
             </div>
 
             {actionMessage ? (
-              <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              <p className="rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
                 {actionMessage}
               </p>
             ) : null}
             {errorMessage ? (
-              <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+              <p className="rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-900">
                 {errorMessage}
               </p>
             ) : null}
@@ -369,9 +369,13 @@ export function FoodLoggingCard({
               type="button"
               onClick={() => void handleLogFood()}
               disabled={isSaving || isRefreshing}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {isSaving ? "Logging food..." : isRefreshing ? "Updating nutrition..." : "Log food"}
+              {isSaving
+                ? "Logging food..."
+                : isRefreshing
+                  ? "Updating nutrition..."
+                  : "Log food"}
             </button>
           </div>
         ) : null}

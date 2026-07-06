@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import { FoodLoggingCard } from "@/components/FoodLoggingCard";
-import { NextActionCard } from "@/components/NextActionCard";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -15,11 +14,8 @@ import {
 } from "@/lib/dailyDriverApi";
 import { buildTodayWorkoutHref, fetchTodayWorkout } from "@/lib/todayWorkoutApi";
 import { getSwitchableUserLabel } from "@/lib/userSwitcher";
-import {
-  DailyDriverNextActionType,
-  DailyDriverWorkoutStatus,
-} from "@/types/dailyDriver";
-import { TodayWorkoutResponse } from "@/types/todayWorkout";
+import { DailyDriverWorkoutStatus } from "@/types/dailyDriver";
+import { TodayWorkoutExerciseItem, TodayWorkoutResponse } from "@/types/todayWorkout";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -33,10 +29,6 @@ const workoutToneMap: Record<
   not_planned: "neutral",
   unknown: "neutral",
 };
-
-function isWorkoutAction(type: DailyDriverNextActionType): boolean {
-  return type === "start_workout" || type === "continue_workout";
-}
 
 function formatWorkoutStatusLabel(status: DailyDriverWorkoutStatus): string {
   switch (status) {
@@ -69,7 +61,7 @@ function getWorkoutSupportLine(status: DailyDriverWorkoutStatus): string {
     case "in_progress":
       return "Pick up where you left off.";
     case "completed":
-      return "Today's workout is done.";
+      return "Completed workout summary.";
     case "not_planned":
       return "No workout is planned right now.";
     default:
@@ -95,6 +87,20 @@ function buildWorkoutMeta(
 
   items.push(formatWorkoutStatusLabel(status));
   return items;
+}
+
+function formatExerciseSetSummary(exercise: TodayWorkoutExerciseItem): string {
+  if (exercise.sets === null) {
+    return "Sets not logged";
+  }
+
+  return `${exercise.sets} set${exercise.sets === 1 ? "" : "s"}`;
+}
+
+function completedWorkoutExercises(
+  workout: TodayWorkoutResponse | null,
+): TodayWorkoutExerciseItem[] {
+  return workout?.exercises.slice(0, 6) ?? [];
 }
 
 export default async function Home({
@@ -170,24 +176,20 @@ export default async function Home({
         ) : null}
 
         {data ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(360px,1fr)]">
-            <NextActionCard
-              action={data.next_action}
-              href={isWorkoutAction(data.next_action.type) ? workoutHref : null}
-              className="lg:col-start-1 lg:row-start-1 lg:p-7"
-            />
-
-            <RecoveryCheckInCard
-              userId={todayQuery.userId ?? data.user_id}
-              targetDate={data.target_date}
-              readiness={data.readiness}
-            />
-
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
+            <div className="space-y-3 lg:col-start-1 lg:row-start-1 lg:space-y-4">
+              <NutritionMacroCard nutrition={data.nutrition} />
+              <FoodLoggingCard
+                key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                userId={todayQuery.userId ?? data.user_id}
+                targetDate={data.target_date}
+              />
+            </div>
             <TodayCard
               title="Today's Workout"
               className="lg:col-start-1 lg:row-start-2"
             >
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <p className="text-sm leading-6 text-slate-700">
                     {getWorkoutSupportLine(data.workout.status)}
@@ -197,23 +199,49 @@ export default async function Home({
                     tone={workoutToneMap[data.workout.status]}
                   />
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 text-xs">
                   {workoutMeta.map((item) => (
                     <span
                       key={item}
-                      className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700"
+                      className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
                     >
                       {item}
                     </span>
                   ))}
                 </div>
-                <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                  {data.workout.first_action_label}
-                </div>
+                {data.workout.status === "completed" ? (
+                  <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
+                    {completedWorkoutExercises(todayWorkoutResult.data).map(
+                      (exercise) => (
+                        <div
+                          key={`${exercise.order}-${exercise.name}`}
+                          className="flex items-center justify-between gap-3 py-2 text-sm"
+                        >
+                          <span className="font-semibold text-slate-900">
+                            {exercise.name}
+                          </span>
+                          <span className="shrink-0 text-slate-600">
+                            {formatExerciseSetSummary(exercise)}
+                          </span>
+                        </div>
+                      ),
+                    )}
+                    {completedWorkoutExercises(todayWorkoutResult.data).length ===
+                    0 ? (
+                      <p className="py-2 text-sm text-slate-700">
+                        Workout details are available in the completed view.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                    {data.workout.first_action_label}
+                  </p>
+                )}
                 {data.workout.planned ? (
                   <Link
                     href={workoutHref}
-                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
+                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
                   >
                     {getWorkoutActionLabel(data.workout.status)}
                   </Link>
@@ -221,20 +249,17 @@ export default async function Home({
               </div>
             </TodayCard>
 
-            <div className="space-y-4 lg:col-start-2 lg:row-start-2 lg:space-y-6">
-              <NutritionMacroCard nutrition={data.nutrition} />
-              <FoodLoggingCard
-                key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
-                userId={todayQuery.userId ?? data.user_id}
-                targetDate={data.target_date}
-              />
-            </div>
+            <RecoveryCheckInCard
+              userId={todayQuery.userId ?? data.user_id}
+              targetDate={data.target_date}
+              readiness={data.readiness}
+            />
 
             {data.coach_note.enabled && data.coach_note.text ? (
               <TodayCard
                 title="Coach Note"
                 accent="warm"
-                className="lg:col-start-1 lg:row-start-3"
+                className="lg:col-start-2 lg:row-start-2"
               >
                 <p className="text-sm leading-7 text-slate-800">
                   {data.coach_note.text}
