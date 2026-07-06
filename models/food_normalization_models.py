@@ -83,3 +83,39 @@ class CanonicalFoodSearchResult:
     matched_value: str
     rank_score: int
     aliases: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RawFoodSourceReviewItem:
+    id: int
+    source_name: str
+    source_record_id: str
+    raw_description: str
+    data_type: str | None = None
+    brand_name: str | None = None
+    food_category: str | None = None
+    import_batch: str | None = None
+    calories_per_100g: float | None = None
+    protein_g_per_100g: float | None = None
+    carbs_g_per_100g: float | None = None
+    fat_g_per_100g: float | None = None
+    has_macro_data: bool = False
+
+
+@dataclass
+class CanonicalFoodSourceIdentity:
+    canonical_food_id: int
+    raw_food_source_record_id: int
+    source_name: str
+    source_record_id: str
+    raw_description: str
+    relationship_type: str
+
+
+@dataclass
+class RawSourcePromotionResult:
+    raw_source_record: RawFoodSourceRecord
+    canonical_food: CanonicalFood
+    source_identity: CanonicalFoodSourceIdentity
+    aliases: list[CanonicalFoodAlias] = field(default_factory=list)
+    nutrients: list[CanonicalFoodNutrient] = field(default_factory=list)
