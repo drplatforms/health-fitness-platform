@@ -82,9 +82,29 @@ function exerciseMeta(exercise: WorkoutPreviewExercise): string[] {
   ].filter((value): value is string => Boolean(value));
 }
 
-function buildPreviewSummary(preview: WorkoutPreviewResponse): string {
-  const plan = preview.approved_workout_plan;
-  return `${plan.exercises.length} exercises focused on ${plan.session_focus.toLowerCase()}.`;
+function formatExerciseCountLabel(count: number): string {
+  return `${count} exercise${count === 1 ? "" : "s"}`;
+}
+
+function formatPercentage(value: number): string {
+  return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
+}
+
+function hasMeaningfulText(value: string | null | undefined): value is string {
+  return Boolean(value && value.trim() && value.trim().toLowerCase() !== "not available");
+}
+
+function buildSessionNoteItems(approvedPlan: ApprovedWorkoutPlanPreview | null) {
+  if (!approvedPlan) {
+    return [];
+  }
+
+  return [
+    { label: "Warmup", value: approvedPlan.warmup },
+    { label: "Cooldown", value: approvedPlan.cooldown },
+    { label: "Progression", value: approvedPlan.progression_guidance },
+    { label: "Notes", value: approvedPlan.rationale },
+  ].filter((item) => hasMeaningfulText(item.value));
 }
 
 function isPreviewPayload(
@@ -148,17 +168,35 @@ function statusSummaryLine(
   approvedPlan: ApprovedWorkoutPlanPreview | null,
   preview: WorkoutPreviewResponse | null,
   viewMode: WorkoutViewMode,
+  selectedPlanStatus: string | null | undefined,
+  plannedVsActualSummary: WorkoutPlannedVsActualSummary | null,
 ): string {
   if (viewMode === "completed") {
+    if (plannedVsActualSummary) {
+      return `Completed ${plannedVsActualSummary.completed_set_count} of ${plannedVsActualSummary.planned_set_count} planned sets.`;
+    }
+
     return "Today's workout is complete.";
   }
 
-  if (preview) {
-    return buildPreviewSummary(preview);
+  if (selectedPlanStatus === "in_progress") {
+    if (plannedVsActualSummary) {
+      return `${formatPercentage(plannedVsActualSummary.completion_percentage)} sets complete.`;
+    }
+
+    return "Keep moving through today's workout.";
+  }
+
+  if (selectedPlanStatus === "selected") {
+    return "Your workout is selected and ready to start.";
+  }
+
+  if (preview && approvedPlan) {
+    return `Review ${formatExerciseCountLabel(approvedPlan.exercises.length)} and choose the version you want to do.`;
   }
 
   if (approvedPlan) {
-    return `${approvedPlan.exercises.length} exercises ready for today.`;
+    return `${formatExerciseCountLabel(approvedPlan.exercises.length)} ready for today.`;
   }
 
   return "Load a workout preview.";
@@ -200,23 +238,27 @@ export function WorkoutPreviewExperience({
   const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
   const isPersistedState = viewMode === "persisted";
   const isCompletedState = viewMode === "completed";
+  const summaryStatus = executionSession?.status ?? selectedPlan?.status ?? null;
   const statusLabel =
     isCompletedState
       ? "completed"
-      : (
-    executionSession?.status ??
-    selectedPlan?.status ??
-    (approvedPlan ? "preview" : "not_available"));
+      : summaryStatus ?? (approvedPlan ? "preview" : "not_available");
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
-  const completedWorkoutTitle =
-    approvedPlan?.title ??
-    selectedPlan?.title ??
-    "Today's workout";
   const completedSummary =
     dailyState?.user_safe_message ??
     (plannedVsActualSummary
       ? `Completed ${plannedVsActualSummary.completed_set_count} of ${plannedVsActualSummary.planned_set_count} planned sets.`
       : "Your workout for today has already been completed.");
+  const topMetrics = [
+    approvedPlan ? formatExerciseCountLabel(approvedPlan.exercises.length) : null,
+    approvedPlan ? `${approvedPlan.duration_minutes} min` : null,
+    approvedPlan?.session_focus ? approvedPlan.session_focus : null,
+    plannedVsActualSummary
+      ? `${plannedVsActualSummary.completed_set_count}/${plannedVsActualSummary.planned_set_count} sets complete`
+      : null,
+    !isPersistedState && !isCompletedState ? `Version ${previewVariationIndex + 1}` : null,
+  ].filter((value): value is string => Boolean(value));
+  const sessionNoteItems = buildSessionNoteItems(approvedPlan);
 
   const activeSubstitutionByExerciseId = new Map(
     activeSubstitutions.map((substitution) => [
@@ -624,22 +666,28 @@ export function WorkoutPreviewExperience({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       <TodayCard
-        title={isCompletedState ? completedWorkoutTitle : approvedPlan?.title ?? "Workout Preview"}
-        eyebrow="Workout Plan"
+        title="Today's Workout"
+        eyebrow="Workout"
         accent="highlight"
-        className="lg:col-start-1 lg:row-start-1"
+        className="lg:col-span-2 lg:row-start-1"
       >
-        <div className="space-y-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
-              <p className="text-lg font-semibold text-slate-950">
-                {statusSummaryLine(approvedPlan, preview, viewMode)}
+              <p className="text-base font-semibold text-slate-950 sm:text-lg">
+                {statusSummaryLine(
+                  approvedPlan,
+                  preview,
+                  viewMode,
+                  summaryStatus,
+                  plannedVsActualSummary,
+                )}
               </p>
               <p className="text-sm leading-6 text-slate-700">
                 {isCompletedState
                   ? completedSummary
                   : approvedPlan?.session_focus ??
-                  "Preview a backend-generated workout and commit to the one you want to do."}
+                    "Review today's workout when you're ready."}
               </p>
             </div>
             <StatusPill
@@ -648,101 +696,20 @@ export function WorkoutPreviewExperience({
             />
           </div>
 
-          {!isPersistedState && !isCompletedState ? (
-            <div className="flex flex-wrap gap-2">
-              {sizeOptions.map((option) => {
-                const isActive = option.value === workoutSizePreference;
-                return (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => handleSizeChange(option.value)}
-                    className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-emerald-900 text-emerald-50"
-                        : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-50"
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Requested Date
-              </p>
-              <p className="mt-2 font-semibold text-slate-900">
-                {requestedDate ?? "Today"}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Duration
-              </p>
-              <p className="mt-2 font-semibold text-slate-900">
-                {approvedPlan ? `${approvedPlan.duration_minutes} min` : "Not available"}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Variation
-              </p>
-              <p className="mt-2 font-semibold text-slate-900">
-                {isCompletedState ? "Completed" : isPersistedState ? "Selected" : previewVariationIndex + 1}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            {!isPersistedState && !isCompletedState ? (
-              <button
-                type="button"
-                onClick={handleTryDifferentVersion}
-                disabled={isLoadingPreview || isSubmitting}
-                className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          <div className="flex flex-wrap gap-2">
+            {topMetrics.map((item) => (
+              <span
+                key={item}
+                className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
               >
-                Try different version
-              </button>
-            ) : null}
-            {!isPersistedState && !isCompletedState ? (
-              <button
-                type="button"
-                onClick={() => void handleSelectWorkout()}
-                disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
-                className="rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Select this workout
-              </button>
-            ) : null}
-            {canStartWorkout ? (
-              <button
-                type="button"
-                onClick={() => void handleStartWorkout()}
-                disabled={isLoadingPreview || isSubmitting}
-                className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Start workout
-              </button>
-            ) : null}
-            {canCompleteWorkout ? (
-              <button
-                type="button"
-                onClick={() => void handleCompleteWorkout()}
-                disabled={isSubmitting}
-                className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                Complete workout
-              </button>
-            ) : null}
+                {item}
+              </span>
+            ))}
           </div>
 
           {isCompletedState ? (
             <div className="rounded-2xl bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
-              <p className="font-semibold">{completedWorkoutTitle}</p>
+              <p className="font-semibold">Today&apos;s workout is complete.</p>
               <p className="mt-2 leading-6">{completedSummary}</p>
             </div>
           ) : null}
@@ -765,66 +732,81 @@ export function WorkoutPreviewExperience({
       </TodayCard>
 
       <TodayCard
-        title={isCompletedState ? "Completed Workout" : "Preview Details"}
-        className="lg:col-start-2 lg:row-start-1"
-      >
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Scenario
-            </p>
-            <p className="mt-2 text-sm font-semibold text-slate-900">
-              {(preview?.scenario ?? approvedPlan?.scenario)?.replaceAll("_", " ") ??
-                "Not available"}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Confidence
-            </p>
-            <p className="mt-2 text-sm font-semibold text-slate-900">
-              {preview?.confidence ?? approvedPlan?.confidence ?? "Not available"}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Size Reason
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {isCompletedState
-                ? completedSummary
-                : preview?.workout_exercise_count.user_safe_reason ??
-                preview?.workout_exercise_count.reason ??
-                "Preview a workout size to see the backend rationale."}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Selected Plan
-            </p>
-            <p className="mt-2 text-sm font-semibold text-slate-900">
-              {selectedPlan ? `Plan ${selectedPlan.id}` : "No workout selected yet"}
-            </p>
-          </div>
-          {executionSession ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Execution
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-900">
-                {executionSession.status.replaceAll("_", " ")}
-              </p>
-            </div>
-          ) : null}
-        </div>
-      </TodayCard>
-
-      <TodayCard
         title={canLogWorkout ? "Exercises And Logging" : "Exercises"}
         className="lg:col-start-1 lg:row-start-2"
       >
-        {plannedExercises.length ? (
-          <div className="space-y-3">
+        <div className="space-y-4">
+          {!isPersistedState && !isCompletedState ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-4">
+              <div className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((option) => {
+                    const isActive = option.value === workoutSizePreference;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => handleSizeChange(option.value)}
+                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                          isActive
+                            ? "bg-emerald-900 text-emerald-50"
+                            : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-50"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTryDifferentVersion}
+                    disabled={isLoadingPreview || isSubmitting}
+                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Try different version
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSelectWorkout()}
+                    disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
+                    className="rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Select this workout
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {canStartWorkout || canCompleteWorkout ? (
+            <div className="flex flex-wrap gap-3">
+              {canStartWorkout ? (
+                <button
+                  type="button"
+                  onClick={() => void handleStartWorkout()}
+                  disabled={isLoadingPreview || isSubmitting}
+                  className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Start workout
+                </button>
+              ) : null}
+              {canCompleteWorkout ? (
+                <button
+                  type="button"
+                  onClick={() => void handleCompleteWorkout()}
+                  disabled={isSubmitting}
+                  className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Complete workout
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {plannedExercises.length ? (
+            <div className="space-y-3">
             {plannedExercises.map((exercise) => {
               const activeSubstitution = activeSubstitutionByExerciseId.get(
                 exercise.id,
@@ -1011,92 +993,76 @@ export function WorkoutPreviewExperience({
                 </article>
               );
             })}
-          </div>
-        ) : approvedPlan?.exercises.length ? (
-          <div className="space-y-3">
-            {approvedPlan.exercises.map((exercise, index) => (
-              <article
-                key={`${exercise.name}-${index + 1}`}
-                className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
-              >
-                <div className="space-y-2">
-                  <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Exercise {index + 1}
-                  </p>
-                  <h2 className="text-xl font-semibold text-slate-950">
-                    {exercise.name}
-                  </h2>
-                  <div className="flex flex-wrap gap-2">
-                    {exerciseMeta(exercise).map((item) => (
-                      <span
-                        key={`${exercise.name}-${item}`}
-                        className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                      >
-                        {item}
-                      </span>
-                    ))}
-                    {exercise.equipment_required.map((item) => (
-                      <span
-                        key={`${exercise.name}-${item}`}
-                        className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
-                      >
-                        {item}
-                      </span>
-                    ))}
+            </div>
+          ) : approvedPlan?.exercises.length ? (
+            <div className="space-y-3">
+              {approvedPlan.exercises.map((exercise, index) => (
+                <article
+                  key={`${exercise.name}-${index + 1}`}
+                  className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                >
+                  <div className="space-y-2">
+                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Exercise {index + 1}
+                    </p>
+                    <h2 className="text-xl font-semibold text-slate-950">
+                      {exercise.name}
+                    </h2>
+                    <div className="flex flex-wrap gap-2">
+                      {exerciseMeta(exercise).map((item) => (
+                        <span
+                          key={`${exercise.name}-${item}`}
+                          className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                      {exercise.equipment_required.map((item) => (
+                        <span
+                          key={`${exercise.name}-${item}`}
+                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                </div>
-                <p className="mt-4 text-sm leading-6 text-slate-700">
-                  {exercise.notes}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm leading-6 text-slate-700">
-            No exercise details are available for this workout yet.
-          </p>
-        )}
-      </TodayCard>
-
-      <TodayCard
-        title="Session Notes"
-        className="lg:col-start-2 lg:row-start-2"
-      >
-        <div className="space-y-4">
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Warmup
+                  <p className="mt-4 text-sm leading-6 text-slate-700">
+                    {exercise.notes}
+                  </p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm leading-6 text-slate-700">
+              No exercise details are available for this workout yet.
             </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {approvedPlan?.warmup ?? "Not available"}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Cooldown
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {approvedPlan?.cooldown ?? "Not available"}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Progression Guidance
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {approvedPlan?.progression_guidance ?? "Not available"}
-            </p>
-          </div>
-          <div className="rounded-2xl bg-slate-50 px-4 py-3">
-            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              Rationale
-            </p>
-            <p className="mt-2 text-sm leading-6 text-slate-700">
-              {approvedPlan?.rationale ?? "Not available"}
-            </p>
-          </div>
+          )}
         </div>
       </TodayCard>
+
+      {sessionNoteItems.length ? (
+        <TodayCard
+          title="Session Notes"
+          className="lg:col-start-2 lg:row-start-2"
+        >
+          <div className="space-y-2">
+            {sessionNoteItems.map((item) => (
+              <div
+                key={item.label}
+                className="rounded-2xl bg-slate-50 px-4 py-3"
+              >
+                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                  {item.label}
+                </p>
+                <p className="mt-1.5 text-sm leading-6 text-slate-700">
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </TodayCard>
+      ) : null}
 
       {plannedVsActualSummary ? (
         <TodayCard

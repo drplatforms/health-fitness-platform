@@ -7,9 +7,17 @@ import { SWITCHABLE_USERS } from "@/lib/userSwitcher";
 
 interface UserSwitcherProps {
   currentUserId: number;
+  showLabel?: boolean;
+  className?: string;
+  selectClassName?: string;
 }
 
-export function UserSwitcher({ currentUserId }: UserSwitcherProps) {
+export function UserSwitcher({
+  currentUserId,
+  showLabel = true,
+  className = "",
+  selectClassName = "",
+}: UserSwitcherProps) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -25,19 +33,23 @@ export function UserSwitcher({ currentUserId }: UserSwitcherProps) {
   }
 
   return (
-    <label className="flex flex-col gap-2 sm:items-end">
-      <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-        User
-      </span>
+    <label
+      className={`flex ${showLabel ? "flex-col gap-2 sm:items-end" : "items-center gap-2"} ${className}`}
+    >
+      {showLabel ? (
+        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+          User
+        </span>
+      ) : null}
       <select
         value={String(currentUserId)}
         onChange={(event) => handleChange(event.target.value)}
         disabled={isPending}
-        className="min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-70"
+        className={`min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-70 ${selectClassName}`}
       >
         {SWITCHABLE_USERS.map((user) => (
           <option key={user.id} value={user.id}>
-            {user.kind === "qa" ? `${user.label} (Test)` : user.label}
+            {user.label}
           </option>
         ))}
       </select>
