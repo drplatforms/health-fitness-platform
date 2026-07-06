@@ -3951,7 +3951,7 @@ def _build_search_result(row) -> CanonicalFoodSearchResult:
 
 def search_canonical_foods(
     search_term: str,
-    limit: int = 10,
+    limit: int = 20,
     include_inactive: bool = False,
 ) -> list[CanonicalFoodSearchResult]:
     ensure_food_normalization_tables()
@@ -4015,9 +4015,13 @@ def search_canonical_foods(
         SELECT
             best_match.*,
             (
-                SELECT GROUP_CONCAT(canonical_food_aliases.alias, '||')
-                FROM canonical_food_aliases
-                WHERE canonical_food_aliases.canonical_food_id = best_match.id
+                SELECT GROUP_CONCAT(ordered_aliases.alias, '||')
+                FROM (
+                    SELECT canonical_food_aliases.alias
+                    FROM canonical_food_aliases
+                    WHERE canonical_food_aliases.canonical_food_id = best_match.id
+                    ORDER BY canonical_food_aliases.priority, canonical_food_aliases.alias
+                ) AS ordered_aliases
             ) AS aliases
         FROM best_match
         WHERE match_rank = 1

@@ -18,7 +18,7 @@ from services.nutrition_serving_unit_service import (
 router = APIRouter()
 
 _CANONICAL_SEARCH_MIN_QUERY_LENGTH = 2
-_CANONICAL_SEARCH_DEFAULT_LIMIT = 10
+_CANONICAL_SEARCH_DEFAULT_LIMIT = 20
 _CANONICAL_SEARCH_MAX_LIMIT = 25
 
 _NUTRIENT_SUMMARY_KEYS = {
@@ -77,6 +77,18 @@ def _build_source_links(canonical_food_id: int) -> list[dict[str, str | int | No
     return public_links
 
 
+def _build_source_summary(canonical_food_id: int) -> dict[str, str] | None:
+    for link in get_source_links_for_canonical_food(canonical_food_id):
+        raw_record = get_raw_food_source_record(link.raw_food_source_record_id)
+        if raw_record is None:
+            continue
+        return {
+            "source_name": raw_record.source_name,
+            "source_record_id": raw_record.source_record_id,
+        }
+    return None
+
+
 def _serving_unit_to_public_dict(serving_unit) -> dict:
     return {
         "serving_unit_id": serving_unit.id,
@@ -122,6 +134,10 @@ def _canonical_search_result_to_public_dict(
     if nutrient_summary:
         payload["nutrient_summary"] = nutrient_summary
 
+    source_summary = _build_source_summary(food.id)
+    if source_summary is not None:
+        payload["source"] = source_summary
+
     if include_source_links:
         payload["source_links"] = _build_source_links(food.id)
 
@@ -130,7 +146,7 @@ def _canonical_search_result_to_public_dict(
 
 @router.get("/foods/canonical/search")
 def canonical_food_search_endpoint(
-    q: str = Query(..., min_length=1),
+    q: str = Query(default=""),
     limit: int = Query(default=_CANONICAL_SEARCH_DEFAULT_LIMIT),
     include_inactive: bool = False,
     include_source_links: bool = False,
@@ -138,6 +154,13 @@ def canonical_food_search_endpoint(
     """Return public-safe canonical food search results for user-facing food picks."""
 
     query = q.strip()
+    if not query:
+        return {
+            "success": True,
+            "query": "",
+            "results": [],
+        }
+
     if len(query) < _CANONICAL_SEARCH_MIN_QUERY_LENGTH:
         raise HTTPException(
             status_code=400,
