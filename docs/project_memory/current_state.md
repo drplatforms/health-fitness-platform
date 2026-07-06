@@ -1,3 +1,61 @@
+# Current State — USDA Food Data Import Foundation v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+USDA Food Data Import Foundation v0
+```
+
+Requested status:
+
+```text
+USDA_FOOD_DATA_IMPORT_FOUNDATION_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Create a repeatable local USDA FoodData Central import foundation that stores USDA-backed raw food source rows locally without committing full datasets or changing user-facing food logging behavior yet.
+```
+
+Implemented scope:
+
+- Reused the existing two-layer nutrition catalog architecture built around `raw_food_source_records` and canonical foods.
+- Extended `raw_food_source_records` to preserve USDA-ready metadata including `data_type`, `gtin_upc`, serving metadata, normalized per-100g macros, and `import_batch`.
+- Added a deterministic USDA CSV importer service that validates required columns, preserves `fdc_id`, upserts by `source_name + source_record_id`, and stores source payload metadata locally.
+- Added a CLI importer at `scripts/import_usda_food_data.py` with optional scratch DB override support.
+- Added a tiny checked-in USDA-style fixture for tests only.
+- Added focused tests covering schema expansion, fixture import, optional-field handling, idempotent re-import behavior, invalid input handling, and CLI help.
+- Added ignored local USDA data paths so full source downloads stay out of Git.
+
+Discovered existing nutrition persistence:
+
+- Legacy nutrition actuals still read through `foods`, `food_nutrients`, and `food_entries`.
+- App-facing search/logging uses curated canonical food tables plus source-link metadata.
+- A staged catalog importer already existed under `tools/`, but it writes review artifacts only and does not populate the local database.
+- This milestone adds the first repeatable local database import path for USDA-backed source rows.
+
+Boundaries preserved:
+
+- Canonical app-facing foods remain curated and unchanged by this importer.
+- No food logging UI, food search UI, meal builder, barcode flow, AI food parsing, or provider behavior was added.
+- No full USDA dataset, archive, or generated SQLite database was committed.
+- Backend remains the owner of source metadata, macro normalization, and future catalog promotion boundaries.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_daily_driver_contract_models.py tests/test_daily_driver_routes.py tests/test_daily_driver_today_service.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check models/food_normalization_models.py models/usda_food_data_models.py services/food_normalization_service.py services/usda_food_data_import_service.py scripts/import_usda_food_data.py tests/test_usda_food_data_import.py`
+
+---
+
 # Current State — Next.js Nutrition Macro Card v0
 
 Current accepted baseline:

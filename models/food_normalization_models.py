@@ -11,6 +11,15 @@ class RawFoodSourceRecord:
     raw_description: str
     brand_name: str | None = None
     food_category: str | None = None
+    data_type: str | None = None
+    gtin_upc: str | None = None
+    serving_size: float | None = None
+    serving_size_unit: str | None = None
+    calories_per_100g: float | None = None
+    protein_g_per_100g: float | None = None
+    carbs_g_per_100g: float | None = None
+    fat_g_per_100g: float | None = None
+    import_batch: str | None = None
     source_payload_json: str | None = None
     license: str | None = None
     source_url: str | None = None

@@ -1,0 +1,65 @@
+# ruff: noqa: E402
+"""Import USDA-like food source rows into the local raw food source table."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+import database
+from database import initialize_database
+from services.usda_food_data_import_service import import_usda_food_csv
+
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Import a local USDA-style CSV file into raw_food_source_records."
+    )
+    parser.add_argument(
+        "--input", required=True, help="Path to a local USDA-style CSV."
+    )
+    parser.add_argument(
+        "--import-batch",
+        default=None,
+        help="Optional batch label. Defaults to the input filename stem.",
+    )
+    parser.add_argument(
+        "--db-path",
+        default=None,
+        help="Optional SQLite path override for a scratch or test database.",
+    )
+    return parser
+
+
+def main() -> int:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    if args.db_path:
+        database.DB_PATH = Path(args.db_path).resolve()
+        database.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    initialize_database()
+    summary = import_usda_food_csv(
+        args.input,
+        import_batch=args.import_batch,
+    )
+
+    print("USDA food import complete.")
+    print(f"Database: {summary.database_path}")
+    print(f"Input: {summary.input_path}")
+    print(f"Source: {summary.source_name}")
+    print(f"Import batch: {summary.import_batch}")
+    print(f"Rows processed: {summary.total_rows}")
+    print(f"Rows inserted: {summary.inserted_count}")
+    print(f"Rows updated: {summary.updated_count}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
