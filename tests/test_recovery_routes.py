@@ -50,6 +50,7 @@ def test_create_recovery_checkin_accepts_optional_fields(monkeypatch) -> None:
         json={
             "user_id": 101,
             "target_date": "2026-07-05",
+            "body_weight": 190.5,
             "sleep_hours": 7.0,
             "energy_level": 6,
             "soreness_level": 4,
@@ -64,7 +65,7 @@ def test_create_recovery_checkin_accepts_optional_fields(monkeypatch) -> None:
     assert captured == {
         "user_id": 101,
         "target_date": "2026-07-05",
-        "body_weight": None,
+        "body_weight": 190.5,
         "sleep_hours": 7.0,
         "energy_level": 6,
         "soreness_level": 4,
