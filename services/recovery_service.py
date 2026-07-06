@@ -16,7 +16,7 @@ def get_recent_recovery_metrics(user_id: int, limit: int = 7):
     SELECT *
     FROM daily_checkins
     WHERE user_id = ?
-    ORDER BY created_at DESC
+    ORDER BY checkin_date DESC, created_at DESC, id DESC
     LIMIT ?
     """,
         (user_id, limit),
@@ -32,8 +32,18 @@ def get_recent_recovery_metrics(user_id: int, limit: int = 7):
     avg_energy = sum(row["energy_level"] for row in rows) / len(rows)
     avg_soreness = sum(row["soreness_level"] for row in rows) / len(rows)
 
-    latest_weight = rows[0]["body_weight"]
-    oldest_weight = rows[-1]["body_weight"]
+    valid_weights = [
+        row["body_weight"]
+        for row in rows
+        if isinstance(row["body_weight"], int | float)
+    ]
+    latest_weight = valid_weights[0] if valid_weights else None
+    oldest_weight = valid_weights[-1] if len(valid_weights) >= 2 else None
+    weight_change = (
+        round(latest_weight - oldest_weight, 1)
+        if latest_weight is not None and oldest_weight is not None
+        else None
+    )
 
     return {
         "entries_analyzed": len(rows),
@@ -41,7 +51,7 @@ def get_recent_recovery_metrics(user_id: int, limit: int = 7):
         "avg_energy": round(avg_energy, 1),
         "avg_soreness": round(avg_soreness, 1),
         "latest_weight": latest_weight,
-        "weight_change": round(latest_weight - oldest_weight, 1),
+        "weight_change": weight_change,
         "recent_notes": [row["notes"] for row in rows if row["notes"]],
     }
 
