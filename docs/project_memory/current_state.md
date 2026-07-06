@@ -2,6 +2,58 @@
 
 ---
 
+# Current State — USDA Raw Source Canonical Promotion v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+USDA Raw Source Canonical Promotion v0
+```
+
+Requested status:
+
+```text
+USDA_RAW_SOURCE_CANONICAL_PROMOTION_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Create a narrow backend bridge from USDA raw source rows into the existing curated canonical food tables so future food search/logging stays canonical and not raw-source-backed.
+```
+
+Implemented scope:
+
+- Added a focused backend review helper for listing promotable USDA raw source rows.
+- Defaulted promotion-review queries to `foundation_food`, with override support for review-mode inclusion of non-default USDA hierarchy rows.
+- Added a deterministic promotion path from `raw_food_source_records` into `canonical_foods`, `canonical_food_aliases`, `canonical_food_nutrients`, and `food_source_links`.
+- Preserved USDA source identity through `source_name`, `source_record_id`, and the linked internal raw source record id.
+- Reused existing canonical-food tables and upsert behavior instead of adding a parallel canonical subsystem.
+- Preserved missing macro values as absent and explicit `0` values as `0` during canonical nutrient sync.
+- Added an opt-in scratch-database CLI for promotion smoke and focused service tests for idempotency, source-link preservation, review filtering, and macro handling.
+
+Boundaries preserved:
+
+- No food search UI, food logging UI, barcode flow, meal builder, or AI food parsing was added.
+- Raw USDA rows still do not become the direct user-facing search path.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+- Frontend, workout, recovery, and provider behavior were not touched.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_normalization_service.py tests/test_food_canonical_search_api.py tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check models/food_normalization_models.py services/food_canonical_promotion_service.py scripts/promote_usda_raw_food.py tests/test_food_canonical_promotion_service.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check models/food_normalization_models.py services/food_canonical_promotion_service.py scripts/promote_usda_raw_food.py tests/test_food_canonical_promotion_service.py`
+
+---
+
 # Current State — USDA Import Loggable Foundation Filter v0
 
 Current accepted baseline:
