@@ -3317,6 +3317,15 @@ def ensure_food_normalization_tables() -> None:
         raw_description TEXT NOT NULL,
         brand_name TEXT,
         food_category TEXT,
+        data_type TEXT,
+        gtin_upc TEXT,
+        serving_size REAL,
+        serving_size_unit TEXT,
+        calories_per_100g REAL,
+        protein_g_per_100g REAL,
+        carbs_g_per_100g REAL,
+        fat_g_per_100g REAL,
+        import_batch TEXT,
         source_payload_json TEXT,
         license TEXT,
         source_url TEXT,
@@ -3325,6 +3334,22 @@ def ensure_food_normalization_tables() -> None:
         UNIQUE(source_name, source_record_id)
     )
     """)
+
+    _ensure_table_columns(
+        cursor,
+        "raw_food_source_records",
+        {
+            "data_type": "data_type TEXT",
+            "gtin_upc": "gtin_upc TEXT",
+            "serving_size": "serving_size REAL",
+            "serving_size_unit": "serving_size_unit TEXT",
+            "calories_per_100g": "calories_per_100g REAL",
+            "protein_g_per_100g": "protein_g_per_100g REAL",
+            "carbs_g_per_100g": "carbs_g_per_100g REAL",
+            "fat_g_per_100g": "fat_g_per_100g REAL",
+            "import_batch": "import_batch TEXT",
+        },
+    )
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS canonical_foods (
@@ -3401,6 +3426,18 @@ def ensure_food_normalization_tables() -> None:
     conn.close()
 
 
+def _ensure_table_columns(
+    cursor,
+    table_name: str,
+    columns: dict[str, str],
+) -> None:
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+    for column_name, column_definition in columns.items():
+        if column_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_definition}")
+
+
 def _row_to_raw_food_source_record(row) -> RawFoodSourceRecord:
     return RawFoodSourceRecord(
         id=row["id"],
@@ -3409,6 +3446,15 @@ def _row_to_raw_food_source_record(row) -> RawFoodSourceRecord:
         raw_description=row["raw_description"],
         brand_name=row["brand_name"],
         food_category=row["food_category"],
+        data_type=row["data_type"],
+        gtin_upc=row["gtin_upc"],
+        serving_size=row["serving_size"],
+        serving_size_unit=row["serving_size_unit"],
+        calories_per_100g=row["calories_per_100g"],
+        protein_g_per_100g=row["protein_g_per_100g"],
+        carbs_g_per_100g=row["carbs_g_per_100g"],
+        fat_g_per_100g=row["fat_g_per_100g"],
+        import_batch=row["import_batch"],
         source_payload_json=row["source_payload_json"],
         license=row["license"],
         source_url=row["source_url"],
@@ -3476,6 +3522,15 @@ def create_raw_food_source_record(
     raw_description: str,
     brand_name: str | None = None,
     food_category: str | None = None,
+    data_type: str | None = None,
+    gtin_upc: str | None = None,
+    serving_size: float | None = None,
+    serving_size_unit: str | None = None,
+    calories_per_100g: float | None = None,
+    protein_g_per_100g: float | None = None,
+    carbs_g_per_100g: float | None = None,
+    fat_g_per_100g: float | None = None,
+    import_batch: str | None = None,
     source_payload: dict[str, Any] | str | None = None,
     license: str | None = None,
     source_url: str | None = None,
@@ -3492,16 +3547,34 @@ def create_raw_food_source_record(
             raw_description,
             brand_name,
             food_category,
+            data_type,
+            gtin_upc,
+            serving_size,
+            serving_size_unit,
+            calories_per_100g,
+            protein_g_per_100g,
+            carbs_g_per_100g,
+            fat_g_per_100g,
+            import_batch,
             source_payload_json,
             license,
             source_url,
             updated_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(source_name, source_record_id) DO UPDATE SET
             raw_description = excluded.raw_description,
             brand_name = excluded.brand_name,
             food_category = excluded.food_category,
+            data_type = excluded.data_type,
+            gtin_upc = excluded.gtin_upc,
+            serving_size = excluded.serving_size,
+            serving_size_unit = excluded.serving_size_unit,
+            calories_per_100g = excluded.calories_per_100g,
+            protein_g_per_100g = excluded.protein_g_per_100g,
+            carbs_g_per_100g = excluded.carbs_g_per_100g,
+            fat_g_per_100g = excluded.fat_g_per_100g,
+            import_batch = excluded.import_batch,
             source_payload_json = excluded.source_payload_json,
             license = excluded.license,
             source_url = excluded.source_url,
@@ -3513,6 +3586,15 @@ def create_raw_food_source_record(
             raw_description.strip(),
             brand_name,
             food_category,
+            data_type,
+            gtin_upc,
+            serving_size,
+            serving_size_unit,
+            calories_per_100g,
+            protein_g_per_100g,
+            carbs_g_per_100g,
+            fat_g_per_100g,
+            import_batch,
             _encode_json_payload(source_payload),
             license,
             source_url,

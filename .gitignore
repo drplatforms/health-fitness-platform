@@ -53,6 +53,8 @@ artifacts/
 exports/
 tmp/
 temp/
+data/usda/
+data/imports/usda/
 
 # Jupyter
 .ipynb_checkpoints/

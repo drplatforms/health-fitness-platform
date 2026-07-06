@@ -1,0 +1,5 @@
+fdc_id,description,data_type,food_category,brand_owner,gtin_upc,serving_size,serving_size_unit,calories_per_100g,protein_g_per_100g,carbs_g_per_100g,fat_g_per_100g
+2710815,"Apricot, with skin, raw",Foundation Foods,Fruits,,,,,48,1.4,11.1,0.4
+2346408,"Cabbage, red, raw",Foundation Foods,Vegetables,,,,,31,1.4,7.4,0.2
+533294,"Tuna, canned in water",Branded,Finfish and Shellfish Products,Sample Foods LLC,012345678905,56,g,116,25.5,0,0.8
+2710832,"Mandarin, seedless, peeled, raw",Foundation Foods,Fruits,,,,,53,0.8,13.3,0.3
