@@ -1,3 +1,54 @@
+# Current State — Next.js Canonical Food Logging UI v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active frontend implementation milestone:
+
+```text
+Next.js Canonical Food Logging UI v0
+```
+
+Requested status:
+
+```text
+NEXTJS_CANONICAL_FOOD_LOGGING_UI_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Add the first small Next.js food logging surface so users can search canonical foods, enter grams, log food, and see Today nutrition actuals refresh through the existing backend contract.
+```
+
+Implemented scope:
+
+- Added a compact `FoodLoggingCard` near the existing Today Nutrition card.
+- Added Next.js proxy routes for canonical food search and canonical food logging.
+- Reused the existing backend canonical search route and canonical logging route without exposing raw USDA rows.
+- Added client-side macro preview from per-100g canonical nutrient data.
+- Refreshed Today after save with `router.refresh()` so Nutrition actuals update through the existing Today contract.
+- Preserved current `user_id` and date selection when searching and logging food.
+- Added a backend runtime SQLite schema-init hotfix so older local `food_entries` tables receive canonical logging columns on FastAPI startup without deleting existing DB data.
+
+Boundaries preserved:
+
+- No serving picker, meal builder, barcode flow, AI food parser, favorites, recent foods, food diary history, or raw USDA review UI was added.
+- No backend nutrition aggregation path was changed.
+- No workout, recovery, provider, or user-switcher behavior was changed.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+
+Validation target:
+
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+
+---
+
 # Current State — Today Nutrition Logged Totals Integration v0
 
 Current accepted baseline:

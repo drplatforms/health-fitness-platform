@@ -163,6 +163,8 @@ def _sync_legacy_food_nutrients(
 def _nutrient_summary_for_logged_grams(
     canonical_nutrients: list[CanonicalFoodNutrient],
     grams: float,
+    *,
+    precision: int = 3,
 ) -> dict[str, float]:
     summary_keys = {
         "calories": "calories",
@@ -182,7 +184,10 @@ def _nutrient_summary_for_logged_grams(
         key = summary_keys.get(nutrient.nutrient_name.strip().lower())
         if key is None:
             continue
-        summary[key] = round(float(nutrient.amount_per_100g) * grams / 100.0, 3)
+        summary[key] = round(
+            float(nutrient.amount_per_100g) * grams / 100.0,
+            precision,
+        )
     return summary
 
 
@@ -193,6 +198,7 @@ def _canonical_food_log_response(
     grams: float,
     logged_date: str,
     canonical_nutrients: list[CanonicalFoodNutrient],
+    nutrient_summary: dict[str, float] | None = None,
     meal_type: str | None = None,
     notes: str | None = None,
 ) -> dict[str, Any]:
@@ -204,7 +210,11 @@ def _canonical_food_log_response(
         "logged_date": logged_date,
     }
 
-    nutrient_summary = _nutrient_summary_for_logged_grams(canonical_nutrients, grams)
+    if nutrient_summary is None:
+        nutrient_summary = _nutrient_summary_for_logged_grams(
+            canonical_nutrients,
+            grams,
+        )
     if nutrient_summary:
         response["nutrient_summary"] = nutrient_summary
     if meal_type is not None:
@@ -403,6 +413,8 @@ def add_canonical_food_entry(
     entry_date: str | None = None,
     meal_type: str | None = None,
     notes: str | None = None,
+    *,
+    nutrient_summary_precision: int = 3,
 ) -> dict[str, Any]:
     """Log an app-facing canonical food through backend-owned write-through.
 
@@ -434,6 +446,7 @@ def add_canonical_food_entry(
     nutrient_summary = _nutrient_summary_for_logged_grams(
         canonical_nutrients,
         resolved_grams,
+        precision=nutrient_summary_precision,
     )
     food_entry_id = add_food_entry(
         user_id=user_id,
@@ -455,6 +468,7 @@ def add_canonical_food_entry(
         grams=resolved_grams,
         logged_date=resolved_date,
         canonical_nutrients=canonical_nutrients,
+        nutrient_summary=nutrient_summary,
         meal_type=_optional_text(meal_type),
         notes=_optional_text(notes),
     )

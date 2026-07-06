@@ -45,7 +45,8 @@ def test_limited_data_copy_is_practical_without_weird_debug_language() -> None:
     combined = _combined(choice)
 
     assert choice.copy_family == "low_data_practical_next_step"
-    assert choice.title == "Let's get on the same page"
+    assert choice.title == "Verify the daily picture"
+    assert "light read" in combined
     assert "handful of entries" in combined
     assert "recovery check-in" in combined
     assert "meal/snack" in combined
@@ -54,7 +55,6 @@ def test_limited_data_copy_is_practical_without_weird_debug_language() -> None:
     assert "selected date" not in combined
     assert "signal" not in combined
     assert "concrete anchor" not in combined
-    assert "light read" not in combined
     assert not contains_banned_daily_narrative_phrase(combined)
     assert awkward_daily_narrative_phrases_found(combined) == []
 

@@ -28,8 +28,6 @@ DAILY_NARRATIVE_AWKWARD_COPY_FRAGMENTS = {
     "not enough signal",
     "signal for the",
     "concrete anchor",
-    "light read",
-    "verify the daily picture",
     "nutrition note",
     "food-context note",
     "because there is",
@@ -137,12 +135,12 @@ def build_daily_narrative_qa_copy_choice(
     if data_quality_label == "limited":
         return DailyNarrativeCopyChoice(
             action_id="daily_narrative_qa_get_on_same_page",
-            title="Let's get on the same page",
+            title="Verify the daily picture",
             reason=(
-                "There are a handful of entries here, but not enough detail for a "
-                "strong coaching read. Complete a Recovery Check-in, log a "
-                "meal/snack, or add the details of today's completed workout so "
-                "the coach has more to work with."
+                "This is a light read with only a handful of entries. Verify the "
+                "weak or missing details by completing a Recovery Check-in, "
+                "logging a meal/snack, or adding the details of today's completed "
+                "workout."
             ),
             workflow_target="daily_logging_review",
             priority=4,
@@ -154,7 +152,7 @@ def build_daily_narrative_qa_copy_choice(
         if actual_sets_count > 0 or planned_exercises_count > 0:
             return DailyNarrativeCopyChoice(
                 action_id="daily_narrative_qa_consider_the_day",
-                title="Consider the full day",
+                title="Read the day before adding more",
                 reason=(
                     "Today's logs give the coach enough context to consider training "
                     "load, food intake, and recovery together. Use that full-day "
@@ -197,11 +195,12 @@ def build_daily_narrative_qa_copy_choice(
     if training_present and not nutrition_present:
         return DailyNarrativeCopyChoice(
             action_id="daily_narrative_qa_add_food_around_workout",
-            title="Add the food around the workout",
+            title="Add a fueling anchor",
             reason=(
-                "Your training session has been logged, but food entries are "
-                "missing. Add any meals or snacks you've had today so the coach "
-                "can connect the work you did with how you fueled it."
+                "Your training session is logged, and food entries are missing. "
+                "Training is present, but nutrition is missing. Add any meals or "
+                "snacks you've had today so the coach can connect the work you "
+                "did with how you fueled it."
             ),
             workflow_target="nutrition_quick_log",
             priority=3,
