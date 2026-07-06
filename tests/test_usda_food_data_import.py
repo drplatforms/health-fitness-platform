@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 import shutil
 import sqlite3
 import subprocess
@@ -16,6 +17,7 @@ from services.usda_food_data_import_service import (
 
 FIXTURE_PATH = Path("tests/fixtures/usda/sample_foods.csv")
 FDC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_minimal")
+FDC_LOGGABLE_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_loggable_filter")
 
 
 def _seed_test_db(tmp_path: Path, monkeypatch) -> Path:
@@ -147,6 +149,7 @@ def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
     summary = import_usda_food_fdc_directory(
         FDC_FIXTURE_DIR,
         import_batch="fdc_fixture_batch_v0",
+        include_data_types=["Foundation Foods", "Branded"],
     )
 
     assert summary.database_path == str(db_path)
@@ -203,7 +206,10 @@ def test_fdc_directory_import_handles_missing_optional_branded_metadata(
     shutil.copytree(FDC_FIXTURE_DIR, fixture_copy)
     (fixture_copy / "branded_food.csv").unlink()
 
-    summary = import_usda_food_fdc_directory(fixture_copy)
+    summary = import_usda_food_fdc_directory(
+        fixture_copy,
+        include_data_types=["Foundation Foods", "Branded"],
+    )
 
     assert summary.database_path == str(db_path)
     assert summary.total_rows == 3
@@ -265,8 +271,16 @@ def test_rerunning_fdc_directory_import_updates_existing_fdc_ids_without_duplica
 ) -> None:
     db_path = _seed_test_db(tmp_path, monkeypatch)
 
-    first = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, import_batch="first_fdc")
-    second = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, import_batch="second_fdc")
+    first = import_usda_food_fdc_directory(
+        FDC_FIXTURE_DIR,
+        import_batch="first_fdc",
+        include_data_types=["Foundation Foods", "Branded"],
+    )
+    second = import_usda_food_fdc_directory(
+        FDC_FIXTURE_DIR,
+        import_batch="second_fdc",
+        include_data_types=["Foundation Foods", "Branded"],
+    )
 
     assert first.inserted_count == 3
     assert second.inserted_count == 0
@@ -291,13 +305,111 @@ def test_rerunning_fdc_directory_import_updates_existing_fdc_ids_without_duplica
     assert batch == "second_fdc"
 
 
-def test_fdc_directory_import_limit_restricts_selected_food_rows(
+def test_fdc_directory_import_defaults_to_foundation_food_only(
     tmp_path,
     monkeypatch,
 ) -> None:
     db_path = _seed_test_db(tmp_path, monkeypatch)
 
-    summary = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, limit=2)
+    summary = import_usda_food_fdc_directory(
+        FDC_LOGGABLE_FIXTURE_DIR,
+        import_batch="foundation_only",
+    )
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 3
+    assert summary.inserted_count == 3
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    count = conn.execute(
+        "SELECT COUNT(*) AS count FROM raw_food_source_records"
+    ).fetchone()["count"]
+    imported_types = [
+        row["data_type"]
+        for row in conn.execute(
+            """
+            SELECT data_type
+            FROM raw_food_source_records
+            ORDER BY CAST(source_record_id AS INTEGER)
+            """
+        ).fetchall()
+    ]
+    apricot_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("2710815",),
+    ).fetchone()
+    sample_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("900001",),
+    ).fetchone()
+    conn.close()
+
+    assert count == 3
+    assert imported_types == ["foundation_food", "foundation_food", "foundation_food"]
+    assert apricot_row is not None
+    assert apricot_row["source_record_id"] == "2710815"
+    assert sample_row is None
+    payload = json.loads(apricot_row["source_payload_json"])
+    assert payload["fdc_id"] == 2710815
+
+
+def test_fdc_directory_import_override_can_include_non_default_review_rows(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    summary = import_usda_food_fdc_directory(
+        FDC_LOGGABLE_FIXTURE_DIR,
+        include_data_types=[
+            "foundation_food",
+            "sample_food",
+            "sub_sample_food",
+        ],
+    )
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 5
+    assert summary.inserted_count == 5
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    imported_ids = {
+        row["source_record_id"]
+        for row in conn.execute(
+            "SELECT source_record_id FROM raw_food_source_records"
+        ).fetchall()
+    }
+    market_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("900002",),
+    ).fetchone()
+    conn.close()
+
+    assert imported_ids == {"900001", "900003", "2710815", "2710832", "2710833"}
+    assert market_row is None
+
+
+def test_fdc_directory_import_limit_applies_after_filtering(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    summary = import_usda_food_fdc_directory(FDC_LOGGABLE_FIXTURE_DIR, limit=2)
 
     assert summary.database_path == str(db_path)
     assert summary.total_rows == 2
@@ -305,10 +417,41 @@ def test_fdc_directory_import_limit_restricts_selected_food_rows(
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    count = conn.execute(
-        "SELECT COUNT(*) AS count FROM raw_food_source_records"
-    ).fetchone()["count"]
-    mandarin_row = conn.execute(
+    imported_ids = [
+        row["source_record_id"]
+        for row in conn.execute(
+            """
+            SELECT source_record_id
+            FROM raw_food_source_records
+            ORDER BY CAST(source_record_id AS INTEGER)
+            """
+        ).fetchall()
+    ]
+    missing_macro_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("2710833",),
+    ).fetchone()
+    conn.close()
+
+    assert imported_ids == ["2710815", "2710832"]
+    assert missing_macro_row is None
+
+
+def test_fdc_directory_import_preserves_missing_and_explicit_zero_macros(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    import_usda_food_fdc_directory(FDC_LOGGABLE_FIXTURE_DIR)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    zero_row = conn.execute(
         """
         SELECT *
         FROM raw_food_source_records
@@ -316,10 +459,27 @@ def test_fdc_directory_import_limit_restricts_selected_food_rows(
         """,
         ("2710832",),
     ).fetchone()
+    missing_macro_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("2710833",),
+    ).fetchone()
     conn.close()
 
-    assert count == 2
-    assert mandarin_row is None
+    assert zero_row is not None
+    assert zero_row["calories_per_100g"] == 0
+    assert zero_row["protein_g_per_100g"] == 0
+    assert zero_row["carbs_g_per_100g"] == 0
+    assert zero_row["fat_g_per_100g"] == 0
+
+    assert missing_macro_row is not None
+    assert missing_macro_row["calories_per_100g"] == 27
+    assert missing_macro_row["protein_g_per_100g"] is None
+    assert missing_macro_row["carbs_g_per_100g"] == 5.51
+    assert missing_macro_row["fat_g_per_100g"] is None
 
 
 def test_missing_required_columns_fail_fast(tmp_path, monkeypatch) -> None:
@@ -417,6 +577,7 @@ def test_cli_help_is_available() -> None:
     assert result.returncode == 0
     assert "Import either a simple USDA-style CSV file" in result.stdout
     assert "--fdc-dir" in result.stdout
+    assert "--include-data-types" in result.stdout
 
 
 def test_cli_imports_fixture_into_scratch_database(tmp_path: Path) -> None:
@@ -450,11 +611,13 @@ def test_cli_imports_fdc_directory_into_scratch_database(tmp_path: Path) -> None
             sys.executable,
             "scripts/import_usda_food_data.py",
             "--fdc-dir",
-            str(FDC_FIXTURE_DIR),
+            str(FDC_LOGGABLE_FIXTURE_DIR),
             "--db-path",
             str(db_path),
             "--import-batch",
             "cli_fdc_fixture_batch",
+            "--include-data-types",
+            "foundation_food,sample_food",
             "--limit",
             "2",
         ],

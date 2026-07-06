@@ -54,6 +54,8 @@ MACRO_FIELD_BY_KEY = {
     "fat": "fat_g_per_100g",
 }
 
+DEFAULT_FDC_INCLUDE_DATA_TYPES = ("foundation_food",)
+
 
 def _normalize_text(value: object) -> str:
     return " ".join(str(value or "").strip().split())
@@ -75,6 +77,16 @@ def _required_float(value: object, field_name: str, row_number: int) -> float:
     if parsed < 0:
         raise ValueError(f"Row {row_number}: {field_name} must be non-negative.")
     return parsed
+
+
+def _required_numeric_float(value: object, field_name: str, row_number: int) -> float:
+    text = _normalize_text(value)
+    if not text:
+        raise ValueError(f"Row {row_number}: {field_name} is required.")
+    try:
+        return float(text)
+    except ValueError as exc:
+        raise ValueError(f"Row {row_number}: {field_name} must be numeric.") from exc
 
 
 def _optional_float(value: object, field_name: str, row_number: int) -> float | None:
@@ -136,6 +148,26 @@ def _resolve_limit(limit: int | None) -> int | None:
     if limit <= 0:
         raise ValueError("limit must be a positive integer.")
     return limit
+
+
+def _normalize_data_type_key(value: object) -> str:
+    return _normalize_text(value).casefold()
+
+
+def _resolve_include_data_types(
+    include_data_types: list[str] | tuple[str, ...] | None,
+) -> tuple[str, ...]:
+    if include_data_types is None:
+        return DEFAULT_FDC_INCLUDE_DATA_TYPES
+
+    normalized_data_types = tuple(
+        normalized
+        for value in include_data_types
+        if (normalized := _normalize_data_type_key(value))
+    )
+    if not normalized_data_types:
+        raise ValueError("include_data_types must contain at least one data type.")
+    return normalized_data_types
 
 
 def _parse_row(raw_row: dict[str, str], row_number: int) -> UsdaFoodImportRow:
@@ -304,6 +336,35 @@ def _build_food_row_index(
     return indexed_rows
 
 
+def _build_fdc_food_row_index(
+    raw_rows: list[dict[str, str]],
+    *,
+    include_data_types: tuple[str, ...],
+    limit: int | None,
+) -> list[tuple[int, int, dict[str, str]]]:
+    indexed_rows: list[tuple[int, int, dict[str, str]]] = []
+    seen_fdc_ids: set[int] = set()
+    included_data_type_keys = set(include_data_types)
+
+    for row_number, raw_row in enumerate(raw_rows, start=2):
+        data_type_key = _normalize_data_type_key(raw_row.get("data_type"))
+        if data_type_key not in included_data_type_keys:
+            continue
+
+        fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
+        if fdc_id in seen_fdc_ids:
+            raise ValueError(
+                f"Row {row_number}: duplicate fdc_id {fdc_id} found in input."
+            )
+
+        seen_fdc_ids.add(fdc_id)
+        indexed_rows.append((row_number, fdc_id, raw_row))
+        if limit is not None and len(indexed_rows) >= limit:
+            break
+
+    return indexed_rows
+
+
 def _load_macro_amounts_by_fdc_id(
     food_nutrient_path: Path,
     *,
@@ -317,9 +378,7 @@ def _load_macro_amounts_by_fdc_id(
         "USDA food_nutrient.csv",
     )
 
-    amounts_by_fdc_id: dict[int, dict[str, float]] = defaultdict(
-        lambda: {macro_key: 0.0 for macro_key in MACRO_FIELD_BY_KEY}
-    )
+    amounts_by_fdc_id: dict[int, dict[str, float]] = defaultdict(dict)
     for row_number, raw_row in enumerate(raw_rows, start=2):
         fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
         if fdc_id not in selected_fdc_ids:
@@ -330,11 +389,14 @@ def _load_macro_amounts_by_fdc_id(
         macro_key = macro_nutrient_ids.get(nutrient_id)
         if not macro_key:
             continue
-        amounts_by_fdc_id[fdc_id][macro_key] += _required_float(
-            raw_row.get("amount"),
-            "amount",
-            row_number,
-        )
+        amount = _required_numeric_float(raw_row.get("amount"), "amount", row_number)
+        if amount < 0:
+            continue
+        existing_amount = amounts_by_fdc_id[fdc_id].get(macro_key)
+        if existing_amount is None:
+            amounts_by_fdc_id[fdc_id][macro_key] = amount
+        else:
+            amounts_by_fdc_id[fdc_id][macro_key] = existing_amount + amount
 
     return dict(amounts_by_fdc_id)
 
@@ -357,10 +419,10 @@ def _parse_fdc_directory_row(
         fdc_id=_required_int(raw_food_row.get("fdc_id"), "fdc_id", row_number),
         description=description,
         data_type=data_type,
-        calories_per_100g=macro_amounts.get("calories", 0.0),
-        protein_g_per_100g=macro_amounts.get("protein", 0.0),
-        carbs_g_per_100g=macro_amounts.get("carbs", 0.0),
-        fat_g_per_100g=macro_amounts.get("fat", 0.0),
+        calories_per_100g=macro_amounts.get("calories"),
+        protein_g_per_100g=macro_amounts.get("protein"),
+        carbs_g_per_100g=macro_amounts.get("carbs"),
+        fat_g_per_100g=macro_amounts.get("fat"),
         brand_owner=_first_non_empty(
             branded_values.get("brand_owner"),
             raw_food_row.get("brand_owner"),
@@ -546,10 +608,12 @@ def import_usda_food_fdc_directory(
     import_batch: str | None = None,
     source_name: str = USDA_SOURCE_NAME,
     limit: int | None = None,
+    include_data_types: list[str] | tuple[str, ...] | None = None,
 ) -> UsdaFoodImportSummary:
     source_dir = Path(fdc_dir)
     resolved_paths = _resolve_fdc_paths(source_dir)
     resolved_limit = _resolve_limit(limit)
+    resolved_include_data_types = _resolve_include_data_types(include_data_types)
 
     food_fieldnames, raw_food_rows = _load_csv_rows(resolved_paths["food"])
     _validate_required_columns(
@@ -558,7 +622,11 @@ def import_usda_food_fdc_directory(
         "USDA food.csv",
     )
 
-    indexed_food_rows = _build_food_row_index(raw_food_rows, limit=resolved_limit)
+    indexed_food_rows = _build_fdc_food_row_index(
+        raw_food_rows,
+        include_data_types=resolved_include_data_types,
+        limit=resolved_limit,
+    )
     selected_fdc_ids = {fdc_id for _, fdc_id, _ in indexed_food_rows}
     macro_nutrient_ids = _load_macro_nutrient_ids(resolved_paths["nutrient"])
     macro_amounts_by_fdc_id = _load_macro_amounts_by_fdc_id(

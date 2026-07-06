@@ -1,5 +1,58 @@
 # Current State — Next.js Today Workout UI Polish v0
 
+---
+
+# Current State — USDA Import Loggable Foundation Filter v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+USDA Import Loggable Foundation Filter v0
+```
+
+Requested status:
+
+```text
+USDA_IMPORT_LOGGABLE_FOUNDATION_FILTER_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Hotfix the USDA real-dataset directory importer so extracted FoodData Central CSV imports default to loggable top-level foundation_food rows instead of mostly sample/subsample/acquisition hierarchy rows.
+```
+
+Implemented scope:
+
+- Preserved the existing simple `--input` USDA-style CSV import path.
+- Preserved extracted FoodData Central `--fdc-dir` import support.
+- Defaulted real FDC directory imports to `foundation_food`.
+- Added `--include-data-types` override support for review-mode imports.
+- Moved `--limit` application to after FDC `data_type` filtering.
+- Preserved `source_record_id` as the USDA FDC ID and kept `fdc_id` in `source_payload_json`.
+- Preserved missing joined macro nutrients as `NULL` / `None` while keeping explicit USDA zero values as `0`.
+- Skipped negative joined macro values so malformed USDA macro rows do not abort the import or store negative macros.
+- Added focused real-shape fixture coverage for default filtering, override behavior, post-filter limits, and null-vs-zero macro handling.
+
+Boundaries preserved:
+
+- No food search UI, food logging UI, or canonical-food promotion flow was added.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+- Backend remains the owner of imported source metadata and macro truth.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_normalization_service.py tests/test_food_canonical_search_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services/usda_food_data_import_service.py scripts/import_usda_food_data.py tests/test_usda_food_data_import.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check services/usda_food_data_import_service.py scripts/import_usda_food_data.py tests/test_usda_food_data_import.py`
+
 Current accepted baseline:
 
 ```text

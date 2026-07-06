@@ -54,7 +54,25 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional positive row limit, mainly for local smoke imports.",
     )
+    parser.add_argument(
+        "--include-data-types",
+        default=None,
+        help=(
+            "Optional comma-separated USDA food.csv data_type values for --fdc-dir "
+            "imports. Defaults to foundation_food."
+        ),
+    )
     return parser
+
+
+def _parse_include_data_types(value: str | None) -> list[str] | None:
+    if value is None:
+        return None
+
+    parsed_values = [item.strip() for item in value.split(",") if item.strip()]
+    if not parsed_values:
+        raise ValueError("--include-data-types must contain at least one value.")
+    return parsed_values
 
 
 def main() -> int:
@@ -71,6 +89,7 @@ def main() -> int:
             args.fdc_dir,
             import_batch=args.import_batch,
             limit=args.limit,
+            include_data_types=_parse_include_data_types(args.include_data_types),
         )
     else:
         summary = import_usda_food_csv(
