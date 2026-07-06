@@ -1,3 +1,53 @@
+# Current State — Today Nutrition Logged Totals Integration v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+Today Nutrition Logged Totals Integration v0
+```
+
+Requested status:
+
+```text
+TODAY_NUTRITION_LOGGED_TOTALS_INTEGRATION_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Connect canonical food logging to the existing Today nutrition card by proving the Today backend contract reflects canonical food log actuals through the shared target-vs-actual path.
+```
+
+Implemented scope:
+
+- Confirmed the existing Today backend already sources nutrition actuals from `build_target_vs_actual_nutrition_summary(...)`.
+- Confirmed canonical food logs already flow into that path through `food_entries`, so no second Today-specific canonical rollup was added.
+- Added Today service and Today route integration tests that log canonical foods and verify the Today nutrition payload updates by the expected macro delta exactly once.
+- Added focused Today tests for user/date separation and clean no-log-day behavior.
+- Preserved the existing compact frontend Nutrition Macro Card without redesign or code changes.
+
+Boundaries preserved:
+
+- No food search UI, food logging UI, serving picker, meal builder, barcode flow, or AI food parser was added.
+- No raw USDA source identifier became a Today input.
+- No workout, recovery, provider, USDA import, or canonical-promotion behavior was changed.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_daily_driver_today_service.py tests/test_daily_driver_routes.py tests/test_daily_driver_contract_models.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py tests/test_food_canonical_search_api.py tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services/daily_driver_today_service.py tests/test_daily_driver_today_service.py tests/test_daily_driver_routes.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check services/daily_driver_today_service.py tests/test_daily_driver_today_service.py tests/test_daily_driver_routes.py`
+
+---
+
 # Current State — Next.js Today Workout UI Polish v0
 
 ---

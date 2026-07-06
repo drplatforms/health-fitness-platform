@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 import api.routes.daily_driver as daily_driver_routes
+import database
 from api.main import app
 from models.daily_driver_contract_models import (
     DailyDriverCoachNote,
@@ -12,6 +16,36 @@ from models.daily_driver_contract_models import (
     DailyDriverTodayResponse,
     DailyDriverWorkoutSummary,
 )
+from scripts.seed_qa_scenarios import seed_qa_scenarios
+from services.food_normalization_service import (
+    create_canonical_food,
+    create_canonical_food_nutrient,
+    ensure_food_normalization_tables,
+)
+from services.nutrition_service import add_canonical_food_entry
+
+
+def _today() -> str:
+    return date.today().isoformat()
+
+
+def _tomorrow() -> str:
+    return (date.today() + timedelta(days=1)).isoformat()
+
+
+def _seed_today_route_db(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(database, "DB_PATH", Path(tmp_path) / "fitness_ai_test.db")
+    seed_qa_scenarios()
+    ensure_food_normalization_tables()
+
+
+def _create_today_test_canonical_food() -> int:
+    canonical_food = create_canonical_food("Today Route Test Food", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 200)
+    create_canonical_food_nutrient(canonical_food.id, "Protein", "g", 25)
+    create_canonical_food_nutrient(canonical_food.id, "Carbohydrate", "g", 30)
+    create_canonical_food_nutrient(canonical_food.id, "Fat", "g", 10)
+    return canonical_food.id
 
 
 def _response() -> DailyDriverTodayResponse:
@@ -89,3 +123,59 @@ def test_daily_driver_today_route_maps_value_error_to_404(monkeypatch) -> None:
 
     assert response.status_code == 404
     assert response.json()["detail"] == "bad user"
+
+
+def test_daily_driver_today_route_reflects_canonical_logged_food_totals(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_route_db(tmp_path, monkeypatch)
+    canonical_food_id = _create_today_test_canonical_food()
+    client = TestClient(app)
+
+    before = client.get("/api/today", params={"user_id": 102, "date": _today()})
+    other_user_before = client.get(
+        "/api/today", params={"user_id": 103, "date": _today()}
+    )
+    assert before.status_code == 200
+    assert other_user_before.status_code == 200
+
+    add_canonical_food_entry(
+        user_id=102,
+        canonical_food_id=canonical_food_id,
+        grams=100,
+        entry_date=_today(),
+    )
+
+    after = client.get("/api/today", params={"user_id": 102, "date": _today()})
+    other_user = client.get("/api/today", params={"user_id": 103, "date": _today()})
+
+    assert after.status_code == 200
+    assert other_user.status_code == 200
+    before_nutrition = before.json()["nutrition"]
+    after_nutrition = after.json()["nutrition"]
+
+    assert (
+        after_nutrition["calories_logged"] == before_nutrition["calories_logged"] + 200
+    )
+    assert (
+        after_nutrition["protein_logged_g"] == before_nutrition["protein_logged_g"] + 25
+    )
+    assert after_nutrition["carbs_logged_g"] == before_nutrition["carbs_logged_g"] + 30
+    assert after_nutrition["fat_logged_g"] == before_nutrition["fat_logged_g"] + 10
+    assert other_user.json()["nutrition"] == other_user_before.json()["nutrition"]
+
+
+def test_daily_driver_today_route_returns_clean_not_logged_payload_for_empty_day(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_route_db(tmp_path, monkeypatch)
+    client = TestClient(app)
+
+    response = client.get("/api/today", params={"user_id": 102, "date": _tomorrow()})
+
+    assert response.status_code == 200
+    assert response.json()["nutrition"]["status"] == "not_logged"
+    assert response.json()["nutrition"]["calories_logged"] is None
+    assert response.json()["nutrition"]["protein_logged_g"] is None
+    assert response.json()["nutrition"]["carbs_logged_g"] is None
+    assert response.json()["nutrition"]["fat_logged_g"] is None
