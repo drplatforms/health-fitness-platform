@@ -18,7 +18,7 @@ const nutritionToneMap: Record<
 
 function formatNumber(value: number | null, suffix = ""): string {
   if (value === null) {
-    return "Not available";
+    return "--";
   }
 
   return `${value.toLocaleString()}${suffix}`;
@@ -32,10 +32,15 @@ function resolveStatusLine(nutrition: DailyDriverNutritionSummary): string {
     nutrition.carbs_logged_g === null &&
     nutrition.fat_logged_g === null
   ) {
-    return "No nutrition logged yet today.";
+    return "No nutrition logged.";
   }
 
-  return nutrition.today_mission;
+  return `${formatNumber(nutrition.calories_logged)} / ${formatNumber(
+    nutrition.calorie_target,
+  )} cal · ${formatNumber(nutrition.protein_logged_g, "g")} / ${formatNumber(
+    nutrition.protein_target_g,
+    "g",
+  )} protein`;
 }
 
 export function NutritionMacroCard({
