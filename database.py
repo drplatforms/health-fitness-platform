@@ -14,6 +14,18 @@ def get_connection():
     return conn
 
 
+def _ensure_table_columns(
+    cursor,
+    table_name: str,
+    columns: dict[str, str],
+):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+    for column_name, column_definition in columns.items():
+        if column_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_definition}")
+
+
 def initialize_database():
     conn = get_connection()
     cursor = conn.cursor()
@@ -153,8 +165,15 @@ def initialize_database():
 
         user_id INTEGER NOT NULL,
         food_id INTEGER NOT NULL,
+        canonical_food_id INTEGER,
 
         grams REAL NOT NULL,
+        meal_type TEXT,
+        notes TEXT,
+        calories REAL,
+        protein_g REAL,
+        carbs_g REAL,
+        fat_g REAL,
 
         entry_date TEXT NOT NULL,
 
@@ -164,6 +183,20 @@ def initialize_database():
         FOREIGN KEY (food_id) REFERENCES foods(id)
     )
     """)
+
+    _ensure_table_columns(
+        cursor,
+        "food_entries",
+        {
+            "canonical_food_id": "canonical_food_id INTEGER",
+            "meal_type": "meal_type TEXT",
+            "notes": "notes TEXT",
+            "calories": "calories REAL",
+            "protein_g": "protein_g REAL",
+            "carbs_g": "carbs_g REAL",
+            "fat_g": "fat_g REAL",
+        },
+    )
 
     # -----------------------------
     # Seed Users
