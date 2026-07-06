@@ -213,6 +213,10 @@ def _build_nutrition_summary(
     limitations: list[str],
 ) -> DailyDriverNutritionSummary:
     try:
+        # Today nutrition actuals intentionally flow through target-vs-actual,
+        # which already reads food_entries. Canonical food logs are mirrored
+        # into that same path, so adding a second canonical rollup here would
+        # double-count logged intake.
         target_summary = build_target_vs_actual_nutrition_summary(
             user_id,
             target_date,

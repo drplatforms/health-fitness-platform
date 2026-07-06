@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
 import database
@@ -24,6 +25,39 @@ from models.user_state_models import (
 from models.workout_plan_models import ApprovedWorkoutExercise, ApprovedWorkoutPlan
 from scripts.seed_qa_scenarios import seed_qa_scenarios
 from services.daily_driver_today_service import build_daily_driver_today_response
+from services.food_normalization_service import (
+    create_canonical_food,
+    create_canonical_food_nutrient,
+    ensure_food_normalization_tables,
+)
+from services.nutrition_service import add_canonical_food_entry
+
+
+def _today() -> str:
+    return date.today().isoformat()
+
+
+def _yesterday() -> str:
+    return (date.today() - timedelta(days=1)).isoformat()
+
+
+def _tomorrow() -> str:
+    return (date.today() + timedelta(days=1)).isoformat()
+
+
+def _seed_today_integration_db(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(database, "DB_PATH", Path(tmp_path) / "fitness_ai_test.db")
+    seed_qa_scenarios()
+    ensure_food_normalization_tables()
+
+
+def _create_today_test_canonical_food() -> int:
+    canonical_food = create_canonical_food("Today Integration Test Food", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 200)
+    create_canonical_food_nutrient(canonical_food.id, "Protein", "g", 25)
+    create_canonical_food_nutrient(canonical_food.id, "Carbohydrate", "g", 30)
+    create_canonical_food_nutrient(canonical_food.id, "Fat", "g", 10)
+    return canonical_food.id
 
 
 def _health_state(
@@ -384,3 +418,84 @@ def test_service_uses_route_safe_seeded_data_without_provider_calls(
     assert "OpenAI" not in str(payload)
     assert "Ollama" not in str(payload)
     assert "CrewAI" not in str(payload)
+
+
+def test_today_service_nutrition_actuals_include_canonical_logged_foods(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_integration_db(tmp_path, monkeypatch)
+    canonical_food_id = _create_today_test_canonical_food()
+    before = build_daily_driver_today_response(102, _today())
+
+    add_canonical_food_entry(
+        user_id=102,
+        canonical_food_id=canonical_food_id,
+        grams=100,
+        entry_date=_today(),
+    )
+    after = build_daily_driver_today_response(102, _today())
+
+    assert after.nutrition.calories_logged == before.nutrition.calories_logged + 200
+    assert after.nutrition.protein_logged_g == before.nutrition.protein_logged_g + 25
+    assert after.nutrition.carbs_logged_g == before.nutrition.carbs_logged_g + 30
+    assert after.nutrition.fat_logged_g == before.nutrition.fat_logged_g + 10
+
+
+def test_today_service_canonical_logged_foods_respect_user_and_date_separation(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_integration_db(tmp_path, monkeypatch)
+    canonical_food_id = _create_today_test_canonical_food()
+    user_102_today_before = build_daily_driver_today_response(102, _today())
+    user_103_today_before = build_daily_driver_today_response(103, _today())
+    user_102_yesterday_before = build_daily_driver_today_response(102, _yesterday())
+
+    add_canonical_food_entry(
+        user_id=102,
+        canonical_food_id=canonical_food_id,
+        grams=100,
+        entry_date=_today(),
+    )
+
+    user_102_today_after = build_daily_driver_today_response(102, _today())
+    user_103_today_after = build_daily_driver_today_response(103, _today())
+    user_102_yesterday_after = build_daily_driver_today_response(102, _yesterday())
+
+    assert (
+        user_102_today_after.nutrition.calories_logged
+        == user_102_today_before.nutrition.calories_logged + 200
+    )
+    assert (
+        user_102_today_after.nutrition.protein_logged_g
+        == user_102_today_before.nutrition.protein_logged_g + 25
+    )
+    assert (
+        user_102_today_after.nutrition.carbs_logged_g
+        == user_102_today_before.nutrition.carbs_logged_g + 30
+    )
+    assert (
+        user_102_today_after.nutrition.fat_logged_g
+        == user_102_today_before.nutrition.fat_logged_g + 10
+    )
+    assert (
+        user_103_today_after.nutrition.to_dict()
+        == user_103_today_before.nutrition.to_dict()
+    )
+    assert (
+        user_102_yesterday_after.nutrition.to_dict()
+        == user_102_yesterday_before.nutrition.to_dict()
+    )
+
+
+def test_today_service_no_log_day_keeps_clean_not_logged_state(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_integration_db(tmp_path, monkeypatch)
+
+    response = build_daily_driver_today_response(102, _tomorrow())
+
+    assert response.nutrition.status == "not_logged"
+    assert response.nutrition.calories_logged is None
+    assert response.nutrition.protein_logged_g is None
+    assert response.nutrition.carbs_logged_g is None
+    assert response.nutrition.fat_logged_g is None
