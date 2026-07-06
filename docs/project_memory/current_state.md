@@ -1,3 +1,54 @@
+# Current State — USDA Real Dataset Adapter Smoke v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+USDA Real Dataset Adapter Smoke v0
+```
+
+Requested status:
+
+```text
+USDA_REAL_DATASET_ADAPTER_SMOKE_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Extend the local USDA import foundation so the repo can ingest the real extracted FoodData Central CSV directory shape while keeping nutrition scope small and preserving the current raw-source boundaries.
+```
+
+Implemented scope:
+
+- Reused the existing USDA raw-source importer foundation and shared upsert path into `raw_food_source_records`.
+- Added a real FoodData Central directory importer that joins `food.csv`, `food_nutrient.csv`, and `nutrient.csv`, with optional `branded_food.csv` metadata.
+- Preserved the original simple fixture CSV import path so current tiny-fixture workflows still work.
+- Added defensive macro mapping from USDA nutrient definitions for calories, protein, carbs, and fat.
+- Added CLI support for `--fdc-dir` and optional `--limit` for smoke-sized local imports.
+- Added a tiny checked-in extracted-directory fixture plus focused tests covering joins, optional metadata omission, rerun idempotence, row limiting, and CLI directory import.
+
+Boundaries preserved:
+
+- No fake food database, meal database, AI food parser, or long-term nutrition logging system was added.
+- Canonical foods and user-facing food search/logging remain unchanged.
+- Full USDA data extracts remain local-only and ignored by Git.
+- Backend remains the owner of imported source metadata and normalized macro truth.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_normalization_service.py tests/test_food_canonical_search_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check models/usda_food_data_models.py services/usda_food_data_import_service.py scripts/import_usda_food_data.py tests/test_usda_food_data_import.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check models/usda_food_data_models.py services/usda_food_data_import_service.py scripts/import_usda_food_data.py tests/test_usda_food_data_import.py`
+
+---
+
 # Current State — USDA Food Data Import Foundation v0
 
 Current accepted baseline:
