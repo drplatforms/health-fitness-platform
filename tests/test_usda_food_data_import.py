@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -8,9 +9,13 @@ from pathlib import Path
 
 import database
 from services.food_normalization_service import ensure_food_normalization_tables
-from services.usda_food_data_import_service import import_usda_food_csv
+from services.usda_food_data_import_service import (
+    import_usda_food_csv,
+    import_usda_food_fdc_directory,
+)
 
 FIXTURE_PATH = Path("tests/fixtures/usda/sample_foods.csv")
+FDC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_minimal")
 
 
 def _seed_test_db(tmp_path: Path, monkeypatch) -> Path:
@@ -133,6 +138,95 @@ def test_importer_handles_missing_optional_fields_safely(tmp_path, monkeypatch) 
     assert row["serving_size_unit"] is None
 
 
+def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    summary = import_usda_food_fdc_directory(
+        FDC_FIXTURE_DIR,
+        import_batch="fdc_fixture_batch_v0",
+    )
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 3
+    assert summary.inserted_count == 3
+    assert summary.updated_count == 0
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    tuna_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_name = ? AND source_record_id = ?
+        """,
+        ("USDA FoodData Central", "533294"),
+    ).fetchone()
+    apricot_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("2710815",),
+    ).fetchone()
+    conn.close()
+
+    assert tuna_row is not None
+    assert tuna_row["raw_description"] == "Tuna, canned in water"
+    assert tuna_row["data_type"] == "Branded"
+    assert tuna_row["brand_name"] == "Sample Foods LLC"
+    assert tuna_row["gtin_upc"] == "012345678905"
+    assert tuna_row["serving_size"] == 56
+    assert tuna_row["serving_size_unit"] == "g"
+    assert tuna_row["calories_per_100g"] == 116
+    assert tuna_row["protein_g_per_100g"] == 25.5
+    assert tuna_row["carbs_g_per_100g"] == 0
+    assert tuna_row["fat_g_per_100g"] == 0.8
+    assert tuna_row["import_batch"] == "fdc_fixture_batch_v0"
+
+    assert apricot_row is not None
+    assert apricot_row["brand_name"] is None
+    assert apricot_row["gtin_upc"] is None
+    assert apricot_row["serving_size"] is None
+    assert apricot_row["serving_size_unit"] is None
+
+
+def test_fdc_directory_import_handles_missing_optional_branded_metadata(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_without_branded"
+    shutil.copytree(FDC_FIXTURE_DIR, fixture_copy)
+    (fixture_copy / "branded_food.csv").unlink()
+
+    summary = import_usda_food_fdc_directory(fixture_copy)
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 3
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    tuna_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("533294",),
+    ).fetchone()
+    conn.close()
+
+    assert tuna_row is not None
+    assert tuna_row["brand_name"] is None
+    assert tuna_row["gtin_upc"] is None
+    assert tuna_row["serving_size"] is None
+    assert tuna_row["serving_size_unit"] is None
+
+
 def test_rerunning_import_updates_existing_fdc_ids_without_duplicates(
     tmp_path,
     monkeypatch,
@@ -163,6 +257,69 @@ def test_rerunning_import_updates_existing_fdc_ids_without_duplicates(
 
     assert count == 4
     assert batch == "second_pass"
+
+
+def test_rerunning_fdc_directory_import_updates_existing_fdc_ids_without_duplicates(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    first = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, import_batch="first_fdc")
+    second = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, import_batch="second_fdc")
+
+    assert first.inserted_count == 3
+    assert second.inserted_count == 0
+    assert second.updated_count == 3
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    count = conn.execute(
+        "SELECT COUNT(*) AS count FROM raw_food_source_records"
+    ).fetchone()["count"]
+    batch = conn.execute(
+        """
+        SELECT import_batch
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("533294",),
+    ).fetchone()["import_batch"]
+    conn.close()
+
+    assert count == 3
+    assert batch == "second_fdc"
+
+
+def test_fdc_directory_import_limit_restricts_selected_food_rows(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    summary = import_usda_food_fdc_directory(FDC_FIXTURE_DIR, limit=2)
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 2
+    assert summary.inserted_count == 2
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    count = conn.execute(
+        "SELECT COUNT(*) AS count FROM raw_food_source_records"
+    ).fetchone()["count"]
+    mandarin_row = conn.execute(
+        """
+        SELECT *
+        FROM raw_food_source_records
+        WHERE source_record_id = ?
+        """,
+        ("2710832",),
+    ).fetchone()
+    conn.close()
+
+    assert count == 2
+    assert mandarin_row is None
 
 
 def test_missing_required_columns_fail_fast(tmp_path, monkeypatch) -> None:
@@ -258,7 +415,8 @@ def test_cli_help_is_available() -> None:
     )
 
     assert result.returncode == 0
-    assert "Import a local USDA-style CSV" in result.stdout
+    assert "Import either a simple USDA-style CSV file" in result.stdout
+    assert "--fdc-dir" in result.stdout
 
 
 def test_cli_imports_fixture_into_scratch_database(tmp_path: Path) -> None:
@@ -283,3 +441,30 @@ def test_cli_imports_fixture_into_scratch_database(tmp_path: Path) -> None:
     assert db_path.exists()
     assert "USDA food import complete." in result.stdout
     assert "Rows inserted: 4" in result.stdout
+
+
+def test_cli_imports_fdc_directory_into_scratch_database(tmp_path: Path) -> None:
+    db_path = tmp_path / "scratch" / "usda_fdc_import.db"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/import_usda_food_data.py",
+            "--fdc-dir",
+            str(FDC_FIXTURE_DIR),
+            "--db-path",
+            str(db_path),
+            "--import-batch",
+            "cli_fdc_fixture_batch",
+            "--limit",
+            "2",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert db_path.exists()
+    assert "USDA food import complete." in result.stdout
+    assert "Rows processed: 2" in result.stdout
+    assert "Rows inserted: 2" in result.stdout

@@ -13,15 +13,30 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import database
 from database import initialize_database
-from services.usda_food_data_import_service import import_usda_food_csv
+from services.usda_food_data_import_service import (
+    import_usda_food_csv,
+    import_usda_food_fdc_directory,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Import a local USDA-style CSV file into raw_food_source_records."
+        description=(
+            "Import either a simple USDA-style CSV file or an extracted USDA "
+            "FoodData Central CSV directory into raw_food_source_records."
+        )
     )
-    parser.add_argument(
-        "--input", required=True, help="Path to a local USDA-style CSV."
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument(
+        "--input",
+        help="Path to a local USDA-style CSV.",
+    )
+    input_group.add_argument(
+        "--fdc-dir",
+        help=(
+            "Path to an extracted USDA FoodData Central directory containing "
+            "food.csv, food_nutrient.csv, and nutrient.csv."
+        ),
     )
     parser.add_argument(
         "--import-batch",
@@ -32,6 +47,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--db-path",
         default=None,
         help="Optional SQLite path override for a scratch or test database.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Optional positive row limit, mainly for local smoke imports.",
     )
     return parser
 
@@ -45,10 +66,18 @@ def main() -> int:
         database.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     initialize_database()
-    summary = import_usda_food_csv(
-        args.input,
-        import_batch=args.import_batch,
-    )
+    if args.fdc_dir:
+        summary = import_usda_food_fdc_directory(
+            args.fdc_dir,
+            import_batch=args.import_batch,
+            limit=args.limit,
+        )
+    else:
+        summary = import_usda_food_csv(
+            args.input,
+            import_batch=args.import_batch,
+            limit=args.limit,
+        )
 
     print("USDA food import complete.")
     print(f"Database: {summary.database_path}")
