@@ -1,3 +1,53 @@
+# Current State — Next.js Today Workout UI Polish v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active frontend implementation milestone:
+
+```text
+Next.js Today Workout UI Polish v0
+```
+
+Requested status:
+
+```text
+NEXTJS_TODAY_WORKOUT_UI_POLISH_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Polish the existing Next.js Today and Workout screens so they feel tighter and more useful for daily use without changing backend workout, recovery, nutrition, or user-routing behavior.
+```
+
+Implemented scope:
+
+- Tightened the Today header into a shorter card with long readable date formatting and inline user selection.
+- Removed normal UI clutter that labeled users as `Real user`, `QA / Test User`, or `(Test)`.
+- Reworked the Today workout summary card to use plain app language, remove generated workout titles from the summary surface, and promote the workout-detail action.
+- Tightened the Workout page header and removed backend-ish preview wording.
+- Simplified the Workout experience layout by removing `Preview Details`, shrinking the summary area, and moving preview actions to the top of the exercises card.
+- Kept session notes smaller and conditional so low-value note content no longer creates a large side panel.
+
+Boundaries preserved:
+
+- No backend behavior or workout contracts were changed.
+- URL `user_id` remains the source of truth.
+- Workout preview/select/start/logging/completion flows remain on their existing API and component path.
+- Recovery Check-In and Nutrition Macro Card behavior remain unchanged.
+
+Validation target:
+
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+
+---
+
 # Current State — USDA Real Dataset Adapter Smoke v0
 
 Current accepted baseline:
