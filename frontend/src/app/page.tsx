@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { FoodLoggingCard } from "@/components/FoodLoggingCard";
 import { NextActionCard } from "@/components/NextActionCard";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
@@ -220,10 +221,14 @@ export default async function Home({
               </div>
             </TodayCard>
 
-            <NutritionMacroCard
-              nutrition={data.nutrition}
-              className="lg:col-start-2 lg:row-start-2"
-            />
+            <div className="space-y-4 lg:col-start-2 lg:row-start-2 lg:space-y-6">
+              <NutritionMacroCard nutrition={data.nutrition} />
+              <FoodLoggingCard
+                key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                userId={todayQuery.userId ?? data.user_id}
+                targetDate={data.target_date}
+              />
+            </div>
 
             {data.coach_note.enabled && data.coach_note.text ? (
               <TodayCard

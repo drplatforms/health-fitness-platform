@@ -333,6 +333,7 @@ def log_canonical_food_serving(
         canonical_food_id=canonical_food_id,
         grams=resolved_grams,
         entry_date=entry_date,
+        nutrient_summary_precision=1,
     )
 
     food_entry_id = int(logged_entry["logged_food_entry_id"])

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sqlite3
+
 from fastapi.testclient import TestClient
 
 import database
@@ -28,11 +30,133 @@ def _client() -> TestClient:
     return TestClient(app)
 
 
+def _create_legacy_food_entries_schema(db_path) -> None:
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE food_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            food_id INTEGER NOT NULL,
+            grams REAL NOT NULL,
+            entry_date TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        """
+        INSERT INTO food_entries (user_id, food_id, grams, entry_date)
+        VALUES (1, 1, 150, '2026-06-05')
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
 def _seed_chicken() -> int:
     seed_starter_canonical_foods()
     response = _client().get("/foods/canonical/search?q=chicken%20breast")
     assert response.status_code == 200
     return int(response.json()["results"][0]["canonical_food_id"])
+
+
+def test_initialize_database_upgrades_legacy_food_entries_table_safely(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "fitness_ai_test.db"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    _create_legacy_food_entries_schema(db_path)
+
+    database.initialize_database()
+
+    conn = database.get_connection()
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(food_entries)").fetchall()
+    }
+    row = conn.execute(
+        """
+        SELECT user_id, food_id, grams, entry_date
+        FROM food_entries
+        WHERE id = 1
+        """
+    ).fetchone()
+    conn.close()
+
+    assert {
+        "canonical_food_id",
+        "meal_type",
+        "notes",
+        "calories",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+    }.issubset(columns)
+    assert row["user_id"] == 1
+    assert row["food_id"] == 1
+    assert row["grams"] == 150.0
+    assert row["entry_date"] == "2026-06-05"
+
+
+def test_canonical_logging_route_upgrades_legacy_food_entries_schema_on_app_startup(
+    tmp_path,
+    monkeypatch,
+):
+    db_path = tmp_path / "fitness_ai_test.db"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    _create_legacy_food_entries_schema(db_path)
+
+    with TestClient(app) as client:
+        search_response = client.get("/foods/canonical/search?q=chicken%20breast")
+        assert search_response.status_code == 200
+        canonical_food_id = int(
+            search_response.json()["results"][0]["canonical_food_id"]
+        )
+
+        response = client.post(
+            "/nutrition/1/log-canonical",
+            json={
+                "canonical_food_id": canonical_food_id,
+                "grams": 100,
+                "entry_date": "2026-06-05",
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["canonical_food_id"] == canonical_food_id
+
+    conn = database.get_connection()
+    columns = {
+        row["name"]
+        for row in conn.execute("PRAGMA table_info(food_entries)").fetchall()
+    }
+    logged_row = conn.execute(
+        """
+        SELECT canonical_food_id, calories, protein_g, carbs_g, fat_g
+        FROM food_entries
+        WHERE id = ?
+        """,
+        (response.json()["logged_food_entry_id"],),
+    ).fetchone()
+    conn.close()
+
+    assert {
+        "canonical_food_id",
+        "meal_type",
+        "notes",
+        "calories",
+        "protein_g",
+        "carbs_g",
+        "fat_g",
+    }.issubset(columns)
+    assert logged_row["canonical_food_id"] == canonical_food_id
+    assert logged_row["calories"] == 165.0
+    assert logged_row["protein_g"] == 31.0
+    assert logged_row["carbs_g"] == 0.0
+    assert logged_row["fat_g"] == 3.6
 
 
 def test_canonical_food_can_be_logged_by_canonical_food_id(tmp_path, monkeypatch):

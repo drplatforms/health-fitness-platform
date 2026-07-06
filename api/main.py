@@ -2,6 +2,8 @@
 # Imports
 # =====================================
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
 from api.routes.ai_nutrition_explanation import (
@@ -30,12 +32,21 @@ from api.routes.recovery import router as recovery_router
 from api.routes.reports import router as report_router
 from api.routes.workout_plans import router as workout_plan_router
 from api.routes.workouts import router as workout_router
+from database import initialize_database
 
 # =====================================
 # App Initialization
 # =====================================
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    del app
+    initialize_database()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 app.include_router(daily_driver_router)
 app.include_router(workout_router)
 app.include_router(daily_coach_router)
