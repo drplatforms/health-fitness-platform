@@ -4,6 +4,9 @@ from fastapi.testclient import TestClient
 
 import database
 from api.main import app
+from services.food_canonical_promotion_service import (
+    promote_raw_source_record_to_canonical,
+)
 from services.food_normalization_service import (
     create_canonical_food,
     create_canonical_food_alias,
@@ -88,6 +91,72 @@ def test_search_endpoint_returns_alias_match(tmp_path, monkeypatch):
     assert result["display_name"] == "Chicken Breast, Cooked, Skinless"
     assert result["matched_on"] == "alias"
     assert "boneless chicken" in result["aliases"]
+
+
+def test_promoted_canonical_food_can_be_found_by_name_with_compact_source_summary(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_record = create_raw_food_source_record(
+        source_name="USDA FoodData Central",
+        source_record_id="321358",
+        raw_description="Hummus, commercial",
+        data_type="foundation_food",
+        calories_per_100g=229.0,
+        protein_g_per_100g=7.35,
+        carbs_g_per_100g=14.9,
+        fat_g_per_100g=17.1,
+        source_payload={"fdc_id": 321358},
+    )
+    promote_raw_source_record_to_canonical(
+        raw_record.id,
+        canonical_name="Hummus, commercial",
+        aliases=["hummus"],
+    )
+
+    response = _client().get("/foods/canonical/search?q=hummus commercial")
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["display_name"] == "Hummus, commercial"
+    assert result["matched_on"] == "display_name"
+    assert result["source"] == {
+        "source_name": "USDA FoodData Central",
+        "source_record_id": "321358",
+    }
+    assert "source_payload_json" not in result
+    assert "raw_description" not in result
+
+
+def test_promoted_canonical_food_can_be_found_by_alias(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_record = create_raw_food_source_record(
+        source_name="USDA FoodData Central",
+        source_record_id="321358",
+        raw_description="Hummus, commercial",
+        data_type="foundation_food",
+        calories_per_100g=229.0,
+        protein_g_per_100g=7.35,
+        carbs_g_per_100g=14.9,
+        fat_g_per_100g=17.1,
+    )
+    promote_raw_source_record_to_canonical(
+        raw_record.id,
+        canonical_name="Hummus, commercial",
+        aliases=["commercial hummus"],
+    )
+
+    response = _client().get("/foods/canonical/search?q=commercial hummus")
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["display_name"] == "Hummus, commercial"
+    assert result["matched_on"] == "alias"
+    assert "commercial hummus" in result["aliases"]
 
 
 def test_higher_priority_canonical_food_ranks_first(tmp_path, monkeypatch):
@@ -225,13 +294,54 @@ def test_nutrient_summary_is_included_only_when_nutrients_exist(
     assert "nutrient_summary" not in plain_response.json()["results"][0]
 
 
+def test_partial_missing_macro_values_are_not_forced_to_zero(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    food = create_canonical_food("Partial Macro Food", "generic")
+    create_canonical_food_nutrient(food.id, "Calories", "kcal", 27)
+    create_canonical_food_nutrient(food.id, "Carbohydrate", "g", 5.51)
+
+    response = _client().get("/foods/canonical/search?q=partial macro")
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["nutrient_summary"] == {
+        "calories_per_100g": 27.0,
+        "carbohydrate_g_per_100g": 5.51,
+    }
+
+
+def test_explicit_zero_macro_values_remain_zero(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    food = create_canonical_food("Zero Macro Food", "generic")
+    create_canonical_food_nutrient(food.id, "Calories", "kcal", 0)
+    create_canonical_food_nutrient(food.id, "Protein", "g", 0)
+    create_canonical_food_nutrient(food.id, "Carbohydrate", "g", 0)
+    create_canonical_food_nutrient(food.id, "Fat", "g", 0)
+
+    response = _client().get("/foods/canonical/search?q=zero macro")
+
+    assert response.status_code == 200
+    assert response.json()["results"][0]["nutrient_summary"] == {
+        "calories_per_100g": 0.0,
+        "protein_g_per_100g": 0.0,
+        "carbohydrate_g_per_100g": 0.0,
+        "fat_g_per_100g": 0.0,
+    }
+
+
 def test_empty_or_short_query_is_safe_and_deterministic(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
 
     empty_response = _client().get("/foods/canonical/search?q=")
     short_response = _client().get("/foods/canonical/search?q=a")
 
-    assert empty_response.status_code == 422
+    assert empty_response.status_code == 200
+    assert empty_response.json() == {"success": True, "query": "", "results": []}
     assert short_response.status_code == 400
     assert short_response.json()["detail"] == (
         "q must be at least 2 characters for canonical food search."

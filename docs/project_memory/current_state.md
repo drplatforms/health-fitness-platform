@@ -2,6 +2,58 @@
 
 ---
 
+# Current State — Canonical Food Search API v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+Canonical Food Search API v0
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_SEARCH_API_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Add a tightly scoped backend search API for canonical foods only so future food logging/search stays on curated canonical foods and not raw USDA source rows.
+```
+
+Implemented scope:
+
+- Hardened the canonical food search route at `GET /foods/canonical/search`.
+- Preserved canonical-only search behavior through `canonical_foods` and alias search.
+- Added compact default source summary output when a canonical food has a linked source row.
+- Preserved macro summaries from canonical nutrient rows only.
+- Made empty search queries return a safe empty result.
+- Kept deterministic matching order and tightened alias ordering.
+- Added focused tests for promoted canonical foods, compact source identity, and missing-vs-zero macro behavior.
+
+Boundaries preserved:
+
+- No food logging backend or UI was added.
+- No raw USDA direct-search endpoint was added.
+- No meal builder, barcode, AI food parsing, workout, recovery, or provider behavior was touched.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_search_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_promotion_service.py tests/test_food_normalization_service.py tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services/food_normalization_service.py services/food_canonical_promotion_service.py api/routes/food_canonical_search.py tests/test_food_canonical_search_api.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check services/food_normalization_service.py services/food_canonical_promotion_service.py api/routes/food_canonical_search.py tests/test_food_canonical_search_api.py`
+
+---
+
 # Current State — USDA Raw Source Canonical Promotion v0
 
 Current accepted baseline:
