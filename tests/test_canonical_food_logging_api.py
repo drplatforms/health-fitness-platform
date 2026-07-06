@@ -11,7 +11,11 @@ from services.food_normalization_service import (
     ensure_food_normalization_tables,
     seed_starter_canonical_foods,
 )
-from services.nutrition_service import add_food_entry, get_daily_nutrition
+from services.nutrition_service import (
+    add_food_entry,
+    get_daily_canonical_food_macro_totals,
+    get_daily_nutrition,
+)
 
 
 def _seed_test_db(tmp_path, monkeypatch):
@@ -41,6 +45,8 @@ def test_canonical_food_can_be_logged_by_canonical_food_id(tmp_path, monkeypatch
             "canonical_food_id": canonical_food_id,
             "grams": 150,
             "entry_date": "2026-06-05",
+            "meal_type": "lunch",
+            "notes": "post-workout",
         },
     )
 
@@ -53,6 +59,8 @@ def test_canonical_food_can_be_logged_by_canonical_food_id(tmp_path, monkeypatch
     assert payload["display_name"] == "Chicken Breast, Cooked, Skinless"
     assert payload["grams"] == 150.0
     assert payload["logged_date"] == "2026-06-05"
+    assert payload["meal_type"] == "lunch"
+    assert payload["notes"] == "post-workout"
     assert payload["nutrient_summary"] == {
         "calories": 247.5,
         "protein_g": 46.5,
@@ -60,6 +68,27 @@ def test_canonical_food_can_be_logged_by_canonical_food_id(tmp_path, monkeypatch
         "fat_g": 5.4,
     }
     assert "source_payload_json" not in payload
+
+    conn = database.get_connection()
+    conn.row_factory = database.sqlite3.Row
+    row = conn.execute(
+        """
+        SELECT canonical_food_id, grams, meal_type, notes, calories, protein_g, carbs_g, fat_g
+        FROM food_entries
+        WHERE id = ?
+        """,
+        (payload["logged_food_entry_id"],),
+    ).fetchone()
+    conn.close()
+
+    assert row["canonical_food_id"] == canonical_food_id
+    assert row["grams"] == 150.0
+    assert row["meal_type"] == "lunch"
+    assert row["notes"] == "post-workout"
+    assert row["calories"] == 247.5
+    assert row["protein_g"] == 46.5
+    assert row["carbs_g"] == 0.0
+    assert row["fat_g"] == 5.4
 
 
 def test_inactive_canonical_food_cannot_be_logged(tmp_path, monkeypatch):
@@ -90,6 +119,20 @@ def test_missing_canonical_food_returns_safe_404(tmp_path, monkeypatch):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Canonical food not found."
+
+
+def test_raw_source_record_id_cannot_be_logged_as_the_user_facing_identifier(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().post(
+        "/nutrition/1/log-canonical",
+        json={"raw_food_source_record_id": 123, "grams": 100},
+    )
+
+    assert response.status_code == 422
 
 
 def test_canonical_logging_requires_positive_grams(tmp_path, monkeypatch):
@@ -139,11 +182,74 @@ def test_missing_canonical_nutrients_remain_missing_not_zero(tmp_path, monkeypat
     assert response.status_code == 200
     assert response.json()["nutrient_summary"] == {"protein_g": 20.0}
 
+    conn = database.get_connection()
+    row = conn.execute(
+        """
+        SELECT calories, protein_g, carbs_g, fat_g
+        FROM food_entries
+        WHERE id = ?
+        """,
+        (response.json()["logged_food_entry_id"],),
+    ).fetchone()
+    conn.close()
+
+    assert row["calories"] is None
+    assert row["protein_g"] == 20.0
+    assert row["carbs_g"] is None
+    assert row["fat_g"] is None
+
     nutrition = get_daily_nutrition(user_id=1, entry_date="2026-06-05")
     assert nutrition["Protein"]["amount"] == 20.0
     assert "Calories" not in nutrition
     assert "Carbohydrates" not in nutrition
     assert "Fat" not in nutrition
+
+    totals = get_daily_canonical_food_macro_totals(user_id=1, entry_date="2026-06-05")
+    assert totals == {
+        "entry_count": 1,
+        "calories": None,
+        "protein_g": 20.0,
+        "carbs_g": None,
+        "fat_g": None,
+    }
+
+
+def test_explicit_zero_macro_values_remain_zero_in_logged_entry_and_rollup(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food = create_canonical_food("Zero Macro Test Food", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 0)
+    create_canonical_food_nutrient(canonical_food.id, "Protein", "g", 0)
+    create_canonical_food_nutrient(canonical_food.id, "Carbohydrate", "g", 0)
+    create_canonical_food_nutrient(canonical_food.id, "Fat", "g", 0)
+
+    response = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food.id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["nutrient_summary"] == {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "carbohydrate_g": 0.0,
+        "fat_g": 0.0,
+    }
+
+    totals = get_daily_canonical_food_macro_totals(user_id=1, entry_date="2026-06-05")
+    assert totals == {
+        "entry_count": 1,
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 0.0,
+    }
 
 
 def test_canonical_logged_foods_create_usable_logged_actuals(tmp_path, monkeypatch):
@@ -190,6 +296,15 @@ def test_target_vs_actual_reflects_canonical_logged_foods(tmp_path, monkeypatch)
     assert actuals["logged_protein"] == 62.0
     assert actuals["logged_carbs"] == 0.0
     assert actuals["logged_fat"] == 7.2
+
+    totals = get_daily_canonical_food_macro_totals(user_id=1, entry_date="2026-06-05")
+    assert totals == {
+        "entry_count": 1,
+        "calories": 330.0,
+        "protein_g": 62.0,
+        "carbs_g": 0.0,
+        "fat_g": 7.2,
+    }
 
 
 def test_expanded_canonical_food_can_be_logged_and_counted(tmp_path, monkeypatch):
@@ -313,6 +428,118 @@ def test_canonical_logging_does_not_expose_raw_source_payloads(tmp_path, monkeyp
     payload = response.json()
     assert "source_payload_json" not in payload
     assert "raw_description" not in payload
+
+
+def test_daily_canonical_rollup_separates_users_and_dates(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+
+    first = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    second = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 50,
+            "entry_date": "2026-06-05",
+        },
+    )
+    third = _client().post(
+        "/nutrition/2/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    fourth = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-06",
+        },
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200
+    assert fourth.status_code == 200
+
+    user_one_day_one = get_daily_canonical_food_macro_totals(
+        user_id=1,
+        entry_date="2026-06-05",
+    )
+    user_two_day_one = get_daily_canonical_food_macro_totals(
+        user_id=2,
+        entry_date="2026-06-05",
+    )
+    user_one_day_two = get_daily_canonical_food_macro_totals(
+        user_id=1,
+        entry_date="2026-06-06",
+    )
+
+    assert user_one_day_one == {
+        "entry_count": 2,
+        "calories": 247.5,
+        "protein_g": 46.5,
+        "carbs_g": 0.0,
+        "fat_g": 5.4,
+    }
+    assert user_two_day_one == {
+        "entry_count": 1,
+        "calories": 165.0,
+        "protein_g": 31.0,
+        "carbs_g": 0.0,
+        "fat_g": 3.6,
+    }
+    assert user_one_day_two == {
+        "entry_count": 1,
+        "calories": 165.0,
+        "protein_g": 31.0,
+        "carbs_g": 0.0,
+        "fat_g": 3.6,
+    }
+
+
+def test_canonical_totals_endpoint_is_safe_and_returns_rollup(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+
+    logged = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    assert logged.status_code == 200
+
+    response = _client().get("/nutrition/1/canonical-totals?date=2026-06-05")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "user_id": 1,
+        "date": "2026-06-05",
+        "totals": {
+            "entry_count": 1,
+            "calories": 165.0,
+            "protein_g": 31.0,
+            "carbs_g": 0.0,
+            "fat_g": 3.6,
+        },
+    }
 
 
 def test_v3_daily_staple_canonical_food_can_be_logged(tmp_path, monkeypatch):

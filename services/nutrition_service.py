@@ -55,6 +55,11 @@ def _validate_positive_grams(grams: float) -> float:
     return resolved_grams
 
 
+def _optional_text(value: str | None) -> str | None:
+    normalized = " ".join(str(value or "").strip().split())
+    return normalized or None
+
+
 def _legacy_canonical_food_name(canonical_food: CanonicalFood) -> str:
     return f"Canonical: {canonical_food.display_name}"
 
@@ -177,7 +182,7 @@ def _nutrient_summary_for_logged_grams(
         key = summary_keys.get(nutrient.nutrient_name.strip().lower())
         if key is None:
             continue
-        summary[key] = round(float(nutrient.amount_per_100g) * grams / 100.0, 1)
+        summary[key] = round(float(nutrient.amount_per_100g) * grams / 100.0, 3)
     return summary
 
 
@@ -188,6 +193,8 @@ def _canonical_food_log_response(
     grams: float,
     logged_date: str,
     canonical_nutrients: list[CanonicalFoodNutrient],
+    meal_type: str | None = None,
+    notes: str | None = None,
 ) -> dict[str, Any]:
     response: dict[str, Any] = {
         "logged_food_entry_id": food_entry_id,
@@ -200,6 +207,10 @@ def _canonical_food_log_response(
     nutrient_summary = _nutrient_summary_for_logged_grams(canonical_nutrients, grams)
     if nutrient_summary:
         response["nutrient_summary"] = nutrient_summary
+    if meal_type is not None:
+        response["meal_type"] = meal_type
+    if notes is not None:
+        response["notes"] = notes
 
     return response
 
@@ -326,7 +337,20 @@ def search_foods(search_term, limit=10):
 # -----------------------------
 
 
-def add_food_entry(user_id, food_id, grams, entry_date: str | None = None) -> int:
+def add_food_entry(
+    user_id,
+    food_id,
+    grams,
+    entry_date: str | None = None,
+    *,
+    canonical_food_id: int | None = None,
+    meal_type: str | None = None,
+    notes: str | None = None,
+    calories: float | None = None,
+    protein_g: float | None = None,
+    carbs_g: float | None = None,
+    fat_g: float | None = None,
+) -> int:
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -339,11 +363,30 @@ def add_food_entry(user_id, food_id, grams, entry_date: str | None = None) -> in
         user_id,
         food_id,
         grams,
+        canonical_food_id,
+        meal_type,
+        notes,
+        calories,
+        protein_g,
+        carbs_g,
+        fat_g,
         entry_date
     )
-    VALUES (?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """,
-        (user_id, food_id, resolved_grams, resolved_date),
+        (
+            user_id,
+            food_id,
+            resolved_grams,
+            canonical_food_id,
+            _optional_text(meal_type),
+            _optional_text(notes),
+            calories,
+            protein_g,
+            carbs_g,
+            fat_g,
+            resolved_date,
+        ),
     )
     entry_id = int(cursor.lastrowid)
 
@@ -358,6 +401,8 @@ def add_canonical_food_entry(
     canonical_food_id: int,
     grams: float,
     entry_date: str | None = None,
+    meal_type: str | None = None,
+    notes: str | None = None,
 ) -> dict[str, Any]:
     """Log an app-facing canonical food through backend-owned write-through.
 
@@ -386,11 +431,22 @@ def add_canonical_food_entry(
         _legacy_canonical_food_name(canonical_food)
     )
     _sync_legacy_food_nutrients(legacy_food_id, canonical_nutrients)
+    nutrient_summary = _nutrient_summary_for_logged_grams(
+        canonical_nutrients,
+        resolved_grams,
+    )
     food_entry_id = add_food_entry(
         user_id=user_id,
         food_id=legacy_food_id,
         grams=resolved_grams,
         entry_date=resolved_date,
+        canonical_food_id=canonical_food.id,
+        meal_type=meal_type,
+        notes=notes,
+        calories=nutrient_summary.get("calories"),
+        protein_g=nutrient_summary.get("protein_g"),
+        carbs_g=nutrient_summary.get("carbohydrate_g"),
+        fat_g=nutrient_summary.get("fat_g"),
     )
 
     return _canonical_food_log_response(
@@ -399,7 +455,58 @@ def add_canonical_food_entry(
         grams=resolved_grams,
         logged_date=resolved_date,
         canonical_nutrients=canonical_nutrients,
+        meal_type=_optional_text(meal_type),
+        notes=_optional_text(notes),
     )
+
+
+def get_daily_canonical_food_macro_totals(
+    user_id: int,
+    entry_date: str,
+) -> dict[str, float | int | None]:
+    resolved_date = _resolve_entry_date(entry_date)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            COUNT(*) AS entry_count,
+            SUM(calories) AS total_calories,
+            SUM(protein_g) AS total_protein_g,
+            SUM(carbs_g) AS total_carbs_g,
+            SUM(fat_g) AS total_fat_g,
+            COUNT(calories) AS calories_count,
+            COUNT(protein_g) AS protein_count,
+            COUNT(carbs_g) AS carbs_count,
+            COUNT(fat_g) AS fat_count
+        FROM food_entries
+        WHERE user_id = ?
+          AND entry_date = ?
+          AND canonical_food_id IS NOT NULL
+        """,
+        (user_id, resolved_date),
+    )
+    row = cursor.fetchone()
+    conn.close()
+
+    entry_count = int(row["entry_count"] or 0)
+
+    def _resolve_total(total_key: str, count_key: str) -> float | None:
+        known_count = int(row[count_key] or 0)
+        if entry_count == 0:
+            return 0.0
+        if known_count == 0:
+            return None
+        return round(float(row[total_key]), 3)
+
+    return {
+        "entry_count": entry_count,
+        "calories": _resolve_total("total_calories", "calories_count"),
+        "protein_g": _resolve_total("total_protein_g", "protein_count"),
+        "carbs_g": _resolve_total("total_carbs_g", "carbs_count"),
+        "fat_g": _resolve_total("total_fat_g", "fat_count"),
+    }
 
 
 # -----------------------------

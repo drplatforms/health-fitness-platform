@@ -2,6 +2,58 @@
 
 ---
 
+# Current State — Canonical Food Logging Backend v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+Canonical Food Logging Backend v0
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_LOGGING_BACKEND_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Add the backend write path that logs canonical foods by canonical_food_id and grams so daily nutrition tracking can consume the curated canonical food pipeline without exposing raw USDA rows directly.
+```
+
+Implemented scope:
+
+- Hardened the existing canonical logging route at `POST /nutrition/{user_id}/log-canonical`.
+- Preserved the canonical-only logging rule with `canonical_food_id` as the user-facing identifier.
+- Persisted canonical linkage and canonical macro snapshots on `food_entries`.
+- Preserved grams as the logging calculation source of truth.
+- Added a canonical-only daily macro rollup helper plus a small read route for daily rollup totals.
+- Kept the existing legacy nutrition actuals path working through the current write-through mirror behavior.
+- Added focused tests for persisted canonical linkage, invalid input, missing-vs-zero macro behavior, user/date separation, and rollup output.
+
+Boundaries preserved:
+
+- No Next.js UI, food search UI, meal builder, serving-size UX, barcode flow, or AI food parser was added.
+- No raw USDA identifier became the normal logging path.
+- No workout, recovery, provider, or user-switcher behavior was touched.
+- Full USDA datasets and generated DB files remain local-only artifacts.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_search_api.py tests/test_food_canonical_promotion_service.py tests/test_food_normalization_service.py tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check database.py services/nutrition_service.py api/routes/nutrition.py tests/test_canonical_food_logging_api.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check database.py services/nutrition_service.py api/routes/nutrition.py tests/test_canonical_food_logging_api.py`
+
+---
+
 # Current State — Canonical Food Search API v0
 
 Current accepted baseline:

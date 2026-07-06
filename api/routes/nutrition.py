@@ -16,6 +16,7 @@ from services.nutrition_service import (
     CanonicalFoodNotFoundError,
     add_canonical_food_entry,
     add_food_entry,
+    get_daily_canonical_food_macro_totals,
     get_daily_nutrition,
     search_foods,
 )
@@ -49,6 +50,8 @@ class CanonicalNutritionLogRequest(BaseModel):
     canonical_food_id: int
     grams: float
     entry_date: str | None = None
+    meal_type: str | None = None
+    notes: str | None = None
 
 
 class ServingUnitNutritionLogRequest(BaseModel):
@@ -75,22 +78,7 @@ def search_foods_endpoint(query: str):
 
 
 # =====================================
-# Daily Nutrition Endpoint
-# =====================================
-
-
-@router.get("/nutrition/{user_id}/{entry_date}")
-def daily_nutrition(user_id: int, entry_date: str):
-    nutrition = get_daily_nutrition(user_id, entry_date)
-
-    return {
-        "success": True,
-        "nutrition": nutrition,
-    }
-
-
-# =====================================
-# Nutrition Actuals Confidence Debug Endpoint
+# Nutrition Summary Endpoints
 # =====================================
 
 
@@ -108,6 +96,31 @@ def nutrition_actuals_confidence_debug(user_id: int, date: str):
         user_id=user_id,
         target_date=date,
     )
+
+
+@router.get("/nutrition/{user_id}/canonical-totals")
+def daily_canonical_food_macro_totals(user_id: int, date: str):
+    try:
+        totals = get_daily_canonical_food_macro_totals(user_id=user_id, entry_date=date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "date": date,
+        "totals": totals,
+    }
+
+
+@router.get("/nutrition/{user_id}/{entry_date}")
+def daily_nutrition(user_id: int, entry_date: str):
+    nutrition = get_daily_nutrition(user_id, entry_date)
+
+    return {
+        "success": True,
+        "nutrition": nutrition,
+    }
 
 
 # =====================================
@@ -149,6 +162,8 @@ def log_canonical_food_entry(
             canonical_food_id=entry.canonical_food_id,
             grams=entry.grams,
             entry_date=entry.entry_date,
+            meal_type=entry.meal_type,
+            notes=entry.notes,
         )
     except CanonicalFoodNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
