@@ -51,8 +51,12 @@ export interface DailyDriverNutritionSummary {
   status: DailyDriverNutritionStatus;
   calorie_target: number | null;
   protein_target_g: number | null;
+  carbohydrate_target_g: number | null;
+  fat_target_g: number | null;
   calories_logged: number | null;
   protein_logged_g: number | null;
+  carbs_logged_g: number | null;
+  fat_logged_g: number | null;
   today_mission: string;
 }
 

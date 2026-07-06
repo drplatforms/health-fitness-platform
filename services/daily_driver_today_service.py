@@ -228,8 +228,12 @@ def _build_nutrition_summary(
             status="unknown",
             calorie_target=None,
             protein_target_g=None,
+            carbohydrate_target_g=None,
+            fat_target_g=None,
             calories_logged=None,
             protein_logged_g=None,
+            carbs_logged_g=None,
+            fat_logged_g=None,
             today_mission="Review today's nutrition data.",
         )
 
@@ -245,13 +249,25 @@ def _build_nutrition_summary(
         nutrition_targets.protein_grams_min,
         nutrition_targets.protein_grams_max,
     )
+    carbohydrate_target = _display_target(
+        nutrition_targets.carbohydrate_grams_min,
+        nutrition_targets.carbohydrate_grams_max,
+    )
+    fat_target = _display_target(
+        nutrition_targets.fat_grams_min,
+        nutrition_targets.fat_grams_max,
+    )
 
     return DailyDriverNutritionSummary(
         status=status,
         calorie_target=calorie_target,
         protein_target_g=protein_target,
+        carbohydrate_target_g=carbohydrate_target,
+        fat_target_g=fat_target,
         calories_logged=_rounded_int(target_summary.nutrition_actuals.logged_calories),
         protein_logged_g=_rounded_int(target_summary.nutrition_actuals.logged_protein),
+        carbs_logged_g=_rounded_int(target_summary.nutrition_actuals.logged_carbs),
+        fat_logged_g=_rounded_int(target_summary.nutrition_actuals.logged_fat),
         today_mission=mission,
     )
 

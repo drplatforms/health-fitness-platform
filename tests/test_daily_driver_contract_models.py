@@ -35,8 +35,12 @@ def _response() -> DailyDriverTodayResponse:
             status="behind",
             calorie_target=2300,
             protein_target_g=180,
+            carbohydrate_target_g=240,
+            fat_target_g=75,
             calories_logged=900,
             protein_logged_g=72,
+            carbs_logged_g=120,
+            fat_logged_g=35,
             today_mission="Get protein on track with your next meal.",
         ),
         next_action=DailyDriverNextAction(
@@ -134,5 +138,7 @@ def test_serialization_shape_is_stable() -> None:
     assert payload["readiness"]["score"] == 90
     assert payload["workout"]["title"] == "Upper Body Strength"
     assert payload["nutrition"]["protein_target_g"] == 180
+    assert payload["nutrition"]["carbohydrate_target_g"] == 240
+    assert payload["nutrition"]["fat_logged_g"] == 35
     assert payload["next_action"]["type"] == "start_workout"
     assert payload["coach_note"] == {"enabled": False, "text": None}
