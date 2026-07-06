@@ -19,6 +19,7 @@ import {
   WorkoutActiveSubstitutionSummary,
   WorkoutActualSetSummary,
   WorkoutCurrentResponse,
+  WorkoutDailyStateSummary,
   WorkoutExecutionSessionSummary,
   WorkoutPlanInstanceSummary,
   WorkoutPlannedVsActualSummary,
@@ -60,7 +61,7 @@ interface ActualSetFormState {
   notes: string;
 }
 
-type WorkoutViewMode = "preview" | "persisted";
+type WorkoutViewMode = "preview" | "persisted" | "completed";
 
 function detailLabel(label: string, value: string | number | null): string | null {
   if (value === null || value === "") {
@@ -100,22 +101,6 @@ function isPreviewPayload(
     typeof payload.approved_workout_plan === "object" &&
     typeof payload.approved_workout_plan.title === "string" &&
     Array.isArray(payload.approved_workout_plan.exercises)
-  );
-}
-
-function hasPersistedWorkoutState(
-  payload: WorkoutCurrentResponse | null,
-): payload is WorkoutCurrentResponse & {
-  current_execution_state: NonNullable<WorkoutCurrentResponse["current_execution_state"]>;
-} {
-  if (payload?.current_execution_state === null) {
-    return false;
-  }
-
-  return (
-    payload?.workout_daily_state.state === "selected_today" ||
-    payload?.workout_daily_state.state === "active_today" ||
-    payload?.workout_daily_state.state === "completed_today"
   );
 }
 
@@ -163,7 +148,12 @@ function compactMetric(
 function statusSummaryLine(
   approvedPlan: ApprovedWorkoutPlanPreview | null,
   preview: WorkoutPreviewResponse | null,
+  viewMode: WorkoutViewMode,
 ): string {
+  if (viewMode === "completed") {
+    return "Today's workout is complete.";
+  }
+
   if (preview) {
     return buildPreviewSummary(preview);
   }
@@ -186,6 +176,7 @@ export function WorkoutPreviewExperience({
   const [persistedPlan, setPersistedPlan] =
     useState<ApprovedWorkoutPlanPreview | null>(null);
   const [viewMode, setViewMode] = useState<WorkoutViewMode>("preview");
+  const [dailyState, setDailyState] = useState<WorkoutDailyStateSummary | null>(null);
   const [selectedPlan, setSelectedPlan] =
     useState<WorkoutPlanInstanceSummary | null>(null);
   const [executionSession, setExecutionSession] =
@@ -209,11 +200,24 @@ export function WorkoutPreviewExperience({
 
   const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
   const isPersistedState = viewMode === "persisted";
+  const isCompletedState = viewMode === "completed";
   const statusLabel =
+    isCompletedState
+      ? "completed"
+      : (
     executionSession?.status ??
     selectedPlan?.status ??
-    (approvedPlan ? "preview" : "not_available");
+    (approvedPlan ? "preview" : "not_available"));
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
+  const completedWorkoutTitle =
+    approvedPlan?.title ??
+    selectedPlan?.title ??
+    "Today's workout";
+  const completedSummary =
+    dailyState?.user_safe_message ??
+    (plannedVsActualSummary
+      ? `Completed ${plannedVsActualSummary.completed_set_count} of ${plannedVsActualSummary.planned_set_count} planned sets.`
+      : "Your workout for today has already been completed.");
 
   const activeSubstitutionByExerciseId = new Map(
     activeSubstitutions.map((substitution) => [
@@ -265,8 +269,38 @@ export function WorkoutPreviewExperience({
           return;
         }
 
-        if (hasPersistedWorkoutState(currentResult.data)) {
-          const currentExecution = currentResult.data.current_execution_state;
+        const currentData = currentResult.data;
+        setDailyState(currentData?.workout_daily_state ?? null);
+
+        if (currentData?.workout_daily_state.state === "completed_today") {
+          const currentExecution = currentData.current_execution_state;
+          setPreview(null);
+          setViewMode("completed");
+          setPersistedPlan(currentExecution?.approved_workout_plan ?? null);
+          setSelectedPlan(currentExecution?.workout_plan_instance ?? null);
+          setExecutionSession(currentExecution?.execution_session ?? null);
+          setPlannedExercises(currentExecution?.planned_exercises ?? []);
+          setActualSets(currentExecution?.actual_sets ?? []);
+          setActiveSubstitutions(currentExecution?.active_substitutions ?? []);
+          setFormStateByExerciseId({});
+          if (currentExecution) {
+            await loadPlannedVsActualSummary(
+              currentExecution.workout_plan_instance.id,
+              currentExecution.execution_session.status,
+            );
+          } else {
+            setPlannedVsActualSummary(null);
+          }
+          return;
+        }
+
+        const currentExecution = currentResult.data?.current_execution_state;
+
+        if (
+          currentExecution &&
+          (currentData?.workout_daily_state.state === "selected_today" ||
+            currentData?.workout_daily_state.state === "active_today")
+        ) {
           setPreview(null);
           setViewMode("persisted");
           setPersistedPlan(currentExecution.approved_workout_plan);
@@ -296,6 +330,7 @@ export function WorkoutPreviewExperience({
         if (previewResult.error) {
           setPreview(null);
           setViewMode("preview");
+          setDailyState(currentData?.workout_daily_state ?? null);
           setPersistedPlan(null);
           setSelectedPlan(null);
           setExecutionSession(null);
@@ -314,6 +349,7 @@ export function WorkoutPreviewExperience({
         if (!isPreviewPayload(previewResult.data)) {
           setPreview(null);
           setViewMode("preview");
+          setDailyState(currentData?.workout_daily_state ?? null);
           setPersistedPlan(null);
           setSelectedPlan(null);
           setExecutionSession(null);
@@ -328,6 +364,7 @@ export function WorkoutPreviewExperience({
         }
 
         setViewMode("preview");
+        setDailyState(currentData?.workout_daily_state ?? null);
         setPersistedPlan(null);
         setSelectedPlan(null);
         setExecutionSession(null);
@@ -355,6 +392,7 @@ export function WorkoutPreviewExperience({
     setWorkoutSizePreference(nextValue);
     setPreviewVariationIndex(0);
     setViewMode("preview");
+    setDailyState(null);
     setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
@@ -369,6 +407,7 @@ export function WorkoutPreviewExperience({
   function handleTryDifferentVersion() {
     setPreviewVariationIndex((current) => current + 1);
     setViewMode("preview");
+    setDailyState(null);
     setPersistedPlan(null);
     setSelectedPlan(null);
     setExecutionSession(null);
@@ -415,6 +454,11 @@ export function WorkoutPreviewExperience({
 
       setPreview(null);
       setViewMode("persisted");
+      setDailyState((current) =>
+        current
+          ? { ...current, state: "selected_today", user_safe_message: null }
+          : current,
+      );
       setPersistedPlan(result.data?.approved_workout_plan ?? approvedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
@@ -448,6 +492,11 @@ export function WorkoutPreviewExperience({
       }
 
       setViewMode("persisted");
+      setDailyState((current) =>
+        current
+          ? { ...current, state: "active_today", user_safe_message: null }
+          : current,
+      );
       setPersistedPlan(result.data?.approved_workout_plan ?? persistedPlan);
       setSelectedPlan(result.data?.workout_plan_instance ?? null);
       setExecutionSession(result.data?.execution_session ?? null);
@@ -543,6 +592,12 @@ export function WorkoutPreviewExperience({
       setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
       setExecutionSession(result.data?.execution_session ?? executionSession);
       setPlannedVsActualSummary(result.data?.planned_vs_actual_summary ?? null);
+      setViewMode("completed");
+      setDailyState((current) =>
+        current
+          ? { ...current, state: "completed_today", user_safe_message: null }
+          : current,
+      );
       setActionMessage("Workout completed successfully.");
       await loadPlannedVsActualSummary(selectedPlan.id, "completed");
     } finally {
@@ -570,7 +625,7 @@ export function WorkoutPreviewExperience({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       <TodayCard
-        title={approvedPlan?.title ?? "Workout Preview"}
+        title={isCompletedState ? completedWorkoutTitle : approvedPlan?.title ?? "Workout Preview"}
         eyebrow="Workout Plan"
         accent="highlight"
         className="lg:col-start-1 lg:row-start-1"
@@ -579,10 +634,12 @@ export function WorkoutPreviewExperience({
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div className="space-y-2">
               <p className="text-lg font-semibold text-slate-950">
-                {statusSummaryLine(approvedPlan, preview)}
+                {statusSummaryLine(approvedPlan, preview, viewMode)}
               </p>
               <p className="text-sm leading-6 text-slate-700">
-                {approvedPlan?.session_focus ??
+                {isCompletedState
+                  ? completedSummary
+                  : approvedPlan?.session_focus ??
                   "Preview a backend-generated workout and commit to the one you want to do."}
               </p>
             </div>
@@ -592,7 +649,7 @@ export function WorkoutPreviewExperience({
             />
           </div>
 
-          {!isPersistedState ? (
+          {!isPersistedState && !isCompletedState ? (
             <div className="flex flex-wrap gap-2">
               {sizeOptions.map((option) => {
                 const isActive = option.value === workoutSizePreference;
@@ -636,13 +693,13 @@ export function WorkoutPreviewExperience({
                 Variation
               </p>
               <p className="mt-2 font-semibold text-slate-900">
-                {isPersistedState ? "Selected" : previewVariationIndex + 1}
+                {isCompletedState ? "Completed" : isPersistedState ? "Selected" : previewVariationIndex + 1}
               </p>
             </div>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {!isPersistedState ? (
+            {!isPersistedState && !isCompletedState ? (
               <button
                 type="button"
                 onClick={handleTryDifferentVersion}
@@ -652,7 +709,7 @@ export function WorkoutPreviewExperience({
                 Try different version
               </button>
             ) : null}
-            {!isPersistedState ? (
+            {!isPersistedState && !isCompletedState ? (
               <button
                 type="button"
                 onClick={() => void handleSelectWorkout()}
@@ -684,6 +741,12 @@ export function WorkoutPreviewExperience({
             ) : null}
           </div>
 
+          {isCompletedState ? (
+            <div className="rounded-2xl bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
+              <p className="font-semibold">{completedWorkoutTitle}</p>
+              <p className="mt-2 leading-6">{completedSummary}</p>
+            </div>
+          ) : null}
           {isLoadingPreview ? (
             <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
               Loading workout preview...
@@ -703,7 +766,7 @@ export function WorkoutPreviewExperience({
       </TodayCard>
 
       <TodayCard
-        title="Preview Details"
+        title={isCompletedState ? "Completed Workout" : "Preview Details"}
         className="lg:col-start-2 lg:row-start-1"
       >
         <div className="space-y-4">
@@ -729,7 +792,9 @@ export function WorkoutPreviewExperience({
               Size Reason
             </p>
             <p className="mt-2 text-sm leading-6 text-slate-700">
-              {preview?.workout_exercise_count.user_safe_reason ??
+              {isCompletedState
+                ? completedSummary
+                : preview?.workout_exercise_count.user_safe_reason ??
                 preview?.workout_exercise_count.reason ??
                 "Preview a workout size to see the backend rationale."}
             </p>
