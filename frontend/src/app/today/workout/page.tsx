@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience";
 import { getDefaultUserId, resolveTodayQuery } from "@/lib/dailyDriverApi";
+import { getSwitchableUserLabel, isQaSwitcherUser } from "@/lib/userSwitcher";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -28,6 +29,8 @@ export default async function WorkoutPage({
   const todayQuery = resolveTodayQuery(resolvedSearchParams);
   const userId = todayQuery.userId ?? getDefaultUserId();
   const todayHref = buildTodayHref(todayQuery.userId, todayQuery.date);
+  const userLabel = getSwitchableUserLabel(userId);
+  const userIsQa = isQaSwitcherUser(userId);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_32%),linear-gradient(180deg,#f8fafc_0%,#f1f5f9_100%)] px-4 py-6 text-slate-950">
@@ -56,7 +59,14 @@ export default async function WorkoutPage({
                   User
                 </p>
                 <p className="mt-2 text-base font-semibold text-slate-900">
-                  {userId}
+                  {userLabel}
+                </p>
+                <p
+                  className={`mt-1 text-xs uppercase tracking-[0.16em] ${
+                    userIsQa ? "text-amber-700" : "text-emerald-700"
+                  }`}
+                >
+                  {userIsQa ? `QA / Test User ${userId}` : `Real User ${userId}`}
                 </p>
               </div>
               <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">

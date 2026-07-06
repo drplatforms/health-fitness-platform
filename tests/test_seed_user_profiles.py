@@ -49,16 +49,16 @@ def test_seed_user_profiles_is_idempotent(tmp_path, monkeypatch):
     cursor.execute("""
         SELECT COUNT(*) AS count
         FROM users
-        WHERE id IN (1, 102, 103, 104, 105)
+        WHERE id IN (1, 2, 102, 103, 104, 105)
         """)
-    assert cursor.fetchone()["count"] == 5
+    assert cursor.fetchone()["count"] == 6
 
     cursor.execute("""
         SELECT COUNT(*) AS count
         FROM user_equipment_profiles
-        WHERE user_id IN (1, 102, 103, 104, 105)
+        WHERE user_id IN (1, 2, 102, 103, 104, 105)
         """)
-    assert cursor.fetchone()["count"] == 5
+    assert cursor.fetchone()["count"] == 6
 
     cursor.execute("""
         SELECT COUNT(*) AS count
@@ -82,6 +82,19 @@ def test_complete_profile_user_produces_approved_formula_targets(tmp_path, monke
     assert approved.display_flags["allow_carbohydrate_targets"] is True
     assert approved.display_flags["allow_fat_targets"] is True
     assert approved.confidence in {"Moderate", "High"}
+
+
+def test_danielle_profile_is_seeded_with_stable_id(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    seed_user_profiles()
+
+    profile = get_user_profile(2)
+    health_state = build_user_health_state(2)
+
+    assert profile is not None
+    assert profile["name"] == "Danielle"
+    assert health_state.user_name == "Danielle"
+    assert health_state.latest_body_weight is not None
 
 
 def test_partial_profile_user_remains_protein_only(tmp_path, monkeypatch):

@@ -4,11 +4,14 @@ import { NextActionCard } from "@/components/NextActionCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
+import { UserSwitcher } from "@/components/UserSwitcher";
 import {
   fetchDailyDriverToday,
+  getDefaultUserId,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
 import { buildTodayWorkoutHref } from "@/lib/todayWorkoutApi";
+import { getSwitchableUserLabel, isQaSwitcherUser } from "@/lib/userSwitcher";
 import {
   DailyDriverNutritionStatus,
   DailyDriverNextActionType,
@@ -60,6 +63,9 @@ export default async function Home({
   const todayQuery = resolveTodayQuery(resolvedSearchParams);
   const { data, error } = await fetchDailyDriverToday(todayQuery);
   const workoutHref = buildTodayWorkoutHref(todayQuery);
+  const currentUserId = todayQuery.userId ?? data?.user_id ?? getDefaultUserId();
+  const currentUserLabel = getSwitchableUserLabel(currentUserId);
+  const currentUserIsQa = isQaSwitcherUser(currentUserId);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
@@ -72,26 +78,36 @@ export default async function Home({
               </p>
             </div>
 
-            {data ? (
-              <div className="grid grid-cols-2 gap-3 sm:max-w-sm lg:min-w-[320px]">
-                <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    User
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-slate-900">
-                    {data.user_id}
-                  </p>
+            <div className="flex flex-col gap-4 sm:items-end">
+              <UserSwitcher currentUserId={currentUserId} />
+              {data ? (
+                <div className="grid grid-cols-2 gap-3 sm:max-w-sm lg:min-w-[320px]">
+                  <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      User
+                    </p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">
+                      {currentUserLabel}
+                    </p>
+                    <p
+                      className={`mt-1 text-xs uppercase tracking-[0.16em] ${
+                        currentUserIsQa ? "text-amber-700" : "text-emerald-700"
+                      }`}
+                    >
+                      {currentUserIsQa ? `QA / Test User ${currentUserId}` : `Real User ${currentUserId}`}
+                    </p>
+                  </div>
+                  <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
+                    <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                      Date
+                    </p>
+                    <p className="mt-2 text-base font-semibold text-slate-900">
+                      {data.target_date}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-2xl bg-white/80 px-4 py-3 shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Date
-                  </p>
-                  <p className="mt-2 text-base font-semibold text-slate-900">
-                    {data.target_date}
-                  </p>
-                </div>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </div>
         </section>
 
