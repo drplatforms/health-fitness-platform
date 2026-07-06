@@ -125,6 +125,7 @@ def _build_readiness_summary(
             headline="Recovery data is limited",
             reason="Today's readiness is unclear until recovery check-in data is more complete.",
             confidence="unknown",
+            score=None,
         )
 
     if (
@@ -137,6 +138,7 @@ def _build_readiness_summary(
             headline="Keep training controlled today",
             reason="Recovery signals suggest a lighter, lower-risk training stance today.",
             confidence="medium",
+            score=int(recovery.recovery_score),
         )
 
     if readiness_level in {"Moderate", "Fair"} or fatigue_risk == "Moderate":
@@ -145,6 +147,7 @@ def _build_readiness_summary(
             headline="Train with a controlled pace today",
             reason="Recovery signals support training, but the day should stay measured.",
             confidence="medium",
+            score=int(recovery.recovery_score),
         )
 
     return DailyDriverReadinessSummary(
@@ -152,6 +155,7 @@ def _build_readiness_summary(
         headline="Ready to train",
         reason="Recovery signals support normal training today.",
         confidence="high" if readiness_level == "High" else "medium",
+        score=int(recovery.recovery_score),
     )
 
 

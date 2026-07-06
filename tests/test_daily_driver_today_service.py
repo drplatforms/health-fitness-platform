@@ -290,6 +290,7 @@ def test_service_returns_contract_sections(monkeypatch) -> None:
     assert payload["user_id"] == 102
     assert payload["target_date"] == "2026-07-04"
     assert payload["readiness"]["status"] == "ready"
+    assert payload["readiness"]["score"] == 90
     assert payload["workout"]["title"] == "Upper Body Strength"
     assert payload["nutrition"]["status"] == "complete"
     assert payload["next_action"]["type"] == "start_workout"
@@ -357,6 +358,7 @@ def test_service_produces_safe_fallback_when_data_is_sparse(monkeypatch) -> None
     response = build_daily_driver_today_response(102, "2026-07-04")
 
     assert response.readiness.status == "unknown"
+    assert response.readiness.score is None
     assert response.nutrition.status == "not_logged"
     assert response.next_action.type == "review_recovery"
     assert response.data_gaps

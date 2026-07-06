@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { DataQualityNote } from "@/components/DataQualityNote";
 import { NextActionCard } from "@/components/NextActionCard";
+import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
@@ -12,21 +12,10 @@ import { buildTodayWorkoutHref } from "@/lib/todayWorkoutApi";
 import {
   DailyDriverNutritionStatus,
   DailyDriverNextActionType,
-  DailyDriverReadinessStatus,
   DailyDriverWorkoutStatus,
 } from "@/types/dailyDriver";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-const readinessToneMap: Record<
-  DailyDriverReadinessStatus,
-  "positive" | "caution" | "warning" | "neutral"
-> = {
-  ready: "positive",
-  light: "caution",
-  recover: "warning",
-  unknown: "neutral",
-};
 
 const workoutToneMap: Record<
   DailyDriverWorkoutStatus,
@@ -80,13 +69,6 @@ export default async function Home({
             <div className="max-w-2xl">
               <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-amber-700">
                 Today
-              </p>
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950 lg:text-[3.5rem]">
-                What should I do now?
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-600 lg:text-base">
-                Open one screen, see today&apos;s training direction, nutrition
-                mission, and the next action that matters.
               </p>
             </div>
 
@@ -142,27 +124,11 @@ export default async function Home({
               className="lg:col-start-1 lg:row-start-1 lg:p-7"
             />
 
-            <TodayCard
-              title="Readiness"
-              eyebrow="Daily Driver"
-              className="lg:col-start-2 lg:row-start-1"
-            >
-              <div className="space-y-3">
-                <StatusPill
-                  label={data.readiness.status.replace("_", " ")}
-                  tone={readinessToneMap[data.readiness.status]}
-                />
-                <p className="text-2xl font-semibold tracking-tight text-slate-950">
-                  {data.readiness.headline}
-                </p>
-                <p className="text-sm leading-6 text-slate-700">
-                  {data.readiness.reason}
-                </p>
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  Confidence {data.readiness.confidence}
-                </p>
-              </div>
-            </TodayCard>
+            <RecoveryCheckInCard
+              userId={todayQuery.userId ?? data.user_id}
+              targetDate={data.target_date}
+              readiness={data.readiness}
+            />
 
             <TodayCard title="Workout" className="lg:col-start-1 lg:row-start-2">
               <div className="space-y-3">
@@ -242,17 +208,6 @@ export default async function Home({
                 </p>
               </TodayCard>
             ) : null}
-
-            <DataQualityNote
-              title="Data Gaps"
-              items={data.data_gaps}
-              className="lg:col-start-2 lg:row-start-3"
-            />
-            <DataQualityNote
-              title="Limitations"
-              items={data.limitations}
-              className="lg:col-start-2 lg:row-start-4"
-            />
           </div>
         ) : null}
       </div>

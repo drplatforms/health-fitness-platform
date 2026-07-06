@@ -21,6 +21,7 @@ def _response() -> DailyDriverTodayResponse:
             headline="Ready to train",
             reason="Recovery signals support normal training today.",
             confidence="medium",
+            score=90,
         ),
         workout=DailyDriverWorkoutSummary(
             planned=True,
@@ -55,6 +56,7 @@ def test_valid_response_can_be_created() -> None:
     assert response.user_id == 102
     assert response.target_date == "2026-07-04"
     assert response.contract_version == "daily_driver_today_v0"
+    assert response.readiness.score == 90
 
 
 def test_invalid_user_id_fails() -> None:
@@ -129,6 +131,7 @@ def test_serialization_shape_is_stable() -> None:
 
     assert payload["contract_version"] == "daily_driver_today_v0"
     assert payload["readiness"]["status"] == "ready"
+    assert payload["readiness"]["score"] == 90
     assert payload["workout"]["title"] == "Upper Body Strength"
     assert payload["nutrition"]["protein_target_g"] == 180
     assert payload["next_action"]["type"] == "start_workout"
