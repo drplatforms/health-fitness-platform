@@ -6,8 +6,8 @@ from tools.exercise_catalog_utilization_diagnostic import (
     collect_catalog_utilization_diagnostic,
 )
 
-TARGET_REACHABLE_EXERCISE_MINIMUM = 30
-TARGET_NOT_IN_CANDIDATE_MAXIMUM = 180
+TARGET_REACHABLE_EXERCISE_MINIMUM = 60
+TARGET_NOT_IN_CANDIDATE_MAXIMUM = 25
 TARGET_MOVEMENT_PATTERNS = {
     "squat",
     "lunge",
@@ -29,8 +29,13 @@ TARGET_SPECIALIZED_SELECTIONS = {
     "Band Face Pull",
     "Band Pull-Apart",
     "Band-Assisted Pull-Up",
+    "Cable Crunch",
+    "Farmer Carry",
+    "Hanging Leg Raise",
+    "Hanging Oblique Knee Raise",
     "Treadmill Walk",
     "Bike Intervals",
+    "Waiter Carry",
 }
 TARGET_CANDIDATE_OPTIONS = {
     "Reverse Lunge",

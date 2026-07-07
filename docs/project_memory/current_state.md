@@ -1,3 +1,66 @@
+# Current State — Exercise Rotation Coverage v0
+
+Current source of truth: `feature/exercise-rotation-coverage-v0`.
+
+Active backend workout milestone:
+
+```text
+Exercise Rotation Coverage v0
+```
+
+Requested status:
+
+```text
+EXERCISE_ROTATION_COVERAGE_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Increase deterministic workout exercise coverage so preview rotation can use most equipment-compatible, generator-eligible curated catalog exercises over time while preserving safety constraints, movement balance, workout sizing, and selected-workout immutability.
+```
+
+Implemented scope:
+
+- Added a catalog-driven workout rotation pool service that appends safe catalog candidates after existing deterministic anchor options.
+- Expanded lower, push, pull, accessory, core, carry, arms, upper-back, and conditioning-compatible deterministic slots without rewriting workout templates.
+- Preserved existing anchors, preview variation behavior, recent-exercise penalties, equipment filtering, unavailable-equipment filtering, duplicate-name protection, and same-workout rotation-group protection.
+- Enforced avoid movements and movement restrictions against hard-coded anchors as well as catalog-expanded options.
+- Kept mobility entries out of generator pools and kept internal/external rotation drills out of primary pull slots.
+- Extended the exercise catalog utilization diagnostic with generator-eligible counts, full candidate names, selected exercise types, not-selected reasons, and slot-family candidate pool sizes.
+- Added Exercise Rotation Coverage v0 tests and updated older utilization/eligibility expectations for the broader catalog reachability.
+
+Diagnostic result:
+
+```text
+Pre-change local 25-variation sweep: 69 unique selected exercises.
+Final local 25-variation sweep: 126 unique selected exercises.
+Total active catalog exercises: 240.
+Equipment-eligible home-gym exercises: 237.
+Generator-eligible home-gym exercises: 224.
+Equipment-eligible not in candidate options: 18.
+Generator-eligible not selected in sweep: 98.
+Selected movement patterns: 13.
+```
+
+The v0 target of roughly 120+ unique selected exercises was achieved without selecting mobility as an exercise type.
+
+Boundaries preserved:
+
+- No provider, OpenAI, Ollama, CrewAI, RAG, embeddings, vector search, agent orchestration, frontend, database schema, food catalog, nutrition/serving, clinical/rehab, periodization, progression, or 1RM changes were added.
+- No exercise catalog entries were added.
+- No DB, generated JSON report, snapshot, ZIP, or temporary runtime artifact is part of this milestone.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_exercise_rotation_coverage_v0.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_exercise_catalog_service.py tests/test_exercise_eligibility_matrix_v1.py tests/test_exercise_catalog_utilization_specialized_movement_coverage_v1.py tests/test_workout_preview_full_slot_rotation_v1.py tests/test_workout_preview_full_slot_rotation_quality_gate_v1.py tests/test_workout_generation_sizing_persistence_stabilization_v1.py tests/test_workout_plan_service.py tests/test_workout_plan_selection_service.py tests/test_workout_plan_persistence_service.py tests/test_today_workout_route.py tests/test_today_workout_view_service.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services tools tests`
+- `.\.venv\Scripts\python.exe -m ruff format --check services tools tests`
+- `git diff --check`
+
+---
+
 # Current State — Canonical Food Bulk Catalog Builder Hardening v0.1
 
 Current source of truth: `feature/canonical-food-bulk-catalog-builder-hardening-v0-1`.

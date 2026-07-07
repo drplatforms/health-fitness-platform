@@ -125,8 +125,8 @@ def test_eligibility_summary_exposes_reachability_and_exclusion_reasons():
     assert "blocked_unavailable_equipment:machine" in exclusion_reason_counts
 
     weak_families = set(summary["weak_movement_families"])
-    assert "arms_biceps" in weak_families
-    assert "arms_triceps" in weak_families
+    assert "arms_biceps" not in weak_families
+    assert "arms_triceps" not in weak_families
     assert "mobility" in weak_families
 
 
