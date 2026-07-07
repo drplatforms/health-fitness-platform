@@ -19,6 +19,13 @@ from services.nutrition_service import (
     get_daily_canonical_food_macro_totals,
     get_daily_nutrition,
 )
+from services.nutrition_serving_unit_logging_service import (
+    get_serving_unit_log_metadata_for_food_entry,
+)
+from services.nutrition_serving_unit_service import (
+    get_active_serving_units_for_canonical_food,
+    seed_canonical_food_serving_units,
+)
 
 
 def _seed_test_db(tmp_path, monkeypatch):
@@ -61,6 +68,15 @@ def _seed_chicken() -> int:
     response = _client().get("/foods/canonical/search?q=chicken%20breast")
     assert response.status_code == 200
     return int(response.json()["results"][0]["canonical_food_id"])
+
+
+def _serving_unit_id(canonical_food_id: int, display_name: str) -> int:
+    seed_canonical_food_serving_units()
+    serving_units = get_active_serving_units_for_canonical_food(canonical_food_id)
+    for serving_unit in serving_units:
+        if serving_unit.display_name == display_name:
+            return serving_unit.id
+    raise AssertionError(f"Missing serving unit: {display_name}")
 
 
 def test_initialize_database_upgrades_legacy_food_entries_table_safely(
@@ -214,6 +230,166 @@ def test_canonical_food_can_be_logged_by_canonical_food_id(tmp_path, monkeypatch
     assert row["protein_g"] == 46.5
     assert row["carbs_g"] == 0.0
     assert row["fat_g"] == 5.4
+
+
+def test_canonical_food_can_be_logged_by_serving_unit(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    serving_unit_id = _serving_unit_id(
+        canonical_food_id,
+        "4 oz cooked chicken breast",
+    )
+
+    response = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "serving_unit_id": serving_unit_id,
+            "quantity": 1.5,
+            "entry_date": "2026-06-05",
+            "meal_type": "dinner",
+            "notes": "serving unit path",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["user_id"] == 1
+    assert payload["logged_food_entry_id"] > 0
+    assert payload["canonical_food_id"] == canonical_food_id
+    assert payload["serving_unit_id"] == serving_unit_id
+    assert payload["display_name"] == "Chicken Breast, Cooked, Skinless"
+    assert payload["serving_quantity"] == 1.5
+    assert payload["serving_display"] == "1.5 x 4 oz cooked chicken breast"
+    assert payload["resolved_grams"] == 169.5
+    assert payload["grams"] == 169.5
+    assert payload["meal_type"] == "dinner"
+    assert payload["notes"] == "serving unit path"
+    assert payload["nutrient_summary"] == {
+        "calories": 279.7,
+        "protein_g": 52.5,
+        "carbohydrate_g": 0.0,
+        "fat_g": 6.1,
+    }
+
+    conn = database.get_connection()
+    row = conn.execute(
+        """
+        SELECT canonical_food_id, grams, meal_type, notes, calories, protein_g, carbs_g, fat_g
+        FROM food_entries
+        WHERE id = ?
+        """,
+        (payload["logged_food_entry_id"],),
+    ).fetchone()
+    conn.close()
+
+    assert row["canonical_food_id"] == canonical_food_id
+    assert row["grams"] == 169.5
+    assert row["meal_type"] == "dinner"
+    assert row["notes"] == "serving unit path"
+    assert row["calories"] == 279.7
+    assert row["protein_g"] == 52.5
+    assert row["carbs_g"] == 0.0
+    assert row["fat_g"] == 6.1
+
+    metadata = get_serving_unit_log_metadata_for_food_entry(
+        payload["logged_food_entry_id"]
+    )
+    assert metadata is not None
+    assert metadata.resolved_grams == 169.5
+
+    target_response = _client().get("/nutrition/1/target-vs-actual?date=2026-06-05")
+    assert target_response.status_code == 200
+    actuals = target_response.json()["nutrition_actuals"]
+    assert actuals["entry_count"] == 1
+    assert actuals["logged_calories"] == 279.7
+    assert actuals["logged_protein"] == 52.5
+    assert actuals["logged_carbs"] == 0.0
+    assert actuals["logged_fat"] == 6.1
+
+
+def test_canonical_logging_rejects_mixed_and_incomplete_serving_modes(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    serving_unit_id = _serving_unit_id(
+        canonical_food_id,
+        "100g cooked chicken breast",
+    )
+
+    mixed = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "serving_unit_id": serving_unit_id,
+            "quantity": 1,
+        },
+    )
+    missing_quantity = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "serving_unit_id": serving_unit_id,
+        },
+    )
+    missing_mode = _client().post(
+        "/nutrition/1/log-canonical",
+        json={"canonical_food_id": canonical_food_id},
+    )
+
+    assert mixed.status_code == 400
+    assert mixed.json()["detail"] == (
+        "Provide either grams or serving_unit_id with quantity, not both."
+    )
+    assert missing_quantity.status_code == 400
+    assert missing_quantity.json()["detail"] == (
+        "serving_unit_id and quantity are required for serving-unit logging."
+    )
+    assert missing_mode.status_code == 400
+    assert missing_mode.json()["detail"] == (
+        "Either grams or serving_unit_id with quantity is required."
+    )
+
+
+def test_canonical_logging_rejects_unreasonable_resolved_grams(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    serving_unit_id = _serving_unit_id(
+        canonical_food_id,
+        "100g cooked chicken breast",
+    )
+
+    grams_response = _client().post(
+        "/nutrition/1/log-canonical",
+        json={"canonical_food_id": canonical_food_id, "grams": 5000.1},
+    )
+    serving_response = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "serving_unit_id": serving_unit_id,
+            "quantity": 51,
+        },
+    )
+
+    assert grams_response.status_code == 400
+    assert grams_response.json()["detail"] == (
+        "grams must be less than or equal to 5000."
+    )
+    assert serving_response.status_code == 400
+    assert serving_response.json()["detail"] == (
+        "grams must be less than or equal to 5000."
+    )
 
 
 def test_inactive_canonical_food_cannot_be_logged(tmp_path, monkeypatch):

@@ -303,6 +303,8 @@ def log_canonical_food_serving(
     serving_unit_id: int,
     quantity: float,
     entry_date: str | None = None,
+    meal_type: str | None = None,
+    notes: str | None = None,
 ) -> dict[str, Any]:
     """Log a canonical food by backend-approved serving unit.
 
@@ -333,6 +335,8 @@ def log_canonical_food_serving(
         canonical_food_id=canonical_food_id,
         grams=resolved_grams,
         entry_date=entry_date,
+        meal_type=meal_type,
+        notes=notes,
         nutrient_summary_precision=1,
     )
 
@@ -371,4 +375,10 @@ def log_canonical_food_serving(
         nutrient_summary=logged_entry.get("nutrient_summary"),
     )
 
-    return asdict(response)
+    payload = asdict(response)
+    payload["grams"] = resolved_grams
+    if logged_entry.get("meal_type") is not None:
+        payload["meal_type"] = logged_entry["meal_type"]
+    if logged_entry.get("notes") is not None:
+        payload["notes"] = logged_entry["notes"]
+    return payload

@@ -90,16 +90,20 @@ def _build_source_summary(canonical_food_id: int) -> dict[str, str] | None:
     return None
 
 
-def _serving_unit_to_public_dict(serving_unit) -> dict:
+def _serving_unit_to_public_dict(serving_unit, *, is_default: bool = False) -> dict:
     return {
+        "id": serving_unit.id,
         "serving_unit_id": serving_unit.id,
+        "display_label": serving_unit.display_name,
         "display_name": serving_unit.display_name,
         "unit_name": serving_unit.unit_name,
         "unit_quantity": serving_unit.unit_quantity,
+        "grams_per_unit": serving_unit.grams_default,
         "grams_default": serving_unit.grams_default,
         "grams_min": serving_unit.grams_min,
         "grams_max": serving_unit.grams_max,
         "confidence": serving_unit.confidence,
+        "is_default": is_default,
         "amount_source": "serving_unit_estimate",
         "source": serving_unit.source,
         "source_notes": serving_unit.source_note,
@@ -206,6 +210,10 @@ def canonical_food_serving_units_endpoint(canonical_food_id: int):
         "canonical_food_id": canonical_food.id,
         "display_name": canonical_food.display_name,
         "serving_units": [
-            _serving_unit_to_public_dict(serving_unit) for serving_unit in serving_units
+            _serving_unit_to_public_dict(
+                serving_unit,
+                is_default=index == 0,
+            )
+            for index, serving_unit in enumerate(serving_units)
         ],
     }

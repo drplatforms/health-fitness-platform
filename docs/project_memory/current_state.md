@@ -1,3 +1,53 @@
+# Current State — Serving Unit UX v0
+
+Current source of truth: `feature/serving-unit-ux-v0`.
+
+Active nutrition logging milestone:
+
+```text
+Serving Unit UX v0
+```
+
+Requested status:
+
+```text
+SERVING_UNIT_UX_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Allow canonical foods to be logged by grams or by backend-approved serving units while preserving canonical_food_id + resolved grams as the persisted source of truth.
+```
+
+Implemented scope:
+
+- Extended canonical food logging so callers may submit either grams or `serving_unit_id` + `quantity`, but not both.
+- Preserved existing grams logging behavior, canonical nutrient snapshots, daily actuals, and target-vs-actual rollups.
+- Kept serving-unit logging backed by reviewed serving-unit rows and provenance metadata.
+- Added public serving-unit discovery aliases for frontend use while keeping the earlier serving-unit response fields stable.
+- Added starter serving-unit aliases for reviewed raw chicken breast and ground beef entries.
+- Updated the food logging card to offer grams plus approved serving units, show resolved grams, and log the selected unit through the canonical endpoint.
+
+Boundaries preserved:
+
+- No real food promotion, barcode scanning, meal planning, AI/provider path, RAG, embeddings, vector search, agent orchestration, or nutrition semantic changes were added.
+- Canonical foods still persist as canonical food ID plus resolved grams in `food_entries`; serving-unit metadata remains supporting provenance.
+- No DB snapshots, ZIPs, raw source payloads, or runtime reports are part of this milestone.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_nutrition_serving_unit_data_model_v1.py tests/test_canonical_serving_unit_discovery_api.py tests/test_nutrition_serving_unit_logging_service.py tests/test_nutrition_serving_unit_logging_api.py tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py tests/test_nutrition_target_vs_actual_service.py tests/test_food_canonical_search_api.py tests/test_food_normalization_service.py tests/test_api_smoke.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services api tests scripts`
+- `.\.venv\Scripts\python.exe -m ruff format --check` on touched Python files
+- `npm run lint` and `npm run build` from `frontend`
+- `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/serving_unit_ux_v0.md`.
+
+---
+
 # Current State — Exercise Rotation Coverage v0
 
 Current source of truth: `feature/exercise-rotation-coverage-v0`.

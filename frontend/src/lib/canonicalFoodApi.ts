@@ -1,8 +1,13 @@
 import {
+  CanonicalFoodLogDeleteRequest,
+  CanonicalFoodLogDeleteResponse,
   CanonicalFoodLogRequest,
   CanonicalFoodLogResponse,
+  CanonicalFoodLogUpdateRequest,
+  CanonicalFoodLogUpdateResponse,
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
+  CanonicalFoodServingUnitsResponse,
 } from "@/types/canonicalFood";
 
 async function readErrorMessage(response: Response, fallbackMessage: string) {
@@ -68,6 +73,31 @@ export async function logCanonicalFood(
   return (await response.json()) as CanonicalFoodLogResponse;
 }
 
+export async function fetchCanonicalFoodServingUnits(
+  canonicalFoodId: number,
+): Promise<CanonicalFoodServingUnitsResponse> {
+  const response = await fetch(
+    `/api/foods-canonical-serving-units/${canonicalFoodId}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(
+        response,
+        "Unable to load serving units for this food.",
+      ),
+    );
+  }
+
+  return (await response.json()) as CanonicalFoodServingUnitsResponse;
+}
+
 export async function fetchCanonicalFoodLogs({
   userId,
   date,
@@ -93,4 +123,59 @@ export async function fetchCanonicalFoodLogs({
   }
 
   return (await response.json()) as CanonicalFoodLogsResponse;
+}
+
+export async function updateCanonicalFoodLog(
+  payload: CanonicalFoodLogUpdateRequest,
+): Promise<CanonicalFoodLogUpdateResponse> {
+  const response = await fetch(
+    `/api/nutrition-canonical-logs/${payload.entry_id}`,
+    {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: payload.user_id,
+        grams: payload.grams,
+        meal_type: payload.meal_type,
+        entry_date: payload.entry_date,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to update this food right now."),
+    );
+  }
+
+  return (await response.json()) as CanonicalFoodLogUpdateResponse;
+}
+
+export async function deleteCanonicalFoodLog(
+  payload: CanonicalFoodLogDeleteRequest,
+): Promise<CanonicalFoodLogDeleteResponse> {
+  const params = new URLSearchParams({
+    user_id: String(payload.user_id),
+    date: payload.entry_date,
+  });
+  const response = await fetch(
+    `/api/nutrition-canonical-logs/${payload.entry_id}?${params.toString()}`,
+    {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to delete this food right now."),
+    );
+  }
+
+  return (await response.json()) as CanonicalFoodLogDeleteResponse;
 }

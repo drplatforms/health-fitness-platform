@@ -52,14 +52,18 @@ def test_serving_unit_discovery_returns_active_units_for_canonical_food(
 
     unit = payload["serving_units"][0]
     assert unit == {
+        "id": unit["serving_unit_id"],
         "serving_unit_id": unit["serving_unit_id"],
+        "display_label": "1 medium banana",
         "display_name": "1 medium banana",
         "unit_name": "medium banana",
         "unit_quantity": 1.0,
+        "grams_per_unit": 118.0,
         "grams_default": 118.0,
         "grams_min": 100.0,
         "grams_max": 136.0,
         "confidence": "Moderate",
+        "is_default": True,
         "amount_source": "serving_unit_estimate",
         "source": "manually_curated_v1",
         "source_notes": "Common medium-banana edible portion estimate.",

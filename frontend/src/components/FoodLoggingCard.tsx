@@ -4,11 +4,16 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { TodayCard } from "@/components/TodayCard";
-import { logCanonicalFood, searchCanonicalFoods } from "@/lib/canonicalFoodApi";
+import {
+  fetchCanonicalFoodServingUnits,
+  logCanonicalFood,
+  searchCanonicalFoods,
+} from "@/lib/canonicalFoodApi";
 import {
   CANONICAL_FOOD_LOGGED_EVENT,
   CanonicalFoodNutrientSummary,
   CanonicalFoodSearchResult,
+  CanonicalFoodServingUnit,
 } from "@/types/canonicalFood";
 
 interface FoodLoggingCardProps {
@@ -79,9 +84,12 @@ export function FoodLoggingCard({
     null,
   );
   const [selectedSearchQuery, setSelectedSearchQuery] = useState("");
-  const [grams, setGrams] = useState("50");
+  const [amount, setAmount] = useState("50");
+  const [servingUnits, setServingUnits] = useState<CanonicalFoodServingUnit[]>([]);
+  const [selectedUnitKey, setSelectedUnitKey] = useState("grams");
   const [mealType, setMealType] = useState("snack");
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingServingUnits, setIsLoadingServingUnits] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -137,23 +145,82 @@ export function FoodLoggingCard({
     };
   }, [deferredQuery]);
 
-  const gramsValue = Number.parseFloat(grams);
-  const gramsIsValid = Number.isFinite(gramsValue) && gramsValue > 0;
+  useEffect(() => {
+    if (!selectedFood) {
+      return;
+    }
+
+    let isActive = true;
+
+    void fetchCanonicalFoodServingUnits(selectedFood.canonical_food_id)
+      .then((response) => {
+        if (!isActive) {
+          return;
+        }
+
+        const units = response.serving_units;
+        setServingUnits(units);
+        const defaultUnit = units.find((unit) => unit.is_default) ?? units[0];
+
+        if (defaultUnit) {
+          setSelectedUnitKey(String(defaultUnit.serving_unit_id));
+          setAmount("1");
+        } else {
+          setSelectedUnitKey("grams");
+          setAmount(String(selectedFood.default_grams ?? 50));
+        }
+      })
+      .catch(() => {
+        if (!isActive) {
+          return;
+        }
+
+        setServingUnits([]);
+        setSelectedUnitKey("grams");
+        setAmount(String(selectedFood.default_grams ?? 50));
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingServingUnits(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [selectedFood]);
+
+  const amountValue = Number.parseFloat(amount);
+  const amountIsValid = Number.isFinite(amountValue) && amountValue > 0;
+  const selectedServingUnit = useMemo(
+    () =>
+      selectedUnitKey === "grams"
+        ? null
+        : (servingUnits.find(
+            (unit) => String(unit.serving_unit_id) === selectedUnitKey,
+          ) ?? null),
+    [selectedUnitKey, servingUnits],
+  );
+  const resolvedGrams =
+    selectedServingUnit === null
+      ? amountValue
+      : amountValue * selectedServingUnit.grams_per_unit;
+  const resolvedGramsIsValid = amountIsValid && Number.isFinite(resolvedGrams);
   const searchChangedAfterSelection =
     selectedFood !== null && query.trim() !== selectedSearchQuery;
   const shouldShowResults =
     results.length > 0 && (!selectedFood || searchChangedAfterSelection);
 
   const preview = useMemo(() => {
-    if (!selectedFood || !gramsIsValid) {
+    if (!selectedFood || !resolvedGramsIsValid) {
       return null;
     }
 
     const summary = selectedFood.nutrient_summary;
-    const calories = scaleNutrient(summary?.calories_per_100g, gramsValue);
-    const protein = scaleNutrient(summary?.protein_g_per_100g, gramsValue);
-    const carbs = scaleNutrient(summary?.carbohydrate_g_per_100g, gramsValue);
-    const fat = scaleNutrient(summary?.fat_g_per_100g, gramsValue);
+    const calories = scaleNutrient(summary?.calories_per_100g, resolvedGrams);
+    const protein = scaleNutrient(summary?.protein_g_per_100g, resolvedGrams);
+    const carbs = scaleNutrient(summary?.carbohydrate_g_per_100g, resolvedGrams);
+    const fat = scaleNutrient(summary?.fat_g_per_100g, resolvedGrams);
 
     const parts: string[] = [];
     if (calories !== null) {
@@ -170,7 +237,7 @@ export function FoodLoggingCard({
     }
 
     return parts.length > 0 ? parts.join(" · ") : "Nutrition preview unavailable.";
-  }, [gramsIsValid, gramsValue, selectedFood]);
+  }, [resolvedGrams, resolvedGramsIsValid, selectedFood]);
 
   async function handleLogFood() {
     if (!selectedFood) {
@@ -178,8 +245,8 @@ export function FoodLoggingCard({
       return;
     }
 
-    if (!gramsIsValid) {
-      setErrorMessage("Enter grams greater than 0 before logging.");
+    if (!resolvedGramsIsValid) {
+      setErrorMessage("Enter an amount greater than 0 before logging.");
       return;
     }
 
@@ -192,14 +259,21 @@ export function FoodLoggingCard({
         user_id: userId,
         entry_date: targetDate,
         canonical_food_id: selectedFood.canonical_food_id,
-        grams: gramsValue,
         meal_type: mealType || undefined,
+        ...(selectedServingUnit
+          ? {
+              serving_unit_id: selectedServingUnit.serving_unit_id,
+              quantity: amountValue,
+            }
+          : {
+              grams: resolvedGrams,
+            }),
       });
 
       setActionMessage(
         `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
       );
-      setGrams("50");
+      setAmount(selectedServingUnit ? "1" : "50");
       window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
       router.refresh();
     } catch (error) {
@@ -273,6 +347,14 @@ export function FoodLoggingCard({
                   key={food.canonical_food_id}
                   type="button"
                   onClick={() => {
+                    const isSameSelection =
+                      selectedFood?.canonical_food_id === food.canonical_food_id;
+                    if (!isSameSelection) {
+                      setServingUnits([]);
+                      setSelectedUnitKey("grams");
+                      setAmount("50");
+                      setIsLoadingServingUnits(true);
+                    }
                     setSelectedFood(food);
                     setSelectedSearchQuery(query.trim());
                     setActionMessage(null);
@@ -310,21 +392,49 @@ export function FoodLoggingCard({
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
               <label className="space-y-2">
                 <span className="text-sm font-semibold text-slate-900">Amount</span>
-                <div className="flex items-center gap-2">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
                   <input
                     type="number"
-                    min="1"
-                    step="1"
-                    value={grams}
+                    min="0"
+                    step={selectedServingUnit ? "0.25" : "1"}
+                    value={amount}
                     onChange={(event) => {
-                      setGrams(event.target.value);
+                      setAmount(event.target.value);
                       setActionMessage(null);
                       setErrorMessage(null);
                     }}
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
                   />
-                  <span className="text-sm font-semibold text-slate-600">g</span>
+                  <select
+                    value={selectedUnitKey}
+                    disabled={isLoadingServingUnits}
+                    onChange={(event) => {
+                      const nextUnitKey = event.target.value;
+                      setSelectedUnitKey(nextUnitKey);
+                      setAmount(nextUnitKey === "grams" ? "50" : "1");
+                      setActionMessage(null);
+                      setErrorMessage(null);
+                    }}
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 disabled:opacity-70"
+                  >
+                    <option value="grams">grams</option>
+                    {servingUnits.map((unit) => (
+                      <option
+                        key={unit.serving_unit_id}
+                        value={String(unit.serving_unit_id)}
+                      >
+                        {unit.display_label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+                <span className="block text-xs leading-5 text-slate-600">
+                  {isLoadingServingUnits
+                    ? "Loading serving units..."
+                    : resolvedGramsIsValid
+                      ? `≈ ${formatCompactNumber(resolvedGrams)}g`
+                      : "Enter an amount to resolve grams."}
+                </span>
               </label>
 
               <label className="space-y-2">
@@ -349,7 +459,7 @@ export function FoodLoggingCard({
 
             <div className="rounded-2xl bg-white px-4 py-2.5">
               <p className="text-sm font-semibold text-slate-900">
-                Preview: {preview ?? "Enter grams to preview this food."}
+                Preview: {preview ?? "Enter an amount to preview this food."}
               </p>
             </div>
 
