@@ -1,6 +1,7 @@
 import {
   CanonicalFoodLogRequest,
   CanonicalFoodLogResponse,
+  CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
 } from "@/types/canonicalFood";
 
@@ -65,4 +66,31 @@ export async function logCanonicalFood(
   }
 
   return (await response.json()) as CanonicalFoodLogResponse;
+}
+
+export async function fetchCanonicalFoodLogs({
+  userId,
+  date,
+}: {
+  userId: number;
+  date: string;
+}): Promise<CanonicalFoodLogsResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    date,
+  });
+  const response = await fetch(`/api/nutrition-canonical-logs?${params.toString()}`, {
+    cache: "no-store",
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to load logged foods right now."),
+    );
+  }
+
+  return (await response.json()) as CanonicalFoodLogsResponse;
 }

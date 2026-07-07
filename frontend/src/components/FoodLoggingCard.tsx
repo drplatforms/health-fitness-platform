@@ -1,11 +1,12 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { TodayCard } from "@/components/TodayCard";
 import { logCanonicalFood, searchCanonicalFoods } from "@/lib/canonicalFoodApi";
 import {
+  CANONICAL_FOOD_LOGGED_EVENT,
   CanonicalFoodNutrientSummary,
   CanonicalFoodSearchResult,
 } from "@/types/canonicalFood";
@@ -72,7 +73,6 @@ export function FoodLoggingCard({
   className,
 }: FoodLoggingCardProps) {
   const router = useRouter();
-  const [isRefreshing, startRefresh] = useTransition();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CanonicalFoodSearchResult[]>([]);
   const [selectedFood, setSelectedFood] = useState<CanonicalFoodSearchResult | null>(
@@ -200,9 +200,8 @@ export function FoodLoggingCard({
         `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
       );
       setGrams("50");
-      startRefresh(() => {
-        router.refresh();
-      });
+      window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
+      router.refresh();
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -368,14 +367,10 @@ export function FoodLoggingCard({
             <button
               type="button"
               onClick={() => void handleLogFood()}
-              disabled={isSaving || isRefreshing}
+              disabled={isSaving}
               className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
-              {isSaving
-                ? "Logging food..."
-                : isRefreshing
-                  ? "Updating nutrition..."
-                  : "Log food"}
+              {isSaving ? "Logging food..." : "Log food"}
             </button>
           </div>
         ) : null}

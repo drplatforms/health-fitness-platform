@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { FoodLoggingCard } from "@/components/FoodLoggingCard";
+import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -12,6 +13,7 @@ import {
   getDefaultUserId,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
+import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
 import {
   buildTodayWorkoutHref,
   fetchTodayWorkout,
@@ -251,6 +253,12 @@ export default async function Home({
     todayWorkoutResult.data,
     currentWorkoutResult.data,
   );
+  const loggedFoodsResult = data
+    ? await fetchCanonicalFoodLogsFromBackend({
+        userId: currentUserId,
+        date: data.target_date,
+      })
+    : { data: null, error: null };
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
@@ -311,6 +319,13 @@ export default async function Home({
               <NutritionMacroCard nutrition={data.nutrition} />
               <FoodLoggingCard
                 key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                userId={todayQuery.userId ?? data.user_id}
+                targetDate={data.target_date}
+              />
+              <LoggedFoodsList
+                key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                initialEntries={loggedFoodsResult.data?.entries ?? []}
+                initialError={loggedFoodsResult.error}
                 userId={todayQuery.userId ?? data.user_id}
                 targetDate={data.target_date}
               />

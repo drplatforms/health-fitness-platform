@@ -16,6 +16,7 @@ from services.nutrition_service import (
     CanonicalFoodNotFoundError,
     add_canonical_food_entry,
     add_food_entry,
+    get_daily_canonical_food_logs,
     get_daily_canonical_food_macro_totals,
     get_daily_nutrition,
     search_foods,
@@ -110,6 +111,21 @@ def daily_canonical_food_macro_totals(user_id: int, date: str):
         "user_id": user_id,
         "date": date,
         "totals": totals,
+    }
+
+
+@router.get("/nutrition/{user_id}/canonical-logs")
+def daily_canonical_food_logs(user_id: int, date: str):
+    try:
+        entries = get_daily_canonical_food_logs(user_id=user_id, entry_date=date)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "date": date,
+        "entries": entries,
     }
 
 
