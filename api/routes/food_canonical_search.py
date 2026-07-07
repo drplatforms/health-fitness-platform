@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Query
 
 from services.food_normalization_service import (
+    curate_canonical_display_name,
     ensure_starter_canonical_foods_seeded,
     get_canonical_food,
     get_nutrients_for_canonical_food,
@@ -121,7 +122,10 @@ def _canonical_search_result_to_public_dict(
     food = result.canonical_food
     payload = {
         "canonical_food_id": food.id,
-        "display_name": food.display_name,
+        "display_name": curate_canonical_display_name(
+            food.display_name,
+            food.food_type,
+        ),
         "food_type": food.food_type,
         "default_unit": food.default_unit,
         "default_grams": food.default_grams,

@@ -24,6 +24,18 @@ ALLOWED_SOURCE_RELATIONSHIPS = {
     "equivalent",
     "alternate_preparation",
 }
+RAW_MEAT_SEARCH_TERMS = (
+    "chicken",
+    "turkey",
+    "beef",
+    "pork",
+    "fish",
+    "salmon",
+    "tuna",
+    "meat",
+    "fowl",
+)
+RAW_QUERY_TERMS = {"raw", "uncooked"}
 
 STARTER_CANONICAL_FOODS = [
     {
@@ -514,7 +526,6 @@ STARTER_CANONICAL_FOODS = [
         "food_type": "raw",
         "aliases": [
             "oats",
-            "oatmeal",
             "dry oats",
         ],
         "search_priority": 20,
@@ -2293,6 +2304,7 @@ STARTER_CANONICAL_FOODS = [
         "display_name": "Oatmeal, Cooked",
         "food_type": "cooked",
         "aliases": [
+            "oatmeal",
             "cooked oatmeal",
             "prepared oatmeal",
         ],
@@ -3256,6 +3268,114 @@ def normalize_food_name(value: str) -> str:
     return normalized.strip()
 
 
+def _has_normalized_term(
+    normalized_value: str, terms: tuple[str, ...] | set[str]
+) -> bool:
+    normalized_terms = set(normalized_value.split())
+    return any(term in normalized_terms for term in terms)
+
+
+def _humanize_short_food_name(value: str) -> str:
+    normalized_spacing = " ".join(value.strip().split())
+    if not normalized_spacing:
+        return normalized_spacing
+    if normalized_spacing.startswith("2%"):
+        return normalized_spacing.replace("Milk", "milk")
+    return normalized_spacing.lower().capitalize()
+
+
+def _is_raw_or_uncooked_meat_name(display_name: str) -> bool:
+    normalized = normalize_food_name(display_name)
+    if not _has_normalized_term(normalized, RAW_MEAT_SEARCH_TERMS):
+        return False
+    return _has_normalized_term(normalized, RAW_QUERY_TERMS)
+
+
+def is_raw_query(search_term: str) -> bool:
+    normalized_query = normalize_food_name(search_term)
+    return _has_normalized_term(normalized_query, RAW_QUERY_TERMS)
+
+
+def curate_canonical_display_name(
+    display_name: str,
+    food_type: str | None = None,
+) -> str:
+    """Return the public search label without changing source/nutrient identity."""
+
+    cleaned_name = " ".join(display_name.strip().split())
+    normalized = normalize_food_name(cleaned_name)
+    if not cleaned_name:
+        return cleaned_name
+
+    if normalized in {"hummus commercial"}:
+        return "Hummus"
+
+    if "milk" in normalized.split() and (
+        "2" in normalized.split()
+        or "2%" in cleaned_name
+        or "two percent" in cleaned_name.casefold()
+    ):
+        return "2% milk"
+
+    if normalized in {"egg large", "egg whole raw fresh"}:
+        return "Egg"
+
+    if normalized == "oatmeal cooked":
+        return "Oatmeal"
+
+    if normalized in {"tomatoes grape raw", "tomato grape raw"}:
+        return "Grape tomatoes"
+
+    if _is_raw_or_uncooked_meat_name(cleaned_name):
+        if "chicken" in normalized.split() and "breast" in normalized.split():
+            return "Chicken breast, raw"
+        if "chicken" in normalized.split() and "thigh" in normalized.split():
+            return "Chicken thigh, raw"
+        if "turkey" in normalized.split() and "breast" in normalized.split():
+            return "Turkey breast, raw"
+        if "beef" in normalized.split() and "ground" in normalized.split():
+            return "Ground beef, raw"
+        if "pork" in normalized.split():
+            return "Pork, raw"
+        return _humanize_short_food_name(cleaned_name)
+
+    if _has_normalized_term(normalized, RAW_MEAT_SEARCH_TERMS):
+        if "chicken" in normalized.split() and "breast" in normalized.split():
+            return "Chicken breast"
+        if "chicken" in normalized.split() and "thigh" in normalized.split():
+            return "Chicken thigh"
+        if "turkey" in normalized.split() and "breast" in normalized.split():
+            return "Turkey breast"
+        if "salmon" in normalized.split():
+            return "Salmon"
+        if "tuna" in normalized.split():
+            return "Tuna"
+        if "ribeye" in normalized.split() and "steak" in normalized.split():
+            return "Ribeye steak"
+        if "sirloin" in normalized.split() and "steak" in normalized.split():
+            return "Sirloin steak"
+        if "steak" in normalized.split():
+            return "Steak"
+        if "pork" in normalized.split() and "tenderloin" in normalized.split():
+            return "Pork tenderloin"
+        if "fish" in normalized.split():
+            return "Fish"
+
+    return cleaned_name
+
+
+def curated_aliases_for_canonical_food(
+    display_name: str,
+    food_type: str | None = None,
+) -> list[str]:
+    curated_display_name = curate_canonical_display_name(display_name, food_type)
+    aliases: list[str] = []
+    for alias in (curated_display_name,):
+        if normalize_food_name(alias) != normalize_food_name(display_name):
+            aliases.append(alias)
+    return aliases
+
+
 def _normalize_food_type(food_type: str | None) -> str:
     normalized = normalize_food_name(food_type or "generic").replace(" ", "_")
     if normalized not in ALLOWED_FOOD_TYPES:
@@ -3963,11 +4083,16 @@ def search_canonical_foods(
     like_query = f"%{normalized_query}%"
     prefix_query = f"{normalized_query}%"
     include_inactive_flag = 1 if include_inactive else 0
+    raw_meat_penalty = 0 if is_raw_query(search_term) else 250
+    raw_meat_name_clause = " OR ".join(
+        "canonical_foods.normalized_name LIKE ?" for _ in RAW_MEAT_SEARCH_TERMS
+    )
+    raw_meat_name_params = tuple(f"%{term}%" for term in RAW_MEAT_SEARCH_TERMS)
 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
-        """
+        f"""
         WITH matched AS (
             SELECT
                 canonical_foods.*,
@@ -3978,7 +4103,14 @@ def search_canonical_foods(
                     WHEN canonical_foods.normalized_name LIKE ? THEN 10
                     WHEN canonical_foods.normalized_name LIKE ? THEN 30
                     ELSE 80
-                END + canonical_foods.search_priority AS rank_score
+                END
+                + canonical_foods.search_priority
+                + CASE
+                    WHEN canonical_foods.food_type = 'raw'
+                     AND ({raw_meat_name_clause})
+                    THEN ?
+                    ELSE 0
+                  END AS rank_score
             FROM canonical_foods
             WHERE (? = 1 OR canonical_foods.active = 1)
               AND canonical_foods.normalized_name LIKE ?
@@ -3996,7 +4128,13 @@ def search_canonical_foods(
                     ELSE 90
                 END
                 + canonical_foods.search_priority
-                + canonical_food_aliases.priority AS rank_score
+                + canonical_food_aliases.priority
+                + CASE
+                    WHEN canonical_foods.food_type = 'raw'
+                     AND ({raw_meat_name_clause})
+                    THEN ?
+                    ELSE 0
+                  END AS rank_score
             FROM canonical_food_aliases
             JOIN canonical_foods
                 ON canonical_food_aliases.canonical_food_id = canonical_foods.id
@@ -4032,11 +4170,15 @@ def search_canonical_foods(
             normalized_query,
             prefix_query,
             like_query,
+            *raw_meat_name_params,
+            raw_meat_penalty,
             include_inactive_flag,
             like_query,
             normalized_query,
             prefix_query,
             like_query,
+            *raw_meat_name_params,
+            raw_meat_penalty,
             include_inactive_flag,
             like_query,
             int(limit),
@@ -4111,8 +4253,16 @@ def seed_starter_canonical_foods() -> list[CanonicalFood]:
         canonical_food_id = int(food_row["id"])
         seeded_foods.append(_row_to_canonical_food(food_row))
 
-        for index, alias in enumerate(seed_food["aliases"]):
+        aliases = [
+            *seed_food["aliases"],
+            *curated_aliases_for_canonical_food(display_name, food_type),
+        ]
+        seen_normalized_aliases: set[str] = set()
+        for index, alias in enumerate(aliases):
             normalized_alias = normalize_food_name(alias)
+            if not normalized_alias or normalized_alias in seen_normalized_aliases:
+                continue
+            seen_normalized_aliases.add(normalized_alias)
             cursor.execute(
                 """
                 INSERT INTO canonical_food_aliases (

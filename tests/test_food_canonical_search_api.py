@@ -37,7 +37,7 @@ def test_search_endpoint_returns_seeded_canonical_chicken_match(tmp_path, monkey
     payload = response.json()
     assert payload["success"] is True
     assert payload["query"] == "chicken breast"
-    assert payload["results"][0]["display_name"] == "Chicken Breast, Cooked, Skinless"
+    assert payload["results"][0]["display_name"] == "Chicken breast"
     assert payload["results"][0]["matched_on"] in {"display_name", "alias"}
     assert payload["results"][0]["nutrient_summary"] == {
         "calories_per_100g": 165.0,
@@ -54,9 +54,9 @@ def test_search_endpoint_returns_common_seeded_foods(tmp_path, monkeypatch):
 
     expected_by_query = {
         "rice": "White Rice, Cooked",
-        "egg": "Egg, Large",
+        "egg": "Egg",
         "oats": "Oats, Dry",
-        "tuna": "Tuna, Canned in Water",
+        "tuna": "Tuna",
         "pasta": "Pasta, Cooked",
         "beans": "Black Beans, Cooked",
         "protein powder": "Whey Protein Powder, Generic",
@@ -88,7 +88,7 @@ def test_search_endpoint_returns_alias_match(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     result = response.json()["results"][0]
-    assert result["display_name"] == "Chicken Breast, Cooked, Skinless"
+    assert result["display_name"] == "Chicken breast"
     assert result["matched_on"] == "alias"
     assert "boneless chicken" in result["aliases"]
 
@@ -119,8 +119,8 @@ def test_promoted_canonical_food_can_be_found_by_name_with_compact_source_summar
 
     assert response.status_code == 200
     result = response.json()["results"][0]
-    assert result["display_name"] == "Hummus, commercial"
-    assert result["matched_on"] == "display_name"
+    assert result["display_name"] == "Hummus"
+    assert result["matched_on"] == "alias"
     assert result["source"] == {
         "source_name": "USDA FoodData Central",
         "source_record_id": "321358",
@@ -154,7 +154,7 @@ def test_promoted_canonical_food_can_be_found_by_alias(
 
     assert response.status_code == 200
     result = response.json()["results"][0]
-    assert result["display_name"] == "Hummus, commercial"
+    assert result["display_name"] == "Hummus"
     assert result["matched_on"] == "alias"
     assert "commercial hummus" in result["aliases"]
 
@@ -170,10 +170,108 @@ def test_higher_priority_canonical_food_ranks_first(tmp_path, monkeypatch):
 
     assert response.status_code == 200
     results = response.json()["results"]
-    assert [result["display_name"] for result in results[:2]] == [
-        "Chicken Breast, Cooked, Skinless",
+    result_ids = [result["canonical_food_id"] for result in results]
+    cooked_id = next(
+        result["canonical_food_id"]
+        for result in results
+        if result["display_name"] == "Chicken breast"
+        and result["food_type"] == "cooked"
+    )
+    raw_id = next(
+        result["canonical_food_id"]
+        for result in results
+        if result["display_name"] == "Chicken breast, raw"
+        and result["food_type"] == "raw"
+    )
+    assert result_ids.index(cooked_id) < result_ids.index(raw_id)
+
+
+def test_raw_meat_is_deprioritized_for_default_search(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_food = create_canonical_food(
         "Chicken Breast, Raw, Skinless",
-    ]
+        "raw",
+        search_priority=1,
+    )
+    create_canonical_food_alias(raw_food.id, "raw chicken breast", priority=5)
+    create_canonical_food(
+        "Chicken Breast, Cooked, Skinless",
+        "cooked",
+        search_priority=100,
+    )
+
+    response = _client().get("/foods/canonical/search?q=chicken breast")
+
+    assert response.status_code == 200
+    results = response.json()["results"]
+    result_ids = [result["canonical_food_id"] for result in results]
+    cooked_id = next(
+        result["canonical_food_id"]
+        for result in results
+        if result["display_name"] == "Chicken breast"
+        and result["food_type"] == "cooked"
+    )
+    assert result_ids.index(cooked_id) < result_ids.index(raw_food.id)
+    assert (
+        next(
+            result for result in results if result["canonical_food_id"] == raw_food.id
+        )["display_name"]
+        == "Chicken breast, raw"
+    )
+
+
+def test_explicit_raw_query_can_find_raw_meat(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_food = create_canonical_food(
+        "Chicken Breast, Raw, Skinless",
+        "raw",
+        search_priority=1,
+    )
+    create_canonical_food_alias(raw_food.id, "raw chicken breast", priority=5)
+    create_canonical_food(
+        "Chicken Breast, Cooked, Skinless",
+        "cooked",
+        search_priority=10,
+    )
+
+    response = _client().get("/foods/canonical/search?q=raw chicken breast")
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["display_name"] == "Chicken breast, raw"
+    assert result["canonical_food_id"] == raw_food.id
+
+
+def test_raw_non_meat_food_is_not_deprioritized(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_tomato = create_canonical_food(
+        "Tomatoes, grape, raw",
+        "raw",
+        search_priority=1,
+    )
+    create_canonical_food(
+        "Tomato Sauce",
+        "prepared",
+        search_priority=10,
+    )
+
+    response = _client().get("/foods/canonical/search?q=tomato")
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["display_name"] == "Grape tomatoes"
+    assert result["canonical_food_id"] == raw_tomato.id
+
+
+def test_practical_oatmeal_alias_prefers_cooked_oatmeal(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().get("/foods/canonical/search?q=oatmeal")
+
+    assert response.status_code == 200
+    result = response.json()["results"][0]
+    assert result["display_name"] == "Oatmeal"
+    assert result["food_type"] == "cooked"
 
 
 def test_search_results_are_bounded_by_limit(tmp_path, monkeypatch):
@@ -262,7 +360,7 @@ def test_raw_source_records_do_not_appear_as_default_user_facing_results(
     assert response.status_code == 200
     results = response.json()["results"]
     assert results
-    assert results[0]["display_name"] == "Chicken Breast, Cooked, Skinless"
+    assert results[0]["display_name"] == "Chicken breast"
     assert all("raw_source_record_id" not in result for result in results)
     assert all("source_payload_json" not in result for result in results)
 

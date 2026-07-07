@@ -17,6 +17,8 @@ from services.food_normalization_service import (
     create_canonical_food,
     create_canonical_food_alias,
     create_canonical_food_nutrient,
+    curate_canonical_display_name,
+    curated_aliases_for_canonical_food,
     ensure_food_normalization_tables,
     get_aliases_for_canonical_food,
     get_canonical_food,
@@ -341,6 +343,26 @@ def _normalize_aliases(
     return deduped_aliases
 
 
+def _promotion_alias_candidates(
+    *,
+    requested_name: str,
+    raw_record: RawFoodSourceRecord,
+    promoted_food: CanonicalFood,
+    aliases: Iterable[str] | None,
+) -> list[str]:
+    candidates: list[str] = [
+        *curated_aliases_for_canonical_food(
+            promoted_food.display_name,
+            promoted_food.food_type,
+        ),
+        requested_name,
+        raw_record.raw_description,
+    ]
+    if aliases is not None:
+        candidates.extend(aliases)
+    return _normalize_aliases(candidates, promoted_food.display_name)
+
+
 def list_promotable_raw_food_source_records(
     *,
     source_name: str = USDA_SOURCE_NAME,
@@ -425,6 +447,9 @@ def promote_raw_source_record_to_canonical(
 
     existing_source_link = _get_existing_source_link_for_raw_record(raw_record.id)
     promoted_food: CanonicalFood | None = None
+    requested_name = (
+        canonical_name.strip() if canonical_name else raw_record.raw_description
+    )
 
     if existing_source_link is not None:
         promoted_food = get_canonical_food(existing_source_link.canonical_food_id)
@@ -436,17 +461,31 @@ def promote_raw_source_record_to_canonical(
         if canonical_name and canonical_name.strip():
             promoted_food = _update_canonical_food_display_name(
                 promoted_food.id,
-                canonical_name,
+                curate_canonical_display_name(
+                    canonical_name,
+                    promoted_food.food_type,
+                ),
             )
     else:
-        resolved_name = (
-            canonical_name.strip() if canonical_name else raw_record.raw_description
-        )
         resolved_food_type = _resolve_promoted_food_type(raw_record)
+        resolved_name = curate_canonical_display_name(
+            requested_name,
+            resolved_food_type,
+        )
         existing_named_food = _find_canonical_food_by_name(
             resolved_name,
             resolved_food_type,
         )
+        if existing_named_food is None and resolved_name != requested_name:
+            existing_named_food = _find_canonical_food_by_name(
+                requested_name,
+                resolved_food_type,
+            )
+            if existing_named_food is not None:
+                existing_named_food = _update_canonical_food_display_name(
+                    existing_named_food.id,
+                    resolved_name,
+                )
         if existing_named_food is not None:
             promoted_food = existing_named_food
         else:
@@ -465,9 +504,11 @@ def promote_raw_source_record_to_canonical(
     if promoted_food is None:
         raise ValueError("Promotion failed to resolve a canonical food.")
 
-    normalized_aliases = _normalize_aliases(
-        aliases,
-        promoted_food.display_name,
+    normalized_aliases = _promotion_alias_candidates(
+        requested_name=requested_name,
+        raw_record=raw_record,
+        promoted_food=promoted_food,
+        aliases=aliases,
     )
     stored_aliases: list[CanonicalFoodAlias] = []
     for alias in normalized_aliases:
