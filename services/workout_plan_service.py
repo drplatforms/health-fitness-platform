@@ -34,6 +34,7 @@ from services.workout_exercise_count_service import (
     MAX_WORKOUT_EXERCISE_COUNT,
     resolve_workout_exercise_count,
 )
+from services.workout_rotation_pool_service import build_catalog_slot_options
 
 WorkoutCandidateProvider = Callable[[WorkoutContext], str]
 WorkoutExplanationProvider = Callable[[ApprovedWorkoutPlan, WorkoutContext], str]
@@ -578,6 +579,37 @@ def _equipment_allowed(
     return True
 
 
+def _blocked_selection_patterns(workout_constraints: WorkoutConstraints) -> set[str]:
+    blocked = {
+        _normalize_equipment(item)
+        for item in (
+            workout_constraints.avoid_movements
+            + workout_constraints.movement_restrictions
+        )
+        if str(item).strip()
+    }
+    expanded = set(blocked)
+    if "core" in blocked:
+        expanded.update({"core_anti_extension", "core_anti_rotation"})
+    if "push" in blocked:
+        expanded.update({"horizontal_push", "vertical_push"})
+    if "pull" in blocked:
+        expanded.update({"horizontal_pull", "vertical_pull"})
+    if "lower" in blocked:
+        expanded.update({"squat", "lunge", "hinge"})
+    return expanded
+
+
+def _movement_allowed_for_selection(
+    catalog_entry: Any | None, workout_constraints: WorkoutConstraints
+) -> bool:
+    if catalog_entry is None:
+        return True
+    return catalog_entry.movement_pattern not in _blocked_selection_patterns(
+        workout_constraints
+    )
+
+
 def _catalog_equipment_for_option(
     name: str,
     fallback_equipment_required: list[str],
@@ -947,7 +979,10 @@ def _select_exercise(
             name,
             equipment_required,
         )
-        if _equipment_allowed(catalog_equipment_required, workout_constraints):
+        catalog_entry = find_catalog_entry_by_name(catalog_name)
+        if _equipment_allowed(
+            catalog_equipment_required, workout_constraints
+        ) and _movement_allowed_for_selection(catalog_entry, workout_constraints):
             allowed_options.append(
                 (
                     _option_score(
@@ -1491,6 +1526,14 @@ def _generate_base_candidate_workout_plan(
             ("Cable Face Pull", ["cable"]),
         ]
     )
+    lower_body_options = build_catalog_slot_options(
+        context, lower_body_options, "lower_primary"
+    )
+    push_options = build_catalog_slot_options(context, push_options, "push_primary")
+    pull_options = build_catalog_slot_options(context, pull_options, "pull_primary")
+    accessory_options = build_catalog_slot_options(
+        context, accessory_options, "accessory"
+    )
 
     return CandidateWorkoutPlan(
         title="Gradual Progression Strength Session",
@@ -1550,7 +1593,7 @@ def _generate_base_candidate_workout_plan(
 
 
 _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
-    tuple[list[tuple[str, list[str]]], int, int, int, str]
+    tuple[list[tuple[str, list[str]]], int, int, int, str, str]
 ] = [
     (
         [
@@ -1571,6 +1614,7 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
         8,
         12,
         "Use this to round out the session without turning it into extra strain.",
+        "core",
     ),
     (
         [
@@ -1592,6 +1636,7 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
         10,
         15,
         "Keep the accessory work smooth and leave clean reps in reserve.",
+        "shoulder_upper_back",
     ),
     (
         [
@@ -1611,6 +1656,7 @@ _ADDITIONAL_WORKOUT_EXERCISE_SLOTS: list[
         8,
         15,
         "Finish with controlled work that supports the main session.",
+        "conditioning_finish",
     ),
 ]
 
@@ -1636,12 +1682,15 @@ def _next_additional_exercise(
     existing_names: set[str],
     existing_rotation_groups: set[str],
 ) -> CandidateWorkoutExercise | None:
-    options, sets, reps_min, reps_max, notes = _ADDITIONAL_WORKOUT_EXERCISE_SLOTS[
-        slot_index % len(_ADDITIONAL_WORKOUT_EXERCISE_SLOTS)
-    ]
+    options, sets, reps_min, reps_max, notes, slot_family = (
+        _ADDITIONAL_WORKOUT_EXERCISE_SLOTS[
+            slot_index % len(_ADDITIONAL_WORKOUT_EXERCISE_SLOTS)
+        ]
+    )
+    expanded_options = build_catalog_slot_options(context, options, slot_family)
     available_options = [
         option
-        for option in options
+        for option in expanded_options
         if _option_is_available_and_new(
             context, option, existing_names, existing_rotation_groups
         )

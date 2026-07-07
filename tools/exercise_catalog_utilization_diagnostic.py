@@ -32,6 +32,11 @@ from services.exercise_catalog_service import (
     find_catalog_entry_by_name,
     get_exercise_catalog,
 )
+from services.workout_rotation_pool_service import (
+    CATALOG_SLOT_FAMILY_PATTERNS,
+    build_catalog_slot_options,
+    is_catalog_entry_generator_eligible,
+)
 
 DEFAULT_HOME_GYM_EQUIPMENT = [
     "bodyweight",
@@ -211,12 +216,14 @@ def _trace_selection_records(
 
         allowed_candidates: list[dict[str, Any]] = []
         excluded_candidates: list[dict[str, Any]] = []
+        candidate_names_before_filters: list[str] = []
         for option_index, (name, equipment_required) in enumerate(options):
             catalog_name, catalog_equipment = (
                 workout_plans._catalog_equipment_for_option(  # noqa: SLF001
                     name, equipment_required
                 )
             )
+            candidate_names_before_filters.append(catalog_name)
             if workout_plans._equipment_allowed(  # noqa: SLF001
                 catalog_equipment, workout_constraints
             ):
@@ -278,6 +285,10 @@ def _trace_selection_records(
                 "selected_equipment_required": selected_equipment,
                 "candidate_count_before_filters": len(options),
                 "candidate_count_after_filters": len(allowed_candidates),
+                "candidate_names_before_filters": candidate_names_before_filters,
+                "candidate_names_after_filters": [
+                    candidate["name"] for candidate in allowed_candidates
+                ],
                 "top_candidate_names_before_scoring": [
                     option_name for option_name, _equipment in options[:10]
                 ],
@@ -334,11 +345,17 @@ def collect_catalog_utilization_diagnostic(
         for entry in catalog
         if _equipment_allowed_for_entry(entry, context_constraints)
     ]
+    generator_eligible_catalog = [
+        entry
+        for entry in equipment_eligible_catalog
+        if is_catalog_entry_generator_eligible(entry)
+    ]
 
     selection_records: list[dict[str, Any]] = []
     generated_plans: list[dict[str, Any]] = []
     selected_names_counter: Counter[str] = Counter()
     selected_pattern_counter: Counter[str] = Counter()
+    selected_type_counter: Counter[str] = Counter()
 
     for size in sizes:
         for variation_index in range(variation_count):
@@ -349,6 +366,11 @@ def collect_catalog_utilization_diagnostic(
             selected_names_counter.update(exercise_names)
             selected_pattern_counter.update(
                 entry.movement_pattern
+                for name in exercise_names
+                if (entry := find_catalog_entry_by_name(name)) is not None
+            )
+            selected_type_counter.update(
+                entry.exercise_type
                 for name in exercise_names
                 if (entry := find_catalog_entry_by_name(name)) is not None
             )
@@ -367,12 +389,12 @@ def collect_catalog_utilization_diagnostic(
     candidate_option_names = {
         _normalize_name(candidate_name)
         for record in selection_records
-        for candidate_name in record["top_candidate_names_before_scoring"]
+        for candidate_name in record["candidate_names_before_filters"]
     }
     candidate_option_names.update(
-        _normalize_name(candidate["name"])
+        _normalize_name(candidate_name)
         for record in selection_records
-        for candidate in record["excluded_candidate_examples"]
+        for candidate_name in record["candidate_names_after_filters"]
     )
     never_selected_entries = [
         entry
@@ -384,6 +406,11 @@ def collect_catalog_utilization_diagnostic(
         for entry in equipment_eligible_catalog
         if _normalize_name(entry.name) not in candidate_option_names
     ]
+    generator_eligible_never_selected = [
+        entry
+        for entry in generator_eligible_catalog
+        if _normalize_name(entry.name) not in selected_normalized_names
+    ]
     specialized_never_selected = [
         entry for entry in never_selected_entries if _is_specialized(entry)
     ]
@@ -393,6 +420,20 @@ def collect_catalog_utilization_diagnostic(
         for record in selection_records
         for candidate in record["excluded_candidate_examples"]
     )
+    not_selected_reason_counts: Counter[str] = Counter()
+    for entry in generator_eligible_never_selected:
+        if _normalize_name(entry.name) not in candidate_option_names:
+            not_selected_reason_counts[
+                "not_supported_by_current_generator_candidate_pools"
+            ] += 1
+        else:
+            not_selected_reason_counts["candidate_not_selected_in_sweep"] += 1
+
+    representative_context = _context_for("full", 0, available_equipment)
+    slot_family_candidate_pool_sizes = {
+        family: len(build_catalog_slot_options(representative_context, [], family))
+        for family in sorted(CATALOG_SLOT_FAMILY_PATTERNS)
+    }
 
     slot_pool_summary: dict[str, dict[str, Any]] = {}
     for record in selection_records:
@@ -460,6 +501,7 @@ def collect_catalog_utilization_diagnostic(
                 if entry.name and entry.exercise_type and entry.movement_pattern
             ),
             "total_equipment_eligible_exercises": len(equipment_eligible_catalog),
+            "total_generator_eligible_exercises": len(generator_eligible_catalog),
             "total_by_movement_pattern": dict(
                 Counter(entry.movement_pattern for entry in catalog).most_common()
             ),
@@ -489,6 +531,9 @@ def collect_catalog_utilization_diagnostic(
             "total_equipment_eligible_not_in_candidate_options": len(
                 not_in_generation_candidate_options
             ),
+            "total_generator_eligible_not_selected": len(
+                generator_eligible_never_selected
+            ),
             "equipment_eligible_not_in_candidate_options_examples": [
                 _entry_payload(entry)
                 for entry in not_in_generation_candidate_options[:40]
@@ -505,10 +550,15 @@ def collect_catalog_utilization_diagnostic(
             "selected_by_movement_pattern": dict(
                 selected_pattern_counter.most_common()
             ),
+            "selected_by_exercise_type": dict(selected_type_counter.most_common()),
             "candidate_filter_exclusion_reason_counts": dict(
                 exclusion_reason_counts.most_common()
             ),
+            "not_selected_reason_counts": dict(
+                not_selected_reason_counts.most_common()
+            ),
         },
+        "slot_family_candidate_pool_sizes": slot_family_candidate_pool_sizes,
         "candidate_pool_summary": serializable_slot_pool_summary,
         "generated_plan_sweep": generated_plans,
         "slot_selection_records": selection_records,
@@ -531,6 +581,11 @@ def _build_findings(report: dict[str, Any]) -> list[str]:
     if not_in_options:
         findings.append(
             f"{not_in_options} equipment-eligible catalog exercises were never present in traced generation candidate options."
+        )
+    generator_not_selected = reachability["total_generator_eligible_not_selected"]
+    if generator_not_selected:
+        findings.append(
+            f"{generator_not_selected} generator-eligible catalog exercises were not selected in the sweep."
         )
     specialized_never = reachability["total_specialized_never_selected"]
     if specialized_never:
@@ -583,6 +638,10 @@ def _print_text_report(report: dict[str, Any]) -> None:
         reachability["total_equipment_eligible_not_in_candidate_options"],
     )
     print(
+        "total_generator_eligible_not_selected:",
+        reachability["total_generator_eligible_not_selected"],
+    )
+    print(
         "total_specialized_never_selected:",
         reachability["total_specialized_never_selected"],
     )
@@ -592,6 +651,22 @@ def _print_text_report(report: dict[str, Any]) -> None:
         "most_frequently_selected_exercises"
     ].items():
         print(f"{count:>3}  {name}")
+    print(
+        "selected_by_movement_pattern:",
+        report["dominance_summary"]["selected_by_movement_pattern"],
+    )
+    print(
+        "selected_by_exercise_type:",
+        report["dominance_summary"]["selected_by_exercise_type"],
+    )
+    print(
+        "not_selected_reason_counts:",
+        report["dominance_summary"]["not_selected_reason_counts"],
+    )
+
+    print("\nSLOT-FAMILY CANDIDATE POOL SIZES")
+    for family, count in report["slot_family_candidate_pool_sizes"].items():
+        print(f"{family}: {count}")
 
     print("\nCANDIDATE POOL SUMMARY")
     for pool in report["candidate_pool_summary"]:

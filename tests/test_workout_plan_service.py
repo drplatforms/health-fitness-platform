@@ -523,7 +523,7 @@ def test_home_gym_preview_rotates_movement_patterns_after_recent_trio(
     second_plan = build_approved_workout_plan(build_user_health_state(102))
     patterns = set(_movement_patterns_for_plan(second_plan))
 
-    assert "squat" in patterns or "hinge" in patterns
+    assert "squat" in patterns or "hinge" in patterns or "lunge" in patterns
     assert "horizontal_push" in patterns or "vertical_push" in patterns
     assert "horizontal_pull" in patterns or "vertical_pull" in patterns
 
