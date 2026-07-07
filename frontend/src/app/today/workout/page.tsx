@@ -48,9 +48,6 @@ export default async function WorkoutPage({
               <h1 className="text-3xl font-semibold tracking-tight text-slate-950 lg:text-[2.5rem]">
                 Today&apos;s Workout
               </h1>
-              <p className="max-w-2xl text-sm leading-6 text-slate-600">
-                Review today&apos;s workout and keep moving through the session.
-              </p>
             </div>
 
             <div className="flex flex-wrap gap-2 lg:justify-end">
