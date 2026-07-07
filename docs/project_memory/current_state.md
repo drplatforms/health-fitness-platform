@@ -1,3 +1,58 @@
+# Current State — Canonical Food Search Result Curation v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active backend implementation milestone:
+
+```text
+Canonical Food Search Result Curation v0
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_SEARCH_RESULT_CURATION_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Improve canonical food search result quality so daily food logging returns practical, human-friendly canonical food results instead of raw USDA-style names.
+```
+
+Implemented scope:
+
+- Added a deterministic canonical display-name curation helper for public search labels and raw-source promotion.
+- Kept canonical search on `canonical_food_id`; raw USDA source rows still do not become direct log targets.
+- Preserved source identity through existing source links and compact `source` summaries.
+- Added conservative practical labels such as `Chicken breast`, `Hummus`, `2% milk`, `Egg`, `Oatmeal`, and `Grape tomatoes`.
+- Preserved raw meat/fowl/fish truth by keeping explicit raw names visibly raw, such as `Chicken breast, raw`.
+- Added a default search-ranking penalty for raw meat/fowl/fish canonical foods unless the user explicitly searches `raw` or `uncooked`.
+- Kept non-meat raw foods, such as raw tomatoes, eligible for normal search results.
+- Added starter curation aliases during seed so practical names can be found without changing nutrient values.
+- Adjusted oatmeal seeding so `oatmeal` prefers cooked oatmeal while `oats` still finds dry oats.
+
+Boundaries preserved:
+
+- No frontend files were changed.
+- No canonical logging behavior, nutrition rollup behavior, serving-unit behavior, workout, recovery, provider, or user-routing behavior changed.
+- No full USDA taxonomy, admin curation UI, raw source review UI, food diary/history, edit/delete logs, serving picker, meal builder, barcode scanner, AI food parser, or image recognition was added.
+- Nutrient values, missing macro behavior, explicit zero macro behavior, and source payload privacy remain unchanged.
+- Full USDA datasets, generated SQLite DBs, ZIPs, CSVs, and runtime artifacts remain local-only artifacts.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_search_api.py tests/test_food_normalization_service.py tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services/food_normalization_service.py services/food_canonical_promotion_service.py api/routes/food_canonical_search.py tests/test_food_canonical_search_api.py tests/test_food_canonical_promotion_service.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check services/food_normalization_service.py services/food_canonical_promotion_service.py api/routes/food_canonical_search.py tests/test_food_canonical_search_api.py tests/test_food_canonical_promotion_service.py`
+
+---
+
 # Current State — Today Workout Detail UX Refinement v0
 
 Current accepted baseline:

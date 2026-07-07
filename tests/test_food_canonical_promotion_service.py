@@ -176,13 +176,16 @@ def test_promotion_creates_canonical_food_nutrients_source_link_and_aliases(
         aliases=["hummus", "commercial hummus"],
     )
 
-    assert result.canonical_food.display_name == "Hummus, commercial"
+    assert result.canonical_food.display_name == "Hummus"
     assert result.source_identity.source_name == USDA_SOURCE_NAME
     assert result.source_identity.source_record_id == "321358"
     assert result.source_identity.raw_food_source_record_id == raw_record.id
 
     aliases = get_aliases_for_canonical_food(result.canonical_food.id)
-    assert {alias.alias for alias in aliases} >= {"hummus", "commercial hummus"}
+    assert {alias.alias for alias in aliases} >= {
+        "Hummus, commercial",
+        "commercial hummus",
+    }
 
     nutrients = get_nutrients_for_canonical_food(result.canonical_food.id)
     nutrient_amounts = {
@@ -224,6 +227,7 @@ def test_promotion_is_idempotent_and_reuses_existing_canonical_food(
 
     assert first.canonical_food.id == existing_canonical.id
     assert second.canonical_food.id == existing_canonical.id
+    assert second.canonical_food.display_name == "Hummus"
 
     conn = database.get_connection()
     cursor = conn.cursor()
@@ -236,7 +240,31 @@ def test_promotion_is_idempotent_and_reuses_existing_canonical_food(
     assert canonical_count == 1
     assert source_link_count == 1
     aliases = get_aliases_for_canonical_food(existing_canonical.id)
-    assert {alias.alias for alias in aliases} >= {"hummus", "hummus dip"}
+    assert {alias.alias for alias in aliases} >= {
+        "Hummus, commercial",
+        "hummus dip",
+    }
+
+
+def test_promotion_keeps_raw_meat_visibly_raw(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    raw_record = create_raw_food_source_record(
+        source_name=USDA_SOURCE_NAME,
+        source_record_id="999001",
+        raw_description="Chicken breast, meat only, raw",
+        data_type="foundation_food",
+        calories_per_100g=120.0,
+        protein_g_per_100g=22.5,
+        carbs_g_per_100g=0.0,
+        fat_g_per_100g=2.6,
+    )
+
+    result = promote_raw_source_record_to_canonical(raw_record.id)
+
+    assert result.canonical_food.display_name == "Chicken breast, raw"
+    assert result.source_identity.source_record_id == "999001"
+    aliases = get_aliases_for_canonical_food(result.canonical_food.id)
+    assert "Chicken breast, meat only, raw" in {alias.alias for alias in aliases}
 
 
 def test_promotion_preserves_missing_and_explicit_zero_macros(
