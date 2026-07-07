@@ -1,3 +1,54 @@
+# Current State — Canonical Food Bulk Catalog Builder Hardening v0.1
+
+Current source of truth: `feature/canonical-food-bulk-catalog-builder-hardening-v0-1`.
+
+Active backend hardening milestone:
+
+```text
+Canonical Food Bulk Catalog Builder Hardening v0.1
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_BULK_CATALOG_BUILDER_HARDENING_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Harden bulk canonical food catalog curation before any real promotion by preserving meaningful food qualifiers and reducing false skipped_duplicate_name results.
+```
+
+Implemented scope:
+
+- Preserved meaningful qualifiers for common bulk catalog families before duplicate-name checks.
+- Added specific display names for flour, cheese, rice, oats, tomato, butter, cream, bread, and oil variants.
+- Fixed over-broad oil curation so `Anchovies, canned in olive oil` becomes `Canned anchovies`, not `Olive oil`.
+- Kept raw meat/fowl/fish protection intact while preserving clearly prepared/canned/ready-to-eat eligibility.
+- Kept true duplicate protection for same normalized display name plus same macro profile.
+- Added fallback naming for materially different same-name rows so the builder can use a more specific second-phrase display name instead of immediately skipping.
+- Extended bulk catalog tests for qualifier preservation, true duplicate skips, anchovy/oil curation, representative dry-run improvement, and idempotency regression coverage.
+
+Boundaries preserved:
+
+- No real promotion run is authorized or performed.
+- No frontend files, food logging UI, serving picker, diary/history, admin UI, raw USDA review UI, AI parser, barcode scanner, workout, recovery, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Raw source rows remain non-user-facing and are never logged directly.
+- Nutrients are copied only from existing raw source records; no nutrition values are fabricated.
+- No DB, USDA dataset, CSV, ZIP, generated report, or runtime artifact is part of this milestone.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_bulk_catalog_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_starter_set_service.py tests/test_food_canonical_search_api.py tests/test_food_normalization_service.py tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services scripts tests`
+- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
+- `git diff --check`
+
+---
+
 # Current State — Canonical Food Bulk Catalog Builder v0
 
 Current source of truth: `feature/canonical-food-bulk-catalog-builder-v0`.

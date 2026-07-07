@@ -17,6 +17,7 @@ from services.food_catalog_inventory_service import (
 from services.food_normalization_service import (
     create_raw_food_source_record,
     ensure_food_normalization_tables,
+    normalize_food_name,
     search_canonical_foods,
 )
 from services.nutrition_service import get_daily_canonical_food_macro_totals
@@ -280,6 +281,282 @@ def test_duplicate_canonical_display_names_are_skipped_safely(
         "Grape tomatoes"
     }
     assert _count_rows("canonical_foods") == 0
+
+
+def test_flour_variants_keep_meaningful_qualifiers(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    for index, description in enumerate(
+        (
+            "Flour, almond",
+            "Flour, coconut",
+            "Flour, whole wheat",
+            "Flour, bread, white",
+            "Flour, rice, brown",
+        ),
+        start=1,
+    ):
+        _create_foundation_raw(
+            source_record_id=f"flour-{index}",
+            raw_description=description,
+            food_category="Cereal Grains and Pasta",
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Almond flour",
+        "Coconut flour",
+        "Whole wheat flour",
+        "Bread flour",
+        "Brown rice flour",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_cheese_variants_keep_meaningful_qualifiers(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    for index, description in enumerate(
+        (
+            "Cheese, cheddar",
+            "Cheese, mozzarella",
+            "Cheese, parmesan",
+            "Cheese, feta",
+        ),
+        start=1,
+    ):
+        _create_foundation_raw(
+            source_record_id=f"cheese-{index}",
+            raw_description=description,
+            food_category="Dairy and Egg Products",
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Cheddar cheese",
+        "Mozzarella cheese",
+        "Parmesan cheese",
+        "Feta cheese",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_rice_variants_keep_meaningful_qualifiers(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    for index, description in enumerate(
+        (
+            "Rice, brown",
+            "Rice, white",
+            "Rice, black",
+        ),
+        start=1,
+    ):
+        _create_foundation_raw(
+            source_record_id=f"rice-{index}",
+            raw_description=description,
+            food_category="Cereal Grains and Pasta",
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Brown rice",
+        "White rice",
+        "Black rice",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_tomato_variants_keep_meaningful_qualifiers(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    for index, description in enumerate(
+        (
+            "Tomato, paste",
+            "Tomato, puree",
+            "Tomato, sauce",
+            "Tomato, roma, raw",
+        ),
+        start=1,
+    ):
+        _create_foundation_raw(
+            source_record_id=f"tomato-{index}",
+            raw_description=description,
+            food_category="Vegetables and Vegetable Products",
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Tomato paste",
+        "Tomato puree",
+        "Tomato sauce",
+        "Roma tomato",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_common_bread_butter_cream_oil_qualifiers_are_preserved(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    rows = [
+        ("butter-1", "Butter, salted", "Dairy and Egg Products"),
+        ("butter-2", "Butter, unsalted", "Dairy and Egg Products"),
+        ("cream-1", "Cream, heavy", "Dairy and Egg Products"),
+        ("cream-2", "Cream, sour", "Dairy and Egg Products"),
+        ("bread-1", "Bread, white", "Baked Products"),
+        ("bread-2", "Bread, whole-wheat", "Baked Products"),
+        ("oil-1", "Oil, coconut", "Fats and Oils"),
+        ("oil-2", "Oil, olive", "Fats and Oils"),
+    ]
+    for source_record_id, description, category in rows:
+        _create_foundation_raw(
+            source_record_id=source_record_id,
+            raw_description=description,
+            food_category=category,
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Salted butter",
+        "Unsalted butter",
+        "Heavy cream",
+        "Sour cream",
+        "White bread",
+        "Whole wheat bread",
+        "Coconut oil",
+        "Olive oil",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_identical_duplicate_berries_can_still_be_skipped(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    for source_record_id in ("berry-1", "berry-2"):
+        _create_foundation_raw(
+            source_record_id=source_record_id,
+            raw_description="Blackberries, raw",
+            food_category="Fruits and Fruit Juices",
+            calories=43.0,
+            protein=1.4,
+            carbs=9.6,
+            fat=0.5,
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert report.promoted == []
+    assert len(report.skipped_duplicate_name) == 2
+    assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
+        "Blackberries"
+    }
+
+
+def test_materially_different_same_name_rows_get_more_specific_names(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="berry-raw",
+        raw_description="Blackberries, raw",
+        food_category="Fruits and Fruit Juices",
+        calories=43.0,
+        protein=1.4,
+        carbs=9.6,
+        fat=0.5,
+    )
+    _create_foundation_raw(
+        source_record_id="berry-canned",
+        raw_description="Blackberries, canned, heavy syrup",
+        food_category="Fruits and Fruit Juices",
+        calories=92.0,
+        protein=1.0,
+        carbs=23.0,
+        fat=0.2,
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Raw Blackberries",
+        "Canned Blackberries",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+def test_anchovies_in_olive_oil_do_not_become_olive_oil(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="anchovy-1",
+        raw_description="Anchovies, canned in olive oil",
+        food_category="Finfish and Shellfish Products",
+        calories=210.0,
+        protein=28.9,
+        carbs=0.0,
+        fat=9.7,
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert len(report.promoted) == 1
+    assert report.promoted[0].canonical_display_name == "Canned anchovies"
+    assert "anchovies" in {
+        normalize_food_name(alias) for alias in report.promoted[0].aliases
+    }
+    assert report.promoted[0].canonical_display_name != "Olive oil"
+
+
+def test_representative_dry_run_promoted_count_improves_with_qualifier_curation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    rows = [
+        ("flour-1", "Flour, almond", "Cereal Grains and Pasta"),
+        ("flour-2", "Flour, coconut", "Cereal Grains and Pasta"),
+        ("flour-3", "Flour, whole wheat", "Cereal Grains and Pasta"),
+        ("cheese-1", "Cheese, cheddar", "Dairy and Egg Products"),
+        ("cheese-2", "Cheese, mozzarella", "Dairy and Egg Products"),
+        ("cheese-3", "Cheese, feta", "Dairy and Egg Products"),
+        ("rice-1", "Rice, brown", "Cereal Grains and Pasta"),
+        ("rice-2", "Rice, white", "Cereal Grains and Pasta"),
+        ("tomato-1", "Tomato, paste", "Vegetables and Vegetable Products"),
+        ("tomato-2", "Tomato, puree", "Vegetables and Vegetable Products"),
+        ("tomato-3", "Tomato, roma, raw", "Vegetables and Vegetable Products"),
+        ("butter-1", "Butter, salted", "Dairy and Egg Products"),
+        ("butter-2", "Butter, unsalted", "Dairy and Egg Products"),
+        ("cream-1", "Cream, heavy", "Dairy and Egg Products"),
+        ("cream-2", "Cream, sour", "Dairy and Egg Products"),
+        ("bread-1", "Bread, white", "Baked Products"),
+        ("bread-2", "Bread, whole-wheat", "Baked Products"),
+        ("oil-1", "Oil, coconut", "Fats and Oils"),
+        ("oil-2", "Oil, olive", "Fats and Oils"),
+        ("berry-1", "Blackberries, raw", "Fruits and Fruit Juices"),
+        ("berry-2", "Blackberries, raw", "Fruits and Fruit Juices"),
+    ]
+    for source_record_id, description, category in rows:
+        _create_foundation_raw(
+            source_record_id=source_record_id,
+            raw_description=description,
+            food_category=category,
+        )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert len(report.promoted) >= 19
+    assert len(report.skipped_duplicate_name) == 2
+    assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
+        "Blackberries"
+    }
 
 
 def test_bulk_promotion_is_idempotent(tmp_path, monkeypatch) -> None:
