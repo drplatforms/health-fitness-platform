@@ -51,3 +51,24 @@ export interface CanonicalFoodLogResponse {
     fat_g?: number;
   };
 }
+
+export const CANONICAL_FOOD_LOGGED_EVENT = "canonical-food-logged";
+
+export interface CanonicalFoodLoggedEntry {
+  entry_id: number;
+  canonical_food_id: number;
+  food_name: string;
+  grams: number;
+  meal_type: string | null;
+  calories: number | null;
+  protein_g: number | null;
+  carbs_g: number | null;
+  fat_g: number | null;
+}
+
+export interface CanonicalFoodLogsResponse {
+  success: boolean;
+  user_id: number;
+  date: string;
+  entries: CanonicalFoodLoggedEntry[];
+}

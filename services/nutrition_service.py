@@ -523,6 +523,60 @@ def get_daily_canonical_food_macro_totals(
     }
 
 
+def get_daily_canonical_food_logs(
+    user_id: int,
+    entry_date: str,
+) -> list[dict[str, Any]]:
+    resolved_date = _resolve_entry_date(entry_date)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            food_entries.id AS entry_id,
+            food_entries.canonical_food_id,
+            COALESCE(
+                canonical_foods.display_name,
+                REPLACE(foods.name, 'Canonical: ', '')
+            ) AS food_name,
+            food_entries.grams,
+            food_entries.meal_type,
+            food_entries.calories,
+            food_entries.protein_g,
+            food_entries.carbs_g,
+            food_entries.fat_g
+        FROM food_entries
+        LEFT JOIN canonical_foods
+            ON canonical_foods.id = food_entries.canonical_food_id
+        LEFT JOIN foods
+            ON foods.id = food_entries.food_id
+        WHERE food_entries.user_id = ?
+          AND food_entries.entry_date = ?
+          AND food_entries.canonical_food_id IS NOT NULL
+        ORDER BY food_entries.created_at, food_entries.id
+        """,
+        (user_id, resolved_date),
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "entry_id": int(row["entry_id"]),
+            "canonical_food_id": int(row["canonical_food_id"]),
+            "food_name": row["food_name"],
+            "grams": row["grams"],
+            "meal_type": row["meal_type"],
+            "calories": row["calories"],
+            "protein_g": row["protein_g"],
+            "carbs_g": row["carbs_g"],
+            "fat_g": row["fat_g"],
+        }
+        for row in rows
+    ]
+
+
 # -----------------------------
 # Daily Nutrition Aggregation
 # -----------------------------

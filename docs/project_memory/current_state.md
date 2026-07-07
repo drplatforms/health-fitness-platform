@@ -1,3 +1,60 @@
+# Current State — Today Logged Foods Read-Only List v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active full-stack implementation milestone:
+
+```text
+Today Logged Foods Read-Only List v0
+```
+
+Requested status:
+
+```text
+TODAY_LOGGED_FOODS_READONLY_LIST_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Make today's food logging loop visible by showing a compact read-only list of canonical foods logged for the selected user/date near Nutrition and Log Food.
+```
+
+Implemented scope:
+
+- Added a read-only backend endpoint at `GET /nutrition/{user_id}/canonical-logs?date=YYYY-MM-DD`.
+- Added a nutrition service helper that reads only canonical food entries for the selected user/date.
+- Returned stored macro snapshots from `food_entries` so missing macros remain `null` and explicit zero values remain `0`.
+- Preserved canonical food IDs and friendly food names without exposing raw USDA payloads or raw source identifiers.
+- Added a compact `Logged today` component under Log Food on the Today page.
+- Kept the left-column order as Nutrition, Log Food, Logged today, Today's Workout.
+- Preserved `router.refresh()` after food logging so Nutrition actuals and the logged-food list reload together.
+- Added a clean empty state: `No foods logged yet today.`
+
+Boundaries preserved:
+
+- No edit/delete food log flow was added.
+- No food history across dates, serving picker, meal builder, recent foods, favorites, barcode scanner, AI food parser, image food recognition, raw USDA review UI, or canonical promotion UI was added.
+- Nutrition calculations, canonical logging behavior, workout, recovery, provider behavior, and user routing were not changed.
+- Full USDA datasets, generated DB files, ZIPs, CSVs, and runtime artifacts remain local-only artifacts.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check api/routes/nutrition.py services/nutrition_service.py tests/test_canonical_food_logging_api.py`
+- `.\.venv\Scripts\python.exe -m ruff format --check api/routes/nutrition.py services/nutrition_service.py tests/test_canonical_food_logging_api.py`
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+- `cd C:\projects\fitness_ai`
+- `git diff --check`
+
+---
+
 # Current State — Canonical Food Search Result Curation v0
 
 Current accepted baseline:

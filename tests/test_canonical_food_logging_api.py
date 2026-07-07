@@ -15,6 +15,7 @@ from services.food_normalization_service import (
 )
 from services.nutrition_service import (
     add_food_entry,
+    get_daily_canonical_food_logs,
     get_daily_canonical_food_macro_totals,
     get_daily_nutrition,
 )
@@ -664,6 +665,179 @@ def test_canonical_totals_endpoint_is_safe_and_returns_rollup(
             "fat_g": 3.6,
         },
     }
+
+
+def test_canonical_logs_endpoint_returns_empty_list_for_empty_day(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "user_id": 1,
+        "date": "2026-06-05",
+        "entries": [],
+    }
+
+
+def test_daily_canonical_logs_return_logged_entries_with_snapshots(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+
+    logged = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 150,
+            "entry_date": "2026-06-05",
+            "meal_type": "lunch",
+        },
+    )
+    assert logged.status_code == 200
+
+    response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["user_id"] == 1
+    assert payload["date"] == "2026-06-05"
+    assert payload["entries"] == [
+        {
+            "entry_id": logged.json()["logged_food_entry_id"],
+            "canonical_food_id": canonical_food_id,
+            "food_name": "Chicken Breast, Cooked, Skinless",
+            "grams": 150.0,
+            "meal_type": "lunch",
+            "calories": 247.5,
+            "protein_g": 46.5,
+            "carbs_g": 0.0,
+            "fat_g": 5.4,
+        }
+    ]
+    assert "source_payload_json" not in payload["entries"][0]
+    assert "raw_description" not in payload["entries"][0]
+
+    service_entries = get_daily_canonical_food_logs(
+        user_id=1,
+        entry_date="2026-06-05",
+    )
+    assert service_entries == payload["entries"]
+
+
+def test_daily_canonical_logs_separate_users_and_dates(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+
+    first = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+            "meal_type": "breakfast",
+        },
+    )
+    second = _client().post(
+        "/nutrition/2/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 200,
+            "entry_date": "2026-06-05",
+            "meal_type": "lunch",
+        },
+    )
+    third = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 50,
+            "entry_date": "2026-06-06",
+            "meal_type": "snack",
+        },
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert third.status_code == 200
+
+    user_one_day_one = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+    user_two_day_one = _client().get("/nutrition/2/canonical-logs?date=2026-06-05")
+    user_one_day_two = _client().get("/nutrition/1/canonical-logs?date=2026-06-06")
+
+    assert user_one_day_one.status_code == 200
+    assert user_two_day_one.status_code == 200
+    assert user_one_day_two.status_code == 200
+    assert [entry["entry_id"] for entry in user_one_day_one.json()["entries"]] == [
+        first.json()["logged_food_entry_id"]
+    ]
+    assert [entry["entry_id"] for entry in user_two_day_one.json()["entries"]] == [
+        second.json()["logged_food_entry_id"]
+    ]
+    assert [entry["entry_id"] for entry in user_one_day_two.json()["entries"]] == [
+        third.json()["logged_food_entry_id"]
+    ]
+
+
+def test_daily_canonical_logs_preserve_missing_and_zero_macro_snapshots(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    protein_food = create_canonical_food("Protein Only Test Food", "generic")
+    create_canonical_food_nutrient(protein_food.id, "Protein", "g", 20)
+    zero_food = create_canonical_food("Zero Macro Test Food", "generic")
+    create_canonical_food_nutrient(zero_food.id, "Calories", "kcal", 0)
+    create_canonical_food_nutrient(zero_food.id, "Protein", "g", 0)
+    create_canonical_food_nutrient(zero_food.id, "Carbohydrate", "g", 0)
+    create_canonical_food_nutrient(zero_food.id, "Fat", "g", 0)
+
+    missing = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": protein_food.id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    zero = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": zero_food.id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    assert missing.status_code == 200
+    assert zero.status_code == 200
+
+    response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+
+    assert response.status_code == 200
+    entries = response.json()["entries"]
+    assert entries[0]["calories"] is None
+    assert entries[0]["protein_g"] == 20.0
+    assert entries[0]["carbs_g"] is None
+    assert entries[0]["fat_g"] is None
+    assert entries[1]["calories"] == 0.0
+    assert entries[1]["protein_g"] == 0.0
+    assert entries[1]["carbs_g"] == 0.0
+    assert entries[1]["fat_g"] == 0.0
+
+
+def test_canonical_logs_endpoint_rejects_invalid_date(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().get("/nutrition/1/canonical-logs?date=06/05/2026")
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "entry_date must use YYYY-MM-DD format."
 
 
 def test_v3_daily_staple_canonical_food_can_be_logged(tmp_path, monkeypatch):
