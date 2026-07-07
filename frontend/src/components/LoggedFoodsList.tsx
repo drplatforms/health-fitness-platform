@@ -23,31 +23,67 @@ function formatCompactNumber(value: number, suffix = ""): string {
   return `${normalized}${suffix}`;
 }
 
-function formatMealType(value: string | null): string {
-  if (!value) {
-    return "Any time";
-  }
+function normalizeMealType(value: string | null): string {
+  const normalized = value?.trim().toLowerCase();
 
-  return value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
+  switch (normalized) {
+    case "breakfast":
+    case "lunch":
+    case "dinner":
+    case "snack":
+      return normalized;
+    default:
+      return "other";
+  }
+}
+
+function formatMealType(value: string): string {
+  switch (value) {
+    case "breakfast":
+      return "Breakfast";
+    case "lunch":
+      return "Lunch";
+    case "dinner":
+      return "Dinner";
+    case "snack":
+      return "Snack";
+    default:
+      return "Other";
+  }
 }
 
 function formatMacro(value: number | null, label: string): string {
   if (value === null) {
-    return `${label} unknown`;
+    return "";
   }
 
   return `${formatCompactNumber(value)}${label}`;
 }
 
 function formatMacroLine(entry: CanonicalFoodLoggedEntry): string {
-  return [
+  const macroParts = [
     entry.calories === null
-      ? "cal unknown"
+      ? ""
       : `${formatCompactNumber(entry.calories)} cal`,
     formatMacro(entry.protein_g, "P"),
     formatMacro(entry.carbs_g, "C"),
     formatMacro(entry.fat_g, "F"),
-  ].join(" · ");
+  ].filter(Boolean);
+
+  return macroParts.length ? macroParts.join(" · ") : "Macros unavailable";
+}
+
+function groupEntriesByMeal(entries: CanonicalFoodLoggedEntry[]) {
+  const mealOrder = ["breakfast", "lunch", "dinner", "snack", "other"];
+
+  return mealOrder
+    .map((mealType) => ({
+      mealType,
+      entries: entries.filter(
+        (entry) => normalizeMealType(entry.meal_type) === mealType,
+      ),
+    }))
+    .filter((group) => group.entries.length > 0);
 }
 
 export function LoggedFoodsList({
@@ -60,6 +96,7 @@ export function LoggedFoodsList({
   const [entries, setEntries] = useState(initialEntries);
   const [error, setError] = useState(initialError ?? null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const mealGroups = groupEntriesByMeal(entries);
 
   useEffect(() => {
     let isActive = true;
@@ -122,25 +159,37 @@ export function LoggedFoodsList({
         ) : null}
 
         {!error && entries.length > 0 ? (
-          <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-1">
-            {entries.map((entry) => (
-              <div
-                key={entry.entry_id}
-                className="grid gap-1 py-3 text-sm sm:grid-cols-[minmax(0,0.75fr)_minmax(0,1fr)_auto] sm:items-center"
-              >
-                <span className="font-semibold text-slate-700">
-                  {formatMealType(entry.meal_type)}
-                </span>
-                <span className="font-semibold text-slate-950">
-                  {entry.food_name}
-                </span>
-                <span className="text-slate-600 sm:text-right">
-                  {formatCompactNumber(entry.grams, "g")}
-                </span>
-                <span className="text-xs font-medium text-slate-600 sm:col-span-3">
-                  {formatMacroLine(entry)}
-                </span>
-              </div>
+          <div className="max-h-[26rem] space-y-3 overflow-y-auto rounded-2xl bg-slate-50 px-3 py-3">
+            {mealGroups.map((group) => (
+              <section key={group.mealType} className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                    {formatMealType(group.mealType)}
+                  </h3>
+                  <span className="text-xs font-medium text-slate-500">
+                    {group.entries.length}{" "}
+                    {group.entries.length === 1 ? "item" : "items"}
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100 rounded-xl bg-white">
+                  {group.entries.map((entry) => (
+                    <div
+                      key={entry.entry_id}
+                      className="grid gap-1 px-3 py-2.5 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-baseline"
+                    >
+                      <span className="font-semibold text-slate-950">
+                        {entry.food_name}
+                      </span>
+                      <span className="text-slate-600 sm:text-right">
+                        {formatCompactNumber(entry.grams, "g")}
+                      </span>
+                      <span className="text-xs font-medium text-slate-600 sm:col-span-2">
+                        {formatMacroLine(entry)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         ) : null}

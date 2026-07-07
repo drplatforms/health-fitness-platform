@@ -1,3 +1,60 @@
+# Current State — Today Food Log Grouping + Workout Prose Cleanup v0
+
+Current accepted baseline:
+
+```text
+ced70d0 Merge Today logged foods read-only list v0
+```
+
+Active frontend implementation milestone:
+
+```text
+Today Food Log Grouping + Workout Prose Cleanup v0
+```
+
+Requested status:
+
+```text
+TODAY_FOOD_LOG_GROUPING_WORKOUT_PROSE_CLEANUP_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Make the Today logged-food and Workout detail surfaces more compact, grouped, and data-first without changing backend contracts.
+```
+
+Implemented scope:
+
+- Grouped the read-only `Logged today` food list by normalized meal type.
+- Rendered known meal types as Breakfast, Lunch, Dinner, and Snack; missing or unknown values render as Other.
+- Hid empty meal groups while preserving the compact empty-day state.
+- Kept explicit zero macro values visible and omitted missing macro values from compact rows.
+- Added compact per-meal item counts and a bounded logged-food scroll area for longer days.
+- Put `Logged today` and `Today's Workout` side-by-side in the Today primary column on wide desktop viewports.
+- Preserved mobile order as Nutrition, Log Food, Logged today, Today's Workout, Recovery.
+- Removed low-value deterministic prose from the Workout page hero and Session Status area.
+- Removed the Workout page Session Notes card rather than relocating generic deterministic prose.
+- Changed Workout detail exercise cards to a two-column desktop grid and single-column mobile layout.
+- Preserved existing active workout logging controls.
+
+Boundaries preserved:
+
+- Backend behavior and contracts were not changed.
+- Food search, food logging, logged-food refresh, Nutrition actual refresh, Today workout detail navigation, active workout logging, and Recovery Check-In behavior were not intentionally changed.
+- No edit/delete food logs, full food diary/history, serving picker, meal builder, recent foods, favorites, barcode scanner, AI food parser, provider behavior, recovery logic changes, nutrition calculation changes, food search changes, or AI workout prose generation were added.
+- Full USDA datasets, generated DB files, CSVs, ZIPs, and runtime artifacts remain local-only artifacts.
+
+Validation target:
+
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+- `cd C:\projects\fitness_ai`
+- `git diff --check`
+
+---
+
 # Current State — Today Logged Foods Read-Only List v0
 
 Current accepted baseline:

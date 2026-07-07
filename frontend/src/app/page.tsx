@@ -322,65 +322,67 @@ export default async function Home({
                 userId={todayQuery.userId ?? data.user_id}
                 targetDate={data.target_date}
               />
-              <LoggedFoodsList
-                key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
-                initialEntries={loggedFoodsResult.data?.entries ?? []}
-                initialError={loggedFoodsResult.error}
-                userId={todayQuery.userId ?? data.user_id}
-                targetDate={data.target_date}
-              />
-              <TodayCard title="Today's Workout">
-                <div className="space-y-3">
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="text-sm leading-6 text-slate-700">
-                      {getWorkoutSupportLine(data.workout.status)}
-                    </p>
-                    <StatusPill
-                      label={formatWorkoutStatusLabel(data.workout.status)}
-                      tone={workoutToneMap[data.workout.status]}
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    {workoutMeta.map((item) => (
-                      <span
-                        key={item}
-                        className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
-                      >
-                        {item}
+              <div className="grid gap-3 xl:grid-cols-2">
+                <LoggedFoodsList
+                  key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                  initialEntries={loggedFoodsResult.data?.entries ?? []}
+                  initialError={loggedFoodsResult.error}
+                  userId={todayQuery.userId ?? data.user_id}
+                  targetDate={data.target_date}
+                />
+                <TodayCard title="Today's Workout">
+                  <div className="space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-sm font-semibold text-slate-800">
+                        {getWorkoutSupportLine(data.workout.status)}
                       </span>
-                    ))}
-                  </div>
-                  {workoutRows.length > 0 ? (
-                    <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
-                      {workoutRows.map((exercise) => (
-                        <div
-                          key={exercise.key}
-                          className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                      <StatusPill
+                        label={formatWorkoutStatusLabel(data.workout.status)}
+                        tone={workoutToneMap[data.workout.status]}
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {workoutMeta.map((item) => (
+                        <span
+                          key={item}
+                          className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
                         >
-                          <span className="font-semibold text-slate-900">
-                            {exercise.name}
-                          </span>
-                          <span className="text-slate-600 sm:text-right">
-                            {exercise.detail}
-                          </span>
-                        </div>
+                          {item}
+                        </span>
                       ))}
                     </div>
-                  ) : (
-                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                      {data.workout.first_action_label}
-                    </p>
-                  )}
-                  {data.workout.planned ? (
-                    <Link
-                      href={workoutHref}
-                      className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
-                    >
-                      {getWorkoutActionLabel(data.workout.status)}
-                    </Link>
-                  ) : null}
-                </div>
-              </TodayCard>
+                    {workoutRows.length > 0 ? (
+                      <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
+                        {workoutRows.map((exercise) => (
+                          <div
+                            key={exercise.key}
+                            className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                          >
+                            <span className="font-semibold text-slate-900">
+                              {exercise.name}
+                            </span>
+                            <span className="text-slate-600 sm:text-right">
+                              {exercise.detail}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                        {data.workout.first_action_label}
+                      </p>
+                    )}
+                    {data.workout.planned ? (
+                      <Link
+                        href={workoutHref}
+                        className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
+                      >
+                        {getWorkoutActionLabel(data.workout.status)}
+                      </Link>
+                    ) : null}
+                  </div>
+                </TodayCard>
+              </div>
             </div>
 
             <div className="space-y-4">

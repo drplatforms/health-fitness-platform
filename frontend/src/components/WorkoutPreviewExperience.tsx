@@ -90,23 +90,6 @@ function formatPercentage(value: number): string {
   return Number.isInteger(value) ? `${value}%` : `${value.toFixed(1)}%`;
 }
 
-function hasMeaningfulText(value: string | null | undefined): value is string {
-  return Boolean(value && value.trim() && value.trim().toLowerCase() !== "not available");
-}
-
-function buildSessionNoteItems(approvedPlan: ApprovedWorkoutPlanPreview | null) {
-  if (!approvedPlan) {
-    return [];
-  }
-
-  return [
-    { label: "Warmup", value: approvedPlan.warmup },
-    { label: "Cooldown", value: approvedPlan.cooldown },
-    { label: "Progression", value: approvedPlan.progression_guidance },
-    { label: "Notes", value: approvedPlan.rationale },
-  ].filter((item) => hasMeaningfulText(item.value));
-}
-
 function isPreviewPayload(
   payload: WorkoutPreviewResponse | null,
 ): payload is WorkoutPreviewResponse {
@@ -184,7 +167,7 @@ function statusSummaryLine(
       return `${formatPercentage(plannedVsActualSummary.completion_percentage)} sets complete.`;
     }
 
-    return "Keep moving through today's workout.";
+    return "In progress";
   }
 
   if (selectedPlanStatus === "selected") {
@@ -196,10 +179,10 @@ function statusSummaryLine(
   }
 
   if (approvedPlan) {
-    return `${formatExerciseCountLabel(approvedPlan.exercises.length)} ready for today.`;
+    return `${formatExerciseCountLabel(approvedPlan.exercises.length)} ready`;
   }
 
-  return "Load a workout preview.";
+  return "Workout unavailable";
 }
 
 export function WorkoutPreviewExperience({
@@ -244,19 +227,11 @@ export function WorkoutPreviewExperience({
       ? "completed"
       : summaryStatus ?? (approvedPlan ? "preview" : "not_available");
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
-  const statusSupportLine =
-    approvedPlan?.progression_guidance ??
-    approvedPlan?.session_focus ??
-    (isCompletedState
-      ? "Maintain consistency and progress gradually."
-      : "Review today's workout when you're ready.");
   const topMetrics = [
     approvedPlan ? formatExerciseCountLabel(approvedPlan.exercises.length) : null,
     approvedPlan ? `${approvedPlan.duration_minutes} min` : null,
-    approvedPlan?.session_focus ? approvedPlan.session_focus : null,
     !isPersistedState && !isCompletedState ? `Version ${previewVariationIndex + 1}` : null,
   ].filter((value): value is string => Boolean(value));
-  const sessionNoteItems = buildSessionNoteItems(approvedPlan);
 
   const activeSubstitutionByExerciseId = new Map(
     activeSubstitutions.map((substitution) => [
@@ -683,7 +658,6 @@ export function WorkoutPreviewExperience({
                   plannedVsActualSummary,
                 )}
               </p>
-              <p className="text-sm leading-6 text-slate-700">{statusSupportLine}</p>
             </div>
             <StatusPill
               label={statusLabel.replaceAll("_", " ")}
@@ -839,145 +813,147 @@ export function WorkoutPreviewExperience({
           ) : null}
 
           {plannedExercises.length ? (
-            <div className="space-y-3">
-            {plannedExercises.map((exercise) => {
-              const activeSubstitution = activeSubstitutionByExerciseId.get(
-                exercise.id,
-              );
-              const formState = formStateByExerciseId[exercise.id] ?? {
-                actualReps: String(exercise.reps_min),
-                actualWeight: "0",
-                actualRir: String(exercise.rir_max),
-                notes: "",
-              };
+            <div className="grid gap-3 lg:grid-cols-2">
+              {plannedExercises.map((exercise) => {
+                const activeSubstitution = activeSubstitutionByExerciseId.get(
+                  exercise.id,
+                );
+                const formState = formStateByExerciseId[exercise.id] ?? {
+                  actualReps: String(exercise.reps_min),
+                  actualWeight: "0",
+                  actualRir: String(exercise.rir_max),
+                  notes: "",
+                };
 
-              return (
-                <article
-                  key={exercise.id}
-                  className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
-                >
-                  <div className="space-y-2">
-                    <h2 className="text-xl font-semibold text-slate-950">
-                      {activeSubstitution?.replacement_exercise_name ?? exercise.name}
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                      {exerciseMeta(exercise).map((item) => (
-                        <span
-                          key={`${exercise.id}-${item}`}
-                          className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                        >
-                          {item}
-                        </span>
-                      ))}
-                      {exercise.equipment_required.map((item) => (
-                        <span
-                          key={`${exercise.id}-${item}`}
-                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
-                        >
-                          {item}
-                        </span>
-                      ))}
+                return (
+                  <article
+                    key={exercise.id}
+                    className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                  >
+                    <div className="space-y-2">
+                      <h2 className="text-xl font-semibold text-slate-950">
+                        {activeSubstitution?.replacement_exercise_name ??
+                          exercise.name}
+                      </h2>
+                      <div className="flex flex-wrap gap-2">
+                        {exerciseMeta(exercise).map((item) => (
+                          <span
+                            key={`${exercise.id}-${item}`}
+                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                        {exercise.equipment_required.map((item) => (
+                          <span
+                            key={`${exercise.id}-${item}`}
+                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {canLogWorkout ? (
-                    <div className="mt-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-slate-200">
-                      <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-950">
-                            Log next set
-                          </p>
-                          <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                            Set {nextSetNumberForExercise(actualSets, exercise.id)}
-                          </p>
+                    {canLogWorkout ? (
+                      <div className="mt-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-slate-200">
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              Log next set
+                            </p>
+                            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                              Set{" "}
+                              {nextSetNumberForExercise(actualSets, exercise.id)}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => void handleLogSet(exercise)}
+                            disabled={isSubmitting}
+                            className="rounded-2xl bg-emerald-900 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Save set
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => void handleLogSet(exercise)}
-                          disabled={isSubmitting}
-                          className="rounded-2xl bg-emerald-900 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          Save set
-                        </button>
-                      </div>
 
-                      <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                        <label className="space-y-2 text-sm text-slate-700">
-                          <span className="font-medium">Reps</span>
-                          <input
-                            type="number"
-                            min="0"
-                            value={formState.actualReps}
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          <label className="space-y-2 text-sm text-slate-700">
+                            <span className="font-medium">Reps</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={formState.actualReps}
+                              onChange={(event) =>
+                                updateExerciseFormState(
+                                  exercise.id,
+                                  "actualReps",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                            />
+                          </label>
+                          <label className="space-y-2 text-sm text-slate-700">
+                            <span className="font-medium">Weight</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="5"
+                              value={formState.actualWeight}
+                              onChange={(event) =>
+                                updateExerciseFormState(
+                                  exercise.id,
+                                  "actualWeight",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                            />
+                          </label>
+                          <label className="space-y-2 text-sm text-slate-700">
+                            <span className="font-medium">RIR</span>
+                            <input
+                              type="number"
+                              min="0"
+                              max="10"
+                              value={formState.actualRir}
+                              onChange={(event) =>
+                                updateExerciseFormState(
+                                  exercise.id,
+                                  "actualRir",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                            />
+                          </label>
+                        </div>
+
+                        <label className="mt-3 block space-y-2 text-sm text-slate-700">
+                          <span className="font-medium">Notes</span>
+                          <textarea
+                            rows={2}
+                            value={formState.notes}
                             onChange={(event) =>
                               updateExerciseFormState(
                                 exercise.id,
-                                "actualReps",
+                                "notes",
                                 event.target.value,
                               )
                             }
                             className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
-                          />
-                        </label>
-                        <label className="space-y-2 text-sm text-slate-700">
-                          <span className="font-medium">Weight</span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="5"
-                            value={formState.actualWeight}
-                            onChange={(event) =>
-                              updateExerciseFormState(
-                                exercise.id,
-                                "actualWeight",
-                                event.target.value,
-                              )
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
-                          />
-                        </label>
-                        <label className="space-y-2 text-sm text-slate-700">
-                          <span className="font-medium">RIR</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="10"
-                            value={formState.actualRir}
-                            onChange={(event) =>
-                              updateExerciseFormState(
-                                exercise.id,
-                                "actualRir",
-                                event.target.value,
-                              )
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                            placeholder="Optional: form note, pain note, or context."
                           />
                         </label>
                       </div>
-
-                      <label className="mt-3 block space-y-2 text-sm text-slate-700">
-                        <span className="font-medium">Notes</span>
-                        <textarea
-                          rows={2}
-                          value={formState.notes}
-                          onChange={(event) =>
-                            updateExerciseFormState(
-                              exercise.id,
-                              "notes",
-                              event.target.value,
-                            )
-                          }
-                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
-                          placeholder="Optional: form note, pain note, or context."
-                        />
-                      </label>
-                    </div>
-                  ) : null}
-                </article>
-              );
-            })}
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           ) : approvedPlan?.exercises.length ? (
-            <div className="space-y-3">
+            <div className="grid gap-3 lg:grid-cols-2">
               {approvedPlan.exercises.map((exercise, index) => (
                 <article
                   key={`${exercise.name}-${index + 1}`}
@@ -1016,29 +992,6 @@ export function WorkoutPreviewExperience({
           )}
         </div>
       </TodayCard>
-
-      {sessionNoteItems.length ? (
-        <TodayCard
-          title="Session Notes"
-          className="lg:col-start-2 lg:row-start-3"
-        >
-          <div className="space-y-2">
-            {sessionNoteItems.map((item) => (
-              <div
-                key={item.label}
-                className="rounded-2xl bg-slate-50 px-4 py-3"
-              >
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                  {item.label}
-                </p>
-                <p className="mt-1.5 text-sm leading-6 text-slate-700">
-                  {item.value}
-                </p>
-              </div>
-            ))}
-          </div>
-        </TodayCard>
-      ) : null}
 
     </div>
   );
