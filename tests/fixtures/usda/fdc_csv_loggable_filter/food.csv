@@ -1,7 +1,7 @@
-fdc_id,description,data_type
-900001,"Review sample food row",sample_food
-900002,"Review market acquisition row",market_acquisition
-2710815,"Apricot, with skin, raw",foundation_food
-900003,"Review subsample food row",sub_sample_food
-2710832,"Salt, table, iodized",foundation_food
-2710833,"Tomatoes, grape, raw",foundation_food
+fdc_id,description,data_type,food_category_id
+900001,"Review sample food row",sample_food,9
+900002,"Review market acquisition row",market_acquisition,9
+2710815,"Apricot, with skin, raw",foundation_food,9
+900003,"Review subsample food row",sub_sample_food,9
+2710832,"Salt, table, iodized",foundation_food,2
+2710833,"Tomatoes, grape, raw",foundation_food,11

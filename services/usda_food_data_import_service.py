@@ -47,6 +47,11 @@ FDC_NUTRIENT_REQUIRED_COLUMNS = {
     "name",
 }
 
+FDC_FOOD_CATEGORY_REQUIRED_COLUMNS = {
+    "id",
+    "description",
+}
+
 MACRO_FIELD_BY_KEY = {
     "calories": "calories_per_100g",
     "protein": "protein_g_per_100g",
@@ -246,6 +251,10 @@ def _resolve_fdc_paths(fdc_dir: Path) -> dict[str, Path]:
     if branded_path.exists():
         resolved_paths["branded_food"] = branded_path
 
+    food_category_path = fdc_dir / "food_category.csv"
+    if food_category_path.exists():
+        resolved_paths["food_category"] = food_category_path
+
     return resolved_paths
 
 
@@ -315,6 +324,27 @@ def _load_branded_food_rows(
             )
         rows_by_fdc_id[fdc_id] = raw_row
     return rows_by_fdc_id
+
+
+def _load_food_category_rows(food_category_path: Path | None) -> dict[int, str]:
+    if food_category_path is None:
+        return {}
+
+    fieldnames, raw_rows = _load_csv_rows(food_category_path)
+    _validate_required_columns(
+        fieldnames,
+        FDC_FOOD_CATEGORY_REQUIRED_COLUMNS,
+        "USDA food_category.csv",
+    )
+
+    category_by_id: dict[int, str] = {}
+    for row_number, raw_row in enumerate(raw_rows, start=2):
+        category_id = _required_int(raw_row.get("id"), "id", row_number)
+        description = _normalize_text(raw_row.get("description"))
+        if not description:
+            raise ValueError(f"Row {row_number}: description is required.")
+        category_by_id[category_id] = description
+    return category_by_id
 
 
 def _build_food_row_index(
@@ -404,6 +434,7 @@ def _load_macro_amounts_by_fdc_id(
 def _parse_fdc_directory_row(
     raw_food_row: dict[str, str],
     branded_row: dict[str, str] | None,
+    category_by_id: dict[int, str],
     macro_amounts: dict[str, float],
     row_number: int,
 ) -> UsdaFoodImportRow:
@@ -415,6 +446,16 @@ def _parse_fdc_directory_row(
         raise ValueError(f"Row {row_number}: data_type is required.")
 
     branded_values = branded_row or {}
+    category_id_text = _normalize_text(raw_food_row.get("food_category_id"))
+    category_from_id = None
+    if category_id_text:
+        category_id = _required_int(
+            raw_food_row.get("food_category_id"),
+            "food_category_id",
+            row_number,
+        )
+        category_from_id = category_by_id.get(category_id)
+
     return UsdaFoodImportRow(
         fdc_id=_required_int(raw_food_row.get("fdc_id"), "fdc_id", row_number),
         description=description,
@@ -441,6 +482,7 @@ def _parse_fdc_directory_row(
             raw_food_row.get("serving_size_unit"),
         ),
         food_category=_first_non_empty(
+            category_from_id,
             raw_food_row.get("food_category"),
             branded_values.get("food_category"),
             branded_values.get("branded_food_category"),
@@ -635,11 +677,13 @@ def import_usda_food_fdc_directory(
         macro_nutrient_ids=macro_nutrient_ids,
     )
     branded_rows = _load_branded_food_rows(resolved_paths.get("branded_food"))
+    category_by_id = _load_food_category_rows(resolved_paths.get("food_category"))
 
     parsed_rows = [
         _parse_fdc_directory_row(
             raw_food_row,
             branded_rows.get(fdc_id),
+            category_by_id,
             macro_amounts_by_fdc_id.get(fdc_id, {}),
             row_number,
         )

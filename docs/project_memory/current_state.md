@@ -1,3 +1,55 @@
+# Current State — Canonical Food Bulk Catalog Builder v0
+
+Current source of truth: `feature/canonical-food-bulk-catalog-builder-v0`.
+
+Active backend implementation milestone:
+
+```text
+Canonical Food Bulk Catalog Builder v0
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_BULK_CATALOG_BUILDER_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Promote many safe, practical USDA Foundation raw source rows into searchable/loggable canonical foods through deterministic inventory, category safety, dry-run, report, and idempotent promotion tooling.
+```
+
+Implemented scope:
+
+- Added `scripts/inspect_usda_food_catalog_sources.py` for read-only source inventory reports across raw source rows, macro coverage, canonical counts, and optional FDC CSV data type/category counts.
+- Enriched FDC directory import with optional `food_category.csv` lookup so imported `foundation_food` rows can store readable category names.
+- Added `services/food_bulk_catalog_service.py` for category-gated bulk candidate selection and promotion through the existing raw-source promotion service.
+- Added `scripts/promote_canonical_food_bulk_catalog.py` with `--db-path`, `--dry-run`, `--source-name`, `--include-data-types`, `--include-categories`, `--exclude-categories`, `--limit`, `--max-promotions`, and `--report-path`.
+- Added report buckets for `promoted`, `already_promoted`, `skipped_missing_macros`, `skipped_unsafe_raw`, `skipped_category`, `skipped_duplicate_name`, `skipped_ambiguous`, and `skipped_invalid`.
+- Added duplicate-name protection so broad catalog runs do not overwrite existing/manual canonical nutrients when multiple source rows curate to the same display name.
+- Preserved raw produce eligibility and skipped raw/not-clearly-prepared meat, fowl, and fish rows.
+
+Boundaries preserved:
+
+- No frontend changes, food logging UI changes, serving picker, food diary/history, admin curation UI, raw USDA review UI, AI food parser, barcode scanner, workout, recovery, provider, RAG, embeddings, vector search, or agent orchestration was added.
+- USDA imports still default to `foundation_food`; no FNDDS, SR Legacy, branded, sample, sub-sample, market acquisition, or agricultural acquisition expansion was added.
+- Raw source rows remain non-user-facing and are never logged directly.
+- Nutrients are copied only from existing raw source records; no nutrition values are fabricated.
+- No DB, USDA dataset, CSV, ZIP, generated report, or runtime artifact is part of this milestone.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_bulk_catalog_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_usda_food_data_import.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_starter_set_service.py tests/test_food_canonical_search_api.py tests/test_food_normalization_service.py tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services scripts tests`
+- `.\.venv\Scripts\python.exe -m ruff format --check services scripts tests`
+- `git diff --check`
+
+---
+
 # Current State — Canonical Food Starter Set Promotion Pack v0
 
 Current source of truth: `feature/canonical-food-starter-set-promotion-pack-v0`.

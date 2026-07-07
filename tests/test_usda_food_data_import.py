@@ -184,6 +184,7 @@ def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
     assert tuna_row["gtin_upc"] == "012345678905"
     assert tuna_row["serving_size"] == 56
     assert tuna_row["serving_size_unit"] == "g"
+    assert tuna_row["food_category"] == "Finfish and Shellfish Products"
     assert tuna_row["calories_per_100g"] == 116
     assert tuna_row["protein_g_per_100g"] == 25.5
     assert tuna_row["carbs_g_per_100g"] == 0
@@ -191,6 +192,7 @@ def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
     assert tuna_row["import_batch"] == "fdc_fixture_batch_v0"
 
     assert apricot_row is not None
+    assert apricot_row["food_category"] == "Fruits and Fruit Juices"
     assert apricot_row["brand_name"] is None
     assert apricot_row["gtin_upc"] is None
     assert apricot_row["serving_size"] is None
@@ -357,6 +359,7 @@ def test_fdc_directory_import_defaults_to_foundation_food_only(
     assert imported_types == ["foundation_food", "foundation_food", "foundation_food"]
     assert apricot_row is not None
     assert apricot_row["source_record_id"] == "2710815"
+    assert apricot_row["food_category"] == "Fruits and Fruit Juices"
     assert sample_row is None
     payload = json.loads(apricot_row["source_payload_json"])
     assert payload["fdc_id"] == 2710815
@@ -470,12 +473,14 @@ def test_fdc_directory_import_preserves_missing_and_explicit_zero_macros(
     conn.close()
 
     assert zero_row is not None
+    assert zero_row["food_category"] == "Spices and Herbs"
     assert zero_row["calories_per_100g"] == 0
     assert zero_row["protein_g_per_100g"] == 0
     assert zero_row["carbs_g_per_100g"] == 0
     assert zero_row["fat_g_per_100g"] == 0
 
     assert missing_macro_row is not None
+    assert missing_macro_row["food_category"] == "Vegetables and Vegetable Products"
     assert missing_macro_row["calories_per_100g"] == 27
     assert missing_macro_row["protein_g_per_100g"] is None
     assert missing_macro_row["carbs_g_per_100g"] == 5.51
