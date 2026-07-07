@@ -1,3 +1,53 @@
+# Current State — Canonical Food Starter Set Promotion Pack v0
+
+Current source of truth: `feature/canonical-food-starter-set-promotion-pack-v0`.
+
+Active backend implementation milestone:
+
+```text
+Canonical Food Starter Set Promotion Pack v0
+```
+
+Requested status:
+
+```text
+CANONICAL_FOOD_STARTER_SET_PROMOTION_PACK_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Expand practical everyday canonical food availability by promoting high-confidence starter foods from existing raw source records without importing datasets or fabricating nutrition values.
+```
+
+Implemented scope:
+
+- Added a reviewable 67-item starter-set definition across proteins, carbs/starches, fruits, vegetables, dairy/fats, and common extras.
+- Added deterministic matching against existing `raw_food_source_records`, defaulting to USDA `foundation_food` rows with macro data.
+- Added conservative report buckets: `matched`, `skipped_missing`, `skipped_ambiguous`, `skipped_raw_only`, and `already_promoted`.
+- Added `scripts/promote_canonical_food_starter_set.py` with required `--db-path`, `--dry-run`, optional `--limit`, `--include-categories`, and `--report-path`.
+- Reused the existing raw-source promotion service for canonical food creation/reuse, aliases, macro nutrient sync, and source provenance.
+- Preserved idempotency by reporting existing primary source links as `already_promoted`.
+- Preserved raw produce eligibility while skipping raw/uncooked meat, fowl, and fish as everyday starter entries.
+
+Boundaries preserved:
+
+- No full USDA import expansion, new dataset type, admin UI, manual review UI, serving picker, food diary/history, edit/delete change, food logging UI change, workout change, recovery change, AI food parsing, barcode scanning, image recognition, RAG, embeddings, vector search, or agent orchestration was added.
+- Raw source rows remain non-user-facing and are never logged directly.
+- Nutrients are copied only from existing raw source records; no nutrition values are fabricated.
+- No DB, USDA dataset, CSV, ZIP, generated report, or runtime artifact is part of this milestone.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_starter_set_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_canonical_search_api.py tests/test_food_normalization_service.py tests/test_food_canonical_promotion_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services scripts tests`
+- `.\.venv\Scripts\python.exe -m ruff format --check services scripts tests`
+- `git diff --check`
+
+---
+
 # Current State — Edit/Delete Logged Food v0
 
 Current accepted baseline:
