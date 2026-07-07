@@ -52,7 +52,9 @@ class NutritionLogRequest(BaseModel):
 
 class CanonicalNutritionLogRequest(BaseModel):
     canonical_food_id: int
-    grams: float
+    grams: float | None = None
+    serving_unit_id: int | None = None
+    quantity: float | None = None
     entry_date: str | None = None
     meal_type: str | None = None
     notes: str | None = None
@@ -69,7 +71,9 @@ class ServingUnitNutritionLogRequest(BaseModel):
     serving_unit_id: int
     quantity: float
     meal: str | None = None
+    meal_type: str | None = None
     logged_date: str | None = None
+    notes: str | None = None
 
 
 # =====================================
@@ -255,20 +259,55 @@ def log_canonical_food_entry(
                 detail="entry_date must use YYYY-MM-DD format.",
             ) from exc
 
-    try:
-        logged_entry = add_canonical_food_entry(
-            user_id=user_id,
-            canonical_food_id=entry.canonical_food_id,
-            grams=entry.grams,
-            entry_date=entry.entry_date,
-            meal_type=entry.meal_type,
-            notes=entry.notes,
+    has_grams = entry.grams is not None
+    has_serving_unit = entry.serving_unit_id is not None or entry.quantity is not None
+    if has_grams and has_serving_unit:
+        raise HTTPException(
+            status_code=400,
+            detail="Provide either grams or serving_unit_id with quantity, not both.",
         )
+    if not has_grams and not has_serving_unit:
+        raise HTTPException(
+            status_code=400,
+            detail="Either grams or serving_unit_id with quantity is required.",
+        )
+    if has_serving_unit and (entry.serving_unit_id is None or entry.quantity is None):
+        raise HTTPException(
+            status_code=400,
+            detail="serving_unit_id and quantity are required for serving-unit logging.",
+        )
+
+    try:
+        if has_grams:
+            logged_entry = add_canonical_food_entry(
+                user_id=user_id,
+                canonical_food_id=entry.canonical_food_id,
+                grams=entry.grams,
+                entry_date=entry.entry_date,
+                meal_type=entry.meal_type,
+                notes=entry.notes,
+            )
+        else:
+            logged_entry = log_canonical_food_serving(
+                user_id=user_id,
+                canonical_food_id=entry.canonical_food_id,
+                serving_unit_id=entry.serving_unit_id,
+                quantity=entry.quantity,
+                entry_date=entry.entry_date,
+                meal_type=entry.meal_type,
+                notes=entry.notes,
+            )
     except CanonicalFoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ServingUnitNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanonicalFoodInactiveError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except CanonicalFoodLoggingError as exc:
+    except ServingUnitInactiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ServingUnitFoodMismatchError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (CanonicalFoodLoggingError, ServingUnitLoggingError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -301,6 +340,8 @@ def log_serving_unit_food_entry(
             serving_unit_id=entry.serving_unit_id,
             quantity=entry.quantity,
             entry_date=entry.logged_date,
+            meal_type=entry.meal_type or entry.meal,
+            notes=entry.notes,
         )
     except CanonicalFoodNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

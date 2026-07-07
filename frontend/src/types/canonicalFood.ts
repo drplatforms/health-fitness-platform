@@ -31,8 +31,36 @@ export interface CanonicalFoodLogRequest {
   user_id: number;
   entry_date?: string;
   canonical_food_id: number;
-  grams: number;
+  grams?: number;
+  serving_unit_id?: number;
+  quantity?: number;
   meal_type?: string;
+}
+
+export interface CanonicalFoodServingUnit {
+  id: number;
+  serving_unit_id: number;
+  display_label: string;
+  display_name: string;
+  unit_name: string;
+  unit_quantity: number;
+  grams_per_unit: number;
+  grams_default: number;
+  grams_min: number | null;
+  grams_max: number | null;
+  confidence: "Low" | "Moderate" | "High";
+  is_default: boolean;
+  amount_source: string;
+  source: string | null;
+  source_notes: string | null;
+  sort_order: number;
+}
+
+export interface CanonicalFoodServingUnitsResponse {
+  success: boolean;
+  canonical_food_id: number;
+  display_name: string;
+  serving_units: CanonicalFoodServingUnit[];
 }
 
 export interface CanonicalFoodLogResponse {
@@ -42,6 +70,10 @@ export interface CanonicalFoodLogResponse {
   canonical_food_id: number;
   display_name: string;
   grams: number;
+  resolved_grams?: number;
+  serving_unit_id?: number;
+  serving_quantity?: number;
+  serving_display?: string;
   logged_date: string;
   meal_type?: string;
   nutrient_summary?: {

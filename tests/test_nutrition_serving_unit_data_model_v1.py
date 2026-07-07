@@ -332,3 +332,33 @@ def test_seeded_rice_egg_and_banana_units_are_retrievable(tmp_path, monkeypatch)
     assert {unit.display_name for unit in banana_units} >= {"1 medium banana"}
 
     assert find_serving_unit(rice_units[0].id) is not None
+
+
+def test_seeded_reviewed_meat_units_are_retrievable(tmp_path, monkeypatch):
+    _seed_starter_foods(tmp_path, monkeypatch)
+    result = seed_canonical_food_serving_units()
+
+    assert result.missing_canonical_foods == []
+
+    raw_chicken_units = get_active_serving_units_for_canonical_food(
+        _canonical_food_id("raw chicken breast")
+    )
+    beef_9010_units = get_active_serving_units_for_canonical_food(
+        _canonical_food_id("ground beef 90/10")
+    )
+    beef_8020_units = get_active_serving_units_for_canonical_food(
+        _canonical_food_id("ground beef 80/20")
+    )
+
+    assert {unit.display_name for unit in raw_chicken_units} >= {
+        "100g raw chicken breast",
+        "4 oz raw chicken breast",
+    }
+    assert {unit.display_name for unit in beef_9010_units} >= {
+        "100g ground beef 90/10",
+        "4 oz ground beef 90/10",
+    }
+    assert {unit.display_name for unit in beef_8020_units} >= {
+        "100g ground beef 80/20",
+        "4 oz ground beef 80/20",
+    }

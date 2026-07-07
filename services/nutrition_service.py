@@ -10,6 +10,8 @@ from services.food_normalization_service import (
     get_nutrients_for_canonical_food,
 )
 
+MAX_CANONICAL_LOG_GRAMS = 5000.0
+
 # -----------------------------
 # Canonical Food Logging Errors
 # -----------------------------
@@ -56,6 +58,8 @@ def _validate_positive_grams(grams: float) -> float:
 
     if resolved_grams <= 0:
         raise ValueError("grams must be greater than 0.")
+    if resolved_grams > MAX_CANONICAL_LOG_GRAMS:
+        raise ValueError("grams must be less than or equal to 5000.")
     return resolved_grams
 
 
