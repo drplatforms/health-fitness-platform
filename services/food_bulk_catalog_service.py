@@ -346,9 +346,55 @@ def _first_phrase(raw_description: str) -> str:
     return raw_description.split(",", 1)[0].strip()
 
 
+def _description_parts(raw_description: str) -> list[str]:
+    return [
+        normalize_food_name(part)
+        for part in raw_description.split(",")
+        if normalize_food_name(part)
+    ]
+
+
+def _has_token(normalized_value: str, token: str) -> bool:
+    return token in set(normalized_value.split())
+
+
+def _has_all_tokens(normalized_value: str, tokens: set[str]) -> bool:
+    value_tokens = set(normalized_value.split())
+    return tokens.issubset(value_tokens)
+
+
+def _display_words(value: str) -> str:
+    return _title_case_words(normalize_food_name(value))
+
+
+def _macro_profile(raw_record: RawFoodSourceRecord) -> tuple[float | None, ...]:
+    return (
+        raw_record.calories_per_100g,
+        raw_record.protein_g_per_100g,
+        raw_record.carbs_g_per_100g,
+        raw_record.fat_g_per_100g,
+    )
+
+
+def _specific_duplicate_display_name(
+    raw_record: RawFoodSourceRecord,
+    canonical_display_name: str,
+) -> str:
+    parts = _description_parts(raw_record.raw_description)
+    if len(parts) < 2:
+        return canonical_display_name
+
+    candidate = _display_words(f"{parts[1]} {parts[0]}")
+    if normalize_food_name(candidate) != normalize_food_name(canonical_display_name):
+        return candidate
+    return canonical_display_name
+
+
 def _bulk_display_name(raw_record: RawFoodSourceRecord) -> str:
     normalized = normalize_food_name(raw_record.raw_description)
     tokens = set(normalized.split())
+    parts = _description_parts(raw_record.raw_description)
+    first_part = parts[0] if parts else ""
 
     if "hummus" in tokens:
         return "Hummus"
@@ -358,8 +404,74 @@ def _bulk_display_name(raw_record: RawFoodSourceRecord) -> str:
         return "2% milk"
     if "egg" in tokens and "whole" in tokens:
         return "Egg"
-    if "olive" in tokens and "oil" in tokens:
-        return "Olive oil"
+    if "anchovies" in tokens:
+        if "canned" in tokens:
+            return "Canned anchovies"
+        return "Anchovies"
+    if first_part == "oil":
+        if "coconut" in tokens:
+            return "Coconut oil"
+        if "olive" in tokens:
+            return "Olive oil"
+    if first_part == "flour":
+        if "almond" in tokens:
+            return "Almond flour"
+        if "coconut" in tokens:
+            return "Coconut flour"
+        if _has_all_tokens(normalized, {"whole", "wheat"}):
+            return "Whole wheat flour"
+        if "bread" in tokens:
+            return "Bread flour"
+        if "rice" in tokens and "brown" in tokens:
+            return "Brown rice flour"
+        if "rice" in tokens:
+            return "Rice flour"
+    if first_part == "cheese":
+        for cheese_type in (
+            "cheddar",
+            "mozzarella",
+            "parmesan",
+            "feta",
+            "swiss",
+            "colby",
+            "ricotta",
+            "cottage",
+        ):
+            if cheese_type in tokens:
+                return f"{_display_words(cheese_type)} cheese"
+    if first_part == "rice":
+        for rice_type in ("brown", "white", "black", "wild"):
+            if rice_type in tokens:
+                return f"{_display_words(rice_type)} rice"
+    if first_part in {"oats", "oat"}:
+        if "rolled" in tokens:
+            return "Rolled oats"
+        if "steel" in tokens and "cut" in tokens:
+            return "Steel cut oats"
+    if first_part in {"tomato", "tomatoes"}:
+        if "paste" in tokens:
+            return "Tomato paste"
+        if "puree" in tokens:
+            return "Tomato puree"
+        if "sauce" in tokens:
+            return "Tomato sauce"
+        if "roma" in tokens:
+            return "Roma tomato"
+    if first_part == "butter":
+        if "salted" in tokens and "unsalted" not in tokens:
+            return "Salted butter"
+        if "unsalted" in tokens:
+            return "Unsalted butter"
+    if first_part == "cream":
+        if "heavy" in tokens:
+            return "Heavy cream"
+        if "sour" in tokens:
+            return "Sour cream"
+    if first_part == "bread":
+        if _has_token(normalized, "white"):
+            return "White bread"
+        if _has_all_tokens(normalized, {"whole", "wheat"}):
+            return "Whole wheat bread"
     if "tuna" in tokens and ("canned" in tokens or "water" in tokens):
         return "Tuna"
     if "chicken" in tokens and "breast" in tokens:
@@ -392,6 +504,8 @@ def _aliases_for_candidate(
         aliases.extend(["reduced fat milk", "two percent milk"])
     if canonical_display_name == "Olive oil":
         aliases.append("extra virgin olive oil")
+    if canonical_display_name == "Canned anchovies":
+        aliases.append("anchovies")
     if canonical_display_name == "Tuna":
         aliases.extend(["canned tuna", "tuna in water"])
 
@@ -562,63 +676,109 @@ def promote_canonical_food_bulk_catalog(
 
     promoted: list[BulkCatalogItem] = []
     for same_name_candidates in candidates_by_name.values():
+        ready_candidates = same_name_candidates
         if len(same_name_candidates) > 1:
+            macro_profiles = {
+                _macro_profile(candidate.raw_record)
+                for candidate in same_name_candidates
+            }
+            if len(macro_profiles) == 1:
+                for candidate in same_name_candidates:
+                    skipped_duplicate_name.append(
+                        _item(
+                            candidate.raw_record,
+                            "skipped_duplicate_name",
+                            canonical_display_name=candidate.canonical_display_name,
+                            reason=(
+                                "Multiple source rows curated to the same canonical "
+                                "display name with the same macro profile."
+                            ),
+                        )
+                    )
+                continue
+
+            renamed_candidates: list[_BulkCandidate] = []
+            renamed_names: set[str] = set()
+            has_unresolved_duplicate = False
             for candidate in same_name_candidates:
-                skipped_duplicate_name.append(
-                    _item(
-                        candidate.raw_record,
-                        "skipped_duplicate_name",
-                        canonical_display_name=candidate.canonical_display_name,
-                        reason=(
-                            "Multiple source rows curated to the same canonical "
-                            "display name in this bulk run."
+                renamed_name = _specific_duplicate_display_name(
+                    candidate.raw_record,
+                    candidate.canonical_display_name,
+                )
+                normalized_renamed_name = normalize_food_name(renamed_name)
+                if normalized_renamed_name in renamed_names:
+                    has_unresolved_duplicate = True
+                    break
+                renamed_names.add(normalized_renamed_name)
+                renamed_candidates.append(
+                    _BulkCandidate(
+                        raw_record=candidate.raw_record,
+                        canonical_display_name=renamed_name,
+                        aliases=_aliases_for_candidate(
+                            candidate.raw_record,
+                            renamed_name,
                         ),
                     )
                 )
-            continue
 
-        candidate = same_name_candidates[0]
-        if max_promotions is not None and len(promoted) >= max_promotions:
-            skipped_ambiguous.append(
-                _item(
-                    candidate.raw_record,
-                    "skipped_ambiguous",
-                    canonical_display_name=candidate.canonical_display_name,
-                    reason="Promotion cap reached before this candidate.",
+            if has_unresolved_duplicate:
+                for candidate in same_name_candidates:
+                    skipped_duplicate_name.append(
+                        _item(
+                            candidate.raw_record,
+                            "skipped_duplicate_name",
+                            canonical_display_name=candidate.canonical_display_name,
+                            reason=(
+                                "Multiple materially different source rows still "
+                                "curated to the same canonical display name."
+                            ),
+                        )
+                    )
+                continue
+            ready_candidates = renamed_candidates
+
+        for candidate in ready_candidates:
+            if max_promotions is not None and len(promoted) >= max_promotions:
+                skipped_ambiguous.append(
+                    _item(
+                        candidate.raw_record,
+                        "skipped_ambiguous",
+                        canonical_display_name=candidate.canonical_display_name,
+                        reason="Promotion cap reached before this candidate.",
+                    )
                 )
-            )
-            continue
+                continue
 
-        if dry_run:
+            if dry_run:
+                promoted.append(
+                    _item(
+                        candidate.raw_record,
+                        "promoted",
+                        canonical_display_name=candidate.canonical_display_name,
+                        reason="Dry run: candidate would be promoted.",
+                        aliases=candidate.aliases,
+                    )
+                )
+                continue
+
+            promotion = promote_raw_source_record_to_canonical(
+                candidate.raw_record.id,
+                canonical_name=candidate.canonical_display_name,
+                aliases=candidate.aliases,
+            )
             promoted.append(
                 _item(
                     candidate.raw_record,
                     "promoted",
-                    canonical_display_name=candidate.canonical_display_name,
-                    reason="Dry run: candidate would be promoted.",
-                    aliases=candidate.aliases,
+                    canonical_display_name=promotion.canonical_food.display_name,
+                    canonical_food_id=promotion.canonical_food.id,
+                    reason="Promoted from bulk catalog candidate.",
+                    aliases=tuple(alias.alias for alias in promotion.aliases),
+                    nutrients_synced=tuple(
+                        nutrient.nutrient_name for nutrient in promotion.nutrients
+                    ),
                 )
             )
-            continue
-
-        promotion = promote_raw_source_record_to_canonical(
-            candidate.raw_record.id,
-            canonical_name=candidate.canonical_display_name,
-            aliases=candidate.aliases,
-        )
-        promoted.append(
-            _item(
-                candidate.raw_record,
-                "promoted",
-                canonical_display_name=promotion.canonical_food.display_name,
-                canonical_food_id=promotion.canonical_food.id,
-                reason="Promoted from bulk catalog candidate.",
-                aliases=tuple(alias.alias for alias in promotion.aliases),
-                nutrients_synced=tuple(
-                    nutrient.nutrient_name for nutrient in promotion.nutrients
-                ),
-            )
-        )
 
     return BulkCatalogPromotionReport(
         dry_run=dry_run,
