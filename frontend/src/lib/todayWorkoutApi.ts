@@ -226,6 +226,54 @@ export async function fetchWorkoutCurrent(
   }
 }
 
+export async function fetchWorkoutCurrentFromBackend(
+  options: DailyDriverRequestOptions = {},
+): Promise<WorkoutCurrentApiResult> {
+  const userId = options.userId ?? getDefaultUserId();
+  const params = new URLSearchParams();
+
+  if (options.date) {
+    params.set("target_date", options.date);
+  }
+
+  const query = params.toString();
+  const endpoint = `${getApiBaseUrl()}/workout-plans/current/${userId}${query ? `?${query}` : ""}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load current workout",
+          message: "The backend could not return the current workout state right now.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutCurrentResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then refresh this page to load the current workout state.",
+      },
+    };
+  }
+}
+
 export async function selectWorkoutPreview(
   userId: number,
   approvedWorkoutPlan: ApprovedWorkoutPlanPreview,

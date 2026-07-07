@@ -12,10 +12,18 @@ import {
   getDefaultUserId,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
-import { buildTodayWorkoutHref, fetchTodayWorkout } from "@/lib/todayWorkoutApi";
+import {
+  buildTodayWorkoutHref,
+  fetchTodayWorkout,
+  fetchWorkoutCurrentFromBackend,
+} from "@/lib/todayWorkoutApi";
 import { getSwitchableUserLabel } from "@/lib/userSwitcher";
 import { DailyDriverWorkoutStatus } from "@/types/dailyDriver";
-import { TodayWorkoutExerciseItem, TodayWorkoutResponse } from "@/types/todayWorkout";
+import {
+  TodayWorkoutResponse,
+  WorkoutActualSetSummary,
+  WorkoutCurrentResponse,
+} from "@/types/todayWorkout";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -72,8 +80,25 @@ function getWorkoutSupportLine(status: DailyDriverWorkoutStatus): string {
 function buildWorkoutMeta(
   workout: TodayWorkoutResponse | null,
   status: DailyDriverWorkoutStatus,
+  currentWorkout: WorkoutCurrentResponse | null,
 ): string[] {
   const items: string[] = [];
+  items.push(formatWorkoutStatusLabel(status));
+
+  const plannedExercises =
+    currentWorkout?.current_execution_state?.planned_exercises ?? [];
+  const actualSets = currentWorkout?.current_execution_state?.actual_sets ?? [];
+  const plannedSetCount = plannedExercises.reduce(
+    (total, exercise) => total + exercise.sets,
+    0,
+  );
+  const completedSetCount = actualSets.filter(
+    (actualSet) => actualSet.completed && !actualSet.skipped,
+  ).length;
+
+  if (plannedSetCount > 0) {
+    items.push(`${completedSetCount}/${plannedSetCount} sets`);
+  }
 
   if (workout?.exercises.length) {
     items.push(
@@ -85,22 +110,118 @@ function buildWorkoutMeta(
     items.push(`${workout.estimated_duration_minutes} min`);
   }
 
-  items.push(formatWorkoutStatusLabel(status));
   return items;
 }
 
-function formatExerciseSetSummary(exercise: TodayWorkoutExerciseItem): string {
-  if (exercise.sets === null) {
-    return "Sets not logged";
+function formatRange(min: number | null, max: number | null): string | null {
+  if (min === null && max === null) {
+    return null;
   }
 
-  return `${exercise.sets} set${exercise.sets === 1 ? "" : "s"}`;
+  if (min === max) {
+    return String(min);
+  }
+
+  if (min === null) {
+    return String(max);
+  }
+
+  if (max === null) {
+    return String(min);
+  }
+
+  return `${min}-${max}`;
 }
 
-function completedWorkoutExercises(
+function actualSetsForExercise(
+  actualSets: WorkoutActualSetSummary[],
+  plannedExerciseId: number,
+): WorkoutActualSetSummary[] {
+  return actualSets.filter(
+    (actualSet) =>
+      actualSet.planned_workout_exercise_id === plannedExerciseId ||
+      actualSet.substitution_for_planned_exercise_id === plannedExerciseId,
+  );
+}
+
+function formatActualSetDetail(actualSet: WorkoutActualSetSummary): string[] {
+  const details: string[] = [];
+
+  if (actualSet.actual_reps !== null) {
+    details.push(`${actualSet.actual_reps} reps`);
+  }
+  if (actualSet.actual_weight !== null) {
+    details.push(`${actualSet.actual_weight} lb`);
+  }
+  if (actualSet.actual_rir !== null) {
+    details.push(`RIR ${actualSet.actual_rir}`);
+  }
+
+  return details;
+}
+
+function currentWorkoutRows(
+  currentWorkout: WorkoutCurrentResponse | null,
+): Array<{ key: string; name: string; detail: string }> {
+  const currentExecution = currentWorkout?.current_execution_state;
+  if (!currentExecution?.planned_exercises.length) {
+    return [];
+  }
+
+  return currentExecution.planned_exercises.slice(0, 6).map((exercise) => {
+    const loggedSets = actualSetsForExercise(
+      currentExecution.actual_sets,
+      exercise.id,
+    ).filter((actualSet) => actualSet.completed && !actualSet.skipped);
+    const latestLoggedSet = loggedSets[loggedSets.length - 1];
+    const plannedReps = formatRange(exercise.reps_min, exercise.reps_max);
+    const plannedRir = formatRange(exercise.rir_min, exercise.rir_max);
+    const detailParts = latestLoggedSet
+      ? [
+          `${loggedSets.length}/${exercise.sets} sets`,
+          ...formatActualSetDetail(latestLoggedSet),
+        ]
+      : [
+          `0/${exercise.sets} sets`,
+          plannedReps ? `planned ${plannedReps}` : null,
+          plannedRir ? `RIR ${plannedRir}` : null,
+        ].filter((value): value is string => Boolean(value));
+
+    return {
+      key: String(exercise.id),
+      name: exercise.name,
+      detail: detailParts.join(" · "),
+    };
+  });
+}
+
+function todayWorkoutRows(
   workout: TodayWorkoutResponse | null,
-): TodayWorkoutExerciseItem[] {
-  return workout?.exercises.slice(0, 6) ?? [];
+): Array<{ key: string; name: string; detail: string }> {
+  if (!workout?.exercises.length) {
+    return [];
+  }
+
+  return workout.exercises.slice(0, 6).map((exercise) => {
+    const detailParts = [
+      exercise.sets === null ? null : `0/${exercise.sets} sets`,
+      exercise.reps ? `planned ${exercise.reps}` : null,
+    ].filter((value): value is string => Boolean(value));
+
+    return {
+      key: `${exercise.order}-${exercise.name}`,
+      name: exercise.name,
+      detail: detailParts.join(" · ") || "Workout details available",
+    };
+  });
+}
+
+function compactWorkoutRows(
+  workout: TodayWorkoutResponse | null,
+  currentWorkout: WorkoutCurrentResponse | null,
+): Array<{ key: string; name: string; detail: string }> {
+  const currentRows = currentWorkoutRows(currentWorkout);
+  return currentRows.length > 0 ? currentRows : todayWorkoutRows(workout);
 }
 
 export default async function Home({
@@ -110,17 +231,26 @@ export default async function Home({
 }) {
   const resolvedSearchParams = await searchParams;
   const todayQuery = resolveTodayQuery(resolvedSearchParams);
-  const [{ data, error }, todayWorkoutResult] = await Promise.all([
+  const [{ data, error }, todayWorkoutResult, currentWorkoutResult] = await Promise.all([
     fetchDailyDriverToday(todayQuery),
     fetchTodayWorkout(todayQuery),
+    fetchWorkoutCurrentFromBackend(todayQuery),
   ]);
   const workoutHref = buildTodayWorkoutHref(todayQuery);
   const currentUserId = todayQuery.userId ?? data?.user_id ?? getDefaultUserId();
   const currentUserLabel = getSwitchableUserLabel(currentUserId);
   const displayDate = formatLongReadableDate(data?.target_date ?? todayQuery.date);
   const workoutMeta = data
-    ? buildWorkoutMeta(todayWorkoutResult.data, data.workout.status)
+    ? buildWorkoutMeta(
+        todayWorkoutResult.data,
+        data.workout.status,
+        currentWorkoutResult.data,
+      )
     : [];
+  const workoutRows = compactWorkoutRows(
+    todayWorkoutResult.data,
+    currentWorkoutResult.data,
+  );
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
@@ -176,96 +306,83 @@ export default async function Home({
         ) : null}
 
         {data ? (
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
-            <div className="space-y-3 lg:col-start-1 lg:row-start-1 lg:space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
+            <div className="space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
               <FoodLoggingCard
                 key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
                 userId={todayQuery.userId ?? data.user_id}
                 targetDate={data.target_date}
               />
-            </div>
-            <TodayCard
-              title="Today's Workout"
-              className="lg:col-start-1 lg:row-start-2"
-            >
-              <div className="space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm leading-6 text-slate-700">
-                    {getWorkoutSupportLine(data.workout.status)}
-                  </p>
-                  <StatusPill
-                    label={formatWorkoutStatusLabel(data.workout.status)}
-                    tone={workoutToneMap[data.workout.status]}
-                  />
-                </div>
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {workoutMeta.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-                {data.workout.status === "completed" ? (
-                  <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
-                    {completedWorkoutExercises(todayWorkoutResult.data).map(
-                      (exercise) => (
+              <TodayCard title="Today's Workout">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm leading-6 text-slate-700">
+                      {getWorkoutSupportLine(data.workout.status)}
+                    </p>
+                    <StatusPill
+                      label={formatWorkoutStatusLabel(data.workout.status)}
+                      tone={workoutToneMap[data.workout.status]}
+                    />
+                  </div>
+                  <div className="flex flex-wrap gap-2 text-xs">
+                    {workoutMeta.map((item) => (
+                      <span
+                        key={item}
+                        className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                  {workoutRows.length > 0 ? (
+                    <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
+                      {workoutRows.map((exercise) => (
                         <div
-                          key={`${exercise.order}-${exercise.name}`}
-                          className="flex items-center justify-between gap-3 py-2 text-sm"
+                          key={exercise.key}
+                          className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                         >
                           <span className="font-semibold text-slate-900">
                             {exercise.name}
                           </span>
-                          <span className="shrink-0 text-slate-600">
-                            {formatExerciseSetSummary(exercise)}
+                          <span className="text-slate-600 sm:text-right">
+                            {exercise.detail}
                           </span>
                         </div>
-                      ),
-                    )}
-                    {completedWorkoutExercises(todayWorkoutResult.data).length ===
-                    0 ? (
-                      <p className="py-2 text-sm text-slate-700">
-                        Workout details are available in the completed view.
-                      </p>
-                    ) : null}
-                  </div>
-                ) : (
-                  <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
-                    {data.workout.first_action_label}
-                  </p>
-                )}
-                {data.workout.planned ? (
-                  <Link
-                    href={workoutHref}
-                    className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
-                  >
-                    {getWorkoutActionLabel(data.workout.status)}
-                  </Link>
-                ) : null}
-              </div>
-            </TodayCard>
-
-            <RecoveryCheckInCard
-              userId={todayQuery.userId ?? data.user_id}
-              targetDate={data.target_date}
-              readiness={data.readiness}
-            />
-
-            {data.coach_note.enabled && data.coach_note.text ? (
-              <TodayCard
-                title="Coach Note"
-                accent="warm"
-                className="lg:col-start-2 lg:row-start-2"
-              >
-                <p className="text-sm leading-7 text-slate-800">
-                  {data.coach_note.text}
-                </p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      {data.workout.first_action_label}
+                    </p>
+                  )}
+                  {data.workout.planned ? (
+                    <Link
+                      href={workoutHref}
+                      className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
+                    >
+                      {getWorkoutActionLabel(data.workout.status)}
+                    </Link>
+                  ) : null}
+                </div>
               </TodayCard>
-            ) : null}
+            </div>
+
+            <div className="space-y-4">
+              <RecoveryCheckInCard
+                userId={todayQuery.userId ?? data.user_id}
+                targetDate={data.target_date}
+                readiness={data.readiness}
+              />
+
+              {data.coach_note.enabled && data.coach_note.text ? (
+                <TodayCard title="Coach Note" accent="warm">
+                  <p className="text-sm leading-7 text-slate-800">
+                    {data.coach_note.text}
+                  </p>
+                </TodayCard>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </div>

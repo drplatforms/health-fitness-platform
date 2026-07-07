@@ -173,10 +173,10 @@ function statusSummaryLine(
 ): string {
   if (viewMode === "completed") {
     if (plannedVsActualSummary) {
-      return `Completed ${plannedVsActualSummary.completed_set_count} of ${plannedVsActualSummary.planned_set_count} planned sets.`;
+      return `${plannedVsActualSummary.completed_set_count} / ${plannedVsActualSummary.planned_set_count} sets complete`;
     }
 
-    return "Today's workout is complete.";
+    return "Completed";
   }
 
   if (selectedPlanStatus === "in_progress") {
@@ -188,11 +188,11 @@ function statusSummaryLine(
   }
 
   if (selectedPlanStatus === "selected") {
-    return "Your workout is selected and ready to start.";
+    return "Selected and ready";
   }
 
   if (preview && approvedPlan) {
-    return `Review ${formatExerciseCountLabel(approvedPlan.exercises.length)} and choose the version you want to do.`;
+    return `${formatExerciseCountLabel(approvedPlan.exercises.length)} ready`;
   }
 
   if (approvedPlan) {
@@ -213,7 +213,7 @@ export function WorkoutPreviewExperience({
   const [persistedPlan, setPersistedPlan] =
     useState<ApprovedWorkoutPlanPreview | null>(null);
   const [viewMode, setViewMode] = useState<WorkoutViewMode>("preview");
-  const [dailyState, setDailyState] = useState<WorkoutDailyStateSummary | null>(null);
+  const [, setDailyState] = useState<WorkoutDailyStateSummary | null>(null);
   const [selectedPlan, setSelectedPlan] =
     useState<WorkoutPlanInstanceSummary | null>(null);
   const [executionSession, setExecutionSession] =
@@ -244,18 +244,16 @@ export function WorkoutPreviewExperience({
       ? "completed"
       : summaryStatus ?? (approvedPlan ? "preview" : "not_available");
   const statusTone = workoutToneMap[statusLabel] ?? "neutral";
-  const completedSummary =
-    dailyState?.user_safe_message ??
-    (plannedVsActualSummary
-      ? `Completed ${plannedVsActualSummary.completed_set_count} of ${plannedVsActualSummary.planned_set_count} planned sets.`
-      : "Your workout for today has already been completed.");
+  const statusSupportLine =
+    approvedPlan?.progression_guidance ??
+    approvedPlan?.session_focus ??
+    (isCompletedState
+      ? "Maintain consistency and progress gradually."
+      : "Review today's workout when you're ready.");
   const topMetrics = [
     approvedPlan ? formatExerciseCountLabel(approvedPlan.exercises.length) : null,
     approvedPlan ? `${approvedPlan.duration_minutes} min` : null,
     approvedPlan?.session_focus ? approvedPlan.session_focus : null,
-    plannedVsActualSummary
-      ? `${plannedVsActualSummary.completed_set_count}/${plannedVsActualSummary.planned_set_count} sets complete`
-      : null,
     !isPersistedState && !isCompletedState ? `Version ${previewVariationIndex + 1}` : null,
   ].filter((value): value is string => Boolean(value));
   const sessionNoteItems = buildSessionNoteItems(approvedPlan);
@@ -666,15 +664,17 @@ export function WorkoutPreviewExperience({
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       <TodayCard
-        title="Today's Workout"
-        eyebrow="Workout"
+        title="Session Status"
         accent="highlight"
         className="lg:col-span-2 lg:row-start-1"
       >
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
-              <p className="text-base font-semibold text-slate-950 sm:text-lg">
+              <p className="text-2xl font-semibold uppercase tracking-[0.12em] text-slate-950">
+                {statusLabel.replaceAll("_", " ")}
+              </p>
+              <p className="text-sm font-semibold text-slate-800">
                 {statusSummaryLine(
                   approvedPlan,
                   preview,
@@ -683,12 +683,7 @@ export function WorkoutPreviewExperience({
                   plannedVsActualSummary,
                 )}
               </p>
-              <p className="text-sm leading-6 text-slate-700">
-                {isCompletedState
-                  ? completedSummary
-                  : approvedPlan?.session_focus ??
-                    "Review today's workout when you're ready."}
-              </p>
+              <p className="text-sm leading-6 text-slate-700">{statusSupportLine}</p>
             </div>
             <StatusPill
               label={statusLabel.replaceAll("_", " ")}
@@ -707,12 +702,6 @@ export function WorkoutPreviewExperience({
             ))}
           </div>
 
-          {isCompletedState ? (
-            <div className="rounded-2xl bg-emerald-50 px-4 py-4 text-sm text-emerald-950">
-              <p className="font-semibold">Today&apos;s workout is complete.</p>
-              <p className="mt-2 leading-6">{completedSummary}</p>
-            </div>
-          ) : null}
           {isLoadingPreview ? (
             <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
               Loading workout preview...
@@ -730,6 +719,50 @@ export function WorkoutPreviewExperience({
           ) : null}
         </div>
       </TodayCard>
+
+      {plannedVsActualSummary ? (
+        <TodayCard
+          title="Execution Summary"
+          accent="subtle"
+          className="lg:col-start-2 lg:row-start-2"
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Completion
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {compactMetric(plannedVsActualSummary.completion_percentage, "%")}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Completed Sets
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {plannedVsActualSummary.completed_set_count}/
+                {plannedVsActualSummary.planned_set_count}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Average Actual RIR
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {compactMetric(plannedVsActualSummary.average_actual_rir)}
+              </p>
+            </div>
+            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
+              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                Rep Range Match
+              </p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">
+                {plannedVsActualSummary.sets_inside_planned_reps}
+              </p>
+            </div>
+          </div>
+        </TodayCard>
+      ) : null}
 
       <TodayCard
         title={canLogWorkout ? "Exercises And Logging" : "Exercises"}
@@ -811,7 +844,6 @@ export function WorkoutPreviewExperience({
               const activeSubstitution = activeSubstitutionByExerciseId.get(
                 exercise.id,
               );
-              const loggedSets = loggedSetsForExercise(actualSets, exercise.id);
               const formState = formStateByExerciseId[exercise.id] ?? {
                 actualReps: String(exercise.reps_min),
                 actualWeight: "0",
@@ -825,17 +857,9 @@ export function WorkoutPreviewExperience({
                   className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
                 >
                   <div className="space-y-2">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Exercise {exercise.exercise_order}
-                    </p>
                     <h2 className="text-xl font-semibold text-slate-950">
                       {activeSubstitution?.replacement_exercise_name ?? exercise.name}
                     </h2>
-                    {activeSubstitution ? (
-                      <p className="text-sm text-emerald-900">
-                        Substituted from {exercise.name}
-                      </p>
-                    ) : null}
                     <div className="flex flex-wrap gap-2">
                       {exerciseMeta(exercise).map((item) => (
                         <span
@@ -855,9 +879,6 @@ export function WorkoutPreviewExperience({
                       ))}
                     </div>
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-700">
-                    {exercise.notes}
-                  </p>
 
                   {canLogWorkout ? (
                     <div className="mt-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-slate-200">
@@ -951,45 +972,6 @@ export function WorkoutPreviewExperience({
                       </label>
                     </div>
                   ) : null}
-
-                  {loggedSets.length ? (
-                    <div className="mt-5 space-y-2">
-                      <p className="text-sm font-semibold text-slate-950">
-                        Logged actual sets
-                      </p>
-                      {loggedSets.map((actualSet) => (
-                        <div
-                          key={actualSet.id}
-                          className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200"
-                        >
-                          <div className="flex flex-wrap gap-2">
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                              Set {actualSet.set_number}
-                            </span>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                              Reps {compactMetric(actualSet.actual_reps)}
-                            </span>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                              Weight {compactMetric(actualSet.actual_weight)}
-                            </span>
-                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
-                              RIR {compactMetric(actualSet.actual_rir)}
-                            </span>
-                            {actualSet.skipped ? (
-                              <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-900">
-                                Skipped
-                              </span>
-                            ) : null}
-                          </div>
-                          {actualSet.notes ? (
-                            <p className="mt-3 text-sm leading-6 text-slate-700">
-                              {actualSet.notes}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
                 </article>
               );
             })}
@@ -1002,9 +984,6 @@ export function WorkoutPreviewExperience({
                   className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
                 >
                   <div className="space-y-2">
-                    <p className="text-[0.72rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                      Exercise {index + 1}
-                    </p>
                     <h2 className="text-xl font-semibold text-slate-950">
                       {exercise.name}
                     </h2>
@@ -1027,9 +1006,6 @@ export function WorkoutPreviewExperience({
                       ))}
                     </div>
                   </div>
-                  <p className="mt-4 text-sm leading-6 text-slate-700">
-                    {exercise.notes}
-                  </p>
                 </article>
               ))}
             </div>
@@ -1044,7 +1020,7 @@ export function WorkoutPreviewExperience({
       {sessionNoteItems.length ? (
         <TodayCard
           title="Session Notes"
-          className="lg:col-start-2 lg:row-start-2"
+          className="lg:col-start-2 lg:row-start-3"
         >
           <div className="space-y-2">
             {sessionNoteItems.map((item) => (
@@ -1060,49 +1036,6 @@ export function WorkoutPreviewExperience({
                 </p>
               </div>
             ))}
-          </div>
-        </TodayCard>
-      ) : null}
-
-      {plannedVsActualSummary ? (
-        <TodayCard
-          title="Execution Summary"
-          className="lg:col-start-2 lg:row-start-3"
-        >
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Completion
-              </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
-                {compactMetric(plannedVsActualSummary.completion_percentage, "%")}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Completed Sets
-              </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
-                {plannedVsActualSummary.completed_set_count}/
-                {plannedVsActualSummary.planned_set_count}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Average Actual RIR
-              </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
-                {compactMetric(plannedVsActualSummary.average_actual_rir)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 px-4 py-3">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                Rep Range Match
-              </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
-                {plannedVsActualSummary.sets_inside_planned_reps}
-              </p>
-            </div>
           </div>
         </TodayCard>
       ) : null}

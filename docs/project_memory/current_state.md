@@ -1,3 +1,57 @@
+# Current State — Today Workout Detail UX Refinement v0
+
+Current accepted baseline:
+
+```text
+187e433 main_merge-platform-north-star-future-stack-canonicalization-v1
+```
+
+Active frontend implementation milestone:
+
+```text
+Today Workout Detail UX Refinement v0
+```
+
+Requested status:
+
+```text
+TODAY_WORKOUT_DETAIL_UX_REFINEMENT_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Refine the Today and Workout detail screens after the main-loop density polish so the daily workout loop is more compact, data-rich, and less repetitive.
+```
+
+Implemented scope:
+
+- Reworked the Today page into independent desktop column stacks so Today's Workout sits directly below Log Food instead of being pushed down by the taller Recovery Check-In card.
+- Preserved mobile Today order as Nutrition, Log Food, Today's Workout, Recovery Check-In.
+- Reused existing current-workout payload data to show compact Today exercise rows with set completion, reps, weight, and RIR when actual set data is available.
+- Kept planned-only Today workout rows compact with planned set and rep detail.
+- Tightened the Workout detail hero/status card into a compact Session Status card.
+- Removed redundant completed-workout status copy from the Workout detail hero/status area.
+- Moved Execution Summary above Session Notes and gave it a more prominent visual treatment.
+- Kept Session Notes available below Execution Summary.
+
+Boundaries preserved:
+
+- Backend behavior and contracts were not changed.
+- Nutrition logging, canonical food search/logging, recovery scoring, workout lifecycle, workout logging/completion, provider behavior, and user routing were not changed.
+- No food diary/history, edit/delete flow, serving picker, meal builder, recent foods, favorites, barcode scanner, AI food parser, USDA curation UI, dashboard layout framework, or collapsible-card system was added.
+- Full USDA datasets, generated DB files, CSVs, ZIPs, and runtime artifacts remain local-only artifacts.
+
+Validation target:
+
+- `cd C:\projects\fitness_ai\frontend`
+- `npm run lint`
+- `npm run build`
+- `cd C:\projects\fitness_ai`
+- `git diff --check`
+
+---
+
 # Current State — Today Main Loop Density Polish v0
 
 Current accepted baseline:
