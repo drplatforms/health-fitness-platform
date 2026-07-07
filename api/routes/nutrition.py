@@ -12,14 +12,17 @@ from services.nutrition_actuals_confidence_service import (
 )
 from services.nutrition_service import (
     CanonicalFoodInactiveError,
+    CanonicalFoodLogEntryNotFoundError,
     CanonicalFoodLoggingError,
     CanonicalFoodNotFoundError,
     add_canonical_food_entry,
     add_food_entry,
+    delete_canonical_food_entry,
     get_daily_canonical_food_logs,
     get_daily_canonical_food_macro_totals,
     get_daily_nutrition,
     search_foods,
+    update_canonical_food_entry,
 )
 from services.nutrition_serving_unit_logging_service import (
     ServingUnitFoodMismatchError,
@@ -53,6 +56,12 @@ class CanonicalNutritionLogRequest(BaseModel):
     entry_date: str | None = None
     meal_type: str | None = None
     notes: str | None = None
+
+
+class CanonicalNutritionLogUpdateRequest(BaseModel):
+    grams: float | None = None
+    meal_type: str | None = None
+    entry_date: str | None = None
 
 
 class ServingUnitNutritionLogRequest(BaseModel):
@@ -126,6 +135,80 @@ def daily_canonical_food_logs(user_id: int, date: str):
         "user_id": user_id,
         "date": date,
         "entries": entries,
+    }
+
+
+@router.patch("/nutrition/{user_id}/canonical-logs/{entry_id}")
+def update_canonical_logged_food_entry(
+    user_id: int,
+    entry_id: int,
+    entry: CanonicalNutritionLogUpdateRequest,
+):
+    if entry.entry_date is not None:
+        try:
+            date_cls.fromisoformat(entry.entry_date)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="entry_date must use YYYY-MM-DD format.",
+            ) from exc
+
+    try:
+        updated_entry = update_canonical_food_entry(
+            user_id=user_id,
+            entry_id=entry_id,
+            grams=entry.grams,
+            meal_type=entry.meal_type,
+            entry_date=entry.entry_date,
+        )
+    except CanonicalFoodLogEntryNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CanonicalFoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except CanonicalFoodInactiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except CanonicalFoodLoggingError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "entry": updated_entry,
+    }
+
+
+@router.delete("/nutrition/{user_id}/canonical-logs/{entry_id}")
+def delete_canonical_logged_food_entry(
+    user_id: int,
+    entry_id: int,
+    date: str | None = None,
+):
+    if date is not None:
+        try:
+            date_cls.fromisoformat(date)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail="date must use YYYY-MM-DD format.",
+            ) from exc
+
+    try:
+        deleted_entry = delete_canonical_food_entry(
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=date,
+        )
+    except CanonicalFoodLogEntryNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        **deleted_entry,
     }
 
 

@@ -31,6 +31,10 @@ class CanonicalFoodNutrientsUnavailableError(CanonicalFoodLoggingError):
     """Raised when a canonical food has no usable nutrient rows."""
 
 
+class CanonicalFoodLogEntryNotFoundError(CanonicalFoodLoggingError):
+    """Raised when a user-owned canonical food log entry does not exist."""
+
+
 def _today_iso() -> str:
     return date.today().isoformat()
 
@@ -58,6 +62,18 @@ def _validate_positive_grams(grams: float) -> float:
 def _optional_text(value: str | None) -> str | None:
     normalized = " ".join(str(value or "").strip().split())
     return normalized or None
+
+
+def _normalize_meal_type(value: str | None) -> str | None:
+    normalized = _optional_text(value)
+    if normalized is None:
+        return None
+
+    normalized = normalized.lower().replace(" ", "_")
+    allowed_meal_types = {"breakfast", "lunch", "dinner", "snack", "other"}
+    if normalized not in allowed_meal_types:
+        raise ValueError("meal_type must be breakfast, lunch, dinner, snack, or other.")
+    return normalized
 
 
 def _legacy_canonical_food_name(canonical_food: CanonicalFood) -> str:
@@ -223,6 +239,69 @@ def _canonical_food_log_response(
         response["notes"] = notes
 
     return response
+
+
+def _canonical_food_log_entry_response_from_row(row) -> dict[str, Any]:
+    return {
+        "entry_id": int(row["entry_id"]),
+        "canonical_food_id": int(row["canonical_food_id"]),
+        "food_name": row["food_name"],
+        "grams": row["grams"],
+        "meal_type": row["meal_type"],
+        "calories": row["calories"],
+        "protein_g": row["protein_g"],
+        "carbs_g": row["carbs_g"],
+        "fat_g": row["fat_g"],
+    }
+
+
+def _fetch_owned_canonical_food_entry(
+    cursor,
+    *,
+    user_id: int,
+    entry_id: int,
+    entry_date: str | None = None,
+):
+    params: list[Any] = [entry_id, user_id]
+    date_clause = ""
+    if entry_date is not None:
+        date_clause = "AND food_entries.entry_date = ?"
+        params.append(_resolve_entry_date(entry_date))
+
+    cursor.execute(
+        f"""
+        SELECT
+            food_entries.id AS entry_id,
+            food_entries.user_id,
+            food_entries.food_id,
+            food_entries.canonical_food_id,
+            COALESCE(
+                canonical_foods.display_name,
+                REPLACE(foods.name, 'Canonical: ', '')
+            ) AS food_name,
+            food_entries.grams,
+            food_entries.meal_type,
+            food_entries.calories,
+            food_entries.protein_g,
+            food_entries.carbs_g,
+            food_entries.fat_g,
+            food_entries.entry_date
+        FROM food_entries
+        LEFT JOIN canonical_foods
+            ON canonical_foods.id = food_entries.canonical_food_id
+        LEFT JOIN foods
+            ON foods.id = food_entries.food_id
+        WHERE food_entries.id = ?
+          AND food_entries.user_id = ?
+          AND food_entries.canonical_food_id IS NOT NULL
+          {date_clause}
+        """,
+        tuple(params),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        raise CanonicalFoodLogEntryNotFoundError("Canonical food log entry not found.")
+    return row
 
 
 # -----------------------------
@@ -474,6 +553,134 @@ def add_canonical_food_entry(
     )
 
 
+def update_canonical_food_entry(
+    *,
+    user_id: int,
+    entry_id: int,
+    grams: float | None = None,
+    meal_type: str | None = None,
+    entry_date: str | None = None,
+    nutrient_summary_precision: int = 3,
+) -> dict[str, Any]:
+    if grams is None and meal_type is None:
+        raise ValueError("grams or meal_type is required.")
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        existing_entry = _fetch_owned_canonical_food_entry(
+            cursor,
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=entry_date,
+        )
+        resolved_grams = (
+            _validate_positive_grams(grams)
+            if grams is not None
+            else float(existing_entry["grams"])
+        )
+        resolved_meal_type = (
+            _normalize_meal_type(meal_type)
+            if meal_type is not None
+            else existing_entry["meal_type"]
+        )
+        canonical_food_id = int(existing_entry["canonical_food_id"])
+        canonical_food = get_canonical_food(canonical_food_id)
+
+        if canonical_food is None:
+            raise CanonicalFoodNotFoundError("Canonical food not found.")
+        if not canonical_food.active:
+            raise CanonicalFoodInactiveError("Canonical food is inactive.")
+
+        canonical_nutrients = get_nutrients_for_canonical_food(canonical_food_id)
+        if not canonical_nutrients:
+            raise CanonicalFoodNutrientsUnavailableError(
+                "Canonical food has no nutrient rows available for logging."
+            )
+
+        _sync_legacy_food_nutrients(int(existing_entry["food_id"]), canonical_nutrients)
+        nutrient_summary = _nutrient_summary_for_logged_grams(
+            canonical_nutrients,
+            resolved_grams,
+            precision=nutrient_summary_precision,
+        )
+        cursor.execute(
+            """
+            UPDATE food_entries
+            SET
+                grams = ?,
+                meal_type = ?,
+                calories = ?,
+                protein_g = ?,
+                carbs_g = ?,
+                fat_g = ?
+            WHERE id = ?
+              AND user_id = ?
+              AND canonical_food_id IS NOT NULL
+            """,
+            (
+                resolved_grams,
+                resolved_meal_type,
+                nutrient_summary.get("calories"),
+                nutrient_summary.get("protein_g"),
+                nutrient_summary.get("carbohydrate_g"),
+                nutrient_summary.get("fat_g"),
+                entry_id,
+                user_id,
+            ),
+        )
+        updated_entry = _fetch_owned_canonical_food_entry(
+            cursor,
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=entry_date,
+        )
+        conn.commit()
+        return _canonical_food_log_entry_response_from_row(updated_entry)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def delete_canonical_food_entry(
+    *,
+    user_id: int,
+    entry_id: int,
+    entry_date: str | None = None,
+) -> dict[str, Any]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        _fetch_owned_canonical_food_entry(
+            cursor,
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=entry_date,
+        )
+        cursor.execute(
+            """
+            DELETE FROM food_entries
+            WHERE id = ?
+              AND user_id = ?
+              AND canonical_food_id IS NOT NULL
+            """,
+            (entry_id, user_id),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    return {
+        "deleted": True,
+        "entry_id": entry_id,
+    }
+
+
 def get_daily_canonical_food_macro_totals(
     user_id: int,
     entry_date: str,
@@ -561,20 +768,7 @@ def get_daily_canonical_food_logs(
     rows = cursor.fetchall()
     conn.close()
 
-    return [
-        {
-            "entry_id": int(row["entry_id"]),
-            "canonical_food_id": int(row["canonical_food_id"]),
-            "food_name": row["food_name"],
-            "grams": row["grams"],
-            "meal_type": row["meal_type"],
-            "calories": row["calories"],
-            "protein_g": row["protein_g"],
-            "carbs_g": row["carbs_g"],
-            "fat_g": row["fat_g"],
-        }
-        for row in rows
-    ]
+    return [_canonical_food_log_entry_response_from_row(row) for row in rows]
 
 
 # -----------------------------
