@@ -72,3 +72,30 @@ export interface CanonicalFoodLogsResponse {
   date: string;
   entries: CanonicalFoodLoggedEntry[];
 }
+
+export interface CanonicalFoodLogUpdateRequest {
+  user_id: number;
+  entry_id: number;
+  grams: number;
+  meal_type: string;
+  entry_date: string;
+}
+
+export interface CanonicalFoodLogUpdateResponse {
+  success: boolean;
+  user_id: number;
+  entry: CanonicalFoodLoggedEntry;
+}
+
+export interface CanonicalFoodLogDeleteRequest {
+  user_id: number;
+  entry_id: number;
+  entry_date: string;
+}
+
+export interface CanonicalFoodLogDeleteResponse {
+  success: boolean;
+  user_id: number;
+  deleted: boolean;
+  entry_id: number;
+}

@@ -831,6 +831,266 @@ def test_daily_canonical_logs_preserve_missing_and_zero_macro_snapshots(
     assert entries[1]["fat_g"] == 0.0
 
 
+def test_canonical_log_patch_updates_grams_meal_snapshots_and_totals(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    logged = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+            "meal_type": "lunch",
+        },
+    )
+    assert logged.status_code == 200
+    entry_id = logged.json()["logged_food_entry_id"]
+
+    response = _client().patch(
+        f"/nutrition/1/canonical-logs/{entry_id}",
+        json={
+            "grams": 150,
+            "meal_type": "snack",
+            "entry_date": "2026-06-05",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "success": True,
+        "user_id": 1,
+        "entry": {
+            "entry_id": entry_id,
+            "canonical_food_id": canonical_food_id,
+            "food_name": "Chicken Breast, Cooked, Skinless",
+            "grams": 150.0,
+            "meal_type": "snack",
+            "calories": 247.5,
+            "protein_g": 46.5,
+            "carbs_g": 0.0,
+            "fat_g": 5.4,
+        },
+    }
+
+    entries_response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+    assert entries_response.status_code == 200
+    assert entries_response.json()["entries"] == [response.json()["entry"]]
+
+    totals = get_daily_canonical_food_macro_totals(user_id=1, entry_date="2026-06-05")
+    assert totals == {
+        "entry_count": 1,
+        "calories": 247.5,
+        "protein_g": 46.5,
+        "carbs_g": 0.0,
+        "fat_g": 5.4,
+    }
+
+    target_response = _client().get("/nutrition/1/target-vs-actual?date=2026-06-05")
+    assert target_response.status_code == 200
+    actuals = target_response.json()["nutrition_actuals"]
+    assert actuals["logged_calories"] == 247.5
+    assert actuals["logged_protein"] == 46.5
+    assert actuals["logged_carbs"] == 0.0
+    assert actuals["logged_fat"] == 5.4
+
+    conn = database.get_connection()
+    canonical_row = conn.execute(
+        """
+        SELECT id, display_name
+        FROM canonical_foods
+        WHERE id = ?
+        """,
+        (canonical_food_id,),
+    ).fetchone()
+    conn.close()
+    assert canonical_row["display_name"] == "Chicken Breast, Cooked, Skinless"
+
+
+def test_canonical_log_patch_rejects_bad_grams_missing_and_wrong_user(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    logged = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+            "meal_type": "lunch",
+        },
+    )
+    assert logged.status_code == 200
+    entry_id = logged.json()["logged_food_entry_id"]
+
+    bad_grams = _client().patch(
+        f"/nutrition/1/canonical-logs/{entry_id}",
+        json={"grams": 0, "meal_type": "snack", "entry_date": "2026-06-05"},
+    )
+    missing = _client().patch(
+        "/nutrition/1/canonical-logs/999999",
+        json={"grams": 150, "meal_type": "snack", "entry_date": "2026-06-05"},
+    )
+    wrong_user = _client().patch(
+        f"/nutrition/2/canonical-logs/{entry_id}",
+        json={"grams": 150, "meal_type": "snack", "entry_date": "2026-06-05"},
+    )
+    wrong_date = _client().patch(
+        f"/nutrition/1/canonical-logs/{entry_id}",
+        json={"grams": 150, "meal_type": "snack", "entry_date": "2026-06-06"},
+    )
+
+    assert bad_grams.status_code == 400
+    assert bad_grams.json()["detail"] == "grams must be greater than 0."
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Canonical food log entry not found."
+    assert wrong_user.status_code == 404
+    assert wrong_user.json()["detail"] == "Canonical food log entry not found."
+    assert wrong_date.status_code == 404
+    assert wrong_date.json()["detail"] == "Canonical food log entry not found."
+
+    entries_response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+    assert entries_response.json()["entries"][0]["grams"] == 100.0
+    assert entries_response.json()["entries"][0]["meal_type"] == "lunch"
+
+
+def test_canonical_log_patch_preserves_missing_and_zero_macro_snapshots(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    protein_food = create_canonical_food("Protein Only Test Food", "generic")
+    create_canonical_food_nutrient(protein_food.id, "Protein", "g", 20)
+    zero_food = create_canonical_food("Zero Macro Test Food", "generic")
+    create_canonical_food_nutrient(zero_food.id, "Calories", "kcal", 0)
+    create_canonical_food_nutrient(zero_food.id, "Protein", "g", 0)
+    create_canonical_food_nutrient(zero_food.id, "Carbohydrate", "g", 0)
+    create_canonical_food_nutrient(zero_food.id, "Fat", "g", 0)
+
+    missing = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": protein_food.id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    zero = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": zero_food.id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+        },
+    )
+    assert missing.status_code == 200
+    assert zero.status_code == 200
+
+    updated_missing = _client().patch(
+        f"/nutrition/1/canonical-logs/{missing.json()['logged_food_entry_id']}",
+        json={"grams": 50, "meal_type": "other", "entry_date": "2026-06-05"},
+    )
+    updated_zero = _client().patch(
+        f"/nutrition/1/canonical-logs/{zero.json()['logged_food_entry_id']}",
+        json={"grams": 50, "meal_type": "other", "entry_date": "2026-06-05"},
+    )
+
+    assert updated_missing.status_code == 200
+    assert updated_zero.status_code == 200
+    assert updated_missing.json()["entry"]["calories"] is None
+    assert updated_missing.json()["entry"]["protein_g"] == 10.0
+    assert updated_missing.json()["entry"]["carbs_g"] is None
+    assert updated_missing.json()["entry"]["fat_g"] is None
+    assert updated_zero.json()["entry"]["calories"] == 0.0
+    assert updated_zero.json()["entry"]["protein_g"] == 0.0
+    assert updated_zero.json()["entry"]["carbs_g"] == 0.0
+    assert updated_zero.json()["entry"]["fat_g"] == 0.0
+
+
+def test_canonical_log_delete_removes_one_entry_and_protects_ownership(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    canonical_food_id = _seed_chicken()
+    first = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 100,
+            "entry_date": "2026-06-05",
+            "meal_type": "breakfast",
+        },
+    )
+    second = _client().post(
+        "/nutrition/1/log-canonical",
+        json={
+            "canonical_food_id": canonical_food_id,
+            "grams": 50,
+            "entry_date": "2026-06-05",
+            "meal_type": "snack",
+        },
+    )
+    assert first.status_code == 200
+    assert second.status_code == 200
+    first_entry_id = first.json()["logged_food_entry_id"]
+    second_entry_id = second.json()["logged_food_entry_id"]
+
+    wrong_user = _client().delete(
+        f"/nutrition/2/canonical-logs/{first_entry_id}?date=2026-06-05"
+    )
+    missing = _client().delete("/nutrition/1/canonical-logs/999999?date=2026-06-05")
+    deleted = _client().delete(
+        f"/nutrition/1/canonical-logs/{first_entry_id}?date=2026-06-05"
+    )
+
+    assert wrong_user.status_code == 404
+    assert wrong_user.json()["detail"] == "Canonical food log entry not found."
+    assert missing.status_code == 404
+    assert missing.json()["detail"] == "Canonical food log entry not found."
+    assert deleted.status_code == 200
+    assert deleted.json() == {
+        "success": True,
+        "user_id": 1,
+        "deleted": True,
+        "entry_id": first_entry_id,
+    }
+
+    entries_response = _client().get("/nutrition/1/canonical-logs?date=2026-06-05")
+    assert entries_response.status_code == 200
+    entries = entries_response.json()["entries"]
+    assert [entry["entry_id"] for entry in entries] == [second_entry_id]
+
+    totals = get_daily_canonical_food_macro_totals(user_id=1, entry_date="2026-06-05")
+    assert totals == {
+        "entry_count": 1,
+        "calories": 82.5,
+        "protein_g": 15.5,
+        "carbs_g": 0.0,
+        "fat_g": 1.8,
+    }
+
+    target_response = _client().get("/nutrition/1/target-vs-actual?date=2026-06-05")
+    assert target_response.status_code == 200
+    actuals = target_response.json()["nutrition_actuals"]
+    assert actuals["logged_calories"] == 82.5
+    assert actuals["logged_protein"] == 15.5
+    assert actuals["logged_carbs"] == 0.0
+    assert actuals["logged_fat"] == 1.8
+
+    conn = database.get_connection()
+    canonical_count = conn.execute(
+        "SELECT COUNT(*) AS count FROM canonical_foods WHERE id = ?",
+        (canonical_food_id,),
+    ).fetchone()["count"]
+    conn.close()
+    assert canonical_count == 1
+
+
 def test_canonical_logs_endpoint_rejects_invalid_date(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
 
