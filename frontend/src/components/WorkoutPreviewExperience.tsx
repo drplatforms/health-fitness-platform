@@ -64,6 +64,19 @@ interface ActualSetFormState {
   notes: string;
 }
 
+interface ExerciseActualsSummary {
+  plannedExerciseId: number;
+  exerciseName: string;
+  plannedSets: number;
+  loggedSets: number;
+  setDots: Array<"logged" | "unlogged">;
+  extraLoggedSets: number;
+  completionStatus: string;
+  averageRir: number | null;
+  effortStatus: string;
+  repRangeStatus: string;
+}
+
 type WorkoutViewMode = "preview" | "persisted" | "completed";
 
 const HISTORY_LOOKBACK_DAYS = 90;
@@ -279,6 +292,200 @@ function compactMetric(
   return `${value}${suffix}`;
 }
 
+function average(values: number[]): number | null {
+  if (!values.length) {
+    return null;
+  }
+
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function formatAverageRir(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function effortStatusForAverageRir(averageRir: number | null): string {
+  if (averageRir === null) {
+    return "Limited effort data";
+  }
+  if (averageRir <= 1.5) {
+    return "Hard effort";
+  }
+  if (averageRir <= 3) {
+    return "Moderate effort";
+  }
+  return "Easy effort";
+}
+
+function completionStatusForExercise(
+  loggedSets: number,
+  plannedSets: number,
+): string {
+  if (plannedSets <= 0) {
+    return "Limited data";
+  }
+  if (loggedSets > plannedSets) {
+    return "Logged extra";
+  }
+  if (loggedSets === 0) {
+    return "Not started";
+  }
+
+  const remainingSets = plannedSets - loggedSets;
+  if (remainingSets === 0) {
+    return "Complete";
+  }
+
+  return `${remainingSets} set${remainingSets === 1 ? "" : "s"} remaining`;
+}
+
+function repRangeStatusForExercise(
+  exercise: PlannedWorkoutExerciseSummary,
+  loggedSets: WorkoutActualSetSummary[],
+): string {
+  const loggedReps = loggedSets
+    .map((actualSet) => actualSet.actual_reps)
+    .filter((reps): reps is number => reps !== null);
+
+  if (!loggedReps.length) {
+    return "No logged reps";
+  }
+
+  const belowCount = loggedReps.filter(
+    (reps) => reps < exercise.reps_min,
+  ).length;
+  const aboveCount = loggedReps.filter(
+    (reps) => reps > exercise.reps_max,
+  ).length;
+  const insideCount = loggedReps.length - belowCount - aboveCount;
+
+  if (insideCount === loggedReps.length) {
+    return "Reps on target";
+  }
+  if (belowCount === loggedReps.length) {
+    return "Below range";
+  }
+  if (aboveCount === loggedReps.length) {
+    return "Above range";
+  }
+  return "Mixed reps";
+}
+
+function buildExerciseActualsSummaries(
+  plannedExercises: PlannedWorkoutExerciseSummary[],
+  actualSets: WorkoutActualSetSummary[],
+  activeSubstitutionByExerciseId: Map<
+    number,
+    WorkoutActiveSubstitutionSummary
+  >,
+): ExerciseActualsSummary[] {
+  return plannedExercises.map((exercise) => {
+    const loggedSets = loggedSetsForExercise(actualSets, exercise.id).filter(
+      (actualSet) => actualSet.completed && !actualSet.skipped,
+    );
+    const averageRir = average(
+      loggedSets
+        .map((actualSet) => actualSet.actual_rir)
+        .filter((rir): rir is number => rir !== null),
+    );
+    const plannedSets = Math.max(exercise.sets, 0);
+    const loggedSetCount = loggedSets.length;
+
+    return {
+      plannedExerciseId: exercise.id,
+      exerciseName:
+        activeSubstitutionByExerciseId.get(exercise.id)
+          ?.replacement_exercise_name ?? exercise.name,
+      plannedSets,
+      loggedSets: loggedSetCount,
+      setDots: Array.from({ length: plannedSets }, (_, index) =>
+        index < Math.min(loggedSetCount, plannedSets) ? "logged" : "unlogged",
+      ),
+      extraLoggedSets: Math.max(loggedSetCount - plannedSets, 0),
+      completionStatus: completionStatusForExercise(
+        loggedSetCount,
+        plannedSets,
+      ),
+      averageRir,
+      effortStatus: effortStatusForAverageRir(averageRir),
+      repRangeStatus: repRangeStatusForExercise(exercise, loggedSets),
+    };
+  });
+}
+
+function ExerciseActualsSummaryPanel({
+  summaries,
+}: {
+  summaries: ExerciseActualsSummary[];
+}) {
+  return (
+    <div className="mt-4 border-t border-slate-200 pt-4">
+      <h3 className="text-sm font-semibold text-slate-950">
+        Exercise actuals
+      </h3>
+      <div className="mt-2 divide-y divide-slate-200">
+        {summaries.map((summary) => (
+          <div
+            key={summary.plannedExerciseId}
+            className="grid gap-2 py-3 first:pt-1 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-slate-900">
+                {summary.exerciseName}
+              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+                <span
+                  className="flex items-center gap-1"
+                  aria-label={`${summary.loggedSets} of ${summary.plannedSets} planned sets logged`}
+                >
+                  {summary.setDots.map((dotStatus, index) => (
+                    <span
+                      key={`${summary.plannedExerciseId}-${index + 1}`}
+                      aria-hidden="true"
+                      className={
+                        dotStatus === "logged"
+                          ? "text-emerald-700"
+                          : "text-slate-300"
+                      }
+                    >
+                      {dotStatus === "logged" ? "●" : "○"}
+                    </span>
+                  ))}
+                </span>
+                <span>
+                  {summary.loggedSets} / {summary.plannedSets} sets
+                </span>
+                {summary.extraLoggedSets ? (
+                  <span>+{summary.extraLoggedSets} extra</span>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+              <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900">
+                {summary.completionStatus}
+              </span>
+              {summary.loggedSets > 0 ? (
+                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                  Avg RIR{" "}
+                  {summary.averageRir === null
+                    ? "not available"
+                    : formatAverageRir(summary.averageRir)}
+                </span>
+              ) : null}
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                {summary.effortStatus}
+              </span>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                {summary.repRangeStatus}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function normalizeExerciseHistoryKey(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -458,6 +665,11 @@ export function WorkoutPreviewExperience({
       substitution.planned_workout_exercise_id,
       substitution,
     ]),
+  );
+  const exerciseActualsSummaries = buildExerciseActualsSummaries(
+    plannedExercises,
+    actualSets,
+    activeSubstitutionByExerciseId,
   );
 
   async function loadPlannedVsActualSummary(
@@ -1214,6 +1426,7 @@ export function WorkoutPreviewExperience({
               </p>
             </div>
           </div>
+          <ExerciseActualsSummaryPanel summaries={exerciseActualsSummaries} />
         </TodayCard>
       ) : null}
 
