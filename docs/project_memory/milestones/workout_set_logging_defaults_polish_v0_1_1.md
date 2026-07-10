@@ -1,13 +1,13 @@
 # Workout Set Logging Defaults Polish v0.1.1
 
-Current source of truth: `feature/workout-set-logging-defaults-polish-v0-1-1`.
+Accepted source of truth: `main` at `5378cd9 Merge workout set logging defaults polish v0.1.1`.
 
 Base branch: `main` at `277ce97 Merge workout completion review UX v0.1`.
 
 Status:
 
 ```text
-WORKOUT_SET_LOGGING_DEFAULTS_POLISH_V0_1_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+WORKOUT_SET_LOGGING_DEFAULTS_POLISH_V0_1_1_ACCEPTED_AND_MERGED
 ```
 
 ## Purpose

@@ -1,34 +1,34 @@
-# Current State — Workout Set Logging Defaults Polish v0.1.1
+# Current State — Workout Actuals Summary v0
 
-Current source of truth: `feature/workout-set-logging-defaults-polish-v0-1-1`.
+Current source of truth: `feature/workout-actuals-summary-v0`.
 
 Active workout milestone:
 
 ```text
-Workout Set Logging Defaults Polish v0.1.1
+Workout Actuals Summary v0
 ```
 
 Requested status:
 
 ```text
-WORKOUT_SET_LOGGING_DEFAULTS_POLISH_V0_1_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+WORKOUT_ACTUALS_SUMMARY_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
 ```
 
 Purpose:
 
 ```text
-Make repeated actual-set logging faster by defaulting the next set to the latest saved actual values for the same exercise while preserving planned defaults for the first set.
+Add a compact per-exercise view of logged versus planned workout execution using existing backend-owned planned exercises and actual sets.
 ```
 
 Implemented scope:
 
-- First actual-set entry for an exercise still defaults to planned reps, zero weight, and planned max RIR.
-- Subsequent set entries default reps, weight, and RIR from the latest completed non-skipped actual set for that same planned exercise.
-- Editing a saved actual set refreshes the next-set defaults from the latest same-exercise actual set.
-- Deleting the latest saved set falls back to the latest remaining same-exercise actual set; deleting all sets for that exercise returns to planned defaults.
-- Defaults remain isolated per exercise and do not leak across other workout exercise cards.
-- Note entry remains optional/collapsed and does not carry forward into the next default.
-- Completed planned-set state still hides the next-set form, preserving the no `Set 4 of 3` guard.
+- Added a compact exercise-actuals breakdown below the existing Execution Summary metrics.
+- Each planned exercise shows logged/planned set count, accessible set-completion dots, and a neutral completion label.
+- Completed non-skipped actual sets determine logged counts; substitution-linked sets remain attributed to their planned exercise.
+- Per-exercise average actual RIR maps to hard, moderate, easy, or limited-data effort labels.
+- Logged reps map to on-target, mixed, below-range, above-range, or no-logged-reps labels using the planned rep range.
+- Extra logged sets remain visible as planned dots plus a neutral extra-set indicator.
+- Edits and deletes update the summary through the existing actual-set state and summary refresh paths.
 
 Boundaries preserved:
 
@@ -37,16 +37,16 @@ Boundaries preserved:
 - Progression history remains read-only and derives from completed actual-set rows only.
 - Completion remains explicitly user-triggered through the existing completion review and backend completion endpoint.
 
-Validation target:
+Validation completed:
 
-- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_persistence_service.py tests/test_workout_progression_history_service.py tests/test_workout_progression_history_api.py -q`
-- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_service.py tests/test_workout_plan_selection_service.py tests/test_today_workout_route.py tests/test_today_workout_view_service.py tests/test_workout_preview_full_slot_rotation_v1.py tests/test_workout_preview_full_slot_rotation_quality_gate_v1.py tests/test_workout_generation_sizing_persistence_stabilization_v1.py -q`
-- `npm run lint`
-- `npm run build`
-- `git diff --check`
-- Manual browser smoke against a temporary database copy.
+- Workout persistence and progression-history slice: `91 passed`.
+- Workout planning, route, view, rotation, and sizing slice: `128 passed`.
+- Frontend lint and production build passed.
+- `git diff --check` passed.
+- Browser smoke passed against a temporary database copy, including complete, partial, not-started, edit, cancel, delete, completion-review, accessibility-label, and narrow-layout states.
+- The real `fitness_ai.db` was not mutated.
 
-See milestone memory: `docs/project_memory/milestones/workout_set_logging_defaults_polish_v0_1_1.md`.
+See milestone memory: `docs/project_memory/milestones/workout_actuals_summary_v0.md`.
 
 ---
 
