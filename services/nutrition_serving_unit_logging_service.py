@@ -274,6 +274,104 @@ def create_serving_unit_log_metadata(
     return _row_to_metadata(row)
 
 
+def create_or_update_serving_unit_log_metadata(
+    *,
+    food_entry_id: int,
+    user_id: int,
+    canonical_food_id: int,
+    serving_unit_id: int,
+    serving_quantity: float,
+    resolved_grams: float,
+    grams_min: float | None,
+    grams_max: float | None,
+    serving_unit_confidence: str,
+    amount_source: str,
+    original_serving_display: str,
+    source: str | None = None,
+    source_notes: str | None = None,
+) -> NutritionServingUnitLogMetadata:
+    ensure_serving_unit_log_metadata_schema()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA foreign_keys = ON")
+    cursor.execute(
+        f"""
+        INSERT INTO {SERVING_UNIT_LOG_METADATA_TABLE_NAME} (
+            food_entry_id,
+            user_id,
+            canonical_food_id,
+            serving_unit_id,
+            serving_quantity,
+            resolved_grams,
+            grams_min,
+            grams_max,
+            serving_unit_confidence,
+            amount_source,
+            original_serving_display,
+            source,
+            source_notes,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(food_entry_id)
+        DO UPDATE SET
+            user_id = excluded.user_id,
+            canonical_food_id = excluded.canonical_food_id,
+            serving_unit_id = excluded.serving_unit_id,
+            serving_quantity = excluded.serving_quantity,
+            resolved_grams = excluded.resolved_grams,
+            grams_min = excluded.grams_min,
+            grams_max = excluded.grams_max,
+            serving_unit_confidence = excluded.serving_unit_confidence,
+            amount_source = excluded.amount_source,
+            original_serving_display = excluded.original_serving_display,
+            source = excluded.source,
+            source_notes = excluded.source_notes,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            int(food_entry_id),
+            int(user_id),
+            int(canonical_food_id),
+            int(serving_unit_id),
+            float(serving_quantity),
+            float(resolved_grams),
+            grams_min,
+            grams_max,
+            serving_unit_confidence,
+            amount_source,
+            original_serving_display,
+            source,
+            source_notes,
+        ),
+    )
+    conn.commit()
+    cursor.execute(
+        f"SELECT * FROM {SERVING_UNIT_LOG_METADATA_TABLE_NAME} WHERE food_entry_id = ?",
+        (int(food_entry_id),),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    return _row_to_metadata(row)
+
+
+def delete_serving_unit_log_metadata_for_food_entry(food_entry_id: int) -> None:
+    ensure_serving_unit_log_metadata_schema()
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"""
+        DELETE FROM {SERVING_UNIT_LOG_METADATA_TABLE_NAME}
+        WHERE food_entry_id = ?
+        """,
+        (int(food_entry_id),),
+    )
+    conn.commit()
+    conn.close()
+
+
 def get_serving_unit_log_metadata_for_food_entry(
     food_entry_id: int,
 ) -> NutritionServingUnitLogMetadata | None:

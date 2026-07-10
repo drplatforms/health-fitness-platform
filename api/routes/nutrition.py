@@ -63,6 +63,8 @@ class CanonicalNutritionLogRequest(BaseModel):
 
 class CanonicalNutritionLogUpdateRequest(BaseModel):
     grams: float | None = None
+    serving_unit_id: int | None = None
+    quantity: float | None = None
     meal_type: str | None = None
     entry_date: str | None = None
 
@@ -163,6 +165,8 @@ def update_canonical_logged_food_entry(
             user_id=user_id,
             entry_id=entry_id,
             grams=entry.grams,
+            serving_unit_id=entry.serving_unit_id,
+            quantity=entry.quantity,
             meal_type=entry.meal_type,
             entry_date=entry.entry_date,
         )
@@ -170,9 +174,15 @@ def update_canonical_logged_food_entry(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanonicalFoodNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ServingUnitNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except CanonicalFoodInactiveError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except CanonicalFoodLoggingError as exc:
+    except ServingUnitInactiveError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ServingUnitFoodMismatchError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except (CanonicalFoodLoggingError, ServingUnitLoggingError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
