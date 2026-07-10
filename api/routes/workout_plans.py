@@ -23,6 +23,7 @@ from services.workout_plan_persistence_service import (
     approved_workout_plan_from_payload,
     build_planned_vs_actual_summary,
     complete_workout_plan,
+    delete_actual_set,
     get_execution_state,
     get_workout_plan_history,
     log_actual_set,
@@ -576,6 +577,28 @@ def update_workout_plan_actual_set(
         "actual_set": asdict(result["actual_set"]),
         "workout_plan_instance": asdict(result["workout_plan_instance"]),
         "execution_session": asdict(result["execution_session"]),
+        "planned_vs_actual_summary": asdict(result["planned_vs_actual_summary"]),
+    }
+
+
+@router.delete("/workout-plans/{plan_instance_id}/actual-sets/{actual_set_id}")
+def delete_workout_plan_actual_set(
+    plan_instance_id: int,
+    actual_set_id: int,
+):
+    try:
+        result = delete_actual_set(plan_instance_id, actual_set_id)
+    except WorkoutPlanNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (WorkoutPlanInvalidStatusError, WorkoutPlanValidationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "workout_plan_instance_id": plan_instance_id,
+        "workout_plan_instance": asdict(result["workout_plan_instance"]),
+        "execution_session": asdict(result["execution_session"]),
+        "actual_sets": [asdict(actual_set) for actual_set in result["actual_sets"]],
         "planned_vs_actual_summary": asdict(result["planned_vs_actual_summary"]),
     }
 

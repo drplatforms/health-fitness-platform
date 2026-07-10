@@ -1,17 +1,72 @@
-# Current State — Workout Progression History v0
+# Current State — Workout Set Logging UX v0.1
 
-Current source of truth: `feature/workout-progression-history-v0`.
+Current source of truth: `feature/workout-set-logging-ux-v0-1`.
 
 Active workout milestone:
 
 ```text
-Workout Progression History v0
+Workout Set Logging UX v0.1
 ```
 
 Requested status:
 
 ```text
-WORKOUT_PROGRESSION_HISTORY_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+WORKOUT_SET_LOGGING_UX_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Make actual workout set logging faster and clearer while preserving the existing workout execution model and backend-owned logged-set truth.
+```
+
+Implemented scope:
+
+- Added a backend actual-set delete path alongside the existing create/edit path.
+- Added `DELETE /workout-plans/{plan_instance_id}/actual-sets/{actual_set_id}`.
+- Kept actual-set delete scoped to the owning workout plan execution session and returned refreshed actual sets plus planned-vs-actual summary.
+- Added frontend proxy support and typed client helpers for actual-set edit/delete.
+- Updated workout exercise cards to show saved set rows, compact logged-set counts, and no-sets-yet states.
+- Added inline saved-set edit controls for reps, weight, RIR, and notes.
+- Added delete controls for mistaken actual sets.
+- Preserved previous-performance context as read-only display.
+
+Boundaries preserved:
+
+- No automatic progression, load increase, deload, periodization, workout generation, recommendation behavior, nutrition, food logging, report, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Planned workout snapshots remain immutable.
+- Actual set values remain user-entered and backend-validated.
+- Progression history remains read-only and derives from completed actual-set rows only.
+- Existing workout preview/select/start/log/edit/complete/history and planned-vs-actual behavior remains stable.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_persistence_service.py tests/test_workout_progression_history_service.py tests/test_workout_progression_history_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_service.py tests/test_workout_plan_selection_service.py tests/test_workout_plan_persistence_service.py tests/test_today_workout_route.py tests/test_today_workout_view_service.py tests/test_training_execution_summary_service.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services/workout_plan_persistence_service.py api/routes/workout_plans.py tests/test_workout_plan_persistence_service.py`
+- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/workout_set_logging_ux_v0_1.md`.
+
+---
+
+# Current State — Workout Progression History v0
+
+Current accepted source of truth: `main` after `ce5d316 Merge workout progression history v0`.
+
+Accepted workout milestone:
+
+```text
+Workout Progression History v0
+```
+
+Accepted status:
+
+```text
+WORKOUT_PROGRESSION_HISTORY_V0_ACCEPTED_AND_MERGED
 ```
 
 Purpose:
@@ -35,17 +90,6 @@ Boundaries preserved:
 - Existing workout preview/select/start/log/edit/complete/history and planned-vs-actual behavior remains stable.
 - Only completed planned workout executions are used for the public history surface.
 - Incomplete set logging returns limited-state messaging rather than coaching claims.
-
-Validation target:
-
-- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_progression_history_service.py tests/test_workout_progression_history_api.py -q`
-- Existing available workout regression slice.
-- Existing available recommendation stability slice.
-- `.\.venv\Scripts\python.exe -m ruff check services api tests scripts`
-- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
-- `npm run lint`
-- `npm run build`
-- `git diff --check`
 
 See milestone memory: `docs/project_memory/milestones/workout_progression_history_v0.md`.
 

@@ -8,6 +8,9 @@ import {
   ApprovedWorkoutPlanPreview,
   WorkoutActualSetCreatePayload,
   WorkoutActualSetCreateResponse,
+  WorkoutActualSetDeleteResponse,
+  WorkoutActualSetUpdatePayload,
+  WorkoutActualSetUpdateResponse,
   WorkoutCompleteResponse,
   WorkoutCurrentResponse,
   WorkoutPlannedVsActualResponse,
@@ -428,6 +431,110 @@ export async function logWorkoutActualSet(
       error: {
         heading: "Backend unavailable",
         message: "Start the FastAPI server, then try logging that set again.",
+      },
+    };
+  }
+}
+
+export async function updateWorkoutActualSet(
+  planInstanceId: number,
+  actualSetId: number,
+  payload: WorkoutActualSetUpdatePayload,
+): Promise<WorkoutActionApiResult<WorkoutActualSetUpdateResponse>> {
+  const endpoint = "/api/workout-actual-sets";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_instance_id: planInstanceId,
+        actual_set_id: actualSetId,
+        ...payload,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to update set",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not update that actual set.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutActualSetUpdateResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message: "Start the FastAPI server, then try updating that set again.",
+      },
+    };
+  }
+}
+
+export async function deleteWorkoutActualSet(
+  planInstanceId: number,
+  actualSetId: number,
+): Promise<WorkoutActionApiResult<WorkoutActualSetDeleteResponse>> {
+  const endpoint = "/api/workout-actual-sets";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_instance_id: planInstanceId,
+        actual_set_id: actualSetId,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to delete set",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not delete that actual set.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutActualSetDeleteResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message: "Start the FastAPI server, then try deleting that set again.",
       },
     };
   }

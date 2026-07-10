@@ -9,6 +9,7 @@ from services.workout_plan_persistence_service import (
     WorkoutPlanValidationError,
     build_planned_vs_actual_summary,
     count_workout_plan_instances,
+    delete_actual_set,
     get_actual_sets,
     get_execution_state,
     get_planned_workout_exercises,
@@ -19,6 +20,7 @@ from services.workout_plan_persistence_service import (
     select_current_workout_plan,
     update_actual_set,
 )
+from services.workout_progression_history_service import build_exercise_history_summary
 from services.workout_service import create_workout_session
 
 
@@ -1219,6 +1221,65 @@ def test_actual_set_edit_endpoint_returns_updated_summary(tmp_path, monkeypatch)
     assert "reps_below_plan" in payload["planned_vs_actual_summary"]["deviation_flags"]
 
 
+def test_in_progress_actual_set_can_be_deleted_and_summary_updates(
+    tmp_path, monkeypatch
+):
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    actual_set = get_actual_sets(plan_instance_id=instance_id)[0]
+
+    result = delete_actual_set(instance_id, actual_set.id)
+
+    assert result["workout_plan_instance"].status == "in_progress"
+    assert result["execution_session"].status == "in_progress"
+    assert result["actual_sets"] == []
+    assert result["planned_vs_actual_summary"].actual_set_count == 0
+    assert result["planned_vs_actual_summary"].completed_set_count == 0
+
+
+def test_actual_set_delete_endpoint_returns_updated_actual_sets_and_summary(
+    tmp_path, monkeypatch
+):
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    actual_set = get_actual_sets(plan_instance_id=instance_id)[0]
+    client = TestClient(app)
+
+    response = client.delete(
+        f"/workout-plans/{instance_id}/actual-sets/{actual_set.id}",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["actual_sets"] == []
+    assert payload["planned_vs_actual_summary"]["actual_set_count"] == 0
+    assert get_actual_sets(plan_instance_id=instance_id) == []
+
+
+def test_actual_set_delete_from_another_plan_is_rejected(tmp_path, monkeypatch):
+    first_instance_id, _first_started = _in_progress_plan(tmp_path, monkeypatch)
+    second_selected = select_current_workout_plan(105)
+    from services.workout_plan_persistence_service import start_selected_workout_plan
+
+    second_started = start_selected_workout_plan(
+        second_selected["workout_plan_instance"].id
+    )
+    second_result = log_actual_set(
+        second_selected["workout_plan_instance"].id,
+        {
+            "planned_workout_exercise_id": second_started["planned_exercises"][0].id,
+            "actual_reps": second_started["planned_exercises"][0].reps_min,
+            "actual_rir": second_started["planned_exercises"][0].rir_max,
+        },
+    )
+
+    try:
+        delete_actual_set(first_instance_id, second_result["actual_set"].id)
+    except WorkoutPlanValidationError as exc:
+        assert "actual_set_id must belong" in str(exc)
+    else:
+        raise AssertionError("Expected WorkoutPlanValidationError")
+
+
 def test_selected_plan_actual_set_edit_is_rejected(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
     selected = select_current_workout_plan(105)
@@ -1457,6 +1518,60 @@ def test_planned_vs_actual_summary_updates_after_actual_set_correction(
     assert after_summary.sets_below_planned_reps == 1
     assert "reps_below_plan" in after_summary.deviation_flags
     assert "actual_effort_harder_than_planned" in after_summary.deviation_flags
+
+
+def test_progression_history_uses_edited_actual_set_values(tmp_path, monkeypatch):
+    from services.workout_plan_persistence_service import complete_workout_plan
+
+    instance_id, _started = _in_progress_plan(tmp_path, monkeypatch)
+    actual_set = get_actual_sets(plan_instance_id=instance_id)[0]
+    planned_exercise = get_planned_workout_exercises(instance_id)[0]
+
+    update_actual_set(
+        instance_id,
+        actual_set.id,
+        {
+            "actual_reps": 12,
+            "actual_weight": 45.0,
+            "actual_rir": 2,
+        },
+    )
+    complete_workout_plan(instance_id)
+
+    history = build_exercise_history_summary(105, planned_exercise.name)
+
+    assert history.has_history is True
+    assert history.recent_best_set is not None
+    assert history.recent_best_set.summary == "12 reps @ 45 lb RIR 2"
+
+
+def test_deleted_actual_set_is_not_used_by_progression_history(tmp_path, monkeypatch):
+    from services.workout_plan_persistence_service import complete_workout_plan
+
+    instance_id, started = _in_progress_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    deleted_set = get_actual_sets(plan_instance_id=instance_id)[0]
+    kept_result = log_actual_set(
+        instance_id,
+        {
+            "planned_workout_exercise_id": planned_exercise.id,
+            "set_number": 2,
+            "actual_reps": 9,
+            "actual_weight": 35.0,
+            "actual_rir": 3,
+        },
+    )
+
+    delete_actual_set(instance_id, deleted_set.id)
+    complete_workout_plan(instance_id)
+
+    history = build_exercise_history_summary(105, planned_exercise.name)
+
+    assert history.has_history is True
+    assert history.recent_best_set is not None
+    assert history.recent_best_set.summary == "9 reps @ 35 lb RIR 3"
+    assert str(deleted_set.actual_reps) not in history.recent_best_set.summary
+    assert kept_result["actual_set"].id != deleted_set.id
 
 
 def test_workout_plan_history_endpoint_returns_empty_list_for_user_with_no_plans(

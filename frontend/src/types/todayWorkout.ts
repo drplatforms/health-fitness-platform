@@ -249,6 +249,26 @@ export interface WorkoutActualSetCreateResponse {
   actual_sets: WorkoutActualSetSummary[];
 }
 
+export type WorkoutActualSetUpdatePayload = WorkoutActualSetCreatePayload;
+
+export interface WorkoutActualSetUpdateResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  actual_set: WorkoutActualSetSummary;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  planned_vs_actual_summary: WorkoutPlannedVsActualSummary;
+}
+
+export interface WorkoutActualSetDeleteResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+  execution_session: WorkoutExecutionSessionSummary;
+  actual_sets: WorkoutActualSetSummary[];
+  planned_vs_actual_summary: WorkoutPlannedVsActualSummary;
+}
+
 export interface WorkoutCompleteResponse {
   success: boolean;
   workout_plan_instance_id: number;
