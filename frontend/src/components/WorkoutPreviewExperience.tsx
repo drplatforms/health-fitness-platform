@@ -155,6 +155,72 @@ function actualSetFormStateFromSet(
   };
 }
 
+function actualSetFormStateForDefaults(
+  actualSet: WorkoutActualSetSummary,
+): ActualSetFormState {
+  return {
+    ...actualSetFormStateFromSet(actualSet),
+    notes: "",
+  };
+}
+
+function plannedActualSetFormState(
+  exercise: PlannedWorkoutExerciseSummary,
+): ActualSetFormState {
+  return {
+    actualReps: String(exercise.reps_min),
+    actualWeight: "0",
+    actualRir: String(exercise.rir_max),
+    notes: "",
+  };
+}
+
+function plannedExerciseIdForActualSet(
+  actualSet: WorkoutActualSetSummary,
+): number | null {
+  return (
+    actualSet.substitution_for_planned_exercise_id ??
+    actualSet.planned_workout_exercise_id ??
+    null
+  );
+}
+
+function latestActualSetForExerciseDefaults(
+  actualSets: WorkoutActualSetSummary[],
+  plannedExerciseId: number,
+): WorkoutActualSetSummary | null {
+  const loggedActualSets = loggedSetsForExercise(
+    actualSets,
+    plannedExerciseId,
+  ).filter((actualSet) => actualSet.completed && !actualSet.skipped);
+
+  if (!loggedActualSets.length) {
+    return null;
+  }
+
+  const latestActualSet = [...loggedActualSets].sort(
+    (first, second) =>
+      (second.set_number || 0) - (first.set_number || 0) ||
+      second.id - first.id,
+  )[0];
+
+  return latestActualSet ?? null;
+}
+
+function nextActualSetFormState(
+  exercise: PlannedWorkoutExerciseSummary,
+  actualSets: WorkoutActualSetSummary[],
+): ActualSetFormState {
+  const latestActualSet = latestActualSetForExerciseDefaults(
+    actualSets,
+    exercise.id,
+  );
+
+  return latestActualSet
+    ? actualSetFormStateForDefaults(latestActualSet)
+    : plannedActualSetFormState(exercise);
+}
+
 function formatActualSetLine(actualSet: WorkoutActualSetSummary): string {
   if (actualSet.skipped) {
     return `Set ${actualSet.set_number}: skipped`;
@@ -801,7 +867,9 @@ export function WorkoutPreviewExperience({
     }
 
     const activeSubstitution = activeSubstitutionByExerciseId.get(exercise.id);
-    const formState = formStateByExerciseId[exercise.id];
+    const formState =
+      formStateByExerciseId[exercise.id] ??
+      nextActualSetFormState(exercise, actualSets);
     const actualReps = formState?.actualReps || String(exercise.reps_min);
     const actualWeight = formState?.actualWeight || "0";
     const actualRir = formState?.actualRir || String(exercise.rir_max);
@@ -838,19 +906,15 @@ export function WorkoutPreviewExperience({
       const latestExecution = result.data?.execution_session ?? executionSession;
       setSelectedPlan(latestPlan);
       setExecutionSession(latestExecution);
-      setActualSets(result.data?.actual_sets ?? actualSets);
+      const nextActualSets = result.data?.actual_sets ?? actualSets;
+      setActualSets(nextActualSets);
       setViewMode("persisted");
       setActionMessage(
         `Logged ${result.data?.actual_set.exercise_name ?? exercise.name} set ${result.data?.actual_set.set_number ?? nextSetNumberForExercise(actualSets, exercise.id)}.`,
       );
       setFormStateByExerciseId((current) => ({
         ...current,
-        [exercise.id]: {
-          actualReps: String(exercise.reps_min),
-          actualWeight: current[exercise.id]?.actualWeight ?? "0",
-          actualRir: String(exercise.rir_max),
-          notes: "",
-        },
+        [exercise.id]: nextActualSetFormState(exercise, nextActualSets),
       }));
       setNoteInputExpandedByExerciseId((current) => ({
         ...current,
@@ -897,12 +961,30 @@ export function WorkoutPreviewExperience({
       }
 
       const updatedActualSet = result.data?.actual_set;
-      if (updatedActualSet) {
-        setActualSets((current) =>
-          current.map((item) =>
+      const nextActualSets = updatedActualSet
+        ? actualSets.map((item) =>
             item.id === updatedActualSet.id ? updatedActualSet : item,
+          )
+        : actualSets;
+      if (updatedActualSet) {
+        setActualSets(nextActualSets);
+      }
+      const plannedExerciseId = plannedExerciseIdForActualSet(
+        updatedActualSet ?? actualSet,
+      );
+      const plannedExercise =
+        plannedExerciseId === null
+          ? null
+          : plannedExercises.find((exercise) => exercise.id === plannedExerciseId) ??
+            null;
+      if (plannedExercise) {
+        setFormStateByExerciseId((current) => ({
+          ...current,
+          [plannedExercise.id]: nextActualSetFormState(
+            plannedExercise,
+            nextActualSets,
           ),
-        );
+        }));
       }
       setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
       setExecutionSession(result.data?.execution_session ?? executionSession);
@@ -933,9 +1015,26 @@ export function WorkoutPreviewExperience({
         return;
       }
 
+      const nextActualSets = result.data?.actual_sets ?? [];
+      const plannedExerciseId = plannedExerciseIdForActualSet(actualSet);
+      const plannedExercise =
+        plannedExerciseId === null
+          ? null
+          : plannedExercises.find((exercise) => exercise.id === plannedExerciseId) ??
+            null;
+
       setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
       setExecutionSession(result.data?.execution_session ?? executionSession);
-      setActualSets(result.data?.actual_sets ?? []);
+      setActualSets(nextActualSets);
+      if (plannedExercise) {
+        setFormStateByExerciseId((current) => ({
+          ...current,
+          [plannedExercise.id]: nextActualSetFormState(
+            plannedExercise,
+            nextActualSets,
+          ),
+        }));
+      }
       setPlannedVsActualSummary(
         result.data?.planned_vs_actual_summary ?? plannedVsActualSummary,
       );
@@ -1268,12 +1367,9 @@ export function WorkoutPreviewExperience({
                 const activeSubstitution = activeSubstitutionByExerciseId.get(
                   exercise.id,
                 );
-                const formState = formStateByExerciseId[exercise.id] ?? {
-                  actualReps: String(exercise.reps_min),
-                  actualWeight: "0",
-                  actualRir: String(exercise.rir_max),
-                  notes: "",
-                };
+                const formState =
+                  formStateByExerciseId[exercise.id] ??
+                  nextActualSetFormState(exercise, actualSets);
                 const displayExerciseName =
                   activeSubstitution?.replacement_exercise_name ?? exercise.name;
                 const exerciseActualSets = loggedSetsForExercise(
