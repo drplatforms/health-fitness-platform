@@ -1,3 +1,55 @@
+# Current State — Workout Completion Review UX v0.1
+
+Current source of truth: `feature/workout-completion-review-ux-v0-1`.
+
+Active workout milestone:
+
+```text
+Workout Completion Review UX v0.1
+```
+
+Requested status:
+
+```text
+WORKOUT_COMPLETION_REVIEW_UX_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Make workout completion intentional by showing a compact pre-completion review based on existing backend planned-vs-actual summary data.
+```
+
+Implemented scope:
+
+- Changed the workout completion button so the first click opens an inline review instead of completing immediately.
+- Added a compact completion review with logged/planned set count, exercise completion count, average RIR, and all-logged or missing-set status.
+- Kept missing-set language neutral and allowed explicit completion anyway through the existing backend completion path.
+- Added cancel behavior that returns to the normal active workout logging view.
+- Kept the existing completed state, execution summary, saved sets, and previous-performance context visible after completion.
+- Used the existing planned-vs-actual summary contract; no backend summary contract or completion semantics changed.
+
+Boundaries preserved:
+
+- No automatic progression, load increase, deload, periodization, workout generation, recommendation behavior, nutrition, food logging, report, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Planned workout snapshots remain immutable.
+- Actual set create/edit/delete behavior remains user-entered and backend-validated.
+- Progression history remains read-only and derives from completed actual-set rows only.
+- Completion remains explicitly user-triggered through the existing backend completion endpoint.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_persistence_service.py tests/test_workout_progression_history_service.py tests/test_workout_progression_history_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_plan_service.py tests/test_workout_plan_selection_service.py tests/test_today_workout_route.py tests/test_today_workout_view_service.py tests/test_workout_preview_full_slot_rotation_v1.py tests/test_workout_preview_full_slot_rotation_quality_gate_v1.py tests/test_workout_generation_sizing_persistence_stabilization_v1.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check api/routes/workout_plans.py services/workout_plan_persistence_service.py tests/test_workout_plan_persistence_service.py`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/workout_completion_review_ux_v0_1.md`.
+
+---
+
 # Current State — Workout Set Logging UX v0.1
 
 Current source of truth: `feature/workout-set-logging-ux-v0-1`.
