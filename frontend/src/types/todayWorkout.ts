@@ -267,6 +267,32 @@ export interface WorkoutPlannedVsActualResponse {
   actual_sets: WorkoutActualSetSummary[];
 }
 
+export interface WorkoutExerciseBestSet {
+  performed_at: string | null;
+  actual_reps: number | null;
+  actual_weight: number | null;
+  actual_rir: number | null;
+  summary: string;
+}
+
+export interface WorkoutExerciseHistorySummary {
+  exercise_name: string;
+  has_history: boolean;
+  completed_session_count: number;
+  last_performed_at: string | null;
+  last_session_summary: string | null;
+  recent_best_set: WorkoutExerciseBestSet | null;
+  logging_quality: string;
+  message: string;
+}
+
+export interface WorkoutProgressionHistoryResponse {
+  success: boolean;
+  user_id: number;
+  lookback_days: number;
+  exercise_histories: WorkoutExerciseHistorySummary[];
+}
+
 export interface TodayWorkoutExerciseItem {
   exercise_id: string | null;
   name: string;

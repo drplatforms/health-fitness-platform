@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
@@ -9,6 +9,7 @@ import {
   fetchWorkoutCurrent,
   fetchWorkoutPlannedVsActual,
   fetchWorkoutPreview,
+  fetchWorkoutProgressionHistory,
   logWorkoutActualSet,
   selectWorkoutPreview,
   startWorkoutPlan,
@@ -20,6 +21,7 @@ import {
   WorkoutActualSetSummary,
   WorkoutDailyStateSummary,
   WorkoutExecutionSessionSummary,
+  WorkoutExerciseHistorySummary,
   WorkoutPlanInstanceSummary,
   WorkoutPlannedVsActualSummary,
   WorkoutPreviewExercise,
@@ -61,6 +63,8 @@ interface ActualSetFormState {
 }
 
 type WorkoutViewMode = "preview" | "persisted" | "completed";
+
+const HISTORY_LOOKBACK_DAYS = 90;
 
 function detailLabel(label: string, value: string | number | null): string | null {
   if (value === null || value === "") {
@@ -147,6 +151,83 @@ function compactMetric(
   return `${value}${suffix}`;
 }
 
+function normalizeExerciseHistoryKey(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function uniqueExerciseNames(names: string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  names.forEach((name) => {
+    const trimmed = name.trim();
+    const key = normalizeExerciseHistoryKey(trimmed);
+    if (!trimmed || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    unique.push(trimmed);
+  });
+
+  return unique;
+}
+
+function mapProgressionHistories(
+  histories: WorkoutExerciseHistorySummary[],
+): Record<string, WorkoutExerciseHistorySummary> {
+  return histories.reduce<Record<string, WorkoutExerciseHistorySummary>>(
+    (mapped, history) => {
+      mapped[normalizeExerciseHistoryKey(history.exercise_name)] = history;
+      return mapped;
+    },
+    {},
+  );
+}
+
+function PreviousPerformanceLine({
+  history,
+}: {
+  history: WorkoutExerciseHistorySummary | undefined;
+}) {
+  if (!history) {
+    return null;
+  }
+
+  if (!history.has_history) {
+    return (
+      <div className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+        {history.message}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1 rounded-lg bg-white px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200">
+      {history.last_session_summary ? (
+        <p>
+          <span className="font-semibold text-slate-900">Last time:</span>{" "}
+          {history.last_session_summary}
+        </p>
+      ) : null}
+      {history.recent_best_set ? (
+        <p>
+          <span className="font-semibold text-slate-900">Recent best:</span>{" "}
+          {history.recent_best_set.summary}
+        </p>
+      ) : null}
+      <p>
+        <span className="font-semibold text-slate-900">History:</span>{" "}
+        {history.completed_session_count} completed{" "}
+        {history.completed_session_count === 1 ? "session" : "sessions"} in last{" "}
+        {HISTORY_LOOKBACK_DAYS} days
+      </p>
+      {history.logging_quality !== "complete" ? (
+        <p className="font-medium text-amber-800">{history.message}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function statusSummaryLine(
   approvedPlan: ApprovedWorkoutPlanPreview | null,
   preview: WorkoutPreviewResponse | null,
@@ -210,6 +291,8 @@ export function WorkoutPreviewExperience({
   >([]);
   const [plannedVsActualSummary, setPlannedVsActualSummary] =
     useState<WorkoutPlannedVsActualSummary | null>(null);
+  const [progressionHistoryByExerciseName, setProgressionHistoryByExerciseName] =
+    useState<Record<string, WorkoutExerciseHistorySummary>>({});
   const [formStateByExerciseId, setFormStateByExerciseId] = useState<
     Record<number, ActualSetFormState>
   >({});
@@ -265,6 +348,22 @@ export function WorkoutPreviewExperience({
     }
   }
 
+  const loadProgressionHistoryForNames = useCallback(async function (
+    names: string[],
+  ): Promise<Record<string, WorkoutExerciseHistorySummary>> {
+    const exerciseNames = uniqueExerciseNames(names);
+    if (!exerciseNames.length) {
+      return {};
+    }
+
+    const result = await fetchWorkoutProgressionHistory(userId, exerciseNames);
+    if (result.error || !result.data) {
+      return {};
+    }
+
+    return mapProgressionHistories(result.data.exercise_histories);
+  }, [userId]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -297,6 +396,12 @@ export function WorkoutPreviewExperience({
           setActualSets(currentExecution?.actual_sets ?? []);
           setActiveSubstitutions(currentExecution?.active_substitutions ?? []);
           setFormStateByExerciseId({});
+          setProgressionHistoryByExerciseName(
+            await loadProgressionHistoryForNames(
+              currentExecution?.planned_exercises.map((exercise) => exercise.name) ??
+                [],
+            ),
+          );
           if (currentExecution) {
             await loadPlannedVsActualSummary(
               currentExecution.workout_plan_instance.id,
@@ -324,6 +429,11 @@ export function WorkoutPreviewExperience({
           setActualSets(currentExecution.actual_sets);
           setActiveSubstitutions(currentExecution.active_substitutions);
           setFormStateByExerciseId({});
+          setProgressionHistoryByExerciseName(
+            await loadProgressionHistoryForNames(
+              currentExecution.planned_exercises.map((exercise) => exercise.name),
+            ),
+          );
           await loadPlannedVsActualSummary(
             currentExecution.workout_plan_instance.id,
             currentExecution.execution_session.status,
@@ -352,6 +462,7 @@ export function WorkoutPreviewExperience({
           setActualSets([]);
           setActiveSubstitutions([]);
           setPlannedVsActualSummary(null);
+          setProgressionHistoryByExerciseName({});
           setErrorMessage(
             previewResult.error.message ??
               currentResult.error?.message ??
@@ -371,6 +482,7 @@ export function WorkoutPreviewExperience({
           setActualSets([]);
           setActiveSubstitutions([]);
           setPlannedVsActualSummary(null);
+          setProgressionHistoryByExerciseName({});
           setErrorMessage(
             "The backend returned a workout preview, but it was missing the fields needed to render.",
           );
@@ -387,6 +499,13 @@ export function WorkoutPreviewExperience({
         setActiveSubstitutions([]);
         setPlannedVsActualSummary(null);
         setPreview(previewResult.data);
+        setProgressionHistoryByExerciseName(
+          await loadProgressionHistoryForNames(
+            previewResult.data.approved_workout_plan.exercises.map(
+              (exercise) => exercise.name,
+            ),
+          ),
+        );
         setFormStateByExerciseId({});
       } finally {
         if (!cancelled) {
@@ -400,7 +519,13 @@ export function WorkoutPreviewExperience({
     return () => {
       cancelled = true;
     };
-  }, [previewVariationIndex, requestedDate, userId, workoutSizePreference]);
+  }, [
+    loadProgressionHistoryForNames,
+    previewVariationIndex,
+    requestedDate,
+    userId,
+    workoutSizePreference,
+  ]);
 
   function handleSizeChange(nextValue: WorkoutSizePreference) {
     setWorkoutSizePreference(nextValue);
@@ -414,6 +539,7 @@ export function WorkoutPreviewExperience({
     setActualSets([]);
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
+    setProgressionHistoryByExerciseName({});
     setActionMessage(null);
     setErrorMessage(null);
   }
@@ -429,6 +555,7 @@ export function WorkoutPreviewExperience({
     setActualSets([]);
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
+    setProgressionHistoryByExerciseName({});
     setActionMessage(null);
     setErrorMessage(null);
   }
@@ -480,6 +607,11 @@ export function WorkoutPreviewExperience({
       setActualSets([]);
       setActiveSubstitutions([]);
       setPlannedVsActualSummary(null);
+      setProgressionHistoryByExerciseName(
+        await loadProgressionHistoryForNames(
+          result.data?.planned_exercises.map((exercise) => exercise.name) ?? [],
+        ),
+      );
       setFormStateByExerciseId({});
       setActionMessage(
         `Selected workout plan ${result.data?.workout_plan_instance.id}.`,
@@ -518,6 +650,13 @@ export function WorkoutPreviewExperience({
       setActualSets([]);
       setActiveSubstitutions([]);
       setPlannedVsActualSummary(null);
+      setProgressionHistoryByExerciseName(
+        await loadProgressionHistoryForNames(
+          (result.data?.planned_exercises ?? plannedExercises).map(
+            (exercise) => exercise.name,
+          ),
+        ),
+      );
       setActionMessage(`Started workout plan ${selectedPlan.id}.`);
     } finally {
       setIsSubmitting(false);
@@ -824,6 +963,15 @@ export function WorkoutPreviewExperience({
                   actualRir: String(exercise.rir_max),
                   notes: "",
                 };
+                const displayExerciseName =
+                  activeSubstitution?.replacement_exercise_name ?? exercise.name;
+                const history =
+                  progressionHistoryByExerciseName[
+                    normalizeExerciseHistoryKey(displayExerciseName)
+                  ] ??
+                  progressionHistoryByExerciseName[
+                    normalizeExerciseHistoryKey(exercise.name)
+                  ];
 
                 return (
                   <article
@@ -832,8 +980,7 @@ export function WorkoutPreviewExperience({
                   >
                     <div className="space-y-2">
                       <h2 className="text-xl font-semibold text-slate-950">
-                        {activeSubstitution?.replacement_exercise_name ??
-                          exercise.name}
+                        {displayExerciseName}
                       </h2>
                       <div className="flex flex-wrap gap-2">
                         {exerciseMeta(exercise).map((item) => (
@@ -853,6 +1000,7 @@ export function WorkoutPreviewExperience({
                           </span>
                         ))}
                       </div>
+                      <PreviousPerformanceLine history={history} />
                     </div>
 
                     {canLogWorkout ? (
@@ -954,36 +1102,44 @@ export function WorkoutPreviewExperience({
             </div>
           ) : approvedPlan?.exercises.length ? (
             <div className="grid gap-3 lg:grid-cols-2">
-              {approvedPlan.exercises.map((exercise, index) => (
-                <article
-                  key={`${exercise.name}-${index + 1}`}
-                  className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
-                >
-                  <div className="space-y-2">
-                    <h2 className="text-xl font-semibold text-slate-950">
-                      {exercise.name}
-                    </h2>
-                    <div className="flex flex-wrap gap-2">
-                      {exerciseMeta(exercise).map((item) => (
-                        <span
-                          key={`${exercise.name}-${item}`}
-                          className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                        >
-                          {item}
-                        </span>
-                      ))}
-                      {exercise.equipment_required.map((item) => (
-                        <span
-                          key={`${exercise.name}-${item}`}
-                          className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
-                        >
-                          {item}
-                        </span>
-                      ))}
+              {approvedPlan.exercises.map((exercise, index) => {
+                const history =
+                  progressionHistoryByExerciseName[
+                    normalizeExerciseHistoryKey(exercise.name)
+                  ];
+
+                return (
+                  <article
+                    key={`${exercise.name}-${index + 1}`}
+                    className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                  >
+                    <div className="space-y-2">
+                      <h2 className="text-xl font-semibold text-slate-950">
+                        {exercise.name}
+                      </h2>
+                      <div className="flex flex-wrap gap-2">
+                        {exerciseMeta(exercise).map((item) => (
+                          <span
+                            key={`${exercise.name}-${item}`}
+                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                        {exercise.equipment_required.map((item) => (
+                          <span
+                            key={`${exercise.name}-${item}`}
+                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                      <PreviousPerformanceLine history={history} />
                     </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+              })}
             </div>
           ) : (
             <p className="text-sm leading-6 text-slate-700">

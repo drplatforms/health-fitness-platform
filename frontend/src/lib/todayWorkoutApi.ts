@@ -11,6 +11,7 @@ import {
   WorkoutCompleteResponse,
   WorkoutCurrentResponse,
   WorkoutPlannedVsActualResponse,
+  WorkoutProgressionHistoryResponse,
   TodayWorkoutResponse,
   WorkoutPreviewResponse,
   WorkoutSelectPreviewResponse,
@@ -45,6 +46,11 @@ export interface WorkoutActionApiResult<T> {
 
 export interface WorkoutCurrentApiResult {
   data: WorkoutCurrentResponse | null;
+  error: DailyDriverApiError | null;
+}
+
+export interface WorkoutProgressionHistoryApiResult {
+  data: WorkoutProgressionHistoryResponse | null;
   error: DailyDriverApiError | null;
 }
 
@@ -521,6 +527,63 @@ export async function fetchWorkoutPlannedVsActual(
         heading: "Backend unavailable",
         message:
           "Start the FastAPI server, then refresh this page to load the workout summary.",
+      },
+    };
+  }
+}
+
+export async function fetchWorkoutProgressionHistory(
+  userId: number,
+  exerciseNames: string[],
+): Promise<WorkoutProgressionHistoryApiResult> {
+  if (!exerciseNames.length) {
+    return { data: null, error: null };
+  }
+
+  const endpoint = "/api/workout-progression-history";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        exercise_names: exerciseNames,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load previous performance",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not return previous performance history.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutProgressionHistoryResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then refresh this page to load previous performance.",
       },
     };
   }
