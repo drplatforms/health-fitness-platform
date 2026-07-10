@@ -1,3 +1,50 @@
+# Current State — Agent Workflow Hardening v0
+
+Current source of truth: `feature/agent-workflow-hardening-v0`.
+
+Active workflow milestone:
+
+```text
+Agent Workflow Hardening v0
+```
+
+Requested status:
+
+```text
+AGENT_WORKFLOW_HARDENING_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Add concise repository-native Codex instructions, a reusable milestone loop, a targeted validation matrix, and a read-only status helper without changing application behavior.
+```
+
+Authorized scope:
+
+- Replace the historical root instruction bundle with concise repository-wide implementation and safety rules.
+- Add frontend-specific instructions for compact UI work and production browser confidence.
+- Add the repository-owned `fitness-ai-milestone` skill for implementation and interruption recovery.
+- Add a maintainable targeted validation matrix using existing tests only.
+- Add a read-only PowerShell milestone status helper with Git, artifact, database, and diff checks.
+- Preserve application, API, persistence, dependency, and provider behavior.
+
+Validation completed:
+
+- Repository skill validation passed.
+- The status helper passed normal feature-work inspection and detected a temporary forbidden-artifact fixture without failing; the fixture was removed.
+- Independent review hardening confirmed ignored `frontend/.next`, `frontend/node_modules`, nested `tmp/**/__pycache__/*.pyc`, and temporary smoke databases are reported without mutation or a blocking exit; tracked or staged forbidden artifacts remain blocking.
+- Final review hardening replaced the recursive `tmp/` scan with a depth-6 walker that skips reparse points and excluded/generated directories; fixtures proved in-depth detection, no `__pycache__` or `node_modules` traversal, no traversal beyond the limit, unchanged files, and exit code `0`.
+- Project-memory validation completed with `590 PASS`, `58 WARN`, and `0 FAIL`; checker tests passed with `29 passed`.
+- Today/workout persistence, route, and view confidence tests passed with `88 passed`.
+- Frontend lint and production build passed.
+- Production browser smoke passed against a temporary database copy with zero console errors and no mobile horizontal overflow.
+- The real `fitness_ai.db` was not mutated, and milestone-created smoke, bounded-walker fixture, and generated-cache artifacts were removed.
+
+See milestone memory: `docs/project_memory/milestones/agent_workflow_hardening_v0.md`.
+
+---
+
 # Current State — Workout Actuals Summary v0
 
 Current source of truth: `feature/workout-actuals-summary-v0`.
