@@ -11,6 +11,8 @@ interface RouteContext {
 interface CanonicalNutritionLogUpdatePayload {
   user_id?: number;
   grams?: number;
+  serving_unit_id?: number;
+  quantity?: number;
   meal_type?: string;
   entry_date?: string;
 }
@@ -39,9 +41,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     | CanonicalNutritionLogUpdatePayload
     | null;
 
-  if (!payload?.user_id || payload.grams === undefined || !payload.meal_type) {
+  if (!payload?.user_id) {
     return NextResponse.json(
-      { detail: "user_id, grams, and meal_type are required." },
+      { detail: "user_id is required." },
       { status: 400 },
     );
   }
@@ -49,6 +51,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   const endpoint = `${getApiBaseUrl()}/nutrition/${payload.user_id}/canonical-logs/${entryId}`;
   const backendPayload = {
     grams: payload.grams,
+    serving_unit_id: payload.serving_unit_id,
+    quantity: payload.quantity,
     meal_type: payload.meal_type,
     entry_date: payload.entry_date,
   };

@@ -170,6 +170,8 @@ export async function updateCanonicalFoodLog(
       body: JSON.stringify({
         user_id: payload.user_id,
         grams: payload.grams,
+        serving_unit_id: payload.serving_unit_id,
+        quantity: payload.quantity,
         meal_type: payload.meal_type,
         entry_date: payload.entry_date,
       }),

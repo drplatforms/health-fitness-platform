@@ -6,12 +6,14 @@ import { useRouter } from "next/navigation";
 import { TodayCard } from "@/components/TodayCard";
 import {
   deleteCanonicalFoodLog,
+  fetchCanonicalFoodServingUnits,
   fetchCanonicalFoodLogs,
   updateCanonicalFoodLog,
 } from "@/lib/canonicalFoodApi";
 import {
   CANONICAL_FOOD_LOGGED_EVENT,
   CanonicalFoodLoggedEntry,
+  CanonicalFoodServingUnit,
 } from "@/types/canonicalFood";
 
 interface LoggedFoodsListProps {
@@ -86,6 +88,14 @@ function formatMacroLine(entry: CanonicalFoodLoggedEntry): string {
   return macroParts.length ? macroParts.join(" · ") : "Macros unavailable";
 }
 
+function formatLoggedAmount(entry: CanonicalFoodLoggedEntry): string {
+  if (entry.serving_display) {
+    return `${entry.serving_display} (${formatCompactNumber(entry.grams, "g")})`;
+  }
+
+  return formatCompactNumber(entry.grams, "g");
+}
+
 function buildPreviewEntry(
   entry: CanonicalFoodLoggedEntry,
   gramsText: string,
@@ -135,8 +145,15 @@ export function LoggedFoodsList({
   const [error, setError] = useState(initialError ?? null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
-  const [editGrams, setEditGrams] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editUnitKey, setEditUnitKey] = useState("grams");
   const [editMealType, setEditMealType] = useState("other");
+  const [servingUnitsByFoodId, setServingUnitsByFoodId] = useState<
+    Record<number, CanonicalFoodServingUnit[]>
+  >({});
+  const [loadingServingUnitsEntryId, setLoadingServingUnitsEntryId] = useState<
+    number | null
+  >(null);
   const [confirmingDeleteEntryId, setConfirmingDeleteEntryId] = useState<
     number | null
   >(null);
@@ -176,22 +193,68 @@ export function LoggedFoodsList({
     setActionError(null);
     setConfirmingDeleteEntryId(null);
     setEditingEntryId(entry.entry_id);
-    setEditGrams(formatCompactNumber(entry.grams));
+    setEditAmount(
+      entry.serving_unit_id && entry.serving_quantity !== undefined
+        ? formatCompactNumber(entry.serving_quantity)
+        : formatCompactNumber(entry.grams),
+    );
+    setEditUnitKey(
+      entry.serving_unit_id === undefined ? "grams" : String(entry.serving_unit_id),
+    );
     setEditMealType(normalizeMealType(entry.meal_type));
+    void loadServingUnitsForEntry(entry);
   }
 
   function cancelEditing() {
     setEditingEntryId(null);
-    setEditGrams("");
+    setEditAmount("");
+    setEditUnitKey("grams");
     setEditMealType("other");
     setActionError(null);
   }
 
-  async function saveEntry(entry: CanonicalFoodLoggedEntry) {
-    const grams = Number(editGrams);
+  async function loadServingUnitsForEntry(entry: CanonicalFoodLoggedEntry) {
+    if (servingUnitsByFoodId[entry.canonical_food_id] !== undefined) {
+      return;
+    }
 
-    if (!Number.isFinite(grams) || grams <= 0) {
-      setActionError("Amount must be greater than 0g.");
+    setLoadingServingUnitsEntryId(entry.entry_id);
+    try {
+      const response = await fetchCanonicalFoodServingUnits(
+        entry.canonical_food_id,
+      );
+      setServingUnitsByFoodId((current) => ({
+        ...current,
+        [entry.canonical_food_id]: response.serving_units,
+      }));
+    } catch {
+      setServingUnitsByFoodId((current) => ({
+        ...current,
+        [entry.canonical_food_id]: [],
+      }));
+    } finally {
+      setLoadingServingUnitsEntryId((currentEntryId) =>
+        currentEntryId === entry.entry_id ? null : currentEntryId,
+      );
+    }
+  }
+
+  async function saveEntry(entry: CanonicalFoodLoggedEntry) {
+    const amount = Number(editAmount);
+    const servingUnits = servingUnitsByFoodId[entry.canonical_food_id] ?? [];
+    const selectedServingUnit =
+      editUnitKey === "grams"
+        ? null
+        : (servingUnits.find(
+            (unit) => String(unit.serving_unit_id) === editUnitKey,
+          ) ?? null);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setActionError("Amount must be greater than 0.");
+      return;
+    }
+    if (editUnitKey !== "grams" && selectedServingUnit === null) {
+      setActionError("Serving unit is still loading. Try again in a moment.");
       return;
     }
 
@@ -201,7 +264,14 @@ export function LoggedFoodsList({
       const response = await updateCanonicalFoodLog({
         user_id: userId,
         entry_id: entry.entry_id,
-        grams,
+        ...(selectedServingUnit
+          ? {
+              serving_unit_id: selectedServingUnit.serving_unit_id,
+              quantity: amount,
+            }
+          : {
+              grams: amount,
+            }),
         meal_type: editMealType,
         entry_date: targetDate,
       });
@@ -213,7 +283,8 @@ export function LoggedFoodsList({
         ),
       );
       setEditingEntryId(null);
-      setEditGrams("");
+      setEditAmount("");
+      setEditUnitKey("grams");
       setEditMealType("other");
       window.dispatchEvent(new Event(CANONICAL_FOOD_LOGGED_EVENT));
       router.refresh();
@@ -317,18 +388,60 @@ export function LoggedFoodsList({
                           <div className="grid gap-2 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,0.75fr)_auto] sm:items-end">
                             <label className="space-y-1 text-xs font-medium text-slate-600">
                               <span>Amount</span>
-                              <div className="flex items-center gap-2">
+                              <div className="grid gap-2 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)]">
                                 <input
                                   type="number"
                                   min="0"
-                                  step="1"
-                                  value={editGrams}
+                                  step={editUnitKey === "grams" ? "1" : "0.25"}
+                                  value={editAmount}
                                   onChange={(event) =>
-                                    setEditGrams(event.target.value)
+                                    setEditAmount(event.target.value)
                                   }
                                   className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400"
                                 />
-                                <span className="text-xs text-slate-500">g</span>
+                                <select
+                                  value={editUnitKey}
+                                  disabled={
+                                    loadingServingUnitsEntryId === entry.entry_id
+                                  }
+                                  onChange={(event) => {
+                                    const nextUnitKey = event.target.value;
+                                    setEditUnitKey(nextUnitKey);
+                                    setEditAmount(
+                                      nextUnitKey === "grams"
+                                        ? formatCompactNumber(entry.grams)
+                                        : "1",
+                                    );
+                                  }}
+                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400 disabled:opacity-70"
+                                >
+                                  <option value="grams">grams</option>
+                                  {editUnitKey !== "grams" &&
+                                  entry.serving_display &&
+                                  !(
+                                    servingUnitsByFoodId[
+                                      entry.canonical_food_id
+                                    ] ?? []
+                                  ).some(
+                                    (unit) =>
+                                      String(unit.serving_unit_id) === editUnitKey,
+                                  ) ? (
+                                    <option value={editUnitKey}>
+                                      {entry.serving_display}
+                                    </option>
+                                  ) : null}
+                                  {(
+                                    servingUnitsByFoodId[entry.canonical_food_id] ??
+                                    []
+                                  ).map((unit) => (
+                                    <option
+                                      key={unit.serving_unit_id}
+                                      value={String(unit.serving_unit_id)}
+                                    >
+                                      {unit.display_label}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
                             </label>
                             <label className="space-y-1 text-xs font-medium text-slate-600">
@@ -367,7 +480,41 @@ export function LoggedFoodsList({
                             </div>
                           </div>
                           <p className="text-xs font-medium text-slate-600">
-                            Preview: {formatMacroLine(buildPreviewEntry(entry, editGrams))}
+                            {(() => {
+                              const amount = Number(editAmount);
+                              const servingUnits =
+                                servingUnitsByFoodId[entry.canonical_food_id] ??
+                                [];
+                              const selectedServingUnit =
+                                editUnitKey === "grams"
+                                  ? null
+                                  : (servingUnits.find(
+                                      (unit) =>
+                                        String(unit.serving_unit_id) ===
+                                        editUnitKey,
+                                    ) ?? null);
+                              const resolvedGrams =
+                                selectedServingUnit === null
+                                  ? amount
+                                  : amount * selectedServingUnit.grams_per_unit;
+
+                              return Number.isFinite(resolvedGrams) &&
+                                resolvedGrams > 0 ? (
+                                <>
+                                  Resolved:{" "}
+                                  {formatCompactNumber(resolvedGrams, "g")} ·
+                                  Preview:{" "}
+                                  {formatMacroLine(
+                                    buildPreviewEntry(
+                                      entry,
+                                      String(resolvedGrams),
+                                    ),
+                                  )}
+                                </>
+                              ) : (
+                                <>Preview: {formatMacroLine(entry)}</>
+                              );
+                            })()}
                           </p>
                         </div>
                       ) : (
@@ -376,7 +523,7 @@ export function LoggedFoodsList({
                             {entry.food_name}
                           </span>
                           <span className="text-slate-600 sm:text-right">
-                            {formatCompactNumber(entry.grams, "g")}
+                            {formatLoggedAmount(entry)}
                           </span>
                           <div className="flex gap-2 text-xs font-semibold sm:justify-end">
                             <button

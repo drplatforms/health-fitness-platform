@@ -1,17 +1,70 @@
-# Current State — Food Logging Recents v0
+# Current State — Food Logging Edit UX v0.1
 
-Current source of truth: `feature/food-logging-recents-v0`.
+Current source of truth: `feature/food-logging-edit-ux-v0-1`.
 
 Active nutrition logging milestone:
 
 ```text
-Food Logging Recents v0
+Food Logging Edit UX v0.1
 ```
 
 Requested status:
 
 ```text
-FOOD_LOGGING_RECENTS_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+FOOD_LOGGING_EDIT_UX_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Make logged canonical food correction as usable as logging by supporting grams or backend-approved serving-unit edits while preserving canonical_food_id + resolved grams as persisted truth.
+```
+
+Implemented scope:
+
+- Extended canonical log editing to accept either grams or `serving_unit_id` + `quantity`, never both.
+- Serving-unit edits resolve to grams through backend serving-unit validation and recalculate macro snapshots.
+- Serving-unit edits create or update serving metadata for the existing food entry.
+- Grams edits clear stale serving metadata from previously serving-unit-backed entries.
+- Meal-only edits preserve existing serving metadata.
+- Delete removes associated serving metadata before deleting the food entry.
+- Daily canonical logs now include optional public-safe serving context when present.
+- Logged Today inline edit UI now supports grams fallback, approved serving-unit selection, previous serving-unit prefill, resolved grams preview, and macro preview.
+
+Boundaries preserved:
+
+- No favorites, meal templates, full diary/history, barcode scanning, AI food parsing, AI suggestions, meal planning, raw-source logging, target formula, Daily Coach, report, workout, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Backend remains responsible for serving-unit resolution, canonical nutrient snapshots, ownership checks, and persistence.
+- Frontend remains a compact controller/renderer and does not invent nutrition values.
+- Raw source payloads remain non-public.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_log_edit_serving_units_api.py tests/test_canonical_food_log_edit_serving_units_service.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py tests/test_nutrition_serving_unit_logging_api.py tests/test_nutrition_serving_unit_logging_service.py tests/test_food_logging_recents_api.py tests/test_food_logging_recents_service.py tests/test_nutrition_target_vs_actual_service.py tests/test_api_smoke.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check api/routes/nutrition.py services/nutrition_service.py services/nutrition_serving_unit_logging_service.py services/nutrition_serving_unit_service.py services/food_logging_recents_service.py tests`
+- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
+- `npm run lint` and `npm run build` from `frontend`
+- touched-file `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/food_logging_edit_ux_v0_1.md`.
+
+---
+
+# Current State — Food Logging Recents v0
+
+Current accepted source of truth: `main` after `merge-food-logging-recents-v0`.
+
+Accepted nutrition logging milestone:
+
+```text
+Food Logging Recents v0
+```
+
+Accepted status:
+
+```text
+FOOD_LOGGING_RECENTS_V0_ACCEPTED_AND_MERGED
 ```
 
 Purpose:

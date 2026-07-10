@@ -246,7 +246,7 @@ def _canonical_food_log_response(
 
 
 def _canonical_food_log_entry_response_from_row(row) -> dict[str, Any]:
-    return {
+    response: dict[str, Any] = {
         "entry_id": int(row["entry_id"]),
         "canonical_food_id": int(row["canonical_food_id"]),
         "food_name": row["food_name"],
@@ -257,6 +257,19 @@ def _canonical_food_log_entry_response_from_row(row) -> dict[str, Any]:
         "carbs_g": row["carbs_g"],
         "fat_g": row["fat_g"],
     }
+    row_keys = set(row.keys())
+    if "serving_unit_id" in row_keys and row["serving_unit_id"] is not None:
+        response.update(
+            {
+                "serving_unit_id": int(row["serving_unit_id"]),
+                "serving_quantity": float(row["serving_quantity"]),
+                "serving_display": row["serving_display"],
+                "resolved_grams": float(row["resolved_grams"]),
+                "amount_source": row["amount_source"],
+                "serving_unit_confidence": row["serving_unit_confidence"],
+            }
+        )
+    return response
 
 
 def _fetch_owned_canonical_food_entry(
@@ -272,6 +285,11 @@ def _fetch_owned_canonical_food_entry(
         date_clause = "AND food_entries.entry_date = ?"
         params.append(_resolve_entry_date(entry_date))
 
+    from services.nutrition_serving_unit_logging_service import (
+        ensure_serving_unit_log_metadata_schema,
+    )
+
+    ensure_serving_unit_log_metadata_schema()
     cursor.execute(
         f"""
         SELECT
@@ -289,12 +307,20 @@ def _fetch_owned_canonical_food_entry(
             food_entries.protein_g,
             food_entries.carbs_g,
             food_entries.fat_g,
-            food_entries.entry_date
+            food_entries.entry_date,
+            serving_metadata.serving_unit_id,
+            serving_metadata.serving_quantity,
+            serving_metadata.original_serving_display AS serving_display,
+            serving_metadata.resolved_grams,
+            serving_metadata.amount_source,
+            serving_metadata.serving_unit_confidence
         FROM food_entries
         LEFT JOIN canonical_foods
             ON canonical_foods.id = food_entries.canonical_food_id
         LEFT JOIN foods
             ON foods.id = food_entries.food_id
+        LEFT JOIN nutrition_serving_unit_log_metadata AS serving_metadata
+            ON serving_metadata.food_entry_id = food_entries.id
         WHERE food_entries.id = ?
           AND food_entries.user_id = ?
           AND food_entries.canonical_food_id IS NOT NULL
@@ -562,12 +588,26 @@ def update_canonical_food_entry(
     user_id: int,
     entry_id: int,
     grams: float | None = None,
+    serving_unit_id: int | None = None,
+    quantity: float | None = None,
     meal_type: str | None = None,
     entry_date: str | None = None,
     nutrient_summary_precision: int = 3,
 ) -> dict[str, Any]:
-    if grams is None and meal_type is None:
-        raise ValueError("grams or meal_type is required.")
+    has_grams = grams is not None
+    has_serving_unit = serving_unit_id is not None or quantity is not None
+    if has_grams and has_serving_unit:
+        raise ValueError(
+            "Provide either grams or serving_unit_id with quantity, not both."
+        )
+    if has_serving_unit and (serving_unit_id is None or quantity is None):
+        raise ValueError(
+            "serving_unit_id and quantity are required for serving-unit logging."
+        )
+    if not has_grams and not has_serving_unit and meal_type is None:
+        raise ValueError(
+            "grams, serving_unit_id with quantity, or meal_type is required."
+        )
 
     conn = get_connection()
     cursor = conn.cursor()
@@ -577,11 +617,6 @@ def update_canonical_food_entry(
             user_id=user_id,
             entry_id=entry_id,
             entry_date=entry_date,
-        )
-        resolved_grams = (
-            _validate_positive_grams(grams)
-            if grams is not None
-            else float(existing_entry["grams"])
         )
         resolved_meal_type = (
             _normalize_meal_type(meal_type)
@@ -596,6 +631,56 @@ def update_canonical_food_entry(
         if not canonical_food.active:
             raise CanonicalFoodInactiveError("Canonical food is inactive.")
 
+        serving_metadata_payload: dict[str, Any] | None = None
+        if has_serving_unit:
+            from services.nutrition_serving_unit_logging_service import (
+                SERVING_UNIT_AMOUNT_SOURCE,
+                build_serving_unit_display,
+                resolve_serving_unit_log_request,
+            )
+            from services.nutrition_serving_unit_service import find_serving_unit
+
+            (
+                resolved_grams,
+                grams_min,
+                grams_max,
+                confidence,
+                serving_display,
+            ) = resolve_serving_unit_log_request(
+                canonical_food_id=canonical_food_id,
+                serving_unit_id=int(serving_unit_id),
+                quantity=float(quantity),
+            )
+            serving_unit = find_serving_unit(int(serving_unit_id))
+            serving_metadata_payload = {
+                "food_entry_id": entry_id,
+                "user_id": user_id,
+                "canonical_food_id": canonical_food_id,
+                "serving_unit_id": int(serving_unit_id),
+                "serving_quantity": float(quantity),
+                "resolved_grams": resolved_grams,
+                "grams_min": grams_min,
+                "grams_max": grams_max,
+                "serving_unit_confidence": confidence,
+                "amount_source": SERVING_UNIT_AMOUNT_SOURCE,
+                "original_serving_display": build_serving_unit_display(
+                    float(quantity),
+                    serving_unit.display_name,
+                )
+                if serving_unit is not None
+                else serving_display,
+                "source": None if serving_unit is None else serving_unit.source,
+                "source_notes": None
+                if serving_unit is None
+                else serving_unit.source_note,
+            }
+        else:
+            resolved_grams = (
+                _validate_positive_grams(grams)
+                if grams is not None
+                else float(existing_entry["grams"])
+            )
+
         canonical_nutrients = get_nutrients_for_canonical_food(canonical_food_id)
         if not canonical_nutrients:
             raise CanonicalFoodNutrientsUnavailableError(
@@ -606,7 +691,7 @@ def update_canonical_food_entry(
         nutrient_summary = _nutrient_summary_for_logged_grams(
             canonical_nutrients,
             resolved_grams,
-            precision=nutrient_summary_precision,
+            precision=1 if has_serving_unit else nutrient_summary_precision,
         )
         cursor.execute(
             """
@@ -640,6 +725,26 @@ def update_canonical_food_entry(
             entry_date=entry_date,
         )
         conn.commit()
+
+        if serving_metadata_payload is not None:
+            from services.nutrition_serving_unit_logging_service import (
+                create_or_update_serving_unit_log_metadata,
+            )
+
+            create_or_update_serving_unit_log_metadata(**serving_metadata_payload)
+        elif has_grams:
+            from services.nutrition_serving_unit_logging_service import (
+                delete_serving_unit_log_metadata_for_food_entry,
+            )
+
+            delete_serving_unit_log_metadata_for_food_entry(entry_id)
+
+        updated_entry = _fetch_owned_canonical_food_entry(
+            cursor,
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=entry_date,
+        )
         return _canonical_food_log_entry_response_from_row(updated_entry)
     except Exception:
         conn.rollback()
@@ -663,6 +768,11 @@ def delete_canonical_food_entry(
             entry_id=entry_id,
             entry_date=entry_date,
         )
+        from services.nutrition_serving_unit_logging_service import (
+            delete_serving_unit_log_metadata_for_food_entry,
+        )
+
+        delete_serving_unit_log_metadata_for_food_entry(entry_id)
         cursor.execute(
             """
             DELETE FROM food_entries
@@ -740,6 +850,11 @@ def get_daily_canonical_food_logs(
 ) -> list[dict[str, Any]]:
     resolved_date = _resolve_entry_date(entry_date)
 
+    from services.nutrition_serving_unit_logging_service import (
+        ensure_serving_unit_log_metadata_schema,
+    )
+
+    ensure_serving_unit_log_metadata_schema()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -756,12 +871,20 @@ def get_daily_canonical_food_logs(
             food_entries.calories,
             food_entries.protein_g,
             food_entries.carbs_g,
-            food_entries.fat_g
+            food_entries.fat_g,
+            serving_metadata.serving_unit_id,
+            serving_metadata.serving_quantity,
+            serving_metadata.original_serving_display AS serving_display,
+            serving_metadata.resolved_grams,
+            serving_metadata.amount_source,
+            serving_metadata.serving_unit_confidence
         FROM food_entries
         LEFT JOIN canonical_foods
             ON canonical_foods.id = food_entries.canonical_food_id
         LEFT JOIN foods
             ON foods.id = food_entries.food_id
+        LEFT JOIN nutrition_serving_unit_log_metadata AS serving_metadata
+            ON serving_metadata.food_entry_id = food_entries.id
         WHERE food_entries.user_id = ?
           AND food_entries.entry_date = ?
           AND food_entries.canonical_food_id IS NOT NULL

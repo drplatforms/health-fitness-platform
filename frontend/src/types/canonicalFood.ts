@@ -121,6 +121,12 @@ export interface CanonicalFoodLoggedEntry {
   protein_g: number | null;
   carbs_g: number | null;
   fat_g: number | null;
+  serving_unit_id?: number;
+  serving_quantity?: number;
+  serving_display?: string;
+  resolved_grams?: number;
+  amount_source?: string;
+  serving_unit_confidence?: "Low" | "Moderate" | "High";
 }
 
 export interface CanonicalFoodLogsResponse {
@@ -133,8 +139,10 @@ export interface CanonicalFoodLogsResponse {
 export interface CanonicalFoodLogUpdateRequest {
   user_id: number;
   entry_id: number;
-  grams: number;
-  meal_type: string;
+  grams?: number;
+  serving_unit_id?: number;
+  quantity?: number;
+  meal_type?: string;
   entry_date: string;
 }
 
