@@ -6,6 +6,7 @@ import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
   completeWorkout,
+  deleteWorkoutActualSet,
   fetchWorkoutCurrent,
   fetchWorkoutPlannedVsActual,
   fetchWorkoutPreview,
@@ -13,6 +14,7 @@ import {
   logWorkoutActualSet,
   selectWorkoutPreview,
   startWorkoutPlan,
+  updateWorkoutActualSet,
 } from "@/lib/todayWorkoutApi";
 import {
   ApprovedWorkoutPlanPreview,
@@ -138,6 +140,62 @@ function nextSetNumberForExercise(
   return (
     Math.max(...relatedSets.map((actualSet) => actualSet.set_number || 0)) + 1
   );
+}
+
+function actualSetFormStateFromSet(
+  actualSet: WorkoutActualSetSummary,
+): ActualSetFormState {
+  return {
+    actualReps:
+      actualSet.actual_reps === null ? "" : String(actualSet.actual_reps),
+    actualWeight:
+      actualSet.actual_weight === null ? "" : String(actualSet.actual_weight),
+    actualRir: actualSet.actual_rir === null ? "" : String(actualSet.actual_rir),
+    notes: actualSet.notes ?? "",
+  };
+}
+
+function formatActualSetLine(actualSet: WorkoutActualSetSummary): string {
+  if (actualSet.skipped) {
+    return `Set ${actualSet.set_number}: skipped`;
+  }
+
+  const parts = [`Set ${actualSet.set_number}`];
+  if (actualSet.actual_reps !== null) {
+    parts.push(`${actualSet.actual_reps} reps`);
+  }
+  if (actualSet.actual_weight !== null) {
+    parts.push(`${actualSet.actual_weight} lb`);
+  }
+  if (actualSet.actual_rir !== null) {
+    parts.push(`RIR ${actualSet.actual_rir}`);
+  }
+
+  return parts.join(" · ");
+}
+
+function loggedSetCountLabel(
+  actualSets: WorkoutActualSetSummary[],
+  plannedSets: number,
+): string {
+  const completedCount = completedSetCount(actualSets);
+
+  return `${completedCount} / ${plannedSets} logged`;
+}
+
+function completedSetCount(actualSets: WorkoutActualSetSummary[]): number {
+  return actualSets.filter((actualSet) => actualSet.completed && !actualSet.skipped)
+    .length;
+}
+
+function remainingSetLabel(completedCount: number, plannedSets: number): string {
+  const remaining = Math.max(plannedSets - completedCount, 0);
+
+  if (remaining === 0) {
+    return "All planned sets logged";
+  }
+
+  return `${remaining} set${remaining === 1 ? "" : "s"} remaining`;
 }
 
 function compactMetric(
@@ -296,6 +354,14 @@ export function WorkoutPreviewExperience({
   const [formStateByExerciseId, setFormStateByExerciseId] = useState<
     Record<number, ActualSetFormState>
   >({});
+  const [noteInputExpandedByExerciseId, setNoteInputExpandedByExerciseId] =
+    useState<Record<number, boolean>>({});
+  const [editingActualSetId, setEditingActualSetId] = useState<number | null>(
+    null,
+  );
+  const [editFormStateByActualSetId, setEditFormStateByActualSetId] = useState<
+    Record<number, ActualSetFormState>
+  >({});
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
@@ -396,6 +462,7 @@ export function WorkoutPreviewExperience({
           setActualSets(currentExecution?.actual_sets ?? []);
           setActiveSubstitutions(currentExecution?.active_substitutions ?? []);
           setFormStateByExerciseId({});
+          setNoteInputExpandedByExerciseId({});
           setProgressionHistoryByExerciseName(
             await loadProgressionHistoryForNames(
               currentExecution?.planned_exercises.map((exercise) => exercise.name) ??
@@ -429,6 +496,7 @@ export function WorkoutPreviewExperience({
           setActualSets(currentExecution.actual_sets);
           setActiveSubstitutions(currentExecution.active_substitutions);
           setFormStateByExerciseId({});
+          setNoteInputExpandedByExerciseId({});
           setProgressionHistoryByExerciseName(
             await loadProgressionHistoryForNames(
               currentExecution.planned_exercises.map((exercise) => exercise.name),
@@ -507,6 +575,7 @@ export function WorkoutPreviewExperience({
           ),
         );
         setFormStateByExerciseId({});
+        setNoteInputExpandedByExerciseId({});
       } finally {
         if (!cancelled) {
           setIsLoadingPreview(false);
@@ -577,6 +646,49 @@ export function WorkoutPreviewExperience({
     }));
   }
 
+  function toggleExerciseNoteInput(plannedExerciseId: number) {
+    setNoteInputExpandedByExerciseId((current) => ({
+      ...current,
+      [plannedExerciseId]: !current[plannedExerciseId],
+    }));
+  }
+
+  function updateActualSetEditFormState(
+    actualSetId: number,
+    field: keyof ActualSetFormState,
+    value: string,
+  ) {
+    setEditFormStateByActualSetId((current) => ({
+      ...current,
+      [actualSetId]: {
+        actualReps: current[actualSetId]?.actualReps ?? "",
+        actualWeight: current[actualSetId]?.actualWeight ?? "",
+        actualRir: current[actualSetId]?.actualRir ?? "",
+        notes: current[actualSetId]?.notes ?? "",
+        [field]: value,
+      },
+    }));
+  }
+
+  function handleEditSet(actualSet: WorkoutActualSetSummary) {
+    setEditingActualSetId(actualSet.id);
+    setEditFormStateByActualSetId((current) => ({
+      ...current,
+      [actualSet.id]: actualSetFormStateFromSet(actualSet),
+    }));
+    setActionMessage(null);
+    setErrorMessage(null);
+  }
+
+  function handleCancelEditSet(actualSetId: number) {
+    setEditingActualSetId(null);
+    setEditFormStateByActualSetId((current) => {
+      const next = { ...current };
+      delete next[actualSetId];
+      return next;
+    });
+  }
+
   async function handleSelectWorkout() {
     if (approvedPlan === null) {
       return;
@@ -613,6 +725,9 @@ export function WorkoutPreviewExperience({
         ),
       );
       setFormStateByExerciseId({});
+      setNoteInputExpandedByExerciseId({});
+      setEditingActualSetId(null);
+      setEditFormStateByActualSetId({});
       setActionMessage(
         `Selected workout plan ${result.data?.workout_plan_instance.id}.`,
       );
@@ -657,6 +772,8 @@ export function WorkoutPreviewExperience({
           ),
         ),
       );
+      setEditingActualSetId(null);
+      setEditFormStateByActualSetId({});
       setActionMessage(`Started workout plan ${selectedPlan.id}.`);
     } finally {
       setIsSubmitting(false);
@@ -665,6 +782,11 @@ export function WorkoutPreviewExperience({
 
   async function handleLogSet(exercise: PlannedWorkoutExerciseSummary) {
     if (selectedPlan === null) {
+      return;
+    }
+
+    const exerciseActualSets = loggedSetsForExercise(actualSets, exercise.id);
+    if (completedSetCount(exerciseActualSets) >= exercise.sets) {
       return;
     }
 
@@ -684,7 +806,10 @@ export function WorkoutPreviewExperience({
           ? exercise.id
           : undefined,
         exercise_name: activeSubstitution?.replacement_exercise_name,
-        set_number: nextSetNumberForExercise(actualSets, exercise.id),
+        set_number: Math.min(
+          nextSetNumberForExercise(actualSets, exercise.id),
+          exercise.sets,
+        ),
         actual_reps: Number(actualReps),
         actual_weight: Number(actualWeight),
         actual_rir: Number(actualRir),
@@ -717,10 +842,93 @@ export function WorkoutPreviewExperience({
           notes: "",
         },
       }));
+      setNoteInputExpandedByExerciseId((current) => ({
+        ...current,
+        [exercise.id]: false,
+      }));
 
       if (latestPlan && latestExecution) {
         await loadPlannedVsActualSummary(latestPlan.id, latestExecution.status);
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleUpdateActualSet(actualSet: WorkoutActualSetSummary) {
+    if (selectedPlan === null) {
+      return;
+    }
+
+    const formState =
+      editFormStateByActualSetId[actualSet.id] ??
+      actualSetFormStateFromSet(actualSet);
+
+    setIsSubmitting(true);
+    try {
+      setErrorMessage(null);
+      const result = await updateWorkoutActualSet(selectedPlan.id, actualSet.id, {
+        actual_reps:
+          formState.actualReps === "" ? undefined : Number(formState.actualReps),
+        actual_weight:
+          formState.actualWeight === ""
+            ? undefined
+            : Number(formState.actualWeight),
+        actual_rir:
+          formState.actualRir === "" ? undefined : Number(formState.actualRir),
+        notes: formState.notes.trim() || undefined,
+      });
+
+      if (result.error) {
+        setActionMessage(null);
+        setErrorMessage(result.error.message);
+        return;
+      }
+
+      const updatedActualSet = result.data?.actual_set;
+      if (updatedActualSet) {
+        setActualSets((current) =>
+          current.map((item) =>
+            item.id === updatedActualSet.id ? updatedActualSet : item,
+          ),
+        );
+      }
+      setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
+      setExecutionSession(result.data?.execution_session ?? executionSession);
+      setPlannedVsActualSummary(
+        result.data?.planned_vs_actual_summary ?? plannedVsActualSummary,
+      );
+      handleCancelEditSet(actualSet.id);
+      setActionMessage(`Updated ${actualSet.exercise_name} set ${actualSet.set_number}.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handleDeleteActualSet(actualSet: WorkoutActualSetSummary) {
+    if (selectedPlan === null) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      setErrorMessage(null);
+      const result = await deleteWorkoutActualSet(selectedPlan.id, actualSet.id);
+
+      if (result.error) {
+        setActionMessage(null);
+        setErrorMessage(result.error.message);
+        return;
+      }
+
+      setSelectedPlan(result.data?.workout_plan_instance ?? selectedPlan);
+      setExecutionSession(result.data?.execution_session ?? executionSession);
+      setActualSets(result.data?.actual_sets ?? []);
+      setPlannedVsActualSummary(
+        result.data?.planned_vs_actual_summary ?? plannedVsActualSummary,
+      );
+      handleCancelEditSet(actualSet.id);
+      setActionMessage(`Deleted ${actualSet.exercise_name} set ${actualSet.set_number}.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -965,6 +1173,21 @@ export function WorkoutPreviewExperience({
                 };
                 const displayExerciseName =
                   activeSubstitution?.replacement_exercise_name ?? exercise.name;
+                const exerciseActualSets = loggedSetsForExercise(
+                  actualSets,
+                  exercise.id,
+                );
+                const completedLoggedSetCount =
+                  completedSetCount(exerciseActualSets);
+                const allPlannedSetsLogged =
+                  completedLoggedSetCount >= exercise.sets;
+                const nextSetNumber = Math.min(
+                  nextSetNumberForExercise(actualSets, exercise.id),
+                  exercise.sets,
+                );
+                const exerciseNoteInputExpanded =
+                  Boolean(noteInputExpandedByExerciseId[exercise.id]) ||
+                  Boolean(formState.notes);
                 const history =
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(displayExerciseName)
@@ -1000,33 +1223,194 @@ export function WorkoutPreviewExperience({
                           </span>
                         ))}
                       </div>
+                      {exerciseActualSets.length ? (
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-emerald-800">
+                          <span>{loggedSetCountLabel(exerciseActualSets, exercise.sets)}</span>
+                          <span className="text-slate-500">
+                            {remainingSetLabel(completedLoggedSetCount, exercise.sets)}
+                          </span>
+                        </div>
+                      ) : null}
                       <PreviousPerformanceLine history={history} />
                     </div>
 
-                    {canLogWorkout ? (
-                      <div className="mt-5 rounded-[20px] bg-white px-4 py-4 ring-1 ring-slate-200">
+                    {exerciseActualSets.length ? (
+                      <div className="mt-4 space-y-2">
+                        {exerciseActualSets.map((actualSet) => {
+                          const isEditing = editingActualSetId === actualSet.id;
+                          const editFormState =
+                            editFormStateByActualSetId[actualSet.id] ??
+                            actualSetFormStateFromSet(actualSet);
+
+                          return (
+                            <div
+                              key={actualSet.id}
+                              className="rounded-lg bg-white/90 px-3 py-2 ring-1 ring-slate-200"
+                            >
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <div className="grid gap-2 sm:grid-cols-3">
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      <span>Reps</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        value={editFormState.actualReps}
+                                        onChange={(event) =>
+                                          updateActualSetEditFormState(
+                                            actualSet.id,
+                                            "actualReps",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      <span>Weight</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="5"
+                                        value={editFormState.actualWeight}
+                                        onChange={(event) =>
+                                          updateActualSetEditFormState(
+                                            actualSet.id,
+                                            "actualWeight",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                      />
+                                    </label>
+                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                      <span>RIR</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        max="10"
+                                        value={editFormState.actualRir}
+                                        onChange={(event) =>
+                                          updateActualSetEditFormState(
+                                            actualSet.id,
+                                            "actualRir",
+                                            event.target.value,
+                                          )
+                                        }
+                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                      />
+                                    </label>
+                                  </div>
+                                  <label className="block space-y-1 text-xs font-medium text-slate-700">
+                                    <span>Notes</span>
+                                    <textarea
+                                      rows={2}
+                                      value={editFormState.notes}
+                                      onChange={(event) =>
+                                        updateActualSetEditFormState(
+                                          actualSet.id,
+                                          "notes",
+                                          event.target.value,
+                                        )
+                                      }
+                                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                    />
+                                  </label>
+                                  <div className="flex flex-wrap gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleUpdateActualSet(actualSet)}
+                                      disabled={isSubmitting}
+                                      className="text-xs font-semibold text-emerald-800 transition hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCancelEditSet(actualSet.id)}
+                                      disabled={isSubmitting}
+                                      className="text-xs font-semibold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                      Cancel
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+                                  <div className="min-w-0">
+                                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-slate-900">
+                                      {formatActualSetLine(actualSet)}
+                                    </p>
+                                    {actualSet.notes ? (
+                                      <p className="mt-0.5 text-xs text-slate-600">
+                                        {actualSet.notes}
+                                      </p>
+                                    ) : null}
+                                  </div>
+                                  {canLogWorkout ? (
+                                    <div className="flex shrink-0 flex-wrap gap-2 text-xs font-semibold">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditSet(actualSet)}
+                                        disabled={isSubmitting}
+                                        className="text-slate-600 transition hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        Edit
+                                      </button>
+                                      <span className="text-slate-300">·</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => void handleDeleteActualSet(actualSet)}
+                                        disabled={isSubmitting}
+                                        className="text-slate-500 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : canLogWorkout ? (
+                      <div className="mt-4 rounded-[18px] bg-white px-3 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
+                        No sets logged for this exercise yet.
+                      </div>
+                    ) : null}
+
+                    {canLogWorkout && allPlannedSetsLogged ? (
+                      <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-100">
+                        All planned sets logged
+                      </div>
+                    ) : canLogWorkout ? (
+                      <div className="mt-4 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-slate-950">
                               Log next set
                             </p>
-                            <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                              Set{" "}
-                              {nextSetNumberForExercise(actualSets, exercise.id)}
+                            <p className="text-xs font-medium text-slate-500">
+                              Set {nextSetNumber} of {exercise.sets} ·{" "}
+                              {remainingSetLabel(
+                                completedLoggedSetCount,
+                                exercise.sets,
+                              )}
                             </p>
                           </div>
                           <button
                             type="button"
                             onClick={() => void handleLogSet(exercise)}
                             disabled={isSubmitting}
-                            className="rounded-2xl bg-emerald-900 px-4 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-xl bg-emerald-900 px-3 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Save set
                           </button>
                         </div>
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          <label className="space-y-2 text-sm text-slate-700">
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <label className="space-y-1 text-sm text-slate-700">
                             <span className="font-medium">Reps</span>
                             <input
                               type="number"
@@ -1039,10 +1423,10 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
                             />
                           </label>
-                          <label className="space-y-2 text-sm text-slate-700">
+                          <label className="space-y-1 text-sm text-slate-700">
                             <span className="font-medium">Weight</span>
                             <input
                               type="number"
@@ -1056,10 +1440,10 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
                             />
                           </label>
-                          <label className="space-y-2 text-sm text-slate-700">
+                          <label className="space-y-1 text-sm text-slate-700">
                             <span className="font-medium">RIR</span>
                             <input
                               type="number"
@@ -1073,27 +1457,46 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
                             />
                           </label>
                         </div>
 
-                        <label className="mt-3 block space-y-2 text-sm text-slate-700">
-                          <span className="font-medium">Notes</span>
-                          <textarea
-                            rows={2}
-                            value={formState.notes}
-                            onChange={(event) =>
-                              updateExerciseFormState(
-                                exercise.id,
-                                "notes",
-                                event.target.value,
-                              )
-                            }
-                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
-                            placeholder="Optional: form note, pain note, or context."
-                          />
-                        </label>
+                        {exerciseNoteInputExpanded ? (
+                          <div className="mt-3 space-y-1 text-sm text-slate-700">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">Notes</span>
+                              <button
+                                type="button"
+                                onClick={() => toggleExerciseNoteInput(exercise.id)}
+                                className="text-xs font-semibold text-slate-500 transition hover:text-slate-900"
+                              >
+                                Hide
+                              </button>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={formState.notes}
+                              onChange={(event) =>
+                                updateExerciseFormState(
+                                  exercise.id,
+                                  "notes",
+                                  event.target.value,
+                                )
+                              }
+                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              placeholder="Optional: form note, pain note, or context."
+                            />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => toggleExerciseNoteInput(exercise.id)}
+                            className="mt-3 text-xs font-semibold text-slate-500 transition hover:text-slate-900"
+                          >
+                            Add note
+                          </button>
+                        )}
                       </div>
                     ) : null}
                   </article>

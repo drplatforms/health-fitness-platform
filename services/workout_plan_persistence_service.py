@@ -1368,6 +1368,62 @@ def update_actual_set(
     }
 
 
+def delete_actual_set(plan_instance_id: int, actual_set_id: int) -> dict:
+    """Remove a mistaken actual-set row without mutating the workout snapshot."""
+
+    ensure_workout_plan_persistence_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        _instance_row, execution_row, _actual_set_row = (
+            _get_required_editable_actual_set_rows(
+                cursor,
+                plan_instance_id,
+                actual_set_id,
+            )
+        )
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            """
+            DELETE FROM workout_execution_set_actuals
+            WHERE id = ?
+              AND workout_execution_session_id = ?
+            """,
+            (actual_set_id, execution_row["id"]),
+        )
+        cursor.execute(
+            """
+            UPDATE workout_plan_instances
+            SET updated_at = ?
+            WHERE id = ?
+            """,
+            (now, plan_instance_id),
+        )
+        cursor.execute(
+            """
+            UPDATE workout_execution_sessions
+            SET updated_at = ?
+            WHERE id = ?
+            """,
+            (now, execution_row["id"]),
+        )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    execution_state = get_execution_state(plan_instance_id)
+    return {
+        "workout_plan_instance": execution_state["workout_plan_instance"],
+        "execution_session": execution_state["execution_session"],
+        "actual_sets": execution_state["actual_sets"],
+        "planned_vs_actual_summary": build_planned_vs_actual_summary(plan_instance_id),
+    }
+
+
 def approved_workout_plan_from_payload(raw_plan: dict) -> ApprovedWorkoutPlan:
     """Build a validated ApprovedWorkoutPlan from an approved preview payload."""
 
