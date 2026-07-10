@@ -63,6 +63,31 @@ export interface CanonicalFoodServingUnitsResponse {
   serving_units: CanonicalFoodServingUnit[];
 }
 
+export interface RecentCanonicalFood {
+  canonical_food_id: number;
+  display_name: string;
+  last_logged_at: string;
+  last_logged_date: string;
+  last_meal_type: string | null;
+  last_grams: number;
+  last_serving_unit_id?: number;
+  last_serving_unit_label?: string;
+  last_quantity?: number;
+  usage_count: number;
+  nutrient_summary?: {
+    calories?: number;
+    protein_g?: number;
+    carbohydrate_g?: number;
+    fat_g?: number;
+  };
+}
+
+export interface RecentCanonicalFoodsResponse {
+  success: boolean;
+  user_id: number;
+  results: RecentCanonicalFood[];
+}
+
 export interface CanonicalFoodLogResponse {
   success: boolean;
   user_id: number;

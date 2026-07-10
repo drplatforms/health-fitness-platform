@@ -7,6 +7,7 @@ from datetime import date as date_cls
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from services.food_logging_recents_service import get_recent_canonical_foods
 from services.nutrition_actuals_confidence_service import (
     build_public_nutrition_actuals_confidence_for_date,
 )
@@ -213,6 +214,15 @@ def delete_canonical_logged_food_entry(
         "success": True,
         "user_id": user_id,
         **deleted_entry,
+    }
+
+
+@router.get("/nutrition/{user_id}/recent-canonical-foods")
+def recent_canonical_foods(user_id: int, limit: str = "10"):
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": get_recent_canonical_foods(user_id=user_id, limit=limit),
     }
 
 

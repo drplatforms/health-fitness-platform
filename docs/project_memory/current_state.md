@@ -1,3 +1,56 @@
+# Current State — Food Logging Recents v0
+
+Current source of truth: `feature/food-logging-recents-v0`.
+
+Active nutrition logging milestone:
+
+```text
+Food Logging Recents v0
+```
+
+Requested status:
+
+```text
+FOOD_LOGGING_RECENTS_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Reduce daily food logging friction by deriving recent canonical foods from existing logs and letting the user quickly reselect the last-used grams or serving-unit context.
+```
+
+Implemented scope:
+
+- Added a user-scoped recent canonical foods service derived from `food_entries`.
+- Added `GET /nutrition/{user_id}/recent-canonical-foods?limit=10`.
+- Returned distinct active canonical foods ordered by most recent log entry.
+- Preserved grams-only context when serving metadata is absent.
+- Preserved last serving-unit ID, serving label, quantity, and resolved grams when serving metadata is present.
+- Kept recent result limits bounded and public-safe.
+- Added a frontend recent-foods proxy and client helper.
+- Updated the food logging card with compact Recent Foods chips that prefill grams or serving-unit context while preserving the canonical logging endpoint as the write path.
+
+Boundaries preserved:
+
+- No favorites, meal templates, full diary/history, barcode scanning, AI food parsing, meal planning, raw source logging, nutrition target, workout, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Backend remains responsible for serving-unit resolution and nutrition snapshots.
+- Recent foods are derived from existing canonical logs; no new recents persistence was added.
+- Raw source payloads remain non-public.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_food_logging_recents_service.py tests/test_food_logging_recents_api.py -q`
+- `.\.venv\Scripts\python.exe -m pytest tests/test_canonical_food_logging_api.py tests/test_nutrition_serving_unit_logging_api.py tests/test_canonical_serving_unit_discovery_api.py tests/test_nutrition_target_vs_actual_service.py -q`
+- `.\.venv\Scripts\python.exe -m ruff check services api tests scripts`
+- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
+- `npm run lint` and `npm run build` from `frontend`
+- `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/food_logging_recents_v0.md`.
+
+---
+
 # Current State — Serving Unit UX v0
 
 Current source of truth: `feature/serving-unit-ux-v0`.

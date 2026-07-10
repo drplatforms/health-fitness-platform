@@ -8,6 +8,7 @@ import {
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
   CanonicalFoodServingUnitsResponse,
+  RecentCanonicalFoodsResponse,
 } from "@/types/canonicalFood";
 
 async function readErrorMessage(response: Response, fallbackMessage: string) {
@@ -96,6 +97,36 @@ export async function fetchCanonicalFoodServingUnits(
   }
 
   return (await response.json()) as CanonicalFoodServingUnitsResponse;
+}
+
+export async function fetchRecentCanonicalFoods({
+  userId,
+  limit = 10,
+}: {
+  userId: number;
+  limit?: number;
+}): Promise<RecentCanonicalFoodsResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    limit: String(limit),
+  });
+  const response = await fetch(
+    `/api/nutrition-recent-canonical-foods?${params.toString()}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to load recent foods right now."),
+    );
+  }
+
+  return (await response.json()) as RecentCanonicalFoodsResponse;
 }
 
 export async function fetchCanonicalFoodLogs({

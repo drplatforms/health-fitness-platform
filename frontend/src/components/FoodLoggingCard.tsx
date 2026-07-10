@@ -1,11 +1,19 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 
 import { TodayCard } from "@/components/TodayCard";
 import {
   fetchCanonicalFoodServingUnits,
+  fetchRecentCanonicalFoods,
   logCanonicalFood,
   searchCanonicalFoods,
 } from "@/lib/canonicalFoodApi";
@@ -14,6 +22,7 @@ import {
   CanonicalFoodNutrientSummary,
   CanonicalFoodSearchResult,
   CanonicalFoodServingUnit,
+  RecentCanonicalFood,
 } from "@/types/canonicalFood";
 
 interface FoodLoggingCardProps {
@@ -30,10 +39,35 @@ const MEAL_OPTIONS = [
   { label: "Snack", value: "snack" },
 ] as const;
 
+interface PendingRecentContext {
+  canonicalFoodId: number;
+  grams: number;
+  mealType: string | null;
+  servingUnitId?: number;
+  quantity?: number;
+}
+
 function formatCompactNumber(value: number, suffix = ""): string {
   const normalized =
     Math.abs(value % 1) < 0.001 ? String(Math.round(value)) : value.toFixed(1);
   return `${normalized}${suffix}`;
+}
+
+function formatMealLabel(value: string | null | undefined): string {
+  if (!value) {
+    return "Any time";
+  }
+
+  const normalized = value.replace("_", " ");
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function formatRecentAmount(food: RecentCanonicalFood): string {
+  if (food.last_serving_unit_label) {
+    return food.last_serving_unit_label;
+  }
+
+  return `${formatCompactNumber(food.last_grams)}g`;
 }
 
 function formatMacroLine(summary?: CanonicalFoodNutrientSummary): string {
@@ -72,6 +106,21 @@ function scaleNutrient(
   return (value * grams) / 100;
 }
 
+function recentFoodToSearchResult(
+  food: RecentCanonicalFood,
+): CanonicalFoodSearchResult {
+  return {
+    canonical_food_id: food.canonical_food_id,
+    display_name: food.display_name,
+    food_type: "canonical",
+    default_unit: "g",
+    default_grams: food.last_grams,
+    search_priority: 0,
+    matched_on: "recent",
+    aliases: [],
+  };
+}
+
 export function FoodLoggingCard({
   userId,
   targetDate,
@@ -80,21 +129,62 @@ export function FoodLoggingCard({
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CanonicalFoodSearchResult[]>([]);
+  const [recentFoods, setRecentFoods] = useState<RecentCanonicalFood[]>([]);
   const [selectedFood, setSelectedFood] = useState<CanonicalFoodSearchResult | null>(
     null,
   );
+  const pendingRecentContextRef = useRef<PendingRecentContext | null>(null);
   const [selectedSearchQuery, setSelectedSearchQuery] = useState("");
   const [amount, setAmount] = useState("50");
   const [servingUnits, setServingUnits] = useState<CanonicalFoodServingUnit[]>([]);
   const [selectedUnitKey, setSelectedUnitKey] = useState("grams");
   const [mealType, setMealType] = useState("snack");
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingRecentFoods, setIsLoadingRecentFoods] = useState(true);
   const [isLoadingServingUnits, setIsLoadingServingUnits] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
+
+  const refreshRecentFoods = useCallback(async () => {
+    setIsLoadingRecentFoods(true);
+
+    try {
+      const response = await fetchRecentCanonicalFoods({ userId, limit: 10 });
+      setRecentFoods(response.results);
+    } catch {
+      setRecentFoods([]);
+    } finally {
+      setIsLoadingRecentFoods(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    void fetchRecentCanonicalFoods({ userId, limit: 10 })
+      .then((response) => {
+        if (isActive) {
+          setRecentFoods(response.results);
+        }
+      })
+      .catch(() => {
+        if (isActive) {
+          setRecentFoods([]);
+        }
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsLoadingRecentFoods(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId]);
 
   useEffect(() => {
     if (!deferredQuery) {
@@ -160,6 +250,30 @@ export function FoodLoggingCard({
 
         const units = response.serving_units;
         setServingUnits(units);
+        const recentContext =
+          pendingRecentContextRef.current?.canonicalFoodId ===
+          selectedFood.canonical_food_id
+            ? pendingRecentContextRef.current
+            : null;
+
+        if (recentContext) {
+          const recentServingUnit = units.find(
+            (unit) => unit.serving_unit_id === recentContext.servingUnitId,
+          );
+
+          if (recentServingUnit && recentContext.quantity !== undefined) {
+            setSelectedUnitKey(String(recentServingUnit.serving_unit_id));
+            setAmount(String(recentContext.quantity));
+          } else {
+            setSelectedUnitKey("grams");
+            setAmount(String(recentContext.grams));
+          }
+
+          setMealType(recentContext.mealType ?? "");
+          pendingRecentContextRef.current = null;
+          return;
+        }
+
         const defaultUnit = units.find((unit) => unit.is_default) ?? units[0];
 
         if (defaultUnit) {
@@ -175,9 +289,15 @@ export function FoodLoggingCard({
           return;
         }
 
+        const recentContext =
+          pendingRecentContextRef.current?.canonicalFoodId ===
+          selectedFood.canonical_food_id
+            ? pendingRecentContextRef.current
+            : null;
         setServingUnits([]);
         setSelectedUnitKey("grams");
-        setAmount(String(selectedFood.default_grams ?? 50));
+        setAmount(String(recentContext?.grams ?? selectedFood.default_grams ?? 50));
+        pendingRecentContextRef.current = null;
       })
       .finally(() => {
         if (isActive) {
@@ -189,6 +309,30 @@ export function FoodLoggingCard({
       isActive = false;
     };
   }, [selectedFood]);
+
+  function handleSelectRecentFood(food: RecentCanonicalFood) {
+    const selectedRecentFood = recentFoodToSearchResult(food);
+
+    setServingUnits([]);
+    setSelectedUnitKey("grams");
+    setAmount(String(food.last_grams));
+    setMealType(food.last_meal_type ?? "");
+    pendingRecentContextRef.current = {
+      canonicalFoodId: food.canonical_food_id,
+      grams: food.last_grams,
+      mealType: food.last_meal_type,
+      servingUnitId: food.last_serving_unit_id,
+      quantity: food.last_quantity,
+    };
+    setIsLoadingServingUnits(true);
+    setSelectedFood(selectedRecentFood);
+    setSelectedSearchQuery(food.display_name);
+    setQuery(food.display_name);
+    setResults([]);
+    setSearchMessage(null);
+    setActionMessage(null);
+    setErrorMessage(null);
+  }
 
   const amountValue = Number.parseFloat(amount);
   const amountIsValid = Number.isFinite(amountValue) && amountValue > 0;
@@ -274,6 +418,7 @@ export function FoodLoggingCard({
         `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
       );
       setAmount(selectedServingUnit ? "1" : "50");
+      void refreshRecentFoods();
       window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
       router.refresh();
     } catch (error) {
@@ -290,6 +435,37 @@ export function FoodLoggingCard({
   return (
     <TodayCard title="Log Food" className={className}>
       <div className="space-y-3">
+        {recentFoods.length > 0 ? (
+          <div className="space-y-2">
+            <p className="text-sm font-semibold text-slate-900">Recent foods</p>
+            <div className="flex flex-wrap gap-2">
+              {recentFoods.map((food) => (
+                <button
+                  key={food.canonical_food_id}
+                  type="button"
+                  onClick={() => handleSelectRecentFood(food)}
+                  className="max-w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-xs leading-5 text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                >
+                  <span className="font-semibold text-slate-950">
+                    {food.display_name}
+                  </span>
+                  <span className="text-slate-500">
+                    {" "}
+                    · {formatRecentAmount(food)} ·{" "}
+                    {formatMealLabel(food.last_meal_type)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
+        {isLoadingRecentFoods && recentFoods.length === 0 ? (
+          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            Loading recent foods...
+          </p>
+        ) : null}
+
         <div className="space-y-2">
           <label className="text-sm font-semibold text-slate-900" htmlFor="food-search">
             Search foods
@@ -350,6 +526,7 @@ export function FoodLoggingCard({
                     const isSameSelection =
                       selectedFood?.canonical_food_id === food.canonical_food_id;
                     if (!isSameSelection) {
+                      pendingRecentContextRef.current = null;
                       setServingUnits([]);
                       setSelectedUnitKey("grams");
                       setAmount("50");
