@@ -1,17 +1,70 @@
-# Current State — Food Logging Edit UX v0.1
+# Current State — Workout Progression History v0
 
-Current source of truth: `feature/food-logging-edit-ux-v0-1`.
+Current source of truth: `feature/workout-progression-history-v0`.
 
-Active nutrition logging milestone:
+Active workout milestone:
 
 ```text
-Food Logging Edit UX v0.1
+Workout Progression History v0
 ```
 
 Requested status:
 
 ```text
-FOOD_LOGGING_EDIT_UX_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+WORKOUT_PROGRESSION_HISTORY_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Add compact previous-performance context to the workout flow so the user can see what they did last time for the same exercise.
+```
+
+Implemented scope:
+
+- Added a read-only, user-scoped workout progression history service for completed planned workout executions.
+- Added `POST /workout-plans/{user_id}/progression-history`.
+- Summarized last completed session, recent best set, completed session count, logging quality, and no-history/limited-history states by exercise name.
+- Kept public output bounded and excluded raw actual-set rows and notes.
+- Added compact previous-performance display near workout preview/persisted exercise cards.
+- Added a frontend proxy route, typed API helper, and TypeScript response models.
+
+Boundaries preserved:
+
+- No automatic progression, load increase, deload, periodization, workout generation, workout mutation, recommendation behavior, nutrition, report, provider, RAG, embeddings, vector search, or agent orchestration changes were added.
+- Existing workout preview/select/start/log/edit/complete/history and planned-vs-actual behavior remains stable.
+- Only completed planned workout executions are used for the public history surface.
+- Incomplete set logging returns limited-state messaging rather than coaching claims.
+
+Validation target:
+
+- `.\.venv\Scripts\python.exe -m pytest tests/test_workout_progression_history_service.py tests/test_workout_progression_history_api.py -q`
+- Existing available workout regression slice.
+- Existing available recommendation stability slice.
+- `.\.venv\Scripts\python.exe -m ruff check services api tests scripts`
+- touched-file `.\.venv\Scripts\python.exe -m ruff format --check ...`
+- `npm run lint`
+- `npm run build`
+- `git diff --check`
+
+See milestone memory: `docs/project_memory/milestones/workout_progression_history_v0.md`.
+
+---
+
+# Current State — Food Logging Edit UX v0.1
+
+Current accepted source of truth: `main` after `a2bc7b3 Merge food logging edit UX v0.1`.
+
+Accepted nutrition logging milestone:
+
+```text
+Food Logging Edit UX v0.1
+```
+
+Accepted status:
+
+```text
+FOOD_LOGGING_EDIT_UX_V0_1_ACCEPTED_AND_MERGED
 ```
 
 Purpose:

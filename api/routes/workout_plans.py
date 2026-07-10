@@ -39,6 +39,11 @@ from services.workout_plan_service import (
     build_workout_context,
     render_approved_workout_plan,
 )
+from services.workout_progression_history_service import (
+    DEFAULT_HISTORY_LIMIT,
+    DEFAULT_LOOKBACK_DAYS,
+    build_workout_progression_history,
+)
 
 router = APIRouter()
 
@@ -78,6 +83,12 @@ class WorkoutPlanSelectionPayload(BaseModel):
     approved_workout_plan: dict
 
 
+class WorkoutProgressionHistoryPayload(BaseModel):
+    exercise_names: list[str]
+    lookback_days: int = DEFAULT_LOOKBACK_DAYS
+    limit: int = DEFAULT_HISTORY_LIMIT
+
+
 @router.get("/workout-plans/current/{user_id}")
 def current_workout_plan_state(user_id: int, target_date: str | None = None):
     daily_state = resolve_workout_daily_state(user_id, target_date=target_date)
@@ -106,6 +117,26 @@ def current_workout_plan_state(user_id: int, target_date: str | None = None):
         "user_id": user_id,
         "workout_daily_state": asdict(daily_state),
         "current_execution_state": current_execution_state,
+    }
+
+
+@router.post("/workout-plans/{user_id}/progression-history")
+def workout_progression_history(
+    user_id: int,
+    payload: WorkoutProgressionHistoryPayload,
+):
+    histories = build_workout_progression_history(
+        user_id=user_id,
+        planned_exercises=payload.exercise_names,
+        lookback_days=payload.lookback_days,
+        limit=payload.limit,
+    )
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "lookback_days": payload.lookback_days,
+        "exercise_histories": [asdict(history) for history in histories],
     }
 
 
