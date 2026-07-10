@@ -1,17 +1,23 @@
-# Current State — Agent Workflow Hardening v0
+# Current State — Agent Workflow Hardening v0 (Closed)
 
-Current source of truth: `feature/agent-workflow-hardening-v0`.
+Current source of truth: `main` at `4e89f27 Merge agent workflow hardening v0`.
 
-Active workflow milestone:
+Accepted merge commit: `4e89f27`.
+
+Feature implementation commit: `1fa45a2`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-10_4e89f27_main_merge-agent-workflow-hardening-v0.zip`.
+
+Milestone:
 
 ```text
 Agent Workflow Hardening v0
 ```
 
-Requested status:
+Milestone status:
 
 ```text
-AGENT_WORKFLOW_HARDENING_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+AGENT_WORKFLOW_HARDENING_V0_ACCEPTED_MERGED_PUSHED_SNAPSHOTTED_CLOSED
 ```
 
 Purpose:
@@ -20,7 +26,7 @@ Purpose:
 Add concise repository-native Codex instructions, a reusable milestone loop, a targeted validation matrix, and a read-only status helper without changing application behavior.
 ```
 
-Authorized scope:
+Delivered scope:
 
 - Replace the historical root instruction bundle with concise repository-wide implementation and safety rules.
 - Add frontend-specific instructions for compact UI work and production browser confidence.
@@ -29,7 +35,7 @@ Authorized scope:
 - Add a read-only PowerShell milestone status helper with Git, artifact, database, and diff checks.
 - Preserve application, API, persistence, dependency, and provider behavior.
 
-Validation completed:
+Accepted validation:
 
 - Repository skill validation passed.
 - The status helper passed normal feature-work inspection and detected a temporary forbidden-artifact fixture without failing; the fixture was removed.
@@ -40,6 +46,7 @@ Validation completed:
 - Frontend lint and production build passed.
 - Production browser smoke passed against a temporary database copy with zero console errors and no mobile horizontal overflow.
 - The real `fitness_ai.db` was not mutated, and milestone-created smoke, bounded-walker fixture, and generated-cache artifacts were removed.
+- The milestone was accepted, merged to `main`, pushed, snapshotted, and closed.
 
 See milestone memory: `docs/project_memory/milestones/agent_workflow_hardening_v0.md`.
 
