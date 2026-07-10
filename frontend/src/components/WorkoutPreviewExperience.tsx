@@ -198,6 +198,10 @@ function remainingSetLabel(completedCount: number, plannedSets: number): string 
   return `${remaining} set${remaining === 1 ? "" : "s"} remaining`;
 }
 
+function missingSetCount(summary: WorkoutPlannedVsActualSummary): number {
+  return Math.max(summary.planned_set_count - summary.completed_set_count, 0);
+}
+
 function compactMetric(
   value: number | string | null | undefined,
   suffix = "",
@@ -362,6 +366,7 @@ export function WorkoutPreviewExperience({
   const [editFormStateByActualSetId, setEditFormStateByActualSetId] = useState<
     Record<number, ActualSetFormState>
   >({});
+  const [isCompletionReviewOpen, setIsCompletionReviewOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
@@ -437,6 +442,7 @@ export function WorkoutPreviewExperience({
       setIsLoadingPreview(true);
       setErrorMessage(null);
       setActionMessage(null);
+      setIsCompletionReviewOpen(false);
 
       try {
         const currentResult = await fetchWorkoutCurrent({
@@ -609,6 +615,7 @@ export function WorkoutPreviewExperience({
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
     setProgressionHistoryByExerciseName({});
+    setIsCompletionReviewOpen(false);
     setActionMessage(null);
     setErrorMessage(null);
   }
@@ -625,6 +632,7 @@ export function WorkoutPreviewExperience({
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
     setProgressionHistoryByExerciseName({});
+    setIsCompletionReviewOpen(false);
     setActionMessage(null);
     setErrorMessage(null);
   }
@@ -728,6 +736,7 @@ export function WorkoutPreviewExperience({
       setNoteInputExpandedByExerciseId({});
       setEditingActualSetId(null);
       setEditFormStateByActualSetId({});
+      setIsCompletionReviewOpen(false);
       setActionMessage(
         `Selected workout plan ${result.data?.workout_plan_instance.id}.`,
       );
@@ -774,6 +783,7 @@ export function WorkoutPreviewExperience({
       );
       setEditingActualSetId(null);
       setEditFormStateByActualSetId({});
+      setIsCompletionReviewOpen(false);
       setActionMessage(`Started workout plan ${selectedPlan.id}.`);
     } finally {
       setIsSubmitting(false);
@@ -846,6 +856,7 @@ export function WorkoutPreviewExperience({
         ...current,
         [exercise.id]: false,
       }));
+      setIsCompletionReviewOpen(false);
 
       if (latestPlan && latestExecution) {
         await loadPlannedVsActualSummary(latestPlan.id, latestExecution.status);
@@ -899,6 +910,7 @@ export function WorkoutPreviewExperience({
         result.data?.planned_vs_actual_summary ?? plannedVsActualSummary,
       );
       handleCancelEditSet(actualSet.id);
+      setIsCompletionReviewOpen(false);
       setActionMessage(`Updated ${actualSet.exercise_name} set ${actualSet.set_number}.`);
     } finally {
       setIsSubmitting(false);
@@ -928,10 +940,25 @@ export function WorkoutPreviewExperience({
         result.data?.planned_vs_actual_summary ?? plannedVsActualSummary,
       );
       handleCancelEditSet(actualSet.id);
+      setIsCompletionReviewOpen(false);
       setActionMessage(`Deleted ${actualSet.exercise_name} set ${actualSet.set_number}.`);
     } finally {
       setIsSubmitting(false);
     }
+  }
+
+  async function handleOpenCompletionReview() {
+    setActionMessage(null);
+    setErrorMessage(null);
+    setIsCompletionReviewOpen(true);
+
+    if (selectedPlan !== null && plannedVsActualSummary === null) {
+      await loadPlannedVsActualSummary(selectedPlan.id, summaryStatus);
+    }
+  }
+
+  function handleCancelCompletionReview() {
+    setIsCompletionReviewOpen(false);
   }
 
   async function handleCompleteWorkout() {
@@ -959,6 +986,7 @@ export function WorkoutPreviewExperience({
           ? { ...current, state: "completed_today", user_safe_message: null }
           : current,
       );
+      setIsCompletionReviewOpen(false);
       setActionMessage("Workout completed successfully.");
       await loadPlannedVsActualSummary(selectedPlan.id, "completed");
     } finally {
@@ -983,6 +1011,11 @@ export function WorkoutPreviewExperience({
     executionSession !== null &&
     (selectedPlan.status === "in_progress" ||
       executionSession.status === "in_progress");
+  const completionReviewMissingSets = plannedVsActualSummary
+    ? missingSetCount(plannedVsActualSummary)
+    : 0;
+  const hasCompletionReviewMissingSets =
+    plannedVsActualSummary !== null && completionReviewMissingSets > 0;
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       <TodayCard
@@ -1135,26 +1168,96 @@ export function WorkoutPreviewExperience({
           ) : null}
 
           {canStartWorkout || canCompleteWorkout ? (
-            <div className="flex flex-wrap gap-3">
-              {canStartWorkout ? (
-                <button
-                  type="button"
-                  onClick={() => void handleStartWorkout()}
-                  disabled={isLoadingPreview || isSubmitting}
-                  className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Start workout
-                </button>
-              ) : null}
-              {canCompleteWorkout ? (
-                <button
-                  type="button"
-                  onClick={() => void handleCompleteWorkout()}
-                  disabled={isSubmitting}
-                  className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  Complete workout
-                </button>
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-3">
+                {canStartWorkout ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleStartWorkout()}
+                    disabled={isLoadingPreview || isSubmitting}
+                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Start workout
+                  </button>
+                ) : null}
+                {canCompleteWorkout && !isCompletionReviewOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleOpenCompletionReview()}
+                    disabled={isSubmitting}
+                    className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Complete workout
+                  </button>
+                ) : null}
+              </div>
+
+              {canCompleteWorkout && isCompletionReviewOpen ? (
+                <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-amber-200">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-slate-950">
+                        Complete workout?
+                      </p>
+                      {plannedVsActualSummary ? (
+                        <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                            Logged: {plannedVsActualSummary.completed_set_count} /{" "}
+                            {plannedVsActualSummary.planned_set_count} sets
+                          </span>
+                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                            Exercises:{" "}
+                            {plannedVsActualSummary.completed_exercise_count} /{" "}
+                            {plannedVsActualSummary.planned_exercise_count}
+                          </span>
+                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                            Avg RIR:{" "}
+                            {compactMetric(plannedVsActualSummary.average_actual_rir)}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-medium text-slate-600">
+                          Workout summary is still loading.
+                        </p>
+                      )}
+                      {plannedVsActualSummary ? (
+                        <p
+                          className={`text-sm font-medium ${
+                            hasCompletionReviewMissingSets
+                              ? "text-amber-800"
+                              : "text-emerald-800"
+                          }`}
+                        >
+                          {hasCompletionReviewMissingSets
+                            ? `${completionReviewMissingSets} planned set${
+                                completionReviewMissingSets === 1 ? " is" : "s are"
+                              } not logged yet. You can complete anyway, or go back and finish logging.`
+                            : "All planned sets are logged."}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={handleCancelCompletionReview}
+                        disabled={isSubmitting}
+                        className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleCompleteWorkout()}
+                        disabled={isSubmitting || plannedVsActualSummary === null}
+                        className="rounded-xl bg-amber-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {hasCompletionReviewMissingSets
+                          ? "Complete anyway"
+                          : "Complete workout"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ) : null}
             </div>
           ) : null}
