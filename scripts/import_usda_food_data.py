@@ -59,7 +59,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Optional comma-separated USDA food.csv data_type values for --fdc-dir "
-            "imports. Defaults to foundation_food."
+            "imports. Defaults to foundation_food, sr_legacy_food, and "
+            "survey_fndds_food."
         ),
     )
     return parser
@@ -106,6 +107,8 @@ def main() -> int:
     print(f"Rows processed: {summary.total_rows}")
     print(f"Rows inserted: {summary.inserted_count}")
     print(f"Rows updated: {summary.updated_count}")
+    for data_type, count in summary.processed_count_by_data_type.items():
+        print(f"Rows processed [{data_type}]: {count}")
     return 0
 
 

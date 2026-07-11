@@ -16,6 +16,7 @@ import database
 from services.food_catalog_inventory_service import (
     build_food_catalog_inventory_report,
 )
+from services.usda_food_data_import_service import GENERIC_FDC_DATA_TYPES
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -75,18 +76,19 @@ def main() -> int:
     print("USDA food catalog source inventory complete.")
     print(f"Database: {database.DB_PATH}")
     print(f"Raw source rows: {report.macro_coverage['total']}")
-    print(
-        "Foundation raw rows: "
-        f"{report.raw_count_by_data_type.get('foundation_food', 0)}"
-    )
+    for data_type in GENERIC_FDC_DATA_TYPES:
+        print(
+            f"Raw rows [{data_type}]: {report.raw_count_by_data_type.get(data_type, 0)}"
+        )
     print(f"Canonical foods: {report.canonical_food_count}")
     print(f"Canonical source links: {report.canonical_source_link_count}")
     if args.fdc_dir:
         print(f"FDC directory: {Path(args.fdc_dir).resolve()}")
-        print(
-            "FDC foundation rows: "
-            f"{sum(report.fdc_foundation_count_by_category.values())}"
-        )
+        for data_type in GENERIC_FDC_DATA_TYPES:
+            print(
+                f"FDC rows [{data_type}]: "
+                f"{report.fdc_food_count_by_data_type.get(data_type, 0)}"
+            )
     for note in report.notes:
         print(f"Note: {note}")
     if args.report_path:

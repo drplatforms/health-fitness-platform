@@ -8,16 +8,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import database
-from services.food_normalization_service import ensure_food_normalization_tables
+import services.usda_food_data_import_service as usda_import_service
+from services.food_normalization_service import (
+    create_canonical_food,
+    create_raw_food_source_record,
+    ensure_food_normalization_tables,
+    link_canonical_food_to_source,
+)
 from services.usda_food_data_import_service import (
     import_usda_food_csv,
     import_usda_food_fdc_directory,
+    normalize_fdc_data_type_key,
 )
 
 FIXTURE_PATH = Path("tests/fixtures/usda/sample_foods.csv")
 FDC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_minimal")
 FDC_LOGGABLE_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_loggable_filter")
+FDC_GENERIC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_generic")
 
 
 def _seed_test_db(tmp_path: Path, monkeypatch) -> Path:
@@ -179,7 +189,7 @@ def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
 
     assert tuna_row is not None
     assert tuna_row["raw_description"] == "Tuna, canned in water"
-    assert tuna_row["data_type"] == "Branded"
+    assert tuna_row["data_type"] == "branded_food"
     assert tuna_row["brand_name"] == "Sample Foods LLC"
     assert tuna_row["gtin_upc"] == "012345678905"
     assert tuna_row["serving_size"] == 56
@@ -190,6 +200,9 @@ def test_fdc_directory_import_joins_macro_files_and_preserves_fdc_id(
     assert tuna_row["carbs_g_per_100g"] == 0
     assert tuna_row["fat_g_per_100g"] == 0.8
     assert tuna_row["import_batch"] == "fdc_fixture_batch_v0"
+    tuna_payload = json.loads(tuna_row["source_payload_json"])
+    assert tuna_payload["source_data_type"] == "Branded"
+    assert tuna_payload["normalized_data_type"] == "branded_food"
 
     assert apricot_row is not None
     assert apricot_row["food_category"] == "Fruits and Fruit Juices"
@@ -307,62 +320,334 @@ def test_rerunning_fdc_directory_import_updates_existing_fdc_ids_without_duplica
     assert batch == "second_fdc"
 
 
-def test_fdc_directory_import_defaults_to_foundation_food_only(
+def test_fdc_directory_import_defaults_to_generic_source_profile(
     tmp_path,
     monkeypatch,
 ) -> None:
     db_path = _seed_test_db(tmp_path, monkeypatch)
 
     summary = import_usda_food_fdc_directory(
-        FDC_LOGGABLE_FIXTURE_DIR,
-        import_batch="foundation_only",
+        FDC_GENERIC_FIXTURE_DIR,
+        import_batch="generic_default",
     )
 
     assert summary.database_path == str(db_path)
-    assert summary.total_rows == 3
-    assert summary.inserted_count == 3
+    assert summary.total_rows == 5
+    assert summary.inserted_count == 5
+    assert summary.processed_count_by_data_type == {
+        "foundation_food": 1,
+        "sr_legacy_food": 2,
+        "survey_fndds_food": 2,
+    }
 
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     count = conn.execute(
         "SELECT COUNT(*) AS count FROM raw_food_source_records"
     ).fetchone()["count"]
-    imported_types = [
-        row["data_type"]
+    imported_types = {
+        row["data_type"]: row["count"]
         for row in conn.execute(
             """
-            SELECT data_type
+            SELECT data_type, COUNT(*) AS count
             FROM raw_food_source_records
-            ORDER BY CAST(source_record_id AS INTEGER)
+            GROUP BY data_type
             """
         ).fetchall()
-    ]
-    apricot_row = conn.execute(
+    }
+    foundation_row = conn.execute(
         """
         SELECT *
         FROM raw_food_source_records
         WHERE source_record_id = ?
         """,
-        ("2710815",),
+        ("100001",),
     ).fetchone()
-    sample_row = conn.execute(
-        """
-        SELECT *
-        FROM raw_food_source_records
-        WHERE source_record_id = ?
-        """,
-        ("900001",),
+    excluded_ids = {
+        row["source_record_id"]
+        for row in conn.execute(
+            """
+            SELECT source_record_id
+            FROM raw_food_source_records
+            WHERE source_record_id IN ('100006', '100007')
+            """
+        ).fetchall()
+    }
+    conn.close()
+
+    assert count == 5
+    assert imported_types == {
+        "foundation_food": 1,
+        "sr_legacy_food": 2,
+        "survey_fndds_food": 2,
+    }
+    assert foundation_row is not None
+    assert foundation_row["food_category"] == "Synthetic Fruits Category"
+    assert excluded_ids == set()
+    payload = json.loads(foundation_row["source_payload_json"])
+    assert payload["fdc_id"] == 100001
+    assert payload["source_data_type"] == "Foundation Foods"
+    assert payload["normalized_data_type"] == "foundation_food"
+
+
+@pytest.mark.parametrize(
+    ("alias", "expected"),
+    [
+        ("Foundation Foods", "foundation_food"),
+        ("Foundation Food", "foundation_food"),
+        ("foundation_foods", "foundation_food"),
+        ("SR Legacy", "sr_legacy_food"),
+        ("sr_legacy_food", "sr_legacy_food"),
+        ("Survey (FNDDS)", "survey_fndds_food"),
+        ("Survey Foods (FNDDS)", "survey_fndds_food"),
+        ("FNDDS", "survey_fndds_food"),
+        ("survey_fndds_food", "survey_fndds_food"),
+        ("Sample Food", "sample_food"),
+    ],
+)
+def test_known_fdc_data_type_aliases_normalize_to_stable_keys(
+    alias,
+    expected,
+) -> None:
+    assert normalize_fdc_data_type_key(alias) == expected
+
+
+def test_fdc_directory_streams_large_tables_and_skips_default_branded_metadata(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    eager_loader = usda_import_service._load_csv_rows
+
+    def reject_large_table_materialization(input_path):
+        if Path(input_path).name in {"food.csv", "food_nutrient.csv"}:
+            raise AssertionError("Large FDC tables must be streamed.")
+        return eager_loader(input_path)
+
+    def reject_default_branded_load(*args, **kwargs):
+        raise AssertionError("Default generic import must not load branded metadata.")
+
+    monkeypatch.setattr(
+        usda_import_service,
+        "_load_csv_rows",
+        reject_large_table_materialization,
+    )
+    monkeypatch.setattr(
+        usda_import_service,
+        "_load_branded_food_rows",
+        reject_default_branded_load,
+    )
+
+    summary = import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+
+    assert summary.database_path == str(db_path)
+    assert summary.total_rows == 5
+
+
+def test_generic_import_preserves_zero_missing_and_filtered_macro_rows(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    zero_row = conn.execute(
+        "SELECT * FROM raw_food_source_records WHERE source_record_id = '100003'"
+    ).fetchone()
+    missing_row = conn.execute(
+        "SELECT * FROM raw_food_source_records WHERE source_record_id = '100005'"
     ).fetchone()
     conn.close()
 
-    assert count == 3
-    assert imported_types == ["foundation_food", "foundation_food", "foundation_food"]
-    assert apricot_row is not None
-    assert apricot_row["source_record_id"] == "2710815"
-    assert apricot_row["food_category"] == "Fruits and Fruit Juices"
-    assert sample_row is None
-    payload = json.loads(apricot_row["source_payload_json"])
-    assert payload["fdc_id"] == 2710815
+    assert zero_row is not None
+    assert zero_row["calories_per_100g"] == 0
+    assert zero_row["protein_g_per_100g"] == 0
+    assert zero_row["carbs_g_per_100g"] == 0
+    assert zero_row["fat_g_per_100g"] == 0
+    assert missing_row is not None
+    assert missing_row["calories_per_100g"] == 80
+    assert missing_row["protein_g_per_100g"] is None
+    assert missing_row["carbs_g_per_100g"] == 15
+    assert missing_row["fat_g_per_100g"] is None
+
+
+def test_fndds_metadata_uses_wweia_category_and_preserves_provenance(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    fndds_row = conn.execute(
+        "SELECT * FROM raw_food_source_records WHERE source_record_id = '100004'"
+    ).fetchone()
+    sr_row = conn.execute(
+        "SELECT * FROM raw_food_source_records WHERE source_record_id = '100002'"
+    ).fetchone()
+    conn.close()
+
+    assert fndds_row is not None
+    assert fndds_row["data_type"] == "survey_fndds_food"
+    assert fndds_row["food_category"] == "Synthetic Mixed Dishes Category"
+    fndds_payload = json.loads(fndds_row["source_payload_json"])
+    assert fndds_payload["source_data_type"] == "Survey (FNDDS)"
+    assert fndds_payload["normalized_data_type"] == "survey_fndds_food"
+    assert fndds_payload["food_code"] == "90010000"
+    assert fndds_payload["wweia_category_number"] == "1002"
+    assert fndds_payload["wweia_food_category_code"] == "1002"
+
+    assert sr_row is not None
+    assert sr_row["food_category"] == "Synthetic Grains Category"
+
+
+def test_fndds_import_handles_missing_optional_metadata_safely(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_without_fndds_metadata"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    (fixture_copy / "survey_fndds_food.csv").unlink()
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    row = conn.execute(
+        "SELECT * FROM raw_food_source_records WHERE source_record_id = '100004'"
+    ).fetchone()
+    conn.close()
+
+    assert row is not None
+    assert row["food_category"] is None
+    payload = json.loads(row["source_payload_json"])
+    assert "food_code" not in payload
+    assert "wweia_category_number" not in payload
+    assert "wweia_food_category_code" not in payload
+
+
+def test_generic_limit_applies_after_filtering_across_source_profile(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    summary = import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR, limit=3)
+
+    assert summary.database_path == str(db_path)
+    assert summary.processed_count_by_data_type == {
+        "foundation_food": 1,
+        "sr_legacy_food": 1,
+        "survey_fndds_food": 1,
+    }
+    conn = sqlite3.connect(db_path)
+    imported_ids = {
+        row[0]
+        for row in conn.execute(
+            "SELECT source_record_id FROM raw_food_source_records"
+        ).fetchall()
+    }
+    conn.close()
+    assert imported_ids == {"100001", "100002", "100004"}
+
+
+def test_rerunning_generic_import_updates_without_duplicates(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    first = import_usda_food_fdc_directory(
+        FDC_GENERIC_FIXTURE_DIR,
+        import_batch="generic_first",
+    )
+    second = import_usda_food_fdc_directory(
+        FDC_GENERIC_FIXTURE_DIR,
+        import_batch="generic_second",
+    )
+
+    assert first.inserted_count == 5
+    assert second.inserted_count == 0
+    assert second.updated_count == 5
+    conn = sqlite3.connect(db_path)
+    count = conn.execute("SELECT COUNT(*) FROM raw_food_source_records").fetchone()[0]
+    batches = {
+        row[0]
+        for row in conn.execute(
+            "SELECT DISTINCT import_batch FROM raw_food_source_records"
+        ).fetchall()
+    }
+    conn.close()
+    assert count == 5
+    assert batches == {"generic_second"}
+
+
+def test_successful_generic_import_does_not_mutate_canonical_tables(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    existing_raw = create_raw_food_source_record(
+        source_name="Manual QA Source",
+        source_record_id="canonical-source",
+        raw_description="Existing synthetic canonical source row",
+    )
+    canonical = create_canonical_food("Existing Synthetic Linked Food")
+    link_canonical_food_to_source(canonical.id, existing_raw.id)
+
+    import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+
+    conn = sqlite3.connect(db_path)
+    canonical_count = conn.execute("SELECT COUNT(*) FROM canonical_foods").fetchone()[0]
+    link_rows = conn.execute(
+        "SELECT canonical_food_id, raw_food_source_record_id FROM food_source_links"
+    ).fetchall()
+    conn.close()
+    assert canonical_count == 1
+    assert link_rows == [(canonical.id, existing_raw.id)]
+
+
+def test_generic_validation_failure_leaves_raw_and_canonical_rows_unchanged(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    existing_raw = create_raw_food_source_record(
+        source_name="Manual QA Source",
+        source_record_id="existing-source",
+        raw_description="Existing synthetic source row",
+    )
+    canonical = create_canonical_food("Existing Synthetic Canonical Food")
+    link_canonical_food_to_source(canonical.id, existing_raw.id)
+    fixture_copy = tmp_path / "fdc_generic_invalid"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    food_path = fixture_copy / "food.csv"
+    rows = list(csv.DictReader(food_path.read_text(encoding="utf-8").splitlines()))
+    rows[-1]["description"] = ""
+    with food_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+
+    with pytest.raises(ValueError, match="description is required"):
+        import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    raw_rows = conn.execute(
+        "SELECT source_name, source_record_id FROM raw_food_source_records"
+    ).fetchall()
+    canonical_count = conn.execute("SELECT COUNT(*) FROM canonical_foods").fetchone()[0]
+    link_count = conn.execute("SELECT COUNT(*) FROM food_source_links").fetchone()[0]
+    conn.close()
+    assert raw_rows == [("Manual QA Source", "existing-source")]
+    assert canonical_count == 1
+    assert link_count == 1
 
 
 def test_fdc_directory_import_override_can_include_non_default_review_rows(
@@ -583,6 +868,8 @@ def test_cli_help_is_available() -> None:
     assert "Import either a simple USDA-style CSV file" in result.stdout
     assert "--fdc-dir" in result.stdout
     assert "--include-data-types" in result.stdout
+    normalized_help = " ".join(result.stdout.split())
+    assert "foundation_food, sr_legacy_food, and survey_fndds_food" in normalized_help
 
 
 def test_cli_imports_fixture_into_scratch_database(tmp_path: Path) -> None:
@@ -636,3 +923,30 @@ def test_cli_imports_fdc_directory_into_scratch_database(tmp_path: Path) -> None
     assert "USDA food import complete." in result.stdout
     assert "Rows processed: 2" in result.stdout
     assert "Rows inserted: 2" in result.stdout
+    assert "Rows processed [foundation_food]" in result.stdout
+    assert "Rows processed [sample_food]" in result.stdout
+
+
+def test_cli_default_imports_all_generic_data_types(tmp_path: Path) -> None:
+    db_path = tmp_path / "scratch" / "usda_generic_import.db"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/import_usda_food_data.py",
+            "--fdc-dir",
+            str(FDC_GENERIC_FIXTURE_DIR),
+            "--db-path",
+            str(db_path),
+            "--import-batch",
+            "cli_generic_fixture_batch",
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Rows processed: 5" in result.stdout
+    assert "Rows processed [foundation_food]: 1" in result.stdout
+    assert "Rows processed [sr_legacy_food]: 2" in result.stdout
+    assert "Rows processed [survey_fndds_food]: 2" in result.stdout

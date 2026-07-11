@@ -1,42 +1,65 @@
-# Current State - Workout Execution Integrity Fixes v0.1
+# Current State - USDA Generic Source Expansion v0
 
-Current source of truth: `feature/workout-execution-integrity-fixes-v0-1` based on `main` at `d48d462`.
+Current source of truth: `feature/usda-generic-source-expansion-v0` based on accepted `main` at `d424a83`.
 
-Active workout milestone:
+Active food-catalog milestone:
 
 ```text
-Workout Execution Integrity Fixes v0.1
+USDA Generic Source Expansion v0
 ```
 
-Requested status:
+Status:
 
 ```text
-WORKOUT_EXECUTION_INTEGRITY_FIXES_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_INDEPENDENT_REVIEW
+USDA_GENERIC_SOURCE_EXPANSION_V0_IMPLEMENTATION_COMPLETE
 ```
 
 Purpose:
 
 ```text
-Correct substitution attribution, planned set-number reuse and duplicate protection, and completion percentages above 100% without changing the database schema or broader workout behavior.
+Expand the raw FoodData Central catalog to Foundation Foods, SR Legacy, and Survey Foods (FNDDS) without promoting rows into the canonical catalog.
 ```
 
 Implemented scope:
 
-- Effective planned-exercise identity now prefers the substitution pointer and otherwise uses the direct planned-exercise pointer.
-- Completed and skipped exercise counts credit substitution work exactly once while substitution counts remain separate.
-- Planned and substitution rows reuse the smallest missing planned set number, then allocate an explicit extra number after planned slots are full.
-- Service-level create/update validation rejects duplicate effective planned slots without partial mutation; no database uniqueness migration was added.
-- Completion is capped at `100%`, truthful completed-set totals remain visible, and `extra_set_count` drives a compact neutral extra-set label.
-- Saved set rows are displayed in set-number order after a missing slot is re-logged.
+- The FDC directory importer defaults to stable keys `foundation_food`, `sr_legacy_food`, and `survey_fndds_food`; branded, experimental, and support rows remain excluded unless explicitly requested.
+- `food.csv` and `food_nutrient.csv` are streamed and filtered so only selected foods and their four supported macros are retained in memory.
+- FNDDS rows use the documented survey-to-WWEIA category relationship and preserve food code and category provenance in the raw payload.
+- Raw records preserve both the original USDA data-type label and its normalized stable key.
+- Inventory now reports grouped macro coverage and source-appropriate category counts for all three generic types while remaining read-only.
+- Source identity and idempotent upserts remain `source_name + FDC ID`; no canonical promotion, schema, or migration change was added.
 
 Validation completed:
 
-- Persistence and progression-history slice: `103 passed`.
-- Workout planning, Today, rotation, and sizing slice: `128 passed`.
-- Ruff lint/format, frontend lint, and production build passed.
-- Project-memory checker completed with `590 PASS`, `58 WARN`, and `0 FAIL`; checker tests passed with `29 passed`.
-- Production browser smoke passed on a temporary database for middle/first-slot reuse, edit/cancel/delete, substitution credit, capped extra-set summary, completion review, desktop/mobile layout, no overflow, and zero console errors.
-- The real `fitness_ai.db` was untouched; temporary smoke artifacts and dedicated processes were removed.
+- USDA importer and inventory slice: `58 passed`.
+- Food import and promotion regression slice: `44 passed`.
+- Canonical logging and search confidence slice: `70 passed`.
+- Scratch import processed `5` generic rows (`1` Foundation, `2` SR Legacy, `2` FNDDS), excluded branded/experimental rows, and reran as `5` updates with no duplicates or canonical-table changes.
+- Ruff lint/format checks passed for the touched Python files.
+- Project-memory validation completed with `590 PASS`, `58 WARN`, and `0 FAIL`; checker tests passed with `29 passed`.
+- Read-only production browser smoke passed for Today, Nutrition, canonical food search/logging UI, Workout, zero console errors, and no horizontal overflow around 390px.
+- No extracted full local FDC dataset was available for the optional large-dataset validation; no download was attempted.
+- The real `fitness_ai.db` was untouched; scratch and browser-smoke artifacts and dedicated processes were removed.
+
+See milestone memory: `docs/project_memory/milestones/usda_generic_source_expansion_v0.md`.
+
+---
+
+# Current State - Workout Execution Integrity Fixes v0.1 (Closed)
+
+Current source of truth: `main` at `d424a83 Merge workout execution integrity fixes v0.1`.
+
+Feature implementation commit: `d2538d7 Fix workout execution integrity`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-10_d424a83_main_merge-workout-execution-integrity-fixes-v0-1.zip`.
+
+Milestone status:
+
+```text
+WORKOUT_EXECUTION_INTEGRITY_FIXES_V0_1_ACCEPTED_MERGED_PUSHED_SNAPSHOTTED_CLOSED
+```
+
+The milestone was accepted, merged, pushed, snapshotted, and closed after its targeted tests, Ruff checks, frontend lint/build, project-memory validation, and production browser smoke passed.
 
 See milestone memory: `docs/project_memory/milestones/workout_execution_integrity_fixes_v0_1.md`.
 

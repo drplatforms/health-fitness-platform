@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,8 @@ class UsdaFoodImportRow:
     serving_size: float | None = None
     serving_size_unit: str | None = None
     food_category: str | None = None
+    source_data_type: str | None = None
+    source_payload_metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -28,3 +30,4 @@ class UsdaFoodImportSummary:
     total_rows: int
     inserted_count: int
     updated_count: int
+    processed_count_by_data_type: dict[str, int] = field(default_factory=dict)
