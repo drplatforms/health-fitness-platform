@@ -1,14 +1,18 @@
 # Workout Execution Integrity Fixes v0.1
 
-Current source of truth: `feature/workout-execution-integrity-fixes-v0-1`.
+Current source of truth: `main` at `d424a83 Merge workout execution integrity fixes v0.1`.
 
-Base branch: `main` at `d48d462 Merge agent workflow hardening closeout memory fix v0.0.1`.
+Feature implementation commit: `d2538d7 Fix workout execution integrity`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-10_d424a83_main_merge-workout-execution-integrity-fixes-v0-1.zip`.
 
 Status:
 
 ```text
-WORKOUT_EXECUTION_INTEGRITY_FIXES_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_INDEPENDENT_REVIEW
+WORKOUT_EXECUTION_INTEGRITY_FIXES_V0_1_ACCEPTED_MERGED_PUSHED_SNAPSHOTTED_CLOSED
 ```
+
+The milestone was accepted, merged to `main`, pushed, snapshotted, and closed.
 
 ## Purpose
 

@@ -1,0 +1,8 @@
+fdc_id,description,data_type,food_category_id
+100006,Synthetic Branded Snack,Branded,
+100001,Synthetic Foundation Fruit,Foundation Foods,9
+100007,Synthetic Experimental Support Food,Experimental,
+100002,Synthetic SR Grain,SR Legacy,20
+100004,Synthetic Survey Mixed Dish,Survey (FNDDS),
+100003,Synthetic SR Zero Macro Spice,SR Legacy,2
+100005,Synthetic Survey Missing Macro Drink,Survey (FNDDS),

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import csv
 import json
-from collections import defaultdict
+import re
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import database
@@ -52,6 +53,17 @@ FDC_FOOD_CATEGORY_REQUIRED_COLUMNS = {
     "description",
 }
 
+FDC_SURVEY_FNDDS_REQUIRED_COLUMNS = {
+    "fdc_id",
+    "food_code",
+    "wweia_category_number",
+}
+
+FDC_WWEIA_CATEGORY_REQUIRED_COLUMNS = {
+    "wweia_food_category_code",
+    "wweia_food_category_description",
+}
+
 MACRO_FIELD_BY_KEY = {
     "calories": "calories_per_100g",
     "protein": "protein_g_per_100g",
@@ -59,7 +71,28 @@ MACRO_FIELD_BY_KEY = {
     "fat": "fat_g_per_100g",
 }
 
-DEFAULT_FDC_INCLUDE_DATA_TYPES = ("foundation_food",)
+GENERIC_FDC_DATA_TYPES = (
+    "foundation_food",
+    "sr_legacy_food",
+    "survey_fndds_food",
+)
+
+DEFAULT_FDC_INCLUDE_DATA_TYPES = GENERIC_FDC_DATA_TYPES
+
+FDC_DATA_TYPE_ALIASES = {
+    "foundation_food": "foundation_food",
+    "foundation_foods": "foundation_food",
+    "sr_legacy": "sr_legacy_food",
+    "sr_legacy_food": "sr_legacy_food",
+    "survey_fndds": "survey_fndds_food",
+    "survey_fndds_food": "survey_fndds_food",
+    "survey_foods_fndds": "survey_fndds_food",
+    "fndds": "survey_fndds_food",
+    "branded": "branded_food",
+    "branded_food": "branded_food",
+    "experimental": "experimental_food",
+    "experimental_food": "experimental_food",
+}
 
 
 def _normalize_text(value: object) -> str:
@@ -69,6 +102,13 @@ def _normalize_text(value: object) -> str:
 def _optional_text(value: object) -> str | None:
     normalized = _normalize_text(value)
     return normalized or None
+
+
+def _required_text(value: object, field_name: str, row_number: int) -> str:
+    text = _normalize_text(value)
+    if not text:
+        raise ValueError(f"Row {row_number}: {field_name} is required.")
+    return text
 
 
 def _required_float(value: object, field_name: str, row_number: int) -> float:
@@ -155,8 +195,13 @@ def _resolve_limit(limit: int | None) -> int | None:
     return limit
 
 
-def _normalize_data_type_key(value: object) -> str:
-    return _normalize_text(value).casefold()
+def normalize_fdc_data_type_key(value: object) -> str:
+    normalized = re.sub(
+        r"[^a-z0-9]+",
+        "_",
+        _normalize_text(value).casefold(),
+    ).strip("_")
+    return FDC_DATA_TYPE_ALIASES.get(normalized, normalized)
 
 
 def _resolve_include_data_types(
@@ -168,7 +213,7 @@ def _resolve_include_data_types(
     normalized_data_types = tuple(
         normalized
         for value in include_data_types
-        if (normalized := _normalize_data_type_key(value))
+        if (normalized := normalize_fdc_data_type_key(value))
     )
     if not normalized_data_types:
         raise ValueError("include_data_types must contain at least one data type.")
@@ -255,6 +300,14 @@ def _resolve_fdc_paths(fdc_dir: Path) -> dict[str, Path]:
     if food_category_path.exists():
         resolved_paths["food_category"] = food_category_path
 
+    survey_fndds_path = fdc_dir / "survey_fndds_food.csv"
+    if survey_fndds_path.exists():
+        resolved_paths["survey_fndds_food"] = survey_fndds_path
+
+    wweia_category_path = fdc_dir / "wweia_food_category.csv"
+    if wweia_category_path.exists():
+        resolved_paths["wweia_food_category"] = wweia_category_path
+
     return resolved_paths
 
 
@@ -308,21 +361,32 @@ def _load_macro_nutrient_ids(nutrient_path: Path) -> dict[int, str]:
 
 def _load_branded_food_rows(
     branded_food_path: Path | None,
+    *,
+    selected_fdc_ids: set[int],
 ) -> dict[int, dict[str, str]]:
     if branded_food_path is None:
         return {}
 
-    fieldnames, raw_rows = _load_csv_rows(branded_food_path)
-    _validate_required_columns(fieldnames, {"fdc_id"}, "USDA branded_food.csv")
-
     rows_by_fdc_id: dict[int, dict[str, str]] = {}
-    for row_number, raw_row in enumerate(raw_rows, start=2):
-        fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
-        if fdc_id in rows_by_fdc_id:
-            raise ValueError(
-                f"Row {row_number}: duplicate fdc_id {fdc_id} found in branded_food.csv."
-            )
-        rows_by_fdc_id[fdc_id] = raw_row
+    with branded_food_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("USDA branded_food.csv is missing a header row.")
+        _validate_required_columns(
+            list(reader.fieldnames),
+            {"fdc_id"},
+            "USDA branded_food.csv",
+        )
+        for row_number, raw_row in enumerate(reader, start=2):
+            fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
+            if fdc_id not in selected_fdc_ids:
+                continue
+            if fdc_id in rows_by_fdc_id:
+                raise ValueError(
+                    f"Row {row_number}: duplicate fdc_id {fdc_id} found in "
+                    "branded_food.csv."
+                )
+            rows_by_fdc_id[fdc_id] = dict(raw_row)
     return rows_by_fdc_id
 
 
@@ -347,6 +411,86 @@ def _load_food_category_rows(food_category_path: Path | None) -> dict[int, str]:
     return category_by_id
 
 
+def _load_wweia_category_rows(
+    wweia_category_path: Path | None,
+) -> dict[str, dict[str, str]]:
+    if wweia_category_path is None:
+        return {}
+
+    fieldnames, raw_rows = _load_csv_rows(wweia_category_path)
+    _validate_required_columns(
+        fieldnames,
+        FDC_WWEIA_CATEGORY_REQUIRED_COLUMNS,
+        "USDA wweia_food_category.csv",
+    )
+
+    category_by_code: dict[str, dict[str, str]] = {}
+    for row_number, raw_row in enumerate(raw_rows, start=2):
+        code = _required_text(
+            raw_row.get("wweia_food_category_code"),
+            "wweia_food_category_code",
+            row_number,
+        )
+        description = _required_text(
+            raw_row.get("wweia_food_category_description"),
+            "wweia_food_category_description",
+            row_number,
+        )
+        if code in category_by_code:
+            raise ValueError(f"Row {row_number}: duplicate WWEIA category code {code}.")
+        category_by_code[code] = {
+            "wweia_food_category_code": code,
+            "wweia_food_category_description": description,
+        }
+    return category_by_code
+
+
+def _load_survey_fndds_rows(
+    survey_fndds_path: Path | None,
+    *,
+    selected_fdc_ids: set[int],
+    category_by_code: dict[str, dict[str, str]],
+) -> dict[int, dict[str, str]]:
+    if survey_fndds_path is None:
+        return {}
+
+    survey_by_fdc_id: dict[int, dict[str, str]] = {}
+    with survey_fndds_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("USDA survey_fndds_food.csv is missing a header row.")
+        _validate_required_columns(
+            list(reader.fieldnames),
+            FDC_SURVEY_FNDDS_REQUIRED_COLUMNS,
+            "USDA survey_fndds_food.csv",
+        )
+        for row_number, raw_row in enumerate(reader, start=2):
+            fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
+            if fdc_id not in selected_fdc_ids:
+                continue
+            if fdc_id in survey_by_fdc_id:
+                raise ValueError(
+                    f"Row {row_number}: duplicate fdc_id {fdc_id} found in "
+                    "survey_fndds_food.csv."
+                )
+
+            food_code = _required_text(
+                raw_row.get("food_code"), "food_code", row_number
+            )
+            category_number = _required_text(
+                raw_row.get("wweia_category_number"),
+                "wweia_category_number",
+                row_number,
+            )
+            category = category_by_code.get(category_number, {})
+            survey_by_fdc_id[fdc_id] = {
+                "food_code": food_code,
+                "wweia_category_number": category_number,
+                **category,
+            }
+    return survey_by_fdc_id
+
+
 def _build_food_row_index(
     raw_rows: list[dict[str, str]],
     *,
@@ -366,31 +510,41 @@ def _build_food_row_index(
     return indexed_rows
 
 
-def _build_fdc_food_row_index(
-    raw_rows: list[dict[str, str]],
+def _stream_fdc_food_row_index(
+    food_path: Path,
     *,
     include_data_types: tuple[str, ...],
     limit: int | None,
-) -> list[tuple[int, int, dict[str, str]]]:
-    indexed_rows: list[tuple[int, int, dict[str, str]]] = []
+) -> list[tuple[int, int, str, dict[str, str]]]:
+    indexed_rows: list[tuple[int, int, str, dict[str, str]]] = []
     seen_fdc_ids: set[int] = set()
     included_data_type_keys = set(include_data_types)
 
-    for row_number, raw_row in enumerate(raw_rows, start=2):
-        data_type_key = _normalize_data_type_key(raw_row.get("data_type"))
-        if data_type_key not in included_data_type_keys:
-            continue
+    with food_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("USDA food.csv is missing a header row.")
+        _validate_required_columns(
+            list(reader.fieldnames),
+            FDC_FOOD_REQUIRED_COLUMNS,
+            "USDA food.csv",
+        )
 
-        fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
-        if fdc_id in seen_fdc_ids:
-            raise ValueError(
-                f"Row {row_number}: duplicate fdc_id {fdc_id} found in input."
-            )
+        for row_number, raw_row in enumerate(reader, start=2):
+            data_type_key = normalize_fdc_data_type_key(raw_row.get("data_type"))
+            if data_type_key not in included_data_type_keys:
+                continue
 
-        seen_fdc_ids.add(fdc_id)
-        indexed_rows.append((row_number, fdc_id, raw_row))
-        if limit is not None and len(indexed_rows) >= limit:
-            break
+            fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
+            if fdc_id in seen_fdc_ids:
+                raise ValueError(
+                    f"Row {row_number}: duplicate fdc_id {fdc_id} found in input."
+                )
+
+            seen_fdc_ids.add(fdc_id)
+            indexed_rows.append((row_number, fdc_id, data_type_key, dict(raw_row)))
+            if limit is not None and len(indexed_rows) >= limit:
+                break
 
     return indexed_rows
 
@@ -401,54 +555,61 @@ def _load_macro_amounts_by_fdc_id(
     selected_fdc_ids: set[int],
     macro_nutrient_ids: dict[int, str],
 ) -> dict[int, dict[str, float]]:
-    fieldnames, raw_rows = _load_csv_rows(food_nutrient_path)
-    _validate_required_columns(
-        fieldnames,
-        FDC_FOOD_NUTRIENT_REQUIRED_COLUMNS,
-        "USDA food_nutrient.csv",
-    )
-
     amounts_by_fdc_id: dict[int, dict[str, float]] = defaultdict(dict)
-    for row_number, raw_row in enumerate(raw_rows, start=2):
-        fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
-        if fdc_id not in selected_fdc_ids:
-            continue
-        nutrient_id = _required_int(
-            raw_row.get("nutrient_id"), "nutrient_id", row_number
+    with food_nutrient_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError("USDA food_nutrient.csv is missing a header row.")
+        _validate_required_columns(
+            list(reader.fieldnames),
+            FDC_FOOD_NUTRIENT_REQUIRED_COLUMNS,
+            "USDA food_nutrient.csv",
         )
-        macro_key = macro_nutrient_ids.get(nutrient_id)
-        if not macro_key:
-            continue
-        amount = _required_numeric_float(raw_row.get("amount"), "amount", row_number)
-        if amount < 0:
-            continue
-        existing_amount = amounts_by_fdc_id[fdc_id].get(macro_key)
-        if existing_amount is None:
-            amounts_by_fdc_id[fdc_id][macro_key] = amount
-        else:
-            amounts_by_fdc_id[fdc_id][macro_key] = existing_amount + amount
+        for row_number, raw_row in enumerate(reader, start=2):
+            fdc_id = _required_int(raw_row.get("fdc_id"), "fdc_id", row_number)
+            if fdc_id not in selected_fdc_ids:
+                continue
+            nutrient_id = _required_int(
+                raw_row.get("nutrient_id"), "nutrient_id", row_number
+            )
+            macro_key = macro_nutrient_ids.get(nutrient_id)
+            if not macro_key:
+                continue
+            amount = _required_numeric_float(
+                raw_row.get("amount"), "amount", row_number
+            )
+            if amount < 0:
+                continue
+            existing_amount = amounts_by_fdc_id[fdc_id].get(macro_key)
+            if existing_amount is None:
+                amounts_by_fdc_id[fdc_id][macro_key] = amount
+            else:
+                amounts_by_fdc_id[fdc_id][macro_key] = existing_amount + amount
 
     return dict(amounts_by_fdc_id)
 
 
 def _parse_fdc_directory_row(
     raw_food_row: dict[str, str],
+    normalized_data_type: str,
     branded_row: dict[str, str] | None,
     category_by_id: dict[int, str],
+    survey_fndds_row: dict[str, str] | None,
     macro_amounts: dict[str, float],
     row_number: int,
 ) -> UsdaFoodImportRow:
     description = _normalize_text(raw_food_row.get("description"))
-    data_type = _normalize_text(raw_food_row.get("data_type"))
+    source_data_type = _normalize_text(raw_food_row.get("data_type"))
     if not description:
         raise ValueError(f"Row {row_number}: description is required.")
-    if not data_type:
+    if not source_data_type:
         raise ValueError(f"Row {row_number}: data_type is required.")
 
     branded_values = branded_row or {}
-    category_id_text = _normalize_text(raw_food_row.get("food_category_id"))
+    survey_values = survey_fndds_row or {}
     category_from_id = None
-    if category_id_text:
+    category_id_text = _normalize_text(raw_food_row.get("food_category_id"))
+    if normalized_data_type != "survey_fndds_food" and category_id_text:
         category_id = _required_int(
             raw_food_row.get("food_category_id"),
             "food_category_id",
@@ -459,7 +620,7 @@ def _parse_fdc_directory_row(
     return UsdaFoodImportRow(
         fdc_id=_required_int(raw_food_row.get("fdc_id"), "fdc_id", row_number),
         description=description,
-        data_type=data_type,
+        data_type=normalized_data_type,
         calories_per_100g=macro_amounts.get("calories"),
         protein_g_per_100g=macro_amounts.get("protein"),
         carbs_g_per_100g=macro_amounts.get("carbs"),
@@ -482,18 +643,37 @@ def _parse_fdc_directory_row(
             raw_food_row.get("serving_size_unit"),
         ),
         food_category=_first_non_empty(
-            category_from_id,
-            raw_food_row.get("food_category"),
-            branded_values.get("food_category"),
-            branded_values.get("branded_food_category"),
+            survey_values.get("wweia_food_category_description")
+            if normalized_data_type == "survey_fndds_food"
+            else category_from_id,
+            None
+            if normalized_data_type == "survey_fndds_food"
+            else raw_food_row.get("food_category"),
+            None
+            if normalized_data_type == "survey_fndds_food"
+            else branded_values.get("food_category"),
+            None
+            if normalized_data_type == "survey_fndds_food"
+            else branded_values.get("branded_food_category"),
         ),
+        source_data_type=source_data_type,
+        source_payload_metadata={
+            key: value
+            for key, value in survey_values.items()
+            if key
+            in {
+                "food_code",
+                "wweia_category_number",
+                "wweia_food_category_code",
+            }
+        },
     )
 
 
 def _build_source_payload(
     row: UsdaFoodImportRow, import_batch: str
 ) -> dict[str, object]:
-    return {
+    payload: dict[str, object] = {
         "fdc_id": row.fdc_id,
         "description": row.description,
         "data_type": row.data_type,
@@ -508,6 +688,11 @@ def _build_source_payload(
         "fat_g_per_100g": row.fat_g_per_100g,
         "import_batch": import_batch,
     }
+    if row.source_data_type is not None:
+        payload["source_data_type"] = row.source_data_type
+        payload["normalized_data_type"] = row.data_type
+    payload.update(row.source_payload_metadata)
+    return payload
 
 
 def _upsert_import_rows(
@@ -524,86 +709,93 @@ def _upsert_import_rows(
     inserted_count = 0
     updated_count = 0
 
-    for row in rows:
-        cursor.execute(
-            """
-            SELECT id
-            FROM raw_food_source_records
-            WHERE source_name = ? AND source_record_id = ?
-            """,
-            (source_name, str(row.fdc_id)),
-        )
-        existing = cursor.fetchone() is not None
-
-        cursor.execute(
-            """
-            INSERT INTO raw_food_source_records (
-                source_name,
-                source_record_id,
-                raw_description,
-                brand_name,
-                food_category,
-                data_type,
-                gtin_upc,
-                serving_size,
-                serving_size_unit,
-                calories_per_100g,
-                protein_g_per_100g,
-                carbs_g_per_100g,
-                fat_g_per_100g,
-                import_batch,
-                source_payload_json,
-                license,
-                source_url,
-                updated_at
+    try:
+        for row in rows:
+            cursor.execute(
+                """
+                SELECT id
+                FROM raw_food_source_records
+                WHERE source_name = ? AND source_record_id = ?
+                """,
+                (source_name, str(row.fdc_id)),
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            ON CONFLICT(source_name, source_record_id) DO UPDATE SET
-                raw_description = excluded.raw_description,
-                brand_name = excluded.brand_name,
-                food_category = excluded.food_category,
-                data_type = excluded.data_type,
-                gtin_upc = excluded.gtin_upc,
-                serving_size = excluded.serving_size,
-                serving_size_unit = excluded.serving_size_unit,
-                calories_per_100g = excluded.calories_per_100g,
-                protein_g_per_100g = excluded.protein_g_per_100g,
-                carbs_g_per_100g = excluded.carbs_g_per_100g,
-                fat_g_per_100g = excluded.fat_g_per_100g,
-                import_batch = excluded.import_batch,
-                source_payload_json = excluded.source_payload_json,
-                license = excluded.license,
-                source_url = excluded.source_url,
-                updated_at = CURRENT_TIMESTAMP
-            """,
-            (
-                source_name,
-                str(row.fdc_id),
-                row.description,
-                row.brand_owner,
-                row.food_category,
-                row.data_type,
-                row.gtin_upc,
-                row.serving_size,
-                row.serving_size_unit,
-                row.calories_per_100g,
-                row.protein_g_per_100g,
-                row.carbs_g_per_100g,
-                row.fat_g_per_100g,
-                import_batch,
-                json.dumps(_build_source_payload(row, import_batch), sort_keys=True),
-                USDA_LICENSE,
-                f"https://fdc.nal.usda.gov/fdc-app.html#/food-details/{row.fdc_id}",
-            ),
-        )
+            existing = cursor.fetchone() is not None
 
-        if existing:
-            updated_count += 1
-        else:
-            inserted_count += 1
+            cursor.execute(
+                """
+                INSERT INTO raw_food_source_records (
+                    source_name,
+                    source_record_id,
+                    raw_description,
+                    brand_name,
+                    food_category,
+                    data_type,
+                    gtin_upc,
+                    serving_size,
+                    serving_size_unit,
+                    calories_per_100g,
+                    protein_g_per_100g,
+                    carbs_g_per_100g,
+                    fat_g_per_100g,
+                    import_batch,
+                    source_payload_json,
+                    license,
+                    source_url,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(source_name, source_record_id) DO UPDATE SET
+                    raw_description = excluded.raw_description,
+                    brand_name = excluded.brand_name,
+                    food_category = excluded.food_category,
+                    data_type = excluded.data_type,
+                    gtin_upc = excluded.gtin_upc,
+                    serving_size = excluded.serving_size,
+                    serving_size_unit = excluded.serving_size_unit,
+                    calories_per_100g = excluded.calories_per_100g,
+                    protein_g_per_100g = excluded.protein_g_per_100g,
+                    carbs_g_per_100g = excluded.carbs_g_per_100g,
+                    fat_g_per_100g = excluded.fat_g_per_100g,
+                    import_batch = excluded.import_batch,
+                    source_payload_json = excluded.source_payload_json,
+                    license = excluded.license,
+                    source_url = excluded.source_url,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    source_name,
+                    str(row.fdc_id),
+                    row.description,
+                    row.brand_owner,
+                    row.food_category,
+                    row.data_type,
+                    row.gtin_upc,
+                    row.serving_size,
+                    row.serving_size_unit,
+                    row.calories_per_100g,
+                    row.protein_g_per_100g,
+                    row.carbs_g_per_100g,
+                    row.fat_g_per_100g,
+                    import_batch,
+                    json.dumps(
+                        _build_source_payload(row, import_batch), sort_keys=True
+                    ),
+                    USDA_LICENSE,
+                    f"https://fdc.nal.usda.gov/fdc-app.html#/food-details/{row.fdc_id}",
+                ),
+            )
 
-    conn.commit()
-    conn.close()
+            if existing:
+                updated_count += 1
+            else:
+                inserted_count += 1
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
     return UsdaFoodImportSummary(
         input_path=str(source_path),
@@ -613,6 +805,9 @@ def _upsert_import_rows(
         total_rows=len(rows),
         inserted_count=inserted_count,
         updated_count=updated_count,
+        processed_count_by_data_type=dict(
+            sorted(Counter(row.data_type for row in rows).items())
+        ),
     )
 
 
@@ -657,37 +852,55 @@ def import_usda_food_fdc_directory(
     resolved_limit = _resolve_limit(limit)
     resolved_include_data_types = _resolve_include_data_types(include_data_types)
 
-    food_fieldnames, raw_food_rows = _load_csv_rows(resolved_paths["food"])
-    _validate_required_columns(
-        food_fieldnames,
-        FDC_FOOD_REQUIRED_COLUMNS,
-        "USDA food.csv",
-    )
-
-    indexed_food_rows = _build_fdc_food_row_index(
-        raw_food_rows,
+    indexed_food_rows = _stream_fdc_food_row_index(
+        resolved_paths["food"],
         include_data_types=resolved_include_data_types,
         limit=resolved_limit,
     )
-    selected_fdc_ids = {fdc_id for _, fdc_id, _ in indexed_food_rows}
+    selected_fdc_ids = {fdc_id for _, fdc_id, _, _ in indexed_food_rows}
     macro_nutrient_ids = _load_macro_nutrient_ids(resolved_paths["nutrient"])
     macro_amounts_by_fdc_id = _load_macro_amounts_by_fdc_id(
         resolved_paths["food_nutrient"],
         selected_fdc_ids=selected_fdc_ids,
         macro_nutrient_ids=macro_nutrient_ids,
     )
-    branded_rows = _load_branded_food_rows(resolved_paths.get("branded_food"))
+    branded_rows = (
+        _load_branded_food_rows(
+            resolved_paths.get("branded_food"),
+            selected_fdc_ids=selected_fdc_ids,
+        )
+        if "branded_food" in resolved_include_data_types
+        else {}
+    )
     category_by_id = _load_food_category_rows(resolved_paths.get("food_category"))
+    selected_fndds_ids = {
+        fdc_id
+        for _, fdc_id, data_type, _ in indexed_food_rows
+        if data_type == "survey_fndds_food"
+    }
+    if selected_fndds_ids and resolved_paths.get("survey_fndds_food") is not None:
+        wweia_category_by_code = _load_wweia_category_rows(
+            resolved_paths.get("wweia_food_category")
+        )
+        survey_fndds_rows = _load_survey_fndds_rows(
+            resolved_paths.get("survey_fndds_food"),
+            selected_fdc_ids=selected_fndds_ids,
+            category_by_code=wweia_category_by_code,
+        )
+    else:
+        survey_fndds_rows = {}
 
     parsed_rows = [
         _parse_fdc_directory_row(
             raw_food_row,
+            normalized_data_type,
             branded_rows.get(fdc_id),
             category_by_id,
+            survey_fndds_rows.get(fdc_id),
             macro_amounts_by_fdc_id.get(fdc_id, {}),
             row_number,
         )
-        for row_number, fdc_id, raw_food_row in indexed_food_rows
+        for row_number, fdc_id, normalized_data_type, raw_food_row in indexed_food_rows
     ]
 
     resolved_batch = _build_import_batch(source_dir, import_batch)

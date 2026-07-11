@@ -21,9 +21,13 @@ from services.food_normalization_service import (
     search_canonical_foods,
 )
 from services.nutrition_service import get_daily_canonical_food_macro_totals
-from services.usda_food_data_import_service import USDA_SOURCE_NAME
+from services.usda_food_data_import_service import (
+    USDA_SOURCE_NAME,
+    import_usda_food_fdc_directory,
+)
 
 FDC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_minimal")
+FDC_GENERIC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_generic")
 
 
 def _seed_test_db(tmp_path, monkeypatch) -> Path:
@@ -101,11 +105,36 @@ def test_inventory_report_counts_database_and_fdc_directory(
     }
     assert payload["raw_count_by_food_category"] == {"Fruits and Fruit Juices": 2}
     assert payload["macro_coverage"]["any_macro"] == 1
+    assert payload["macro_coverage_by_data_type"] == {
+        "foundation_food": {
+            "total": 1,
+            "any_macro": 1,
+            "all_macros": 1,
+            "calories": 1,
+            "protein": 1,
+            "carbs": 1,
+            "fat": 1,
+        },
+        "sample_food": {
+            "total": 1,
+            "any_macro": 0,
+            "all_macros": 0,
+            "calories": 0,
+            "protein": 0,
+            "carbs": 0,
+            "fat": 0,
+        },
+    }
     assert payload["canonical_food_count"] == 0
     assert payload["canonical_source_link_count"] == 0
     assert payload["fdc_food_count_by_data_type"] == {
-        "Foundation Foods": 2,
-        "Branded": 1,
+        "foundation_food": 2,
+        "branded_food": 1,
+    }
+    assert payload["fdc_category_count_by_data_type"] == {
+        "foundation_food": {"Fruits and Fruit Juices": 2},
+        "sr_legacy_food": {},
+        "survey_fndds_food": {},
     }
     assert payload["fdc_foundation_count_by_category"] == {"Fruits and Fruit Juices": 2}
 
@@ -124,9 +153,78 @@ def test_inventory_report_explains_empty_db_with_fdc_foundation_rows(
     assert report.macro_coverage["total"] == 0
     assert report.fdc_foundation_count_by_category == {"Fruits and Fruit Juices": 2}
     assert report.notes == [
-        "FDC directory contains foundation_food rows, but the database has "
-        "no raw_food_source_records. Import Foundation rows before bulk promotion."
+        "FDC directory contains generic USDA rows, but the database has no "
+        "raw_food_source_records. Import the generic source profile before "
+        "source-specific review or promotion."
     ]
+
+
+def test_inventory_report_groups_generic_macro_and_category_coverage_readonly(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+    before_bytes = db_path.read_bytes()
+
+    report = build_food_catalog_inventory_report(
+        database_path=str(db_path),
+        fdc_dir=FDC_GENERIC_FIXTURE_DIR,
+    )
+
+    assert db_path.read_bytes() == before_bytes
+    assert report.raw_count_by_data_type == {
+        "foundation_food": 1,
+        "sr_legacy_food": 2,
+        "survey_fndds_food": 2,
+    }
+    assert report.macro_coverage_by_data_type["foundation_food"] == {
+        "total": 1,
+        "any_macro": 1,
+        "all_macros": 1,
+        "calories": 1,
+        "protein": 1,
+        "carbs": 1,
+        "fat": 1,
+    }
+    assert report.macro_coverage_by_data_type["sr_legacy_food"] == {
+        "total": 2,
+        "any_macro": 2,
+        "all_macros": 2,
+        "calories": 2,
+        "protein": 2,
+        "carbs": 2,
+        "fat": 2,
+    }
+    assert report.macro_coverage_by_data_type["survey_fndds_food"] == {
+        "total": 2,
+        "any_macro": 2,
+        "all_macros": 1,
+        "calories": 2,
+        "protein": 1,
+        "carbs": 2,
+        "fat": 1,
+    }
+    assert report.fdc_food_count_by_data_type == {
+        "branded_food": 1,
+        "experimental_food": 1,
+        "foundation_food": 1,
+        "sr_legacy_food": 2,
+        "survey_fndds_food": 2,
+    }
+    assert report.fdc_category_count_by_data_type == {
+        "foundation_food": {"Synthetic Fruits Category": 1},
+        "sr_legacy_food": {
+            "Synthetic Grains Category": 1,
+            "Synthetic Spices Category": 1,
+        },
+        "survey_fndds_food": {
+            "Synthetic Beverages Category": 1,
+            "Synthetic Mixed Dishes Category": 1,
+        },
+    }
+    assert report.canonical_food_count == 0
+    assert report.canonical_source_link_count == 0
 
 
 def test_bulk_catalog_dry_run_does_not_mutate_canonical_tables(
@@ -638,7 +736,7 @@ def test_inventory_cli_writes_report(tmp_path: Path) -> None:
             "--db-path",
             str(db_path),
             "--fdc-dir",
-            str(FDC_FIXTURE_DIR),
+            str(FDC_GENERIC_FIXTURE_DIR),
             "--report-path",
             str(report_path),
         ],
@@ -649,8 +747,18 @@ def test_inventory_cli_writes_report(tmp_path: Path) -> None:
 
     assert result.returncode == 0
     assert "USDA food catalog source inventory complete." in result.stdout
+    assert "FDC rows [foundation_food]: 1" in result.stdout
+    assert "FDC rows [sr_legacy_food]: 2" in result.stdout
+    assert "FDC rows [survey_fndds_food]: 2" in result.stdout
     payload = json.loads(report_path.read_text(encoding="utf-8"))
-    assert payload["fdc_foundation_count_by_category"] == {"Fruits and Fruit Juices": 2}
+    assert payload["macro_coverage_by_data_type"] == {}
+    assert payload["fdc_category_count_by_data_type"]["survey_fndds_food"] == {
+        "Synthetic Beverages Category": 1,
+        "Synthetic Mixed Dishes Category": 1,
+    }
+    assert payload["fdc_foundation_count_by_category"] == {
+        "Synthetic Fruits Category": 1
+    }
     assert payload["notes"]
 
 
