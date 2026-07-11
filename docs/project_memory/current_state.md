@@ -1,3 +1,42 @@
+# Current State - USDA Generic Full-Dataset Validation v0
+
+Latest accepted application source of truth remains `main` at `e229600 Close USDA generic source expansion memory`.
+
+Validation implementation branch: `feature/usda-generic-full-dataset-validation-v0`.
+
+Status:
+
+```text
+USDA_GENERIC_FULL_DATASET_VALIDATION_V0_BLOCKED_BY_IMPORT_COMPATIBILITY
+```
+
+Purpose:
+
+```text
+Validate the accepted generic USDA importer against current official Foundation Foods, SR Legacy, and Survey Foods (FNDDS) CSV releases without changing application behavior or promoting foods.
+```
+
+Compatibility blocker:
+
+- Official FNDDS 2021-2023 release `FoodData_Central_survey_food_csv_2024-10-31.zip` exposes `wweia_food_category.csv` headers `wweia_food_category,wweia_food_category_description`.
+- The accepted importer requires `wweia_food_category_code,wweia_food_category_description`; it validates that missing field before FNDDS persistence and uses it for the FNDDS category payload.
+- Foundation Foods 2026-04-30 and SR Legacy 2018-04 required headers match the accepted importer contract.
+- Per the milestone stop rule, no source inventory, 25-row preflight, full import, idempotency rerun, or browser smoke was run after the mismatch was found. No application code was changed.
+
+External diagnostics retained for Architecture review:
+
+- `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10\reports\usda_generic_full_dataset_validation_v0.md`
+- `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10\reports\usda_generic_full_dataset_validation_v0.json`
+- The official archives and extracted directories remain under `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10`.
+
+The real `fitness_ai.db` was not read or mutated. No canonical promotion, schema, dependency, runtime, or frontend change was made.
+
+Project-memory validation after recording the blocker completed with `590 PASS`, `58 WARN`, and `0 FAIL`; checker tests passed with `29 passed`.
+
+See milestone memory: `docs/project_memory/milestones/usda_generic_full_dataset_validation_v0.md`.
+
+---
+
 # Current State - USDA Generic Source Expansion v0
 
 Current source of truth: `main`. Accepted application merge: `f4b44da Merge USDA generic source expansion v0`.
