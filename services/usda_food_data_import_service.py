@@ -347,7 +347,22 @@ def _load_macro_nutrient_ids(nutrient_path: Path) -> dict[int, str]:
         if not macro_key:
             continue
         nutrient_id = _required_int(raw_row.get("id"), "id", row_number)
-        macro_ids[nutrient_id] = macro_key
+        _register_macro_nutrient_identifier(
+            macro_ids,
+            nutrient_id,
+            macro_key,
+            "id",
+            row_number,
+        )
+        nutrient_nbr = _optional_text(raw_row.get("nutrient_nbr"))
+        if nutrient_nbr is not None:
+            _register_macro_nutrient_identifier(
+                macro_ids,
+                _required_int(nutrient_nbr, "nutrient_nbr", row_number),
+                macro_key,
+                "nutrient_nbr",
+                row_number,
+            )
         matched_macro_keys.add(macro_key)
 
     missing_macros = sorted(set(MACRO_FIELD_BY_KEY) - matched_macro_keys)
@@ -359,6 +374,22 @@ def _load_macro_nutrient_ids(nutrient_path: Path) -> dict[int, str]:
         )
 
     return macro_ids
+
+
+def _register_macro_nutrient_identifier(
+    macro_ids: dict[int, str],
+    nutrient_identifier: int,
+    macro_key: str,
+    field_name: str,
+    row_number: int,
+) -> None:
+    existing_macro_key = macro_ids.get(nutrient_identifier)
+    if existing_macro_key is not None and existing_macro_key != macro_key:
+        raise ValueError(
+            f"Row {row_number}: {field_name} {nutrient_identifier} maps to both "
+            f"{existing_macro_key} and {macro_key}."
+        )
+    macro_ids[nutrient_identifier] = macro_key
 
 
 def _load_branded_food_rows(
@@ -690,6 +721,7 @@ def _parse_fdc_directory_row(
                 "food_code",
                 "wweia_category_number",
                 "wweia_food_category_code",
+                "wweia_food_category_description",
             }
         },
     )
