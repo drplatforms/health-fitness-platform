@@ -59,10 +59,12 @@ FDC_SURVEY_FNDDS_REQUIRED_COLUMNS = {
     "wweia_category_number",
 }
 
-FDC_WWEIA_CATEGORY_REQUIRED_COLUMNS = {
+FDC_WWEIA_CATEGORY_CODE_COLUMNS = (
     "wweia_food_category_code",
-    "wweia_food_category_description",
-}
+    "wweia_food_category",
+)
+
+FDC_WWEIA_CATEGORY_DESCRIPTION_COLUMN = "wweia_food_category_description"
 
 MACRO_FIELD_BY_KEY = {
     "calories": "calories_per_100g",
@@ -420,20 +422,22 @@ def _load_wweia_category_rows(
     fieldnames, raw_rows = _load_csv_rows(wweia_category_path)
     _validate_required_columns(
         fieldnames,
-        FDC_WWEIA_CATEGORY_REQUIRED_COLUMNS,
+        {FDC_WWEIA_CATEGORY_DESCRIPTION_COLUMN},
         "USDA wweia_food_category.csv",
     )
+    if not any(column in fieldnames for column in FDC_WWEIA_CATEGORY_CODE_COLUMNS):
+        accepted_columns = ", ".join(FDC_WWEIA_CATEGORY_CODE_COLUMNS)
+        raise ValueError(
+            "USDA wweia_food_category.csv is missing a WWEIA category code "
+            f"column. Expected one of: {accepted_columns}."
+        )
 
     category_by_code: dict[str, dict[str, str]] = {}
     for row_number, raw_row in enumerate(raw_rows, start=2):
-        code = _required_text(
-            raw_row.get("wweia_food_category_code"),
-            "wweia_food_category_code",
-            row_number,
-        )
+        code = _resolve_wweia_category_code(raw_row, row_number)
         description = _required_text(
-            raw_row.get("wweia_food_category_description"),
-            "wweia_food_category_description",
+            raw_row.get(FDC_WWEIA_CATEGORY_DESCRIPTION_COLUMN),
+            FDC_WWEIA_CATEGORY_DESCRIPTION_COLUMN,
             row_number,
         )
         if code in category_by_code:
@@ -443,6 +447,27 @@ def _load_wweia_category_rows(
             "wweia_food_category_description": description,
         }
     return category_by_code
+
+
+def _resolve_wweia_category_code(raw_row: dict[str, str], row_number: int) -> str:
+    documented_code = _optional_text(raw_row.get("wweia_food_category_code"))
+    current_release_code = _optional_text(raw_row.get("wweia_food_category"))
+
+    if (
+        documented_code
+        and current_release_code
+        and documented_code != current_release_code
+    ):
+        raise ValueError(
+            f"Row {row_number}: conflicting WWEIA category code values for "
+            "wweia_food_category_code and wweia_food_category."
+        )
+
+    return _required_text(
+        documented_code or current_release_code,
+        "wweia_food_category_code",
+        row_number,
+    )
 
 
 def _load_survey_fndds_rows(
