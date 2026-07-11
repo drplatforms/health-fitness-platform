@@ -30,6 +30,19 @@ FDC_LOGGABLE_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_loggable_filter")
 FDC_GENERIC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_generic")
 
 
+def _write_wweia_category_rows(
+    fixture_dir: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    with (fixture_dir / "wweia_food_category.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _seed_test_db(tmp_path: Path, monkeypatch) -> Path:
     db_path = tmp_path / "fitness_ai_test.db"
     monkeypatch.setattr(database, "DB_PATH", db_path)
@@ -501,9 +514,220 @@ def test_fndds_metadata_uses_wweia_category_and_preserves_provenance(
     assert fndds_payload["food_code"] == "90010000"
     assert fndds_payload["wweia_category_number"] == "1002"
     assert fndds_payload["wweia_food_category_code"] == "1002"
+    assert "wweia_food_category" not in fndds_payload
 
     assert sr_row is not None
     assert sr_row["food_category"] == "Synthetic Grains Category"
+
+
+def test_fndds_wweia_documented_code_header_remains_supported(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_documented_wweia_header"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        ["wweia_food_category_code", "wweia_food_category_description"],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT food_category FROM raw_food_source_records WHERE source_record_id = '100004'"
+    ).fetchone()
+    conn.close()
+    assert row == ("Synthetic Mixed Dishes Category",)
+
+
+def test_fndds_wweia_dual_matching_headers_use_stable_payload_key(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_dual_matching_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category": "2004",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        "SELECT source_payload_json FROM raw_food_source_records WHERE source_record_id = '100004'"
+    ).fetchone()
+    conn.close()
+    assert row is not None
+    payload = json.loads(row[0])
+    assert payload["wweia_food_category_code"] == "1002"
+    assert "wweia_food_category" not in payload
+
+
+def test_fndds_wweia_dual_headers_use_non_empty_value(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_dual_wweia_empty_documented"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "",
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category": "",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    categories = {
+        row[0]
+        for row in conn.execute(
+            "SELECT food_category FROM raw_food_source_records WHERE data_type = 'survey_fndds_food'"
+        ).fetchall()
+    }
+    conn.close()
+    assert categories == {
+        "Synthetic Mixed Dishes Category",
+        "Synthetic Beverages Category",
+    }
+
+
+def test_fndds_wweia_dual_header_conflict_fails_clearly(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_conflicting_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category": "9999",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="conflicting WWEIA category code values"):
+        import_usda_food_fdc_directory(fixture_copy)
+
+
+def test_fndds_wweia_missing_code_headers_name_both_options(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_missing_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        ["unexpected_code", "wweia_food_category_description"],
+        [
+            {
+                "unexpected_code": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError) as exc_info:
+        import_usda_food_fdc_directory(fixture_copy)
+
+    assert "wweia_food_category_code" in str(exc_info.value)
+    assert "wweia_food_category" in str(exc_info.value)
+
+
+def test_fndds_wweia_blank_resolved_code_fails_clearly(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_blank_wweia_code"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        ["wweia_food_category", "wweia_food_category_description"],
+        [
+            {
+                "wweia_food_category": "",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="wweia_food_category_code is required"):
+        import_usda_food_fdc_directory(fixture_copy)
+
+
+def test_fndds_wweia_duplicate_resolved_code_remains_rejected(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_duplicate_wweia_code"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        ["wweia_food_category", "wweia_food_category_description"],
+        [
+            {
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Duplicate Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate WWEIA category code 1002"):
+        import_usda_food_fdc_directory(fixture_copy)
 
 
 def test_fndds_import_handles_missing_optional_metadata_safely(

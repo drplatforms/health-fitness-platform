@@ -1,3 +1,43 @@
+# Current State - FNDDS WWEIA Header Compatibility v0.1
+
+Latest accepted application source of truth remains `main` at `e229600 Close USDA generic source expansion memory`.
+
+Compatibility implementation branch: `feature/fndds-wweia-header-compatibility-v0-1`.
+
+Status:
+
+```text
+FNDDS_WWEIA_HEADER_COMPATIBILITY_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Purpose:
+
+```text
+Accept the current official FNDDS WWEIA category header without changing generic source selection, promotion, schema, or user-facing behavior.
+```
+
+Implemented scope:
+
+- Importer and read-only inventory accept either `wweia_food_category` (current official FNDDS header) or `wweia_food_category_code` (documented/legacy header).
+- Both inputs resolve to the stable internal and raw-payload key `wweia_food_category_code`; no `wweia_food_category` payload key is emitted.
+- Dual headers accept matching values or one empty value; conflicting non-empty values, missing accepted headers, blank resolved codes, and duplicate resolved codes fail clearly.
+- The generic fixture now uses the current official FNDDS header, while focused runtime-copy tests preserve documented and dual-header coverage.
+- No schema, migration, source profile, streaming, category semantics, source identity, canonical promotion, CLI, frontend, dependency, or real-database change was added.
+
+Validation completed:
+
+- Importer/inventory regression: `70 passed`.
+- Import/promotion safety regression: `49 passed`.
+- Project-memory checker: `590 PASS`, `58 WARN`, `0 FAIL`; checker tests: `29 passed`.
+- Official FNDDS header confirmed as `wweia_food_category,wweia_food_category_description`.
+- Official 25-row FNDDS scratch import inserted `25` rows and reran as `0` inserts plus `25` updates; all rows had FNDDS provenance and category descriptions, without duplicates, negative macros, canonical foods, or source links.
+- Production browser smoke passed on a temporary database for Today, Nutrition, canonical search, Workout, zero console errors, and no horizontal overflow around 390px.
+- Temporary scratch and browser-smoke artifacts and dedicated processes were removed; the real `fitness_ai.db` was not read or mutated.
+
+See milestone memory: `docs/project_memory/milestones/fndds_wweia_header_compatibility_v0_1.md`.
+
+---
+
 # Current State - USDA Generic Source Expansion v0
 
 Current source of truth: `main`. Accepted application merge: `f4b44da Merge USDA generic source expansion v0`.

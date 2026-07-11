@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import csv
 import json
+import shutil
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 import database
@@ -28,6 +31,26 @@ from services.usda_food_data_import_service import (
 
 FDC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_minimal")
 FDC_GENERIC_FIXTURE_DIR = Path("tests/fixtures/usda/fdc_csv_generic")
+
+
+def _write_wweia_category_rows(
+    fixture_dir: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    with (fixture_dir / "wweia_food_category.csv").open(
+        "w", encoding="utf-8", newline=""
+    ) as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _inventory_report_for_fdc_fixture(tmp_path: Path, fixture_dir: Path):
+    return build_food_catalog_inventory_report(
+        database_path=str(tmp_path / "missing_inventory.db"),
+        fdc_dir=fixture_dir,
+    )
 
 
 def _seed_test_db(tmp_path, monkeypatch) -> Path:
@@ -225,6 +248,156 @@ def test_inventory_report_groups_generic_macro_and_category_coverage_readonly(
     }
     assert report.canonical_food_count == 0
     assert report.canonical_source_link_count == 0
+
+
+def test_inventory_accepts_documented_wweia_code_header(tmp_path) -> None:
+    fixture_copy = tmp_path / "fdc_generic_documented_wweia_header"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        ["wweia_food_category_code", "wweia_food_category_description"],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    report = _inventory_report_for_fdc_fixture(tmp_path, fixture_copy)
+
+    assert report.fdc_category_count_by_data_type["survey_fndds_food"] == {
+        "Synthetic Beverages Category": 1,
+        "Synthetic Mixed Dishes Category": 1,
+    }
+
+
+def test_inventory_accepts_matching_dual_wweia_headers(tmp_path) -> None:
+    fixture_copy = tmp_path / "fdc_generic_dual_matching_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category": "2004",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    report = _inventory_report_for_fdc_fixture(tmp_path, fixture_copy)
+
+    assert report.fdc_category_count_by_data_type["survey_fndds_food"] == {
+        "Synthetic Beverages Category": 1,
+        "Synthetic Mixed Dishes Category": 1,
+    }
+
+
+def test_inventory_uses_non_empty_dual_wweia_value(tmp_path) -> None:
+    fixture_copy = tmp_path / "fdc_generic_dual_wweia_empty_documented"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "",
+                "wweia_food_category": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+            {
+                "wweia_food_category_code": "2004",
+                "wweia_food_category": "",
+                "wweia_food_category_description": "Synthetic Beverages Category",
+            },
+        ],
+    )
+
+    report = _inventory_report_for_fdc_fixture(tmp_path, fixture_copy)
+
+    assert report.fdc_category_count_by_data_type["survey_fndds_food"] == {
+        "Synthetic Beverages Category": 1,
+        "Synthetic Mixed Dishes Category": 1,
+    }
+
+
+def test_inventory_rejects_conflicting_wweia_headers(tmp_path) -> None:
+    fixture_copy = tmp_path / "fdc_generic_conflicting_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    _write_wweia_category_rows(
+        fixture_copy,
+        [
+            "wweia_food_category_code",
+            "wweia_food_category",
+            "wweia_food_category_description",
+        ],
+        [
+            {
+                "wweia_food_category_code": "1002",
+                "wweia_food_category": "9999",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="conflicting WWEIA category code values"):
+        _inventory_report_for_fdc_fixture(tmp_path, fixture_copy)
+
+
+def test_inventory_rejects_missing_or_blank_wweia_code(tmp_path) -> None:
+    missing_fixture = tmp_path / "fdc_generic_missing_wweia_headers"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, missing_fixture)
+    _write_wweia_category_rows(
+        missing_fixture,
+        ["unexpected_code", "wweia_food_category_description"],
+        [
+            {
+                "unexpected_code": "1002",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError) as missing_exc_info:
+        _inventory_report_for_fdc_fixture(tmp_path, missing_fixture)
+
+    assert "wweia_food_category_code" in str(missing_exc_info.value)
+    assert "wweia_food_category" in str(missing_exc_info.value)
+
+    blank_fixture = tmp_path / "fdc_generic_blank_wweia_code"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, blank_fixture)
+    _write_wweia_category_rows(
+        blank_fixture,
+        ["wweia_food_category", "wweia_food_category_description"],
+        [
+            {
+                "wweia_food_category": "",
+                "wweia_food_category_description": "Synthetic Mixed Dishes Category",
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="wweia_food_category_code is required"):
+        _inventory_report_for_fdc_fixture(tmp_path, blank_fixture)
 
 
 def test_bulk_catalog_dry_run_does_not_mutate_canonical_tables(

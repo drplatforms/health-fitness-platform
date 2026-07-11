@@ -11,6 +11,12 @@ from services.usda_food_data_import_service import (
     normalize_fdc_data_type_key,
 )
 
+WWEIA_CATEGORY_CODE_COLUMNS = (
+    "wweia_food_category_code",
+    "wweia_food_category",
+)
+WWEIA_CATEGORY_DESCRIPTION_COLUMN = "wweia_food_category_description"
+
 
 @dataclass(frozen=True)
 class FoodCatalogInventoryReport:
@@ -215,15 +221,68 @@ def _category_description_by_id(fdc_dir: Path) -> dict[str, str]:
     }
 
 
+def _normalize_text(value: object) -> str:
+    return " ".join(str(value or "").strip().split())
+
+
+def _resolve_wweia_category_code(raw_row: dict[str, str], row_number: int) -> str:
+    documented_code = _normalize_text(raw_row.get("wweia_food_category_code"))
+    current_release_code = _normalize_text(raw_row.get("wweia_food_category"))
+
+    if (
+        documented_code
+        and current_release_code
+        and documented_code != current_release_code
+    ):
+        raise ValueError(
+            f"Row {row_number}: conflicting WWEIA category code values for "
+            "wweia_food_category_code and wweia_food_category."
+        )
+
+    resolved_code = documented_code or current_release_code
+    if not resolved_code:
+        raise ValueError(f"Row {row_number}: wweia_food_category_code is required.")
+    return resolved_code
+
+
 def _wweia_category_description_by_code(fdc_dir: Path) -> dict[str, str]:
-    rows = _read_csv_rows(fdc_dir / "wweia_food_category.csv")
-    return {
-        str(row.get("wweia_food_category_code", "")).strip(): str(
-            row.get("wweia_food_category_description", "")
-        ).strip()
-        for row in rows
-        if str(row.get("wweia_food_category_code", "")).strip()
-    }
+    path = fdc_dir / "wweia_food_category.csv"
+    if not path.exists():
+        return {}
+
+    with path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or []
+        if WWEIA_CATEGORY_DESCRIPTION_COLUMN not in fieldnames:
+            raise ValueError(
+                "USDA wweia_food_category.csv is missing required columns: "
+                f"{WWEIA_CATEGORY_DESCRIPTION_COLUMN}."
+            )
+        if not any(column in fieldnames for column in WWEIA_CATEGORY_CODE_COLUMNS):
+            accepted_columns = ", ".join(WWEIA_CATEGORY_CODE_COLUMNS)
+            raise ValueError(
+                "USDA wweia_food_category.csv is missing a WWEIA category code "
+                f"column. Expected one of: {accepted_columns}."
+            )
+
+        category_by_code: dict[str, str] = {}
+        for row_number, raw_row in enumerate(reader, start=2):
+            code = _resolve_wweia_category_code(raw_row, row_number)
+            description = _normalize_text(
+                raw_row.get(WWEIA_CATEGORY_DESCRIPTION_COLUMN)
+            )
+            if not description:
+                raise ValueError(
+                    f"Row {row_number}: {WWEIA_CATEGORY_DESCRIPTION_COLUMN} is "
+                    "required."
+                )
+            if code in category_by_code:
+                raise ValueError(
+                    f"Row {row_number}: duplicate WWEIA category code {code}."
+                )
+            category_by_code[code] = description
+
+    return category_by_code
 
 
 def _survey_category_by_fdc_id(
