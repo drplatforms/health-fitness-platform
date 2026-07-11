@@ -1,14 +1,28 @@
 # FNDDS WWEIA Header Compatibility v0.1
 
-Latest accepted application source of truth remains `main` at `e229600 Close USDA generic source expansion memory`.
+Current source of truth: `main` at `34d4a59 Merge FNDDS WWEIA header compatibility v0.1`.
 
-Compatibility implementation branch: `feature/fndds-wweia-header-compatibility-v0-1`.
+Feature implementation commit: `75486d8 Support current FNDDS WWEIA header`.
 
 Status:
 
 ```text
-FNDDS_WWEIA_HEADER_COMPATIBILITY_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+FNDDS_WWEIA_HEADER_COMPATIBILITY_V0_1_ACCEPTED_MERGED_AND_CLOSED
 ```
+
+## Closeout
+
+- Accepted merge: `34d4a59 Merge FNDDS WWEIA header compatibility v0.1`.
+- Feature implementation: `75486d8 Support current FNDDS WWEIA header`.
+- Importer and inventory regression: `70 passed`.
+- Import and promotion safety regression: `49 passed`.
+- Project-memory checker: `590 PASS`, `58 WARN`, `0 FAIL`; checker tests: `29 passed`.
+- Ruff checks passed.
+- Production browser smoke passed using a temporary database.
+- Official FNDDS 25-row import inserted `25` rows and reran as `0` inserts plus `25` updates.
+- Canonical foods and canonical source links remained unchanged.
+- The real `fitness_ai.db` was not read or mutated.
+- Milestone is accepted, merged, and closed.
 
 ## Purpose
 
@@ -45,4 +59,4 @@ Restore compatibility between the accepted generic FNDDS importer/inventory cont
 ## Boundaries
 
 - No schema, migration, generic source-profile, food/nutrient streaming, FNDDS survey join, category semantics, source identity, transaction, canonical-promotion, CLI, frontend, dependency, or real `fitness_ai.db` change was made.
-- Nothing has been staged, committed, pushed, merged, or snapshotted.
+- The implementation originally stopped unstaged and uncommitted; it was later committed as `75486d8` and merged to `main` as `34d4a59`.
