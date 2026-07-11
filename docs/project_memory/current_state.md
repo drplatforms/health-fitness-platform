@@ -1,8 +1,8 @@
 # Current State - USDA Generic Source Expansion v0
 
-Current source of truth: `feature/usda-generic-source-expansion-v0` based on accepted `main` at `d424a83`.
+Current source of truth: `main`. Accepted application merge: `f4b44da Merge USDA generic source expansion v0`.
 
-Active food-catalog milestone:
+Latest accepted food-catalog milestone:
 
 ```text
 USDA Generic Source Expansion v0
@@ -11,8 +11,17 @@ USDA Generic Source Expansion v0
 Status:
 
 ```text
-USDA_GENERIC_SOURCE_EXPANSION_V0_IMPLEMENTATION_COMPLETE
+USDA_GENERIC_SOURCE_EXPANSION_V0_ACCEPTED_MERGED_AND_CLOSED
 ```
+
+Closeout:
+
+- Accepted merge: `f4b44da Merge USDA generic source expansion v0`.
+- Feature implementation: `e8a96ce Expand USDA generic source import`.
+- Validation accepted: 58 importer/inventory tests, 44 import/promotion tests, 70 canonical logging/search tests, and 29 project-memory tests.
+- Project-memory checker: 590 PASS, 58 WARN, 0 FAIL.
+- Production browser smoke passed using a temporary database; the real `fitness_ai.db` was not used or mutated.
+- Milestone is merged and closed. Git is authoritative for the final documentation commit and snapshot hash.
 
 Purpose:
 

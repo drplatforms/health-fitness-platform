@@ -1,11 +1,11 @@
 # USDA Generic Source Expansion v0
 
-Current source of truth: `feature/usda-generic-source-expansion-v0` based on accepted `main` at `d424a83`.
+Current source of truth: `main`. Accepted application merge: `f4b44da Merge USDA generic source expansion v0`.
 
 Status:
 
 ```text
-USDA_GENERIC_SOURCE_EXPANSION_V0_IMPLEMENTATION_COMPLETE
+USDA_GENERIC_SOURCE_EXPANSION_V0_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 ## Purpose
