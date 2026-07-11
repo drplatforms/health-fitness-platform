@@ -43,6 +43,17 @@ def _write_wweia_category_rows(
         writer.writerows(rows)
 
 
+def _write_csv_rows(
+    path: Path,
+    fieldnames: list[str],
+    rows: list[dict[str, str]],
+) -> None:
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
 def _seed_test_db(tmp_path: Path, monkeypatch) -> Path:
     db_path = tmp_path / "fitness_ai_test.db"
     monkeypatch.setattr(database, "DB_PATH", db_path)
@@ -514,10 +525,216 @@ def test_fndds_metadata_uses_wweia_category_and_preserves_provenance(
     assert fndds_payload["food_code"] == "90010000"
     assert fndds_payload["wweia_category_number"] == "1002"
     assert fndds_payload["wweia_food_category_code"] == "1002"
+    assert (
+        fndds_payload["wweia_food_category_description"] == fndds_row["food_category"]
+    )
     assert "wweia_food_category" not in fndds_payload
 
     assert sr_row is not None
     assert sr_row["food_category"] == "Synthetic Grains Category"
+
+
+def test_fdc_directory_import_uses_nutrient_id_macro_convention(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+
+    import_usda_food_fdc_directory(FDC_GENERIC_FIXTURE_DIR)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        """
+        SELECT calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g
+        FROM raw_food_source_records
+        WHERE source_record_id = '100004'
+        """
+    ).fetchone()
+    conn.close()
+
+    assert row == (200, 10, 25, 6)
+
+
+def test_fdc_directory_import_uses_nutrient_nbr_macro_convention(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_nutrient_nbr"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    nutrient_rows = list(
+        csv.DictReader(
+            (fixture_copy / "nutrient.csv").read_text(encoding="utf-8").splitlines()
+        )
+    )
+    nutrient_numbers = {
+        "1008": "208",
+        "1003": "203",
+        "1005": "205",
+        "1004": "204",
+    }
+    for row in nutrient_rows:
+        row["nutrient_nbr"] = nutrient_numbers.get(row["id"], "")
+    _write_csv_rows(
+        fixture_copy / "nutrient.csv",
+        ["id", "name", "unit_name", "nutrient_nbr"],
+        nutrient_rows,
+    )
+
+    food_nutrient_rows = list(
+        csv.DictReader(
+            (fixture_copy / "food_nutrient.csv")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        )
+    )
+    for row in food_nutrient_rows:
+        row["nutrient_id"] = nutrient_numbers.get(
+            row["nutrient_id"], row["nutrient_id"]
+        )
+    _write_csv_rows(
+        fixture_copy / "food_nutrient.csv",
+        ["fdc_id", "nutrient_id", "amount"],
+        food_nutrient_rows,
+    )
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        """
+        SELECT calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g
+        FROM raw_food_source_records
+        WHERE source_record_id = '100004'
+        """
+    ).fetchone()
+    zero_row = conn.execute(
+        """
+        SELECT calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g
+        FROM raw_food_source_records
+        WHERE source_record_id = '100003'
+        """
+    ).fetchone()
+    missing_row = conn.execute(
+        """
+        SELECT calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g
+        FROM raw_food_source_records
+        WHERE source_record_id = '100005'
+        """
+    ).fetchone()
+    conn.close()
+
+    assert row == (200, 10, 25, 6)
+    assert zero_row == (0, 0, 0, 0)
+    assert missing_row == (80, None, 15, None)
+
+
+def test_fdc_directory_import_allows_blank_nutrient_nbr(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    db_path = _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_blank_nutrient_nbr"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    nutrient_rows = list(
+        csv.DictReader(
+            (fixture_copy / "nutrient.csv").read_text(encoding="utf-8").splitlines()
+        )
+    )
+    for row in nutrient_rows:
+        row["nutrient_nbr"] = ""
+    _write_csv_rows(
+        fixture_copy / "nutrient.csv",
+        ["id", "name", "unit_name", "nutrient_nbr"],
+        nutrient_rows,
+    )
+
+    import_usda_food_fdc_directory(fixture_copy)
+
+    conn = sqlite3.connect(db_path)
+    row = conn.execute(
+        """
+        SELECT calories_per_100g, protein_g_per_100g, carbs_g_per_100g, fat_g_per_100g
+        FROM raw_food_source_records
+        WHERE source_record_id = '100004'
+        """
+    ).fetchone()
+    conn.close()
+    assert row == (200, 10, 25, 6)
+
+
+def test_fdc_directory_import_rejects_malformed_nutrient_nbr(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_bad_nutrient_nbr"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    nutrient_rows = list(
+        csv.DictReader(
+            (fixture_copy / "nutrient.csv").read_text(encoding="utf-8").splitlines()
+        )
+    )
+    for row in nutrient_rows:
+        row["nutrient_nbr"] = "not-a-number" if row["id"] == "1003" else ""
+    _write_csv_rows(
+        fixture_copy / "nutrient.csv",
+        ["id", "name", "unit_name", "nutrient_nbr"],
+        nutrient_rows,
+    )
+
+    with pytest.raises(ValueError, match="nutrient_nbr must be an integer"):
+        import_usda_food_fdc_directory(fixture_copy)
+
+
+def test_fdc_directory_import_rejects_macro_identifier_collision(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_nutrient_collision"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    nutrient_rows = list(
+        csv.DictReader(
+            (fixture_copy / "nutrient.csv").read_text(encoding="utf-8").splitlines()
+        )
+    )
+    for row in nutrient_rows:
+        row["nutrient_nbr"] = "1008" if row["id"] == "1003" else ""
+    _write_csv_rows(
+        fixture_copy / "nutrient.csv",
+        ["id", "name", "unit_name", "nutrient_nbr"],
+        nutrient_rows,
+    )
+
+    with pytest.raises(ValueError, match="maps to both calories and protein"):
+        import_usda_food_fdc_directory(fixture_copy)
+
+
+def test_fdc_directory_import_preserves_missing_macro_definition_failure(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    fixture_copy = tmp_path / "fdc_generic_missing_macro_definition"
+    shutil.copytree(FDC_GENERIC_FIXTURE_DIR, fixture_copy)
+    nutrient_rows = [
+        row
+        for row in csv.DictReader(
+            (fixture_copy / "nutrient.csv").read_text(encoding="utf-8").splitlines()
+        )
+        if row["id"] != "1003"
+    ]
+    _write_csv_rows(
+        fixture_copy / "nutrient.csv",
+        ["id", "name", "unit_name"],
+        nutrient_rows,
+    )
+
+    with pytest.raises(
+        ValueError, match="missing macro nutrient definitions for: protein"
+    ):
+        import_usda_food_fdc_directory(fixture_copy)
 
 
 def test_fndds_wweia_documented_code_header_remains_supported(
