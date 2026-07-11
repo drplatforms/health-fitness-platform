@@ -964,6 +964,91 @@ def _get_planned_exercises_for_validation(
     )
 
 
+def _effective_planned_exercise_id(
+    planned_workout_exercise_id: int | None,
+    substitution_for_planned_exercise_id: int | None,
+) -> int | None:
+    if substitution_for_planned_exercise_id is not None:
+        return int(substitution_for_planned_exercise_id)
+    if planned_workout_exercise_id is not None:
+        return int(planned_workout_exercise_id)
+    return None
+
+
+def _occupied_set_numbers_for_planned_exercise(
+    cursor,
+    execution_session_id: int,
+    effective_planned_exercise_id: int,
+    *,
+    exclude_actual_set_id: int | None = None,
+) -> set[int]:
+    cursor.execute(
+        """
+        SELECT
+            id,
+            planned_workout_exercise_id,
+            substitution_for_planned_exercise_id,
+            set_number
+        FROM workout_execution_set_actuals
+        WHERE workout_execution_session_id = ?
+        """,
+        (execution_session_id,),
+    )
+
+    occupied_set_numbers: set[int] = set()
+    for row in cursor.fetchall():
+        if exclude_actual_set_id is not None and row["id"] == exclude_actual_set_id:
+            continue
+        row_effective_id = _effective_planned_exercise_id(
+            row["planned_workout_exercise_id"],
+            row["substitution_for_planned_exercise_id"],
+        )
+        if row_effective_id == effective_planned_exercise_id:
+            occupied_set_numbers.add(int(row["set_number"]))
+
+    return occupied_set_numbers
+
+
+def _next_set_number_for_planned_exercise(
+    cursor,
+    execution_session_id: int,
+    effective_planned_exercise_id: int,
+    planned_set_count: int,
+) -> int:
+    occupied_set_numbers = _occupied_set_numbers_for_planned_exercise(
+        cursor,
+        execution_session_id,
+        effective_planned_exercise_id,
+    )
+
+    for set_number in range(1, planned_set_count + 1):
+        if set_number not in occupied_set_numbers:
+            return set_number
+
+    return max(occupied_set_numbers, default=0) + 1
+
+
+def _validate_unique_planned_set_number(
+    cursor,
+    execution_session_id: int,
+    effective_planned_exercise_id: int,
+    set_number: int,
+    *,
+    exclude_actual_set_id: int | None = None,
+) -> None:
+    occupied_set_numbers = _occupied_set_numbers_for_planned_exercise(
+        cursor,
+        execution_session_id,
+        effective_planned_exercise_id,
+        exclude_actual_set_id=exclude_actual_set_id,
+    )
+    if set_number in occupied_set_numbers:
+        raise WorkoutPlanValidationError(
+            "set_number is already logged for this planned exercise in the "
+            "execution session."
+        )
+
+
 def _validate_actual_set_payload(
     payload: dict,
     planned_exercises: dict[int, PlannedWorkoutExercise],
@@ -971,11 +1056,9 @@ def _validate_actual_set_payload(
     planned_exercise_id = payload.get("planned_workout_exercise_id")
     substitution_for_id = payload.get("substitution_for_planned_exercise_id")
 
-    planned_exercise = None
     if planned_exercise_id is not None:
         planned_exercise_id = int(planned_exercise_id)
-        planned_exercise = planned_exercises.get(planned_exercise_id)
-        if planned_exercise is None:
+        if planned_exercise_id not in planned_exercises:
             raise WorkoutPlanValidationError(
                 "planned_workout_exercise_id must belong to the plan instance."
             )
@@ -987,8 +1070,16 @@ def _validate_actual_set_payload(
                 "substitution_for_planned_exercise_id must belong to the "
                 "same plan instance."
             )
-        if planned_exercise is None:
-            planned_exercise = planned_exercises[substitution_for_id]
+
+    effective_planned_exercise_id = _effective_planned_exercise_id(
+        planned_exercise_id,
+        substitution_for_id,
+    )
+    planned_exercise = (
+        planned_exercises.get(effective_planned_exercise_id)
+        if effective_planned_exercise_id is not None
+        else None
+    )
 
     completed = bool(payload.get("completed", True))
     skipped = bool(payload.get("skipped", False))
@@ -1040,18 +1131,41 @@ def log_actual_set(plan_instance_id: int, payload: dict) -> dict:
 
         planned_exercise_id = payload.get("planned_workout_exercise_id")
         substitution_for_id = payload.get("substitution_for_planned_exercise_id")
+        if planned_exercise_id is not None:
+            planned_exercise_id = int(planned_exercise_id)
+        if substitution_for_id is not None:
+            substitution_for_id = int(substitution_for_id)
+        effective_planned_exercise_id = _effective_planned_exercise_id(
+            planned_exercise_id,
+            substitution_for_id,
+        )
         exercise_name = payload.get("exercise_name")
         if exercise_name is None and planned_exercise is not None:
             exercise_name = planned_exercise.name
 
         set_number = payload.get("set_number")
         if set_number is None:
-            set_number = (
-                len(get_actual_sets(execution_session_id=execution_row["id"])) + 1
-            )
+            if effective_planned_exercise_id is not None and planned_exercise:
+                set_number = _next_set_number_for_planned_exercise(
+                    cursor,
+                    execution_row["id"],
+                    effective_planned_exercise_id,
+                    planned_exercise.sets,
+                )
+            else:
+                set_number = (
+                    len(get_actual_sets(execution_session_id=execution_row["id"])) + 1
+                )
         set_number = int(set_number)
         if set_number <= 0:
             raise WorkoutPlanValidationError("set_number must be positive.")
+        if effective_planned_exercise_id is not None:
+            _validate_unique_planned_set_number(
+                cursor,
+                execution_row["id"],
+                effective_planned_exercise_id,
+                set_number,
+            )
 
         completed = bool(payload.get("completed", True))
         skipped = bool(payload.get("skipped", False))
@@ -1275,6 +1389,18 @@ def update_actual_set(
             planned_exercise_id = int(planned_exercise_id)
         if substitution_for_id is not None:
             substitution_for_id = int(substitution_for_id)
+        effective_planned_exercise_id = _effective_planned_exercise_id(
+            planned_exercise_id,
+            substitution_for_id,
+        )
+        if effective_planned_exercise_id is not None:
+            _validate_unique_planned_set_number(
+                cursor,
+                execution_row["id"],
+                effective_planned_exercise_id,
+                set_number,
+                exclude_actual_set_id=actual_set_id,
+            )
 
         exercise_name = candidate.get("exercise_name")
         if (not exercise_name) and planned_exercise is not None:
@@ -1914,16 +2040,23 @@ def build_planned_vs_actual_summary(
         actual_set for actual_set in actual_sets if actual_set.skipped
     ]
 
-    completed_exercise_ids = {
-        actual_set.planned_workout_exercise_id
-        for actual_set in completed_actual_sets
-        if actual_set.planned_workout_exercise_id is not None
-    }
-    skipped_exercise_ids = {
-        actual_set.planned_workout_exercise_id
-        for actual_set in skipped_actual_sets
-        if actual_set.planned_workout_exercise_id is not None
-    }
+    completed_exercise_ids: set[int] = set()
+    for actual_set in completed_actual_sets:
+        effective_planned_exercise_id = _effective_planned_exercise_id(
+            actual_set.planned_workout_exercise_id,
+            actual_set.substitution_for_planned_exercise_id,
+        )
+        if effective_planned_exercise_id is not None:
+            completed_exercise_ids.add(effective_planned_exercise_id)
+
+    skipped_exercise_ids: set[int] = set()
+    for actual_set in skipped_actual_sets:
+        effective_planned_exercise_id = _effective_planned_exercise_id(
+            actual_set.planned_workout_exercise_id,
+            actual_set.substitution_for_planned_exercise_id,
+        )
+        if effective_planned_exercise_id is not None:
+            skipped_exercise_ids.add(effective_planned_exercise_id)
     substituted_exercise_ids = {
         actual_set.substitution_for_planned_exercise_id
         for actual_set in actual_sets
@@ -1966,10 +2099,12 @@ def build_planned_vs_actual_summary(
     completed_set_count = len(completed_actual_sets)
     actual_set_count = len(non_skipped_actual_sets)
     skipped_set_count = len(skipped_actual_sets)
+    extra_set_count = max(completed_set_count - planned_set_count, 0)
 
     if planned_set_count > 0:
-        completion_percentage = round(
-            (completed_set_count / planned_set_count) * 100, 2
+        completion_percentage = min(
+            round((completed_set_count / planned_set_count) * 100, 2),
+            100.0,
         )
     else:
         completion_percentage = 0.0
@@ -2026,6 +2161,7 @@ def build_planned_vs_actual_summary(
         planned_set_count=planned_set_count,
         actual_set_count=actual_set_count,
         completed_set_count=completed_set_count,
+        extra_set_count=extra_set_count,
         skipped_set_count=skipped_set_count,
         completion_percentage=completion_percentage,
         average_planned_rir=average_planned_rir,

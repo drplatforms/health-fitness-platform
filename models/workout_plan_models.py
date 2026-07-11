@@ -248,6 +248,7 @@ class WorkoutPlannedVsActualSummary:
     planned_set_count: int
     actual_set_count: int
     completed_set_count: int
+    extra_set_count: int
     skipped_set_count: int
     completion_percentage: float
     average_planned_rir: float | None

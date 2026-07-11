@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 import database
@@ -287,6 +288,17 @@ def _started_plan(tmp_path, monkeypatch, user_id=105):
     return instance_id, started
 
 
+def _completed_actual_payload(planned_exercise, set_number=None):
+    payload = {
+        "planned_workout_exercise_id": planned_exercise.id,
+        "actual_reps": planned_exercise.reps_min,
+        "actual_rir": planned_exercise.rir_max,
+    }
+    if set_number is not None:
+        payload["set_number"] = set_number
+    return payload
+
+
 def test_started_plan_can_read_execution_state(tmp_path, monkeypatch):
     instance_id, _started = _started_plan(tmp_path, monkeypatch)
 
@@ -346,6 +358,7 @@ def test_first_actual_set_transitions_plan_and_session_to_in_progress(
     )
     execution_state = result["execution_state"]
 
+    assert result["actual_set"].set_number == 1
     assert execution_state["workout_plan_instance"].status == "in_progress"
     assert execution_state["execution_session"].status == "in_progress"
 
@@ -419,6 +432,186 @@ def test_substituted_exercise_can_be_recorded(tmp_path, monkeypatch):
     assert actual_set.exercise_name == "Bodyweight Squat"
     assert actual_set.planned_reps_min == planned_exercise.reps_min
     assert actual_set.planned_rir_max == planned_exercise.rir_max
+
+
+def test_omitted_set_number_reuses_smallest_missing_planned_slot(tmp_path, monkeypatch):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    logged_sets = {}
+
+    for set_number in (1, 2, 3):
+        result = log_actual_set(
+            instance_id,
+            _completed_actual_payload(planned_exercise, set_number),
+        )
+        logged_sets[set_number] = result["actual_set"]
+
+    delete_actual_set(instance_id, logged_sets[2].id)
+    replacement = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise),
+    )["actual_set"]
+    actual_sets = get_actual_sets(execution_session_id=started["execution_session"].id)
+
+    assert replacement.set_number == 2
+    assert sorted(actual_set.set_number for actual_set in actual_sets) == [1, 2, 3]
+
+
+def test_omitted_set_number_reuses_first_planned_slot(tmp_path, monkeypatch):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    first = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 1),
+    )["actual_set"]
+    log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 2),
+    )
+
+    delete_actual_set(instance_id, first.id)
+    replacement = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise),
+    )["actual_set"]
+
+    assert replacement.set_number == 1
+
+
+def test_omitted_set_number_uses_next_extra_slot_when_planned_slots_are_occupied(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+
+    for set_number in range(1, planned_exercise.sets + 1):
+        log_actual_set(
+            instance_id,
+            _completed_actual_payload(planned_exercise, set_number),
+        )
+
+    extra_set = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise),
+    )["actual_set"]
+
+    assert extra_set.set_number == planned_exercise.sets + 1
+
+
+def test_substitution_rows_share_planned_set_number_allocation(tmp_path, monkeypatch):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+
+    log_actual_set(
+        instance_id,
+        {
+            "substitution_for_planned_exercise_id": planned_exercise.id,
+            "exercise_name": "Bodyweight Squat",
+            "set_number": 1,
+            "actual_reps": 12,
+            "actual_rir": 3,
+        },
+    )
+    next_original_set = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise),
+    )["actual_set"]
+
+    assert next_original_set.set_number == 2
+
+
+def test_duplicate_planned_set_create_is_rejected_without_mutation(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    original = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 1),
+    )["actual_set"]
+
+    with pytest.raises(WorkoutPlanValidationError, match="already logged"):
+        log_actual_set(
+            instance_id,
+            _completed_actual_payload(planned_exercise, 1),
+        )
+
+    actual_sets = get_actual_sets(execution_session_id=started["execution_session"].id)
+    assert [(actual_set.id, actual_set.set_number) for actual_set in actual_sets] == [
+        (original.id, 1)
+    ]
+
+
+def test_duplicate_create_across_original_and_substitution_returns_api_400(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    client = TestClient(app)
+
+    original_response = client.post(
+        f"/workout-plans/{instance_id}/actual-sets",
+        json=_completed_actual_payload(planned_exercise, 1),
+    )
+    duplicate_response = client.post(
+        f"/workout-plans/{instance_id}/actual-sets",
+        json={
+            "substitution_for_planned_exercise_id": planned_exercise.id,
+            "exercise_name": "Bodyweight Squat",
+            "set_number": 1,
+            "actual_reps": 12,
+            "actual_rir": 3,
+        },
+    )
+    actual_sets = get_actual_sets(execution_session_id=started["execution_session"].id)
+
+    assert original_response.status_code == 200
+    assert duplicate_response.status_code == 400
+    assert "already logged" in duplicate_response.json()["detail"]
+    assert len(actual_sets) == 1
+    assert actual_sets[0].planned_workout_exercise_id == planned_exercise.id
+
+
+def test_duplicate_set_update_is_rejected_without_mutation(tmp_path, monkeypatch):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+    first = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 1),
+    )["actual_set"]
+    second = log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 2),
+    )["actual_set"]
+
+    with pytest.raises(WorkoutPlanValidationError, match="already logged"):
+        update_actual_set(instance_id, second.id, {"set_number": 1})
+
+    actual_sets = get_actual_sets(execution_session_id=started["execution_session"].id)
+    assert [(actual_set.id, actual_set.set_number) for actual_set in actual_sets] == [
+        (first.id, 1),
+        (second.id, 2),
+    ]
+
+
+def test_same_set_number_is_allowed_for_different_planned_exercises(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    first_exercise, second_exercise = started["planned_exercises"][:2]
+
+    first = log_actual_set(
+        instance_id,
+        _completed_actual_payload(first_exercise, 1),
+    )["actual_set"]
+    second = log_actual_set(
+        instance_id,
+        _completed_actual_payload(second_exercise, 1),
+    )["actual_set"]
+
+    assert first.set_number == 1
+    assert second.set_number == 1
+    assert first.planned_workout_exercise_id != second.planned_workout_exercise_id
 
 
 def test_completed_and_skipped_cannot_both_be_true(tmp_path, monkeypatch):
@@ -599,6 +792,7 @@ def test_planned_vs_actual_summary_counts_planned_exercises_and_sets(
     )
     assert summary.actual_set_count == 0
     assert summary.completed_set_count == 0
+    assert summary.extra_set_count == 0
     assert summary.completion_percentage == 0.0
     assert "empty_completion" in summary.deviation_flags
     assert "incomplete_logging" in summary.deviation_flags
@@ -634,6 +828,7 @@ def test_planned_vs_actual_summary_counts_completed_actual_sets(tmp_path, monkey
     assert summary.completed_exercise_count == 1
     assert summary.actual_set_count == 2
     assert summary.completed_set_count == 2
+    assert summary.extra_set_count == 0
     assert summary.skipped_set_count == 0
     assert summary.completion_percentage == round(
         (2 / summary.planned_set_count) * 100, 2
@@ -682,10 +877,107 @@ def test_planned_vs_actual_summary_counts_substitutions(tmp_path, monkeypatch):
 
     summary = build_planned_vs_actual_summary(instance_id)
 
+    assert summary.completed_exercise_count == 1
     assert summary.substituted_exercise_count == 1
     assert summary.actual_set_count == 1
     assert summary.completed_set_count == 1
     assert "substitutions_present" in summary.deviation_flags
+
+
+def test_planned_vs_actual_summary_credits_substitution_only_skip(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+
+    log_actual_set(
+        instance_id,
+        {
+            "substitution_for_planned_exercise_id": planned_exercise.id,
+            "exercise_name": "Bodyweight Squat",
+            "completed": False,
+            "skipped": True,
+        },
+    )
+    summary = build_planned_vs_actual_summary(instance_id)
+
+    assert summary.skipped_exercise_count == 1
+    assert summary.substituted_exercise_count == 1
+
+
+def test_planned_vs_actual_summary_counts_mixed_original_and_substitution_once(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercise = started["planned_exercises"][0]
+
+    log_actual_set(
+        instance_id,
+        _completed_actual_payload(planned_exercise, 1),
+    )
+    log_actual_set(
+        instance_id,
+        {
+            "substitution_for_planned_exercise_id": planned_exercise.id,
+            "exercise_name": "Bodyweight Squat",
+            "set_number": 2,
+            "actual_reps": 12,
+            "actual_rir": 3,
+        },
+    )
+    summary = build_planned_vs_actual_summary(instance_id)
+
+    assert summary.completed_exercise_count == 1
+    assert summary.substituted_exercise_count == 1
+
+
+def test_planned_vs_actual_summary_is_zero_with_no_planned_sets(tmp_path, monkeypatch):
+    instance_id, _started = _started_plan(tmp_path, monkeypatch)
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "DELETE FROM planned_workout_exercises WHERE workout_plan_instance_id = ?",
+        (instance_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    summary = build_planned_vs_actual_summary(instance_id)
+
+    assert summary.planned_set_count == 0
+    assert summary.completed_set_count == 0
+    assert summary.extra_set_count == 0
+    assert summary.completion_percentage == 0.0
+
+
+def test_planned_vs_actual_summary_caps_completion_and_counts_extra_sets(
+    tmp_path, monkeypatch
+):
+    instance_id, started = _started_plan(tmp_path, monkeypatch)
+    planned_exercises = started["planned_exercises"]
+
+    for planned_exercise in planned_exercises:
+        for set_number in range(1, planned_exercise.sets + 1):
+            log_actual_set(
+                instance_id,
+                _completed_actual_payload(planned_exercise, set_number),
+            )
+
+    complete_summary = build_planned_vs_actual_summary(instance_id)
+    assert complete_summary.completion_percentage == 100.0
+    assert complete_summary.extra_set_count == 0
+
+    first_exercise = planned_exercises[0]
+    for set_number in (first_exercise.sets + 1, first_exercise.sets + 2):
+        log_actual_set(
+            instance_id,
+            _completed_actual_payload(first_exercise, set_number),
+        )
+
+    extra_summary = build_planned_vs_actual_summary(instance_id)
+    assert extra_summary.completed_set_count == extra_summary.planned_set_count + 2
+    assert extra_summary.completion_percentage == 100.0
+    assert extra_summary.extra_set_count == 2
 
 
 def test_planned_vs_actual_summary_average_planned_rir_weighted_by_sets(
@@ -1106,6 +1398,7 @@ def test_planned_vs_actual_endpoint_summary_matches_service(tmp_path, monkeypatc
     payload = response.json()
     summary = payload["planned_vs_actual_summary"]
     assert summary["completion_percentage"] == expected_summary.completion_percentage
+    assert summary["extra_set_count"] == expected_summary.extra_set_count
     assert summary["completed_set_count"] == expected_summary.completed_set_count
     assert summary["planned_set_count"] == expected_summary.planned_set_count
     assert summary["deviation_flags"] == expected_summary.deviation_flags

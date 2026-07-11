@@ -1,3 +1,47 @@
+# Current State - Workout Execution Integrity Fixes v0.1
+
+Current source of truth: `feature/workout-execution-integrity-fixes-v0-1` based on `main` at `d48d462`.
+
+Active workout milestone:
+
+```text
+Workout Execution Integrity Fixes v0.1
+```
+
+Requested status:
+
+```text
+WORKOUT_EXECUTION_INTEGRITY_FIXES_V0_1_IMPLEMENTATION_COMPLETE_READY_FOR_INDEPENDENT_REVIEW
+```
+
+Purpose:
+
+```text
+Correct substitution attribution, planned set-number reuse and duplicate protection, and completion percentages above 100% without changing the database schema or broader workout behavior.
+```
+
+Implemented scope:
+
+- Effective planned-exercise identity now prefers the substitution pointer and otherwise uses the direct planned-exercise pointer.
+- Completed and skipped exercise counts credit substitution work exactly once while substitution counts remain separate.
+- Planned and substitution rows reuse the smallest missing planned set number, then allocate an explicit extra number after planned slots are full.
+- Service-level create/update validation rejects duplicate effective planned slots without partial mutation; no database uniqueness migration was added.
+- Completion is capped at `100%`, truthful completed-set totals remain visible, and `extra_set_count` drives a compact neutral extra-set label.
+- Saved set rows are displayed in set-number order after a missing slot is re-logged.
+
+Validation completed:
+
+- Persistence and progression-history slice: `103 passed`.
+- Workout planning, Today, rotation, and sizing slice: `128 passed`.
+- Ruff lint/format, frontend lint, and production build passed.
+- Project-memory checker completed with `590 PASS`, `58 WARN`, and `0 FAIL`; checker tests passed with `29 passed`.
+- Production browser smoke passed on a temporary database for middle/first-slot reuse, edit/cancel/delete, substitution credit, capped extra-set summary, completion review, desktop/mobile layout, no overflow, and zero console errors.
+- The real `fitness_ai.db` was untouched; temporary smoke artifacts and dedicated processes were removed.
+
+See milestone memory: `docs/project_memory/milestones/workout_execution_integrity_fixes_v0_1.md`.
+
+---
+
 # Current State — Agent Workflow Hardening v0 (Closed)
 
 Current source of truth: `main` at `4e89f27 Merge agent workflow hardening v0`.

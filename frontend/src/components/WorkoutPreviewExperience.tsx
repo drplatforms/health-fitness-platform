@@ -133,26 +133,35 @@ function loggedSetsForExercise(
   actualSets: WorkoutActualSetSummary[],
   plannedExerciseId: number,
 ): WorkoutActualSetSummary[] {
-  return actualSets.filter(
-    (actualSet) =>
-      actualSet.planned_workout_exercise_id === plannedExerciseId ||
-      actualSet.substitution_for_planned_exercise_id === plannedExerciseId,
-  );
+  return actualSets
+    .filter(
+      (actualSet) => plannedExerciseIdForActualSet(actualSet) === plannedExerciseId,
+    )
+    .sort(
+      (first, second) =>
+        first.set_number - second.set_number || first.id - second.id,
+    );
 }
 
 function nextSetNumberForExercise(
   actualSets: WorkoutActualSetSummary[],
   plannedExerciseId: number,
+  plannedSets: number,
 ): number {
   const relatedSets = loggedSetsForExercise(actualSets, plannedExerciseId);
+  const occupiedSetNumbers = new Set(
+    relatedSets
+      .map((actualSet) => actualSet.set_number)
+      .filter((setNumber) => Number.isInteger(setNumber) && setNumber > 0),
+  );
 
-  if (!relatedSets.length) {
-    return 1;
+  for (let setNumber = 1; setNumber <= plannedSets; setNumber += 1) {
+    if (!occupiedSetNumbers.has(setNumber)) {
+      return setNumber;
+    }
   }
 
-  return (
-    Math.max(...relatedSets.map((actualSet) => actualSet.set_number || 0)) + 1
-  );
+  return Math.max(0, ...occupiedSetNumbers) + 1;
 }
 
 function actualSetFormStateFromSet(
@@ -1096,8 +1105,9 @@ export function WorkoutPreviewExperience({
           ? exercise.id
           : undefined,
         exercise_name: activeSubstitution?.replacement_exercise_name,
-        set_number: Math.min(
-          nextSetNumberForExercise(actualSets, exercise.id),
+        set_number: nextSetNumberForExercise(
+          actualSets,
+          exercise.id,
           exercise.sets,
         ),
         actual_reps: Number(actualReps),
@@ -1122,7 +1132,7 @@ export function WorkoutPreviewExperience({
       setActualSets(nextActualSets);
       setViewMode("persisted");
       setActionMessage(
-        `Logged ${result.data?.actual_set.exercise_name ?? exercise.name} set ${result.data?.actual_set.set_number ?? nextSetNumberForExercise(actualSets, exercise.id)}.`,
+        `Logged ${result.data?.actual_set.exercise_name ?? exercise.name} set ${result.data?.actual_set.set_number ?? nextSetNumberForExercise(actualSets, exercise.id, exercise.sets)}.`,
       );
       setFormStateByExerciseId((current) => ({
         ...current,
@@ -1408,6 +1418,12 @@ export function WorkoutPreviewExperience({
                 {plannedVsActualSummary.completed_set_count}/
                 {plannedVsActualSummary.planned_set_count}
               </p>
+              {plannedVsActualSummary.extra_set_count > 0 ? (
+                <p className="mt-1 text-xs font-medium text-slate-500">
+                  {plannedVsActualSummary.extra_set_count} extra set
+                  {plannedVsActualSummary.extra_set_count === 1 ? "" : "s"}
+                </p>
+              ) : null}
             </div>
             <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
               <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
@@ -1593,8 +1609,9 @@ export function WorkoutPreviewExperience({
                   completedSetCount(exerciseActualSets);
                 const allPlannedSetsLogged =
                   completedLoggedSetCount >= exercise.sets;
-                const nextSetNumber = Math.min(
-                  nextSetNumberForExercise(actualSets, exercise.id),
+                const nextSetNumber = nextSetNumberForExercise(
+                  actualSets,
+                  exercise.id,
                   exercise.sets,
                 );
                 const exerciseNoteInputExpanded =
