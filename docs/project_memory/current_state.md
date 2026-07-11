@@ -1,3 +1,62 @@
+# Current State - FNDDS Macro and Payload Compatibility v0.1
+
+Current source of truth: `main` at `21f5655 Merge FNDDS macro and payload compatibility v0.1`.
+
+Feature implementation commit: `9b93a4a Support FNDDS macro identifiers and payload provenance`.
+
+Status:
+
+```text
+FNDDS_MACRO_PAYLOAD_COMPATIBILITY_V0_1_ACCEPTED_MERGED_AND_CLOSED
+```
+
+Closeout:
+
+- Accepted merge: `21f5655 Merge FNDDS macro and payload compatibility v0.1`.
+- Feature implementation: `9b93a4a Support FNDDS macro identifiers and payload provenance`.
+- Focused importer tests: `48 passed`.
+- Importer and bulk-catalog regression: `76 passed`.
+- Import and promotion safety regression: `49 passed`.
+- Ruff checks and merged-main production browser smoke passed.
+- Official full FNDDS import processed `5,432` rows and reran as `0` inserts plus `5,432` updates.
+- `5,431` rows preserved all four supported macros; one source row had no supported macros and remained unmodified.
+- No schema, migration, canonical promotion, frontend behavior, dependency, or real-database mutation occurred.
+- Milestone is accepted, merged, and closed. Git is authoritative for the final documentation commit and snapshot hash.
+
+Purpose:
+
+```text
+Support the nutrient identifier convention used by the current official FNDDS release and preserve resolved WWEIA category descriptions in raw source provenance.
+```
+
+Implemented scope:
+
+- Recognized macro definitions are registered through both `nutrient.id` and optional `nutrient.nutrient_nbr` identifiers.
+- Existing Foundation and SR Legacy identifier behavior remains supported.
+- Conflicting numeric identifier mappings fail clearly; blank optional nutrient numbers remain safe.
+- Missing macro source rows remain missing and zero macro values remain zero.
+- FNDDS raw payloads now preserve `wweia_food_category_description`.
+- The payload description equals the persisted resolved food category.
+- The input-only alias key `wweia_food_category` remains excluded from raw payloads.
+
+Validation completed:
+
+- Focused USDA importer tests: `48 passed`.
+- USDA importer and bulk-catalog slice: `76 passed`.
+- Food import and promotion safety slice: `49 passed`.
+- Ruff check and format checks passed for the touched Python files.
+- Official full FNDDS first pass: `5,432` processed, `5,432` inserted, `0` updated.
+- Official full FNDDS rerun: `5,432` processed, `0` inserted, `5,432` updated.
+- `5,431` rows had calories, protein, carbohydrates, and fat; one row had no supported macro values.
+- All `5,432` rows preserved food code, WWEIA number, stable WWEIA code, and WWEIA category description.
+- There were no duplicates, negative macros, canonical foods, or canonical source links.
+- Merged-main production browser smoke passed for Today, Nutrition, canonical search, Workout, console safety, and mobile overflow.
+- The real `fitness_ai.db` was not read or mutated.
+
+See milestone memory: `docs/project_memory/milestones/fndds_macro_payload_compatibility_v0_1.md`.
+
+---
+
 # Current State - FNDDS WWEIA Header Compatibility v0.1
 
 Current source of truth: `main` at `34d4a59 Merge FNDDS WWEIA header compatibility v0.1`.
