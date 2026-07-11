@@ -194,6 +194,7 @@ export interface WorkoutPlannedVsActualSummary {
   planned_set_count: number;
   actual_set_count: number;
   completed_set_count: number;
+  extra_set_count: number;
   skipped_set_count: number;
   completion_percentage: number;
   average_planned_rir: number | null;
