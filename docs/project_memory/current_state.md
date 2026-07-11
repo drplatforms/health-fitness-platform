@@ -1,3 +1,47 @@
+# Current State - USDA Generic Full-Dataset Validation v0
+
+Accepted validation base: `main` at `fde27bf Close FNDDS macro payload compatibility memory`.
+
+Status:
+
+```text
+USDA_GENERIC_FULL_DATASET_VALIDATION_V0_ACCEPTED_AND_CLOSED
+```
+
+Closeout:
+
+- The complete official Foundation, SR Legacy, and FNDDS generic datasets imported successfully into one fresh external scratch database.
+- Foundation first pass: `469` processed, `469` inserted, `0` updated.
+- SR Legacy first pass: `7,793` processed, `7,793` inserted, `0` updated.
+- FNDDS first pass: `5,432` processed, `5,432` inserted, `0` updated.
+- Total first-pass raw records: `13,694`.
+- The full idempotency rerun inserted `0` rows and updated the exact source count for all three datasets.
+- Final raw record total remained `13,694`.
+- No unexpected source types, duplicate or missing source identities, empty descriptions, negative macro values, or missing resolved categories were found.
+- FNDDS provenance was populated for all `5,432` FNDDS records.
+- Canonical food and canonical source-link counts remained `0`.
+- The real `fitness_ai.db` was not accessed or mutated.
+- The repository remained clean and unchanged throughout validation.
+- Final verdict: `READY_FOR_GENERIC_CANONICAL_PROMOTION_DIAGNOSTIC`.
+- External scratch database and reports were retained for promotion-diagnostic work.
+- Milestone is accepted and closed. Git is authoritative for the final documentation commit and snapshot hash.
+
+Purpose:
+
+```text
+Prove that the complete official generic USDA datasets import together, preserve identity and provenance, remain canonical-safe, and rerun idempotently before promotion design begins.
+```
+
+Retained evidence:
+
+- `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10\scratch\usda_generic_full_dataset_validation_v0_final.db`
+- `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10\reports\usda_generic_full_dataset_validation_v0_final.json`
+- `C:\projects\fitness_ai_external\usda_generic_full_validation_2026-07-10\reports\usda_generic_full_dataset_validation_v0_final.md`
+
+See milestone memory: `docs/project_memory/milestones/usda_generic_full_dataset_validation_v0.md`.
+
+---
+
 # Current State - FNDDS Macro and Payload Compatibility v0.1
 
 Current source of truth: `main` at `21f5655 Merge FNDDS macro and payload compatibility v0.1`.
