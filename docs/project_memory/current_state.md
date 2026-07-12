@@ -1,3 +1,51 @@
+# Current State - USDA Generic Canonical Promotion Diagnostic v0
+
+Accepted diagnostic base: `main` at `53703aa Close USDA generic full dataset validation memory`.
+
+Status:
+
+```text
+USDA_GENERIC_CANONICAL_PROMOTION_DIAGNOSTIC_V0_ACCEPTED_AND_CLOSED
+```
+
+Closeout:
+
+- Existing deterministic promotion rules were evaluated against all `13,694` validated generic USDA rows.
+- Foundation classified `138` rows as promotable, with `231` duplicate-name skips, `58` unsafe-raw skips, and `42` missing-macro skips.
+- SR Legacy classified `670` rows as promotable, with `4,681` duplicate-name skips, `1,274` category skips, `1,166` unsafe-raw skips, and `2` invalid skips.
+- FNDDS classified `0` rows as promotable; `5,431` were blocked by current category policy and one lacked supported macros.
+- The combined run classified `691` rows as promotable, including `57` Foundation and `634` SR Legacy rows.
+- The diagnostic identified `2,534` candidate-name families, `356` multi-source overlaps, `933` same-name families with different macro profiles, and `652` suspicious-name review flags.
+- Current combined handling does not preserve Foundation precedence and can allow lower-priority SR Legacy rows to displace Foundation candidates.
+- Current generic duplicate renaming can produce malformed commercial or over-generic display names.
+- No canonical foods, aliases, nutrients, source links, or raw application rows were changed.
+- Final verdict: `READY_FOR_SOURCE_SPECIFIC_PROMOTION_RULE_DESIGN`.
+- Existing rules are not approved for live canonical promotion.
+- Milestone is accepted and closed. Git is authoritative for the final documentation commit and snapshot hash.
+
+Architecture direction:
+
+- Source precedence will be Foundation, then SR Legacy, then FNDDS.
+- Foundation remains the preferred generic source.
+- SR Legacy will initially be restricted to conservative basic-food categories, with commercial or manufacturer-style rows rejected.
+- FNDDS canonical promotion remains deferred for a separate prepared-food strategy.
+- Cross-source collisions will prefer the highest-priority valid source.
+- Generic second-phrase renaming will not be used when it creates low-quality names.
+- The next source-specific promotion-rules milestone will remain dry-run only.
+
+Retained evidence:
+
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\working\usda_generic_promotion_diagnostic_v0.db`
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\reports\usda_generic_canonical_promotion_diagnostic_v0.json`
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\reports\usda_generic_canonical_promotion_diagnostic_v0.md`
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\reports\usda_generic_candidate_name_families.csv`
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\reports\usda_generic_category_matrix.csv`
+- `C:\projects\fitness_ai_external\usda_generic_promotion_diagnostic_2026-07-11\reports\usda_generic_review_samples.csv`
+
+See milestone memory: `docs/project_memory/milestones/usda_generic_canonical_promotion_diagnostic_v0.md`.
+
+---
+
 # Current State - USDA Generic Full-Dataset Validation v0
 
 Accepted validation base: `main` at `fde27bf Close FNDDS macro payload compatibility memory`.
