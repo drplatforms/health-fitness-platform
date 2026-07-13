@@ -1,16 +1,16 @@
 # Current State - USDA Generic Source-Specific Promotion Rules v0
 
-Latest accepted source of truth remains `main` at `ecdc01a Close USDA generic canonical promotion diagnostic memory`.
+Current source of truth: `main` at `929886d Merge USDA generic source-specific promotion rules v0`.
 
-Implementation branch: `feature/usda-generic-source-specific-promotion-rules-v0`.
+Feature implementation commit: `50d7e2b Add USDA source-specific promotion rules`.
 
 Status:
 
 ```text
-USDA_GENERIC_SOURCE_SPECIFIC_PROMOTION_RULES_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+USDA_GENERIC_SOURCE_SPECIFIC_PROMOTION_RULES_V0_ACCEPTED_MERGED_AND_CLOSED
 ```
 
-Implementation update:
+Closeout:
 
 - Fixed source precedence is Foundation, SR Legacy, then FNDDS; lower-priority
   collision rows are explicit duplicate-name skips.
@@ -38,7 +38,12 @@ Implementation update:
   `READY_FOR_LIMITED_FOUNDATION_SR_PROMOTION_PLAN`.
 - No canonical records were promoted. Raw count remained `13,694`; canonical
   tables remained empty; the real `fitness_ai.db` was not accessed or mutated.
-- The rules remain dry-run evidence only and are not approved for live promotion.
+- The rules remain dry-run evidence only and do not authorize live canonical promotion.
+- Accepted merge: `929886d Merge USDA generic source-specific promotion rules v0`.
+- Feature implementation: `50d7e2b Add USDA source-specific promotion rules`.
+- Project-memory checker passed with `590 PASS`, `58 WARN`, and `0 FAIL`; project-memory tests passed: `29`.
+- Final verdict: `READY_FOR_LIMITED_FOUNDATION_SR_PROMOTION_PLAN`.
+- Milestone is accepted, merged, and closed. Git is authoritative for the final documentation commit and snapshot hash.
 
 See milestone memory:
 `docs/project_memory/milestones/usda_generic_source_specific_promotion_rules_v0.md`.

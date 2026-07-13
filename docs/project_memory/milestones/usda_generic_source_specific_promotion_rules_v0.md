@@ -1,14 +1,34 @@
 # USDA Generic Source-Specific Promotion Rules v0
 
-Accepted source of truth: `main` at `ecdc01a Close USDA generic canonical promotion diagnostic memory`.
+Current source of truth: `main` at `929886d Merge USDA generic source-specific promotion rules v0`.
 
-Implementation branch: `feature/usda-generic-source-specific-promotion-rules-v0`.
+Feature implementation commit: `50d7e2b Add USDA source-specific promotion rules`.
 
 Status:
 
 ```text
-USDA_GENERIC_SOURCE_SPECIFIC_PROMOTION_RULES_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+USDA_GENERIC_SOURCE_SPECIFIC_PROMOTION_RULES_V0_ACCEPTED_MERGED_AND_CLOSED
 ```
+
+## Closeout
+
+- Accepted merge: `929886d Merge USDA generic source-specific promotion rules v0`.
+- Feature implementation: `50d7e2b Add USDA source-specific promotion rules`.
+- Direct bulk-catalog tests: `110 passed`.
+- Import and promotion safety slice: `131 passed`.
+- Ruff check and format check passed.
+- Project-memory checker: `590 PASS`, `58 WARN`, `0 FAIL`; project-memory tests: `29 passed`.
+- Foundation dry-run: `469` processed and `151` promoted.
+- SR Legacy dry-run: `7,793` processed and `218` promoted.
+- FNDDS dry-run: `5,432` processed, `0` promoted, `5,431` category skips, and `1` missing-macro skip.
+- Combined dry-run: `13,694` processed and `348` promoted.
+- All `151` Foundation-only identities remained promoted in the combined run.
+- Reversed data-type order produced identical promoted identities and names.
+- Final commercial, identity, metadata, malformed-name, and duplicate-word audits reported zero promoted defects.
+- Raw records remained `13,694`; canonical foods, aliases, nutrients, and source links remained `0`.
+- The real `fitness_ai.db` was not accessed or mutated, and no live promotion occurred.
+- Final verdict: `READY_FOR_LIMITED_FOUNDATION_SR_PROMOTION_PLAN`.
+- This milestone is accepted, merged, and closed. It does not authorize live canonical promotion.
 
 ## Delivered Policy
 
