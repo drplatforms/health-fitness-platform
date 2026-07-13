@@ -49,6 +49,22 @@ ALLOWED_BULK_CATEGORIES = {
     "Lamb, Veal, and Game Products",
 }
 
+SR_LEGACY_ALLOWED_BULK_CATEGORIES = {
+    "Fruits and Fruit Juices",
+    "Vegetables and Vegetable Products",
+    "Legumes and Legume Products",
+    "Cereal Grains and Pasta",
+    "Dairy and Egg Products",
+    "Nut and Seed Products",
+    "Spices and Herbs",
+}
+
+DATA_TYPE_PRECEDENCE = {
+    "foundation_food": 0,
+    "sr_legacy_food": 1,
+    "survey_fndds_food": 2,
+}
+
 MEAT_FOWL_FISH_CATEGORIES = {
     "Poultry Products",
     "Beef Products",
@@ -84,6 +100,69 @@ SAFE_PREPARED_TERMS = {
     "restaurant",
     "roasted",
     "stewed",
+}
+
+SR_LEGACY_COMMERCIAL_TERMS = {
+    "bolthouse farms",
+    "breakstone s",
+    "cheez whiz",
+    "daily greens",
+    "kraft",
+    "nasoya",
+    "ocean spray",
+    "reddi wip",
+    "silk",
+    "velveeta",
+    "vitasoy",
+    "zespri",
+}
+USDA_DISTRIBUTION_PROGRAM_PHRASE = "includes foods for usda s food distribution program"
+
+FOUNDATION_DISPLAY_NAME_OVERRIDES = {
+    "cheese cottage lowfat 2 milkfat": "Low-fat cottage cheese",
+    "cottage cheese full fat large or small curd": "Full-fat cottage cheese",
+    "grape juice purple with added vitamin c from concentrate shelf stable": "Purple grape juice",
+    "grape juice white with added vitamin c from concentrate shelf stable": "White grape juice",
+    "grapefruit juice red not fortified not from concentrate refrigerated": "Red grapefruit juice",
+    "grapefruit juice white canned or bottled unsweetened": "White grapefruit juice",
+    "juice pomegranate from concentrate shelf stable": "Pomegranate juice",
+    "juice prune shelf stable": "Prune juice",
+    "juice tart cherry from concentrate shelf stable": "Tart cherry juice",
+    "mango ataulfo peeled raw": "Ataulfo mango",
+    "mango tommy atkins peeled raw": "Tommy Atkins mango",
+    "plantains overripe raw": "Overripe plantains",
+    "plantains ripe raw": "Ripe plantains",
+    "plantains underripe raw": "Underripe plantains",
+    "blackeye pea canned sodium added drained and rinsed": "Canned black-eyed peas",
+    "blackeye pea dry": "Dry black-eyed peas",
+    "peanut butter creamy": "Creamy peanut butter",
+    "peanut butter smooth style with salt": "Salted smooth peanut butter",
+    "cabbage bok choy raw": "Bok choy",
+    "cabbage green raw": "Green cabbage",
+    "cabbage napa leaf destemmed raw": "Napa cabbage",
+    "cabbage red raw": "Red cabbage",
+    "kale frozen cooked boiled drained without salt": "Cooked frozen kale",
+    "kale raw": "Raw kale",
+    "kiwifruit kiwi green peeled raw": "Peeled kiwifruit",
+    "onions red raw": "Red onions",
+    "onions white raw": "White onions",
+    "onions yellow raw": "Yellow onions",
+    "potatoes gold without skin raw": "Gold potatoes",
+    "potatoes red without skin raw": "Red potatoes",
+    "potatoes russet without skin raw": "Russet potatoes",
+    "tomatoes canned red ripe diced": "Diced canned tomatoes",
+    "tomatoes crushed canned": "Crushed tomatoes",
+    "tomatoes whole canned solids and liquids with salt added": "Whole canned tomatoes",
+}
+
+SR_LEGACY_MEATLESS_BASE_NAMES = {
+    "bacon",
+    "bacon bits",
+    "frankfurter",
+    "luncheon slices",
+    "meatballs",
+    "sandwich spread",
+    "sausage",
 }
 
 
@@ -294,6 +373,10 @@ def _has_any_normalized_term(normalized_description: str, terms: set[str]) -> bo
     return any(term in normalized_description for term in terms)
 
 
+def _has_normalized_phrase(normalized_description: str, phrase: str) -> bool:
+    return f" {phrase} " in f" {normalized_description} "
+
+
 def _has_raw_term(raw_record: RawFoodSourceRecord) -> bool:
     tokens = set(normalize_food_name(raw_record.raw_description).split())
     return bool(tokens.intersection(RAW_TERMS))
@@ -318,16 +401,47 @@ def _is_allowed_category(
         return False
     if include_categories and normalized_category not in include_categories:
         return False
+    if raw_record.data_type == "survey_fndds_food":
+        return False
+    if raw_record.data_type == "sr_legacy_food":
+        return category in SR_LEGACY_ALLOWED_BULK_CATEGORIES
     return category in ALLOWED_BULK_CATEGORIES
 
 
 def _is_invalid_source_row(raw_record: RawFoodSourceRecord) -> bool:
     normalized_description = normalize_food_name(raw_record.raw_description)
     normalized_data_type = normalize_food_name(raw_record.data_type or "")
+    if USDA_DISTRIBUTION_PROGRAM_PHRASE in normalized_description:
+        return True
     return _has_any_normalized_term(
         f"{normalized_description} {normalized_data_type}",
         {normalize_food_name(term) for term in UNSAFE_SOURCE_TERMS},
     )
+
+
+def _is_sr_legacy_commercial_row(raw_record: RawFoodSourceRecord) -> bool:
+    if raw_record.data_type != "sr_legacy_food":
+        return False
+
+    raw_description = raw_record.raw_description
+    normalized_description = normalize_food_name(raw_description)
+    if USDA_DISTRIBUTION_PROGRAM_PHRASE in normalized_description:
+        return True
+    if any(symbol in raw_description for symbol in ("™", "®")):
+        return True
+    if any(
+        _has_normalized_phrase(normalized_description, term)
+        for term in SR_LEGACY_COMMERCIAL_TERMS
+    ):
+        return True
+
+    leading_words = raw_description.split(",", 1)[0].split()
+    uppercase_words = [
+        word
+        for word in leading_words
+        if any(character.isalpha() for character in word) and word.isupper()
+    ]
+    return len(uppercase_words) >= 2
 
 
 def _is_unsafe_raw_meat_fowl_fish(raw_record: RawFoodSourceRecord) -> bool:
@@ -376,25 +490,23 @@ def _macro_profile(raw_record: RawFoodSourceRecord) -> tuple[float | None, ...]:
     )
 
 
-def _specific_duplicate_display_name(
-    raw_record: RawFoodSourceRecord,
-    canonical_display_name: str,
-) -> str:
-    parts = _description_parts(raw_record.raw_description)
-    if len(parts) < 2:
-        return canonical_display_name
-
-    candidate = _display_words(f"{parts[1]} {parts[0]}")
-    if normalize_food_name(candidate) != normalize_food_name(canonical_display_name):
-        return candidate
-    return canonical_display_name
-
-
 def _bulk_display_name(raw_record: RawFoodSourceRecord) -> str:
     normalized = normalize_food_name(raw_record.raw_description)
     tokens = set(normalized.split())
     parts = _description_parts(raw_record.raw_description)
     first_part = parts[0] if parts else ""
+
+    if raw_record.data_type == "foundation_food":
+        if override := FOUNDATION_DISPLAY_NAME_OVERRIDES.get(normalized):
+            return override
+    if raw_record.data_type == "sr_legacy_food" and "meatless" in tokens:
+        if first_part in SR_LEGACY_MEATLESS_BASE_NAMES:
+            return f"Meatless {first_part}"
+    if (
+        raw_record.data_type == "sr_legacy_food"
+        and normalized == "vermicelli made from soy"
+    ):
+        return "Soy vermicelli"
 
     if "hummus" in tokens:
         return "Hummus"
@@ -404,6 +516,28 @@ def _bulk_display_name(raw_record: RawFoodSourceRecord) -> str:
         return "2% milk"
     if "egg" in tokens and "whole" in tokens:
         return "Egg"
+    if first_part == "rice" and "red" in tokens:
+        if "raw" in tokens and "dry" in tokens:
+            return "Raw dry red rice"
+        return "Red rice"
+    if first_part == "chicken" and "drumstick" in tokens and "braised" in tokens:
+        return "Braised chicken drumstick"
+    if first_part == "pork" and "bacon" in tokens and "cooked" in tokens:
+        return "Cooked bacon"
+    if first_part == "cookies" and "oatmeal" in tokens and "raisins" in tokens:
+        return "Oatmeal raisin cookies"
+    if "chickpeas" in tokens:
+        if "canned" in tokens:
+            return "Canned chickpeas"
+        if "dry" in tokens:
+            return "Dry chickpeas"
+    if first_part == "seeds" and "pumpkin" in tokens and "raw" in tokens:
+        return "Raw pumpkin seeds"
+    if first_part == "seeds" and "sunflower" in tokens:
+        if "raw" in tokens:
+            return "Raw sunflower seeds"
+        if {"dry", "roasted", "salt"}.issubset(tokens):
+            return "Salted dry roasted sunflower seeds"
     if "anchovies" in tokens:
         if "canned" in tokens:
             return "Canned anchovies"
@@ -591,6 +725,23 @@ def promote_canonical_food_bulk_catalog(
             )
             continue
 
+        if _is_invalid_source_row(raw_record) or _is_sr_legacy_commercial_row(
+            raw_record
+        ):
+            skipped_invalid.append(
+                _item(
+                    raw_record,
+                    "skipped_invalid",
+                    reason=(
+                        "SR Legacy row contains an evidenced manufacturer, product-line, "
+                        "or USDA distribution-program signal."
+                        if _is_sr_legacy_commercial_row(raw_record)
+                        else "Source row looks like review/test/acquisition data."
+                    ),
+                )
+            )
+            continue
+
         if not _is_allowed_category(
             raw_record,
             include_categories=normalized_include_categories,
@@ -601,16 +752,6 @@ def promote_canonical_food_bulk_catalog(
                     raw_record,
                     "skipped_category",
                     reason="Source row category is not enabled for v0 bulk promotion.",
-                )
-            )
-            continue
-
-        if _is_invalid_source_row(raw_record):
-            skipped_invalid.append(
-                _item(
-                    raw_record,
-                    "skipped_invalid",
-                    reason="Source row looks like review/test/acquisition data.",
                 )
             )
             continue
@@ -635,6 +776,24 @@ def promote_canonical_food_bulk_catalog(
                     canonical_display_name=canonical_display_name,
                     canonical_food_id=existing_linked_id,
                     reason="Source row already has a primary canonical link.",
+                )
+            )
+            continue
+
+        if (
+            raw_record.data_type == "sr_legacy_food"
+            and "meatless" in normalize_food_name(raw_record.raw_description).split()
+            and "meatless" not in normalize_food_name(canonical_display_name).split()
+        ):
+            skipped_invalid.append(
+                _item(
+                    raw_record,
+                    "skipped_invalid",
+                    canonical_display_name=canonical_display_name,
+                    reason=(
+                        "SR Legacy meatless row could not retain a clear Meatless "
+                        "display-name qualifier."
+                    ),
                 )
             )
             continue
@@ -674,111 +833,135 @@ def promote_canonical_food_bulk_catalog(
             )
         )
 
-    promoted: list[BulkCatalogItem] = []
-    for same_name_candidates in candidates_by_name.values():
-        ready_candidates = same_name_candidates
-        if len(same_name_candidates) > 1:
-            macro_profiles = {
-                _macro_profile(candidate.raw_record)
-                for candidate in same_name_candidates
-            }
-            if len(macro_profiles) == 1:
-                for candidate in same_name_candidates:
-                    skipped_duplicate_name.append(
-                        _item(
-                            candidate.raw_record,
-                            "skipped_duplicate_name",
-                            canonical_display_name=candidate.canonical_display_name,
-                            reason=(
-                                "Multiple source rows curated to the same canonical "
-                                "display name with the same macro profile."
-                            ),
-                        )
-                    )
-                continue
-
-            renamed_candidates: list[_BulkCandidate] = []
-            renamed_names: set[str] = set()
-            has_unresolved_duplicate = False
-            for candidate in same_name_candidates:
-                renamed_name = _specific_duplicate_display_name(
-                    candidate.raw_record,
-                    candidate.canonical_display_name,
-                )
-                normalized_renamed_name = normalize_food_name(renamed_name)
-                if normalized_renamed_name in renamed_names:
-                    has_unresolved_duplicate = True
-                    break
-                renamed_names.add(normalized_renamed_name)
-                renamed_candidates.append(
-                    _BulkCandidate(
-                        raw_record=candidate.raw_record,
-                        canonical_display_name=renamed_name,
-                        aliases=_aliases_for_candidate(
-                            candidate.raw_record,
-                            renamed_name,
+    ready_candidates: list[_BulkCandidate] = []
+    for normalized_name in sorted(candidates_by_name):
+        same_name_candidates = candidates_by_name[normalized_name]
+        highest_precedence = min(
+            DATA_TYPE_PRECEDENCE.get(candidate.raw_record.data_type or "", 99)
+            for candidate in same_name_candidates
+        )
+        winning_candidates = [
+            candidate
+            for candidate in same_name_candidates
+            if DATA_TYPE_PRECEDENCE.get(candidate.raw_record.data_type or "", 99)
+            == highest_precedence
+        ]
+        winning_data_type = winning_candidates[0].raw_record.data_type or "unknown"
+        for candidate in same_name_candidates:
+            if candidate not in winning_candidates:
+                skipped_duplicate_name.append(
+                    _item(
+                        candidate.raw_record,
+                        "skipped_duplicate_name",
+                        canonical_display_name=candidate.canonical_display_name,
+                        reason=(
+                            "Lower-precedence source row skipped because "
+                            f"{winning_data_type} is selected for this candidate name."
                         ),
                     )
                 )
 
-            if has_unresolved_duplicate:
-                for candidate in same_name_candidates:
-                    skipped_duplicate_name.append(
-                        _item(
-                            candidate.raw_record,
-                            "skipped_duplicate_name",
-                            canonical_display_name=candidate.canonical_display_name,
-                            reason=(
-                                "Multiple materially different source rows still "
-                                "curated to the same canonical display name."
-                            ),
-                        )
-                    )
-                continue
-            ready_candidates = renamed_candidates
+        if len(winning_candidates) == 1:
+            ready_candidates.extend(winning_candidates)
+            continue
 
-        for candidate in ready_candidates:
-            if max_promotions is not None and len(promoted) >= max_promotions:
-                skipped_ambiguous.append(
-                    _item(
-                        candidate.raw_record,
-                        "skipped_ambiguous",
-                        canonical_display_name=candidate.canonical_display_name,
-                        reason="Promotion cap reached before this candidate.",
-                    )
-                )
-                continue
-
-            if dry_run:
-                promoted.append(
-                    _item(
-                        candidate.raw_record,
-                        "promoted",
-                        canonical_display_name=candidate.canonical_display_name,
-                        reason="Dry run: candidate would be promoted.",
-                        aliases=candidate.aliases,
-                    )
-                )
-                continue
-
-            promotion = promote_raw_source_record_to_canonical(
-                candidate.raw_record.id,
-                canonical_name=candidate.canonical_display_name,
-                aliases=candidate.aliases,
+        macro_profiles = {
+            _macro_profile(candidate.raw_record) for candidate in winning_candidates
+        }
+        if len(macro_profiles) == 1:
+            selected = min(
+                winning_candidates,
+                key=lambda candidate: (
+                    candidate.raw_record.source_name.casefold(),
+                    candidate.raw_record.data_type or "",
+                    candidate.raw_record.source_record_id,
+                    normalize_food_name(candidate.raw_record.raw_description),
+                    candidate.raw_record.id,
+                ),
             )
+            ready_candidates.append(selected)
+            for candidate in winning_candidates:
+                if candidate == selected:
+                    continue
+                skipped_duplicate_name.append(
+                    _item(
+                        candidate.raw_record,
+                        "skipped_duplicate_name",
+                        canonical_display_name=candidate.canonical_display_name,
+                        reason=(
+                            "An identical-profile representative was selected for this "
+                            "canonical display name."
+                        ),
+                    )
+                )
+            continue
+
+        for candidate in winning_candidates:
+            skipped_duplicate_name.append(
+                _item(
+                    candidate.raw_record,
+                    "skipped_duplicate_name",
+                    canonical_display_name=candidate.canonical_display_name,
+                    reason=(
+                        "Materially different source rows share this canonical display "
+                        "name and no targeted unique name is available."
+                    ),
+                )
+            )
+
+    promoted: list[BulkCatalogItem] = []
+    for candidate in sorted(
+        ready_candidates,
+        key=lambda candidate: (
+            DATA_TYPE_PRECEDENCE.get(candidate.raw_record.data_type or "", 99),
+            normalize_food_name(candidate.canonical_display_name),
+            candidate.raw_record.source_name.casefold(),
+            candidate.raw_record.source_record_id,
+            normalize_food_name(candidate.raw_record.raw_description),
+            candidate.raw_record.id,
+        ),
+    ):
+        if max_promotions is not None and len(promoted) >= max_promotions:
+            skipped_ambiguous.append(
+                _item(
+                    candidate.raw_record,
+                    "skipped_ambiguous",
+                    canonical_display_name=candidate.canonical_display_name,
+                    reason="Promotion cap reached before this candidate.",
+                )
+            )
+            continue
+
+        if dry_run:
             promoted.append(
                 _item(
                     candidate.raw_record,
                     "promoted",
-                    canonical_display_name=promotion.canonical_food.display_name,
-                    canonical_food_id=promotion.canonical_food.id,
-                    reason="Promoted from bulk catalog candidate.",
-                    aliases=tuple(alias.alias for alias in promotion.aliases),
-                    nutrients_synced=tuple(
-                        nutrient.nutrient_name for nutrient in promotion.nutrients
-                    ),
+                    canonical_display_name=candidate.canonical_display_name,
+                    reason="Dry run: candidate would be promoted.",
+                    aliases=candidate.aliases,
                 )
             )
+            continue
+
+        promotion = promote_raw_source_record_to_canonical(
+            candidate.raw_record.id,
+            canonical_name=candidate.canonical_display_name,
+            aliases=candidate.aliases,
+        )
+        promoted.append(
+            _item(
+                candidate.raw_record,
+                "promoted",
+                canonical_display_name=promotion.canonical_food.display_name,
+                canonical_food_id=promotion.canonical_food.id,
+                reason="Promoted from bulk catalog candidate.",
+                aliases=tuple(alias.alias for alias in promotion.aliases),
+                nutrients_synced=tuple(
+                    nutrient.nutrient_name for nutrient in promotion.nutrients
+                ),
+            )
+        )
 
     return BulkCatalogPromotionReport(
         dry_run=dry_run,

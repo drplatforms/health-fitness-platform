@@ -1,5 +1,5 @@
 # ruff: noqa: E402
-"""Bulk-promote safe USDA Foundation raw rows into canonical foods."""
+"""Bulk-promote safe USDA generic raw rows into canonical foods."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from services.usda_food_data_import_service import USDA_SOURCE_NAME
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Promote safe, practical USDA Foundation raw source rows into "
+            "Promote safe, practical USDA generic raw source rows into "
             "canonical foods with dry-run and JSON reporting support."
         )
     )
