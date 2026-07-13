@@ -97,6 +97,30 @@ def _create_foundation_raw(
     )
 
 
+def _create_generic_raw(
+    *,
+    source_record_id: str,
+    raw_description: str,
+    data_type: str,
+    food_category: str,
+    calories: float | None = 100.0,
+    protein: float | None = 1.0,
+    carbs: float | None = 1.0,
+    fat: float | None = 1.0,
+):
+    return create_raw_food_source_record(
+        source_name=USDA_SOURCE_NAME,
+        source_record_id=source_record_id,
+        raw_description=raw_description,
+        data_type=data_type,
+        food_category=food_category,
+        calories_per_100g=calories,
+        protein_g_per_100g=protein,
+        carbs_g_per_100g=carbs,
+        fat_g_per_100g=fat,
+    )
+
+
 def test_inventory_report_counts_database_and_fdc_directory(
     tmp_path,
     monkeypatch,
@@ -547,11 +571,12 @@ def test_duplicate_canonical_display_names_are_skipped_safely(
 
     report = promote_canonical_food_bulk_catalog()
 
-    assert len(report.skipped_duplicate_name) == 2
+    assert len(report.promoted) == 1
+    assert len(report.skipped_duplicate_name) == 1
     assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
         "Grape tomatoes"
     }
-    assert _count_rows("canonical_foods") == 0
+    assert _count_rows("canonical_foods") == 1
 
 
 def test_flour_variants_keep_meaningful_qualifiers(tmp_path, monkeypatch) -> None:
@@ -721,8 +746,8 @@ def test_identical_duplicate_berries_can_still_be_skipped(
 
     report = promote_canonical_food_bulk_catalog(dry_run=True)
 
-    assert report.promoted == []
-    assert len(report.skipped_duplicate_name) == 2
+    assert len(report.promoted) == 1
+    assert len(report.skipped_duplicate_name) == 1
     assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
         "Blackberries"
     }
@@ -754,11 +779,11 @@ def test_materially_different_same_name_rows_get_more_specific_names(
 
     report = promote_canonical_food_bulk_catalog(dry_run=True)
 
-    assert {item.canonical_display_name for item in report.promoted} == {
-        "Raw Blackberries",
-        "Canned Blackberries",
+    assert report.promoted == []
+    assert len(report.skipped_duplicate_name) == 2
+    assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
+        "Blackberries"
     }
-    assert report.skipped_duplicate_name == []
 
 
 def test_anchovies_in_olive_oil_do_not_become_olive_oil(
@@ -823,11 +848,666 @@ def test_representative_dry_run_promoted_count_improves_with_qualifier_curation(
 
     report = promote_canonical_food_bulk_catalog(dry_run=True)
 
-    assert len(report.promoted) >= 19
-    assert len(report.skipped_duplicate_name) == 2
+    assert len(report.promoted) >= 20
+    assert len(report.skipped_duplicate_name) == 1
     assert {item.canonical_display_name for item in report.skipped_duplicate_name} == {
         "Blackberries"
     }
+
+
+@pytest.mark.parametrize(
+    "include_data_types",
+    [
+        ("foundation_food", "sr_legacy_food"),
+        ("sr_legacy_food", "foundation_food"),
+    ],
+)
+def test_foundation_precedence_beats_sr_legacy_regardless_of_requested_order(
+    tmp_path,
+    monkeypatch,
+    include_data_types,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    foundation = _create_foundation_raw(
+        source_record_id="foundation-apricot",
+        raw_description="Apricot, raw",
+        food_category="Fruits and Fruit Juices",
+    )
+    sr_legacy = _create_generic_raw(
+        source_record_id="sr-apricot",
+        raw_description="Apricot, raw",
+        data_type="sr_legacy_food",
+        food_category="Fruits and Fruit Juices",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=include_data_types,
+    )
+
+    assert [item.raw_food_source_record_id for item in report.promoted] == [
+        foundation.id
+    ]
+    assert [
+        item.raw_food_source_record_id for item in report.skipped_duplicate_name
+    ] == [sr_legacy.id]
+    assert "foundation_food is selected" in report.skipped_duplicate_name[0].reason
+
+
+def test_foundation_precedence_is_stable_when_rows_are_inserted_in_reverse_order(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    sr_legacy = _create_generic_raw(
+        source_record_id="sr-apple",
+        raw_description="Apple, raw",
+        data_type="sr_legacy_food",
+        food_category="Fruits and Fruit Juices",
+    )
+    foundation = _create_foundation_raw(
+        source_record_id="foundation-apple",
+        raw_description="Apple, raw",
+        food_category="Fruits and Fruit Juices",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food", "foundation_food"),
+    )
+
+    assert [item.raw_food_source_record_id for item in report.promoted] == [
+        foundation.id
+    ]
+    assert [
+        item.raw_food_source_record_id for item in report.skipped_duplicate_name
+    ] == [sr_legacy.id]
+
+
+def test_promotion_cap_is_applied_after_source_precedence(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    foundation = _create_foundation_raw(
+        source_record_id="foundation-zucchini",
+        raw_description="Zucchini, raw",
+        food_category="Vegetables and Vegetable Products",
+    )
+    _create_generic_raw(
+        source_record_id="sr-apricot",
+        raw_description="Apricot, raw",
+        data_type="sr_legacy_food",
+        food_category="Fruits and Fruit Juices",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food", "foundation_food"),
+        max_promotions=1,
+    )
+
+    assert [item.raw_food_source_record_id for item in report.promoted] == [
+        foundation.id
+    ]
+    assert len(report.skipped_ambiguous) == 1
+
+
+@pytest.mark.parametrize(
+    ("description", "category"),
+    [
+        ("Apricot, raw", "Fruits and Fruit Juices"),
+        ("Carrots, raw", "Vegetables and Vegetable Products"),
+        ("Lentils, cooked", "Legumes and Legume Products"),
+        ("Buckwheat, cooked", "Cereal Grains and Pasta"),
+        ("Milk, whole", "Dairy and Egg Products"),
+        ("Almonds, raw", "Nut and Seed Products"),
+        ("Basil, fresh", "Spices and Herbs"),
+    ],
+)
+def test_each_approved_sr_legacy_category_can_be_eligible(
+    tmp_path,
+    monkeypatch,
+    description,
+    category,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id=f"sr-{category}",
+        raw_description=description,
+        data_type="sr_legacy_food",
+        food_category=category,
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert len(report.promoted) == 1
+    assert report.skipped_category == []
+
+
+def test_sr_legacy_category_controls_cannot_expand_allowlist(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-bread",
+        raw_description="Bread, white",
+        data_type="sr_legacy_food",
+        food_category="Baked Products",
+    )
+    _create_generic_raw(
+        source_record_id="sr-carrots",
+        raw_description="Carrots, raw",
+        data_type="sr_legacy_food",
+        food_category="Vegetables and Vegetable Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+        include_categories=("Baked Products",),
+    )
+
+    assert report.promoted == []
+    assert len(report.skipped_category) == 2
+
+
+def test_fndds_is_deferred_after_macro_gate_even_with_category_override(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="fndds-macro",
+        raw_description="Milk, whole",
+        data_type="survey_fndds_food",
+        food_category="Milk, whole",
+    )
+    _create_generic_raw(
+        source_record_id="fndds-no-macro",
+        raw_description="Milk, human",
+        data_type="survey_fndds_food",
+        food_category="Human milk",
+        calories=None,
+        protein=None,
+        carbs=None,
+        fat=None,
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("survey_fndds_food",),
+        include_categories=("Milk, whole", "Human milk"),
+    )
+
+    assert report.promoted == []
+    assert len(report.skipped_category) == 1
+    assert len(report.skipped_missing_macros) == 1
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "KRAFT BREAKSTONE'S FREE Fat Free Sour Cream",
+        "KRAFT CHEEZ WHIZ Pasteurized Process Cheese Sauce",
+        "KRAFT VELVEETA Pasteurized Process Cheese Spread",
+        "Reddi Wip Fat Free Whipped Topping",
+        "Cranberry sauce, jellied, canned, OCEAN SPRAY",
+        "Kiwifruit, ZESPRI SunGold, raw",
+        "Vegetable juice, BOLTHOUSE FARMS, DAILY GREENS",
+        "Carrots, raw, Includes foods for USDA's Food Distribution Program",
+    ],
+)
+def test_evidenced_sr_legacy_commercial_rows_are_skipped_invalid(
+    tmp_path,
+    monkeypatch,
+    description,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-commercial",
+        raw_description=description,
+        data_type="sr_legacy_food",
+        food_category="Dairy and Egg Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert len(report.skipped_invalid) == 1
+    assert report.promoted == []
+
+
+def test_foundation_commercially_prepared_description_remains_eligible(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="foundation-bread",
+        raw_description="Bread, white, commercially prepared",
+        food_category="Baked Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert len(report.promoted) == 1
+    assert report.skipped_invalid == []
+
+
+def test_sr_legacy_bolthouse_terms_do_not_change_foundation_behavior(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="foundation-bolthouse-phrase",
+        raw_description="Vegetable juice, BOLTHOUSE FARMS, DAILY GREENS",
+        food_category="Vegetables and Vegetable Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert [item.canonical_display_name for item in report.promoted] == [
+        "Vegetable Juice"
+    ]
+    assert report.skipped_invalid == []
+
+
+def test_sr_legacy_low_sodium_vegetable_juice_remains_eligible(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-low-sodium-vegetable-juice",
+        raw_description="Vegetable juice, low sodium",
+        data_type="sr_legacy_food",
+        food_category="Vegetables and Vegetable Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert [item.canonical_display_name for item in report.promoted] == [
+        "Vegetable Juice"
+    ]
+    assert report.skipped_invalid == []
+
+
+def test_usda_distribution_program_metadata_is_not_promoted_for_foundation(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="foundation-distribution-program",
+        raw_description="Oranges, raw (Includes foods for USDA's Food Distribution Program)",
+        food_category="Fruits and Fruit Juices",
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert report.promoted == []
+    assert len(report.skipped_invalid) == 1
+
+
+@pytest.mark.parametrize(
+    ("description", "category", "expected_name"),
+    [
+        (
+            "Rice, red, unenriched, dry, raw",
+            "Cereal Grains and Pasta",
+            "Raw dry red rice",
+        ),
+        (
+            "Chicken, broilers or fryers, drumstick, meat only, cooked, braised",
+            "Poultry Products",
+            "Braised chicken drumstick",
+        ),
+        ("Pork, cured, bacon, cooked, restaurant", "Pork Products", "Cooked bacon"),
+        (
+            "Cookies, oatmeal, soft, with raisins",
+            "Baked Products",
+            "Oatmeal raisin cookies",
+        ),
+        (
+            "Chickpeas (garbanzo beans, bengal gram), canned, sodium added, drained and rinsed",
+            "Legumes and Legume Products",
+            "Canned chickpeas",
+        ),
+        (
+            "Chickpeas, (garbanzo beans, bengal gram), dry",
+            "Legumes and Legume Products",
+            "Dry chickpeas",
+        ),
+        (
+            "Seeds, pumpkin seeds (pepitas), raw",
+            "Nut and Seed Products",
+            "Raw pumpkin seeds",
+        ),
+        (
+            "Seeds, sunflower seed kernels, dry roasted, with salt added",
+            "Nut and Seed Products",
+            "Salted dry roasted sunflower seeds",
+        ),
+        (
+            "Seeds, sunflower seed, kernel, raw",
+            "Nut and Seed Products",
+            "Raw sunflower seeds",
+        ),
+        (
+            "Cheese, cottage, lowfat, 2% milkfat",
+            "Dairy and Egg Products",
+            "Low-fat cottage cheese",
+        ),
+        (
+            "Cottage cheese, full fat, large or small curd",
+            "Dairy and Egg Products",
+            "Full-fat cottage cheese",
+        ),
+        (
+            "Grape juice, purple, with added vitamin C, from concentrate, shelf stable",
+            "Fruits and Fruit Juices",
+            "Purple grape juice",
+        ),
+        (
+            "Grape juice, white, with added vitamin C, from concentrate, shelf stable",
+            "Fruits and Fruit Juices",
+            "White grape juice",
+        ),
+        (
+            "Grapefruit juice, red, not fortified, not from concentrate, refrigerated",
+            "Fruits and Fruit Juices",
+            "Red grapefruit juice",
+        ),
+        (
+            "Grapefruit juice, white, canned or bottled, unsweetened",
+            "Fruits and Fruit Juices",
+            "White grapefruit juice",
+        ),
+        (
+            "Juice, pomegranate, from concentrate, shelf-stable",
+            "Fruits and Fruit Juices",
+            "Pomegranate juice",
+        ),
+        ("Juice, prune, shelf-stable", "Fruits and Fruit Juices", "Prune juice"),
+        (
+            "Juice, tart cherry, from concentrate, shelf-stable",
+            "Fruits and Fruit Juices",
+            "Tart cherry juice",
+        ),
+        ("Mango, Ataulfo, peeled, raw", "Fruits and Fruit Juices", "Ataulfo mango"),
+        (
+            "Mango, Tommy Atkins, peeled, raw",
+            "Fruits and Fruit Juices",
+            "Tommy Atkins mango",
+        ),
+        ("Plantains, overripe, raw", "Fruits and Fruit Juices", "Overripe plantains"),
+        ("Plantains, ripe, raw", "Fruits and Fruit Juices", "Ripe plantains"),
+        (
+            "Plantains, underripe, raw",
+            "Fruits and Fruit Juices",
+            "Underripe plantains",
+        ),
+        (
+            "Blackeye pea, canned, sodium added, drained and rinsed",
+            "Legumes and Legume Products",
+            "Canned black-eyed peas",
+        ),
+        ("Blackeye pea, dry", "Legumes and Legume Products", "Dry black-eyed peas"),
+        ("Peanut butter, creamy", "Nut and Seed Products", "Creamy peanut butter"),
+        (
+            "Peanut butter, smooth style, with salt",
+            "Nut and Seed Products",
+            "Salted smooth peanut butter",
+        ),
+        ("Cabbage, bok choy, raw", "Vegetables and Vegetable Products", "Bok choy"),
+        (
+            "Cabbage, green, raw",
+            "Vegetables and Vegetable Products",
+            "Green cabbage",
+        ),
+        (
+            "Cabbage, napa, leaf, destemmed, raw",
+            "Vegetables and Vegetable Products",
+            "Napa cabbage",
+        ),
+        ("Cabbage, red, raw", "Vegetables and Vegetable Products", "Red cabbage"),
+        (
+            "Kale, frozen, cooked, boiled, drained, without salt",
+            "Vegetables and Vegetable Products",
+            "Cooked frozen kale",
+        ),
+        ("Kale, raw", "Vegetables and Vegetable Products", "Raw kale"),
+        (
+            "Kiwifruit (kiwi), green, peeled, raw",
+            "Fruits and Fruit Juices",
+            "Peeled kiwifruit",
+        ),
+        ("Onions, red, raw", "Vegetables and Vegetable Products", "Red onions"),
+        ("Onions, white, raw", "Vegetables and Vegetable Products", "White onions"),
+        ("Onions, yellow, raw", "Vegetables and Vegetable Products", "Yellow onions"),
+        (
+            "Potatoes, gold, without skin, raw",
+            "Vegetables and Vegetable Products",
+            "Gold potatoes",
+        ),
+        (
+            "Potatoes, red, without skin, raw",
+            "Vegetables and Vegetable Products",
+            "Red potatoes",
+        ),
+        (
+            "Potatoes, russet, without skin, raw",
+            "Vegetables and Vegetable Products",
+            "Russet potatoes",
+        ),
+        (
+            "Tomatoes, canned, red, ripe, diced",
+            "Vegetables and Vegetable Products",
+            "Diced canned tomatoes",
+        ),
+        (
+            "Tomatoes, crushed, canned",
+            "Vegetables and Vegetable Products",
+            "Crushed tomatoes",
+        ),
+        (
+            "Tomatoes, whole, canned, solids and liquids, with salt added",
+            "Vegetables and Vegetable Products",
+            "Whole canned tomatoes",
+        ),
+    ],
+)
+def test_required_foundation_display_name_corrections(
+    tmp_path,
+    monkeypatch,
+    description,
+    category,
+    expected_name,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="foundation-correction",
+        raw_description=description,
+        food_category=category,
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert [item.canonical_display_name for item in report.promoted] == [expected_name]
+
+
+def test_general_and_peeled_kiwifruit_can_coexist_with_distinct_names(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_foundation_raw(
+        source_record_id="foundation-kiwifruit-general",
+        raw_description="Kiwifruit, green, raw",
+        food_category="Fruits and Fruit Juices",
+    )
+    _create_foundation_raw(
+        source_record_id="foundation-kiwifruit-peeled",
+        raw_description="Kiwifruit (kiwi), green, peeled, raw",
+        food_category="Fruits and Fruit Juices",
+    )
+
+    report = promote_canonical_food_bulk_catalog(dry_run=True)
+
+    assert {item.canonical_display_name for item in report.promoted} == {
+        "Kiwifruit",
+        "Peeled kiwifruit",
+    }
+    assert report.skipped_duplicate_name == []
+
+
+@pytest.mark.parametrize(
+    "description",
+    [
+        "SILK Chai, soymilk",
+        "SILK Banana-Strawberry soy yogurt",
+        "Vitasoy USA Nasoya, Lite Silken Tofu",
+    ],
+)
+def test_reviewed_sr_legacy_commercial_rows_are_skipped_invalid(
+    tmp_path,
+    monkeypatch,
+    description,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-reviewed-commercial",
+        raw_description=description,
+        data_type="sr_legacy_food",
+        food_category="Legumes and Legume Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert len(report.skipped_invalid) == 1
+    assert report.promoted == []
+
+
+def test_sr_legacy_commercial_tokens_use_whole_normalized_phrases(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-silky-tofu",
+        raw_description="Silky tofu, plain",
+        data_type="sr_legacy_food",
+        food_category="Legumes and Legume Products",
+    )
+    _create_foundation_raw(
+        source_record_id="foundation-silk",
+        raw_description="SILK Chai, soymilk",
+        food_category="Legumes and Legume Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food", "foundation_food"),
+    )
+
+    assert {item.raw_description for item in report.promoted} == {
+        "Silky tofu, plain",
+        "SILK Chai, soymilk",
+    }
+    assert report.skipped_invalid == []
+
+
+@pytest.mark.parametrize(
+    ("description", "expected_name"),
+    [
+        ("Bacon, meatless", "Meatless bacon"),
+        ("Bacon bits, meatless", "Meatless bacon bits"),
+        ("Frankfurter, meatless", "Meatless frankfurter"),
+        ("Luncheon slices, meatless", "Meatless luncheon slices"),
+        ("Meatballs, meatless", "Meatless meatballs"),
+        ("Sandwich spread, meatless", "Meatless sandwich spread"),
+        ("Sausage, meatless", "Meatless sausage"),
+    ],
+)
+def test_sr_legacy_meatless_rows_preserve_the_qualifier(
+    tmp_path,
+    monkeypatch,
+    description,
+    expected_name,
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-meatless",
+        raw_description=description,
+        data_type="sr_legacy_food",
+        food_category="Legumes and Legume Products",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert [item.canonical_display_name for item in report.promoted] == [expected_name]
+
+
+def test_sr_legacy_soy_vermicelli_keeps_its_soy_identity(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _create_generic_raw(
+        source_record_id="sr-soy-vermicelli",
+        raw_description="Vermicelli, made from soy",
+        data_type="sr_legacy_food",
+        food_category="Cereal Grains and Pasta",
+    )
+
+    report = promote_canonical_food_bulk_catalog(
+        dry_run=True,
+        include_data_types=("sr_legacy_food",),
+    )
+
+    assert [item.canonical_display_name for item in report.promoted] == [
+        "Soy vermicelli"
+    ]
+
+
+def test_identical_profile_representative_is_stable_across_insertion_order(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    selected_ids = []
+    for name, record_ids in (
+        ("first", ("berry-b", "berry-a")),
+        ("second", ("berry-a", "berry-b")),
+    ):
+        case_path = tmp_path / name
+        case_path.mkdir()
+        _seed_test_db(case_path, monkeypatch)
+        for source_record_id in record_ids:
+            _create_foundation_raw(
+                source_record_id=source_record_id,
+                raw_description="Blackberries, raw",
+                food_category="Fruits and Fruit Juices",
+                calories=43.0,
+                protein=1.4,
+                carbs=9.6,
+                fat=0.5,
+            )
+        report = promote_canonical_food_bulk_catalog(dry_run=True)
+        selected_ids.append(report.promoted[0].source_record_id)
+
+    assert selected_ids == ["berry-a", "berry-a"]
 
 
 def test_bulk_promotion_is_idempotent(tmp_path, monkeypatch) -> None:

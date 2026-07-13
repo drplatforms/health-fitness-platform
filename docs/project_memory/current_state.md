@@ -1,3 +1,50 @@
+# Current State - USDA Generic Source-Specific Promotion Rules v0
+
+Latest accepted source of truth remains `main` at `ecdc01a Close USDA generic canonical promotion diagnostic memory`.
+
+Implementation branch: `feature/usda-generic-source-specific-promotion-rules-v0`.
+
+Status:
+
+```text
+USDA_GENERIC_SOURCE_SPECIFIC_PROMOTION_RULES_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW
+```
+
+Implementation update:
+
+- Fixed source precedence is Foundation, SR Legacy, then FNDDS; lower-priority
+  collision rows are explicit duplicate-name skips.
+- SR Legacy is limited to seven conservative basic-food categories and rejects
+  bounded commercial/product-line evidence including Bolthouse Farms, Daily
+  Greens, Silk, Vitasoy, and Nasoya, plus USDA distribution-program metadata.
+- FNDDS remains fully deferred from canonical promotion.
+- Same-name/same-macro families select one deterministic representative; unresolved
+  different-macro families no longer use generic comma-phrase renaming.
+- Nine initial and 33 review-corrected Foundation display-name mappings, plus a
+  peeled-kiwifruit correction, cover the approved diagnostic examples without
+  restoring generic comma-phrase fallback.
+- SR meatless rows retain their `Meatless` qualifier; soy vermicelli retains its
+  soy identity. Focused tests passed: `110`; import/promotion safety tests passed:
+  `131`. Ruff check and format check passed.
+- Official external dry-runs processed Foundation `469`, SR Legacy `7,793`, FNDDS
+  `5,432`, and combined `13,694` rows. Combined promoted `348` rows; all 151
+  Foundation-only candidates remained present and reversed data-type order produced
+  identical promoted identities and names.
+- The final audit found zero promoted Bolthouse/Daily Greens rows, zero promoted
+  Silk/Vitasoy/Nasoya rows, zero promoted meatless rows without `Meatless`, zero
+  promoted USDA distribution metadata rows, zero `Kiwifruit Kiwi` names, and zero
+  adjacent duplicate-word names. General `Kiwifruit` and `Peeled kiwifruit` both
+  remain promoted. External evidence verdict:
+  `READY_FOR_LIMITED_FOUNDATION_SR_PROMOTION_PLAN`.
+- No canonical records were promoted. Raw count remained `13,694`; canonical
+  tables remained empty; the real `fitness_ai.db` was not accessed or mutated.
+- The rules remain dry-run evidence only and are not approved for live promotion.
+
+See milestone memory:
+`docs/project_memory/milestones/usda_generic_source_specific_promotion_rules_v0.md`.
+
+---
+
 # Current State - USDA Generic Canonical Promotion Diagnostic v0
 
 Accepted diagnostic base: `main` at `53703aa Close USDA generic full dataset validation memory`.
