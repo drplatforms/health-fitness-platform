@@ -1,34 +1,39 @@
 # Current State - Cross-Domain Coaching Synthesis Preview v1
 
-Accepted implementation base: `main` at `9c5ae0f Merge manifest-aware canonical food promotion`.
+Accepted merge: `b63ec69 Merge semantic cross-domain coaching preview`.
 
-Current implementation branch:
-`feature/cross-domain-coaching-synthesis-preview-v1`.
+Feature implementation: `596f14b Add semantic cross-domain coaching preview`.
 
 Status:
 
 ```text
-READY_FOR_ARCHITECTURE_SEMANTIC_CONTRACT_REVIEW
+CROSS_DOMAIN_COACHING_SYNTHESIS_PREVIEW_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
-Implementation summary:
+Closeout:
 
-- Manifest-aware canonical food promotion is merged; live USDA promotion remains deferred and USDA work is frozen while product coaching work resumes.
-- This is an isolated developer-only backend/CLI preview, not a Today-page, public API, normal provider runtime, persistence, schema, migration, or provider-promotion feature.
-- Existing Daily Coach snapshot, raw preview payload, synthesis, and approved brief services provide the backend-owned evidence and approved actions. The preview does not query raw database tables directly.
-- The complete `CrossDomainEvidencePacket` remains the deterministic audit/provenance source. A separate typed `CrossDomainAssessmentContext` is projected for the specialist call only: recovery/nutrition/training/shared facts are capped at `8/8/10/5` (`31` total), selected through explicit typed-field allowlists, and contain stable evidence ID, domain, semantic fact key, typed value, safe display value, and confidence. Metadata, per-row detail, summaries, coach-safe prose, recommendations, and limitation/source-gap sentences are excluded.
-- Provider-facing actions are semantic objects with `action_key`, domain, `action_type`, typed parameters, and source claim keys/support. Recovery maps to `maintain_planned_training`, training maps to `execute_planned_session` with RIR bounds derived from approved claim data, and nutrition maps to `consider_food_candidate` with approved food data and serving permission. Legacy instruction, interpretation, and phrasing prose is neither copied nor parsed. Limitations are semantic conditions and are not selectable actions.
-- A successful preview makes at most two provider calls: one strictly parsed structured assessment for recovery, nutrition, and training, then one natural narrative call only after that assessment validates. Assessment and narrative providers/models are independently selected from `mock`, `openai`, and `direct_ollama`; each call has its own injectable developer-test seam.
-- Backend remains authoritative for facts, confidence, conditions, scenarios, semantic action availability, deterministic resolution, targets, workout plans, persistence, and fallback. The provider can select approved action keys and write candidate narrative only.
-- The assessment response schema is built at runtime from the bounded context. It constrains the assessment version, statuses, confidence, priority permutation, per-domain evidence IDs, specialist-owned action keys, empty-action domains, and tension evidence IDs; the existing strict parser remains mandatory after schema output.
-- The narrative call receives a dedicated `cross_domain_semantic_narrative_context_v1` projection rather than the raw `ApprovedCoachBrief`. It contains the resolved semantic decision, typed domain status, bounded relevant approved facts (`6/8/6` by recovery/nutrition/training), semantic confidence conditions, and forbidden-topic codes. It excludes today-intent copy, instruction/interpretation copy, phrasing banks, specialist observations/tension summaries, coach-safe summaries, deterministic fallback prose, and the backend forbidden-certainty phrase list.
-- The backend-owned confidence policy and audit retain the certainty phrases internally. Claim audit runs first, confidence-coherence second, and product voice third. Unsupported food, value, serving, timing, causal, certainty, source-gap-denial, and workout-change claims remain rejected without requiring similarity to legacy action sentences.
-- The deterministic resolver never restores vetoed actions as primary or supporting actions. Recovery caution alone does not erase backend-approved training actions; only an explicit recovery veto suppresses conflicting training emphasis. Existing claim and product-voice audits decide the developer-preview disposition without repair calls.
-- The direct-Ollama adapter uses the existing lifecycle policy, base-URL, model-normalization, and structured `/api/generate` payload conventions. Qwen3 model names receive `think: false` for this strict two-call preview; Qwen2.5 behavior is unchanged. It has no normal-runtime hook or default change.
-- Optional artifacts now include the exact prompt-free `semantic_narrative_context.json`; no artifacts are written without `--output-dir`.
-- Codex did not run a live provider trial. The semantic-contract focused preview suite passed: `96`; the required focused regression slice passed: `136`. Ruff check and format check passed for all five scoped Python files. Project-memory checker passed with `590 PASS`, `58 WARN`, `0 FAIL`; project-memory tests passed: `29`. No full suite, browser automation, frontend build, provider call, or `fitness_ai.db` access occurred.
-- Product-voice audit scoring remains a known follow-up; this correction did not redesign it or weaken any approval audit.
-- This preview is not production-ready and does not authorize Today/public/provider promotion.
+- The developer-only two-call cross-domain preview is merged on `main`. It adds no Today/public UI, public API route, normal provider runtime, persistence, schema, migration, dependency, frontend behavior, or provider promotion.
+- Backend-owned evidence is projected into bounded semantic assessment and narrative contexts. Provider-facing actions contain semantic IDs, typed parameters, approved support, confidence, and conditions rather than backend-authored coaching sentences.
+- The raw `ApprovedCoachBrief`, today-intent copy, instruction/interpretation copy, allowed-phrasing banks, coach-safe summaries, deterministic fallback prose, and specialist prose do not enter the narrative call.
+- The complete audit/provenance packet remains available for developer inspection. The assessment context is capped at recovery/nutrition/training/shared `8/8/10/5`; narrative facts are bounded at `6/8/6`.
+- Successful previews make at most two provider calls. Invalid assessment output blocks the narrative call. Direct Ollama, OpenAI, and mock provider seams remain developer-only; Qwen3 strict calls set `think: false`.
+- Claim audit, confidence-coherence audit, and product-voice audit remain in the approval path. Unsupported foods, values, servings, timing, causal claims, certainty escalation, source-gap denial, and workout changes remain rejected without requiring sentence similarity.
+- Merged-main validation passed: targeted provider/audit regression `136 passed`; project-memory checker `590 PASS`, `58 WARN`, `0 FAIL`; project-memory tests `29 passed`; Ruff check and format check passed; `git diff --check` passed.
+- Frozen live benchmark: QA user `102`, date `2026-05-31`, scenario `aligned_managed`.
+- Qwen3:8B and Qwen3:32B confirmed that the semantic contract removed direct legacy-copy leakage and allowed novel wording. Narrative quality is still not accepted for product use: outputs remained generic and structurally constrained by the backend-selected primary/supporting action outline.
+- The product-voice audit is not accepted as a reliable product-readiness signal for this workflow; it scored mediocre provider prose too generously. It remains implemented but requires a later evaluation/redesign milestone.
+- The OpenAI upper-bound benchmark is intentionally deferred to avoid spending credits before the provider receives meaningful editorial decision freedom.
+- The semantic contract is accepted as infrastructure. It is not authorization for Today/public/provider promotion.
+
+Next architecture direction:
+
+```text
+Cross-Domain Narrative Decision Freedom v1
+```
+
+That milestone should let the narrative provider choose the most useful focus and zero, one, or two approved supporting ideas from a safe candidate envelope, while the backend continues to validate selected semantic keys, facts, foods, values, and safety constraints.
+
+A later, separate milestone should expand coaching food candidates through deterministic retrieval/ranking from the broader canonical catalog rather than repeatedly exposing only the current narrow food pool.
 
 See milestone memory:
 `docs/project_memory/milestones/cross_domain_coaching_synthesis_preview_v1.md`.
