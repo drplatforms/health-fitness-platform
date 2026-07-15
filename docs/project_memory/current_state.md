@@ -1,35 +1,36 @@
 # Current State - Exercise Catalog Identity Propagation v1
 
-Accepted baseline: `b3bae29 Merge project memory and developer workflow canonicalization v1`.
+Accepted main merge: `6227f50 Merge exercise catalog identity propagation v1`.
 
-Branch: `feature/exercise-catalog-identity-propagation-v1`.
+Feature implementation: `65fccbd Add exercise catalog identity propagation`.
 
 Status:
 
 ```text
-EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT
+EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
-Current truth:
+Closeout:
 
-- Project Memory + Developer Workflow Canonicalization v1 is accepted and closed at `b3bae29`; its prior current-facing in-progress and architecture-review markers were metadata debt only.
-- Exercise Catalog Identity Propagation v1 is the active bounded product prerequisite.
-- The existing `exercise_catalog_exercises.id` remains the canonical identity for catalog-backed workout features.
-- The active scope preserves that nullable identity through candidate approval, approved-plan JSON, planned-exercise persistence, read models, and existing API serialization.
-- Legacy approved-plan JSON without the field and legacy planned rows with a null ID remain supported.
-- Substitution lookup prefers persisted catalog identity when present and retains name lookup only for legacy rows without an ID.
-- This milestone does not add exercise instructions, instruction persistence or API/UI surfaces, media, a second exercise identity, workout-generation behavior changes, or provider/AI work.
-- Architecture accepted the implementation; Git closeout remains pending.
-- The `catalog_exercise_id` schema addition is additive and nullable, and no legacy workout rows were backfilled.
-- Affected automated tests now use pytest-owned databases; guarded validation confirms they cannot access the canonical `fitness_ai.db`.
-- Canonical user data is not part of this milestone.
-- This entry does not claim merge or closeout.
+- Stable `exercise_catalog_exercises.id` identity now propagates through candidate workout exercise, approved workout exercise, approved workout-plan serialization, planned-workout persistence, and downstream read state.
+- Legacy approved-plan JSON without `catalog_exercise_id` remains compatible.
+- Legacy persisted planned-workout rows with `catalog_exercise_id = NULL` remain compatible.
+- Exercise substitution lookup prefers persisted stable catalog identity when available and retains name lookup only as the legacy null-ID fallback.
+- The schema addition is additive and nullable. No legacy planned-workout rows were backfilled.
+- No workout generation behavior, selection policy, substitution compatibility or scoring policy, or frontend behavior changed.
+- Affected automated tests use pytest-owned databases, and guarded validation confirmed they cannot access the canonical `fitness_ai.db`.
+- Merged-main targeted validation, project-memory checks, Ruff checks, formatting checks, Python compilation, and `git diff --check` passed.
+- No browser smoke was required because no frontend behavior changed.
+- Canonical user data was not part of this milestone.
+- Exercise Catalog Identity Propagation v1 is accepted, merged, and closed.
 
-Next intended milestone after acceptance:
+Next recommended milestone:
 
 ```text
 Exercise Instruction Contract + Persistence v1
 ```
+
+This next milestone is recommended for Architecture definition but is not authorized for implementation.
 
 See the closed baseline milestone memory:
 `docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md`.

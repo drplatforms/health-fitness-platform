@@ -69,17 +69,17 @@
   },
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_b3bae29_main_project-memory-workflow-canonicalized.zip",
-    "commit_check_mode": "code",
-    "current_authorized_milestone": "Exercise Catalog Identity Propagation v1",
-    "current_recommended_milestone": "Exercise Catalog Identity Propagation v1 Git closeout",
-    "current_recommended_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
-    "primary_question": "Does the existing exercise catalog ID survive candidate approval, approved-plan serialization, planned-exercise persistence, and downstream reads without breaking legacy records?",
-    "qa_class": "CLASS_2_SCHEMA_PERSISTENCE_COMPATIBILITY",
+    "commit_check_mode": "docs_tooling",
+    "current_authorized_milestone": "none; no implementation milestone currently authorized",
+    "current_recommended_milestone": "Exercise Instruction Contract + Persistence v1",
+    "current_recommended_status": "RECOMMENDED_FOR_ARCHITECTURE_DEFINITION_NOT_IMPLEMENTATION_AUTHORIZED",
+    "primary_question": "How should trusted structured exercise instructions attach to exercise_catalog_exercises.id without duplicating exercise identity or muscle metadata?",
+    "qa_class": "ARCHITECTURE_DEFINITION_REQUIRED",
     "recommended_next_milestone_after_acceptance": "Exercise Instruction Contract + Persistence v1",
-    "recommended_owner": "Backend Development",
+    "recommended_owner": "Architecture for milestone definition, then Backend Development after explicit authorization",
     "source_feature_branch": "feature/exercise-catalog-identity-propagation-v1",
-    "source_feature_commit": null,
-    "source_main_commit": "b3bae29"
+    "source_feature_commit": "65fccbd",
+    "source_main_commit": "6227f50"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -420,20 +420,20 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "Exercise Catalog Identity Propagation v1",
-    "active_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+    "active_backend_milestone": "none; no implementation milestone currently authorized",
+    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
     "active_project_memory_milestone": "none; Project Memory + Developer Workflow Canonicalization v1 closed at b3bae29",
     "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
-    "current_source_of_truth": "accepted main at b3bae29 Merge project memory and developer workflow canonicalization v1",
+    "current_source_of_truth": "accepted local main at 6227f50 Merge exercise catalog identity propagation v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "b3bae29",
-    "latest_accepted_milestone": "Project Memory + Developer Workflow Canonicalization v1",
+    "latest_accepted_commit": "6227f50",
+    "latest_accepted_milestone": "Exercise Catalog Identity Propagation v1",
     "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-15_b3bae29_main_project-memory-workflow-canonicalized.zip",
-    "latest_final_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
-    "latest_main_merge_commit": "b3bae29",
+    "latest_final_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ACCEPTED_MERGED_AND_CLOSED",
+    "latest_main_merge_commit": "6227f50",
     "latest_technical_baseline_commit": "23b5378",
     "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip",
-    "next_product_architecture_center": "Complete exercise catalog identity propagation, then proceed to Exercise Instruction Contract + Persistence v1",
+    "next_product_architecture_center": "Define Exercise Instruction Contract + Persistence v1; implementation is not authorized until Architecture supplies an accepted milestone",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "previous_accepted_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "previous_main_merge_commit": "56d63c4",
@@ -1059,7 +1059,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+  "requested_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
   "runtime_split": {
     "linux": [
       "Secondary/back-burner optional validation, runtime, or demo environment at ~/projects/fitness-ai-platform. Linux sync is task-specific rather than an automatic closeout phase."
@@ -1071,11 +1071,11 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "Exercise Catalog Identity Propagation v1",
-    "active_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+    "active_backend_milestone": "none; no implementation milestone currently authorized",
+    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
     "active_project_memory_milestone": "none; Project Memory + Developer Workflow Canonicalization v1 closed at b3bae29",
     "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
-    "requested_final_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT"
+    "requested_final_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ACCEPTED_MERGED_AND_CLOSED"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
