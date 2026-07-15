@@ -431,43 +431,43 @@ export function LoggedFoodsList({
     <TodayCard title="Logged today" className={className}>
       <div className="space-y-2">
         {isRefreshing ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             Updating logged foods...
           </p>
         ) : null}
 
         {error ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             {error}
           </p>
         ) : null}
 
         {actionError ? (
-          <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900">
+          <p className="rounded-2xl bg-danger-surface px-4 py-3 text-sm font-medium text-danger-foreground">
             {actionError}
           </p>
         ) : null}
 
         {!error && entries.length === 0 ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             No foods logged yet today.
           </p>
         ) : null}
 
         {entries.length > 0 ? (
-          <div className="max-h-[26rem] space-y-3 overflow-y-auto rounded-2xl bg-slate-50 px-3 py-3">
+          <div className="max-h-[26rem] space-y-3 overflow-y-auto rounded-2xl bg-surface-subtle px-3 py-3">
             {mealGroups.map((group) => (
               <section key={group.mealType} className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2 px-1">
-                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  <h3 className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">
                     {formatMealType(group.mealType)}
                   </h3>
-                  <span className="text-xs font-medium text-slate-500">
+                  <span className="text-xs font-medium text-text-muted">
                     {group.entries.length}{" "}
                     {group.entries.length === 1 ? "item" : "items"}
                   </span>
                 </div>
-                <div className="divide-y divide-slate-100 rounded-xl bg-white">
+                <div className="divide-y divide-border-subtle rounded-xl bg-surface">
                   {group.entries.map((entry) => (
                     <div
                       key={entry.entry_id}
@@ -475,11 +475,11 @@ export function LoggedFoodsList({
                     >
                       {editingEntryId === entry.entry_id ? (
                         <div className="space-y-2">
-                          <p className="font-semibold text-slate-950">
+                          <p className="font-semibold text-text-strong">
                             {entry.food_name}
                           </p>
                           <div className="grid gap-2 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,0.75fr)_auto] sm:items-end">
-                            <label className="space-y-1 text-xs font-medium text-slate-600">
+                            <label className="space-y-1 text-xs font-medium text-text-secondary">
                               <span>Amount</span>
                               <div className="grid gap-2 sm:grid-cols-[minmax(0,0.65fr)_minmax(0,1fr)]">
                                 <input
@@ -490,7 +490,7 @@ export function LoggedFoodsList({
                                   onChange={(event) =>
                                     setEditAmount(event.target.value)
                                   }
-                                  className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400"
+                                  className="min-w-0 flex-1 rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-strong outline-none focus:border-focus-subtle"
                                 />
                                 <select
                                   value={editUnitKey}
@@ -506,7 +506,7 @@ export function LoggedFoodsList({
                                         : "1",
                                     );
                                   }}
-                                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400 disabled:opacity-70"
+                                  className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-strong outline-none focus:border-focus-subtle disabled:opacity-70"
                                 >
                                   <option value="grams">grams</option>
                                   {entry.food_type === "personal" &&
@@ -545,14 +545,14 @@ export function LoggedFoodsList({
                                 </select>
                               </div>
                             </label>
-                            <label className="space-y-1 text-xs font-medium text-slate-600">
+                            <label className="space-y-1 text-xs font-medium text-text-secondary">
                               <span>Meal</span>
                               <select
                                 value={editMealType}
                                 onChange={(event) =>
                                   setEditMealType(event.target.value)
                                 }
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400"
+                                className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-strong outline-none focus:border-focus-subtle"
                               >
                                 {mealTypeOptions.map((option) => (
                                   <option key={option.value} value={option.value}>
@@ -566,7 +566,7 @@ export function LoggedFoodsList({
                                 type="button"
                                 onClick={() => void saveEntry(entry)}
                                 disabled={pendingEntryId === entry.entry_id}
-                                className="rounded-xl bg-emerald-900 px-3 py-2 text-xs font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="rounded-xl bg-action-primary px-3 py-2 text-xs font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 Save
                               </button>
@@ -574,13 +574,13 @@ export function LoggedFoodsList({
                                 type="button"
                                 onClick={cancelEditing}
                                 disabled={pendingEntryId === entry.entry_id}
-                                className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="rounded-xl bg-surface-muted px-3 py-2 text-xs font-semibold text-text-body transition hover:bg-surface-interactive-hover disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 Cancel
                               </button>
                             </div>
                           </div>
-                          <p className="text-xs font-medium text-slate-600">
+                          <p className="text-xs font-medium text-text-secondary">
                             {(() => {
                               const amount = Number(editAmount);
                               const servingUnits =
@@ -627,10 +627,10 @@ export function LoggedFoodsList({
                         </div>
                       ) : (
                         <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-baseline">
-                          <span className="font-semibold text-slate-950">
+                          <span className="font-semibold text-text-strong">
                             {entry.food_name}
                           </span>
-                          <span className="text-slate-600 sm:text-right">
+                          <span className="text-text-secondary sm:text-right">
                             {formatLoggedAmount(entry)}
                           </span>
                           <div className="flex gap-2 text-xs font-semibold sm:justify-end">
@@ -638,7 +638,7 @@ export function LoggedFoodsList({
                               type="button"
                               onClick={() => startEditing(entry)}
                               disabled={pendingEntryId === entry.entry_id}
-                              className="text-emerald-800 transition hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
+                              className="text-accent-text transition hover:text-accent-text-hover disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               Edit
                             </button>
@@ -648,8 +648,8 @@ export function LoggedFoodsList({
                               disabled={pendingEntryId === entry.entry_id}
                               className={
                                 confirmingDeleteEntryId === entry.entry_id
-                                  ? "text-rose-700 transition hover:text-rose-900 disabled:cursor-not-allowed disabled:opacity-60"
-                                  : "text-slate-500 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                  ? "text-danger-action transition hover:text-danger-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                                  : "text-text-muted transition hover:text-danger-action disabled:cursor-not-allowed disabled:opacity-60"
                               }
                             >
                               {confirmingDeleteEntryId === entry.entry_id
@@ -661,13 +661,13 @@ export function LoggedFoodsList({
                                 type="button"
                                 onClick={() => setConfirmingDeleteEntryId(null)}
                                 disabled={pendingEntryId === entry.entry_id}
-                                className="text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                className="text-text-muted transition hover:text-text-body disabled:cursor-not-allowed disabled:opacity-60"
                               >
                                 Cancel
                               </button>
                             ) : null}
                           </div>
-                          <span className="text-xs font-medium text-slate-600 sm:col-span-3">
+                          <span className="text-xs font-medium text-text-secondary sm:col-span-3">
                             {formatMacroLine(entry)}
                           </span>
                         </div>

@@ -534,7 +534,7 @@ export function FoodLoggingCard({
               user_id: String(userId),
               date: targetDate,
             }).toString()}`}
-            className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
+            className="text-sm font-semibold !text-accent-text transition hover:!text-accent-text-hover"
           >
             My Foods
           </Link>
@@ -542,19 +542,19 @@ export function FoodLoggingCard({
       ) : null}
         {recentFoods.length > 0 ? (
           <div className="space-y-2">
-            <p className="text-sm font-semibold text-slate-900">Recent foods</p>
+            <p className="text-sm font-semibold text-text-primary">Recent foods</p>
             <div className="flex flex-wrap gap-2">
               {recentFoods.map((food) => (
                 <button
                   key={food.canonical_food_id}
                   type="button"
                   onClick={() => handleSelectRecentFood(food)}
-                  className="max-w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-xs leading-5 text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50"
+                  className="max-w-full rounded-2xl border border-border bg-surface px-3 py-2 text-left text-xs leading-5 text-text-body transition hover:border-border-accent hover:bg-surface-highlighted"
                 >
-                  <span className="font-semibold text-slate-950">
+                  <span className="font-semibold text-text-strong">
                     {food.display_name}
                   </span>
-                  <span className="text-slate-500">
+                  <span className="text-text-muted">
                     {" "}
                     · {formatRecentAmount(food)} ·{" "}
                     {formatMealLabel(food.last_meal_type)}
@@ -566,13 +566,13 @@ export function FoodLoggingCard({
         ) : null}
 
         {isLoadingRecentFoods && recentFoods.length === 0 ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             Loading recent foods...
           </p>
         ) : null}
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-900" htmlFor="food-search">
+          <label className="text-sm font-semibold text-text-primary" htmlFor="food-search">
             Search foods
           </label>
           <input
@@ -601,18 +601,18 @@ export function FoodLoggingCard({
               setSearchMessage(null);
             }}
             placeholder="Search food..."
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+            className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
           />
         </div>
 
         {isSearching ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             Searching foods...
           </p>
         ) : null}
 
         {!isSearching && searchMessage ? (
-          <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
             {searchMessage}
           </p>
         ) : null}
@@ -654,21 +654,21 @@ export function FoodLoggingCard({
                   }}
                   className={`w-full rounded-[20px] border px-4 py-2.5 text-left transition ${
                     isSelected
-                      ? "border-emerald-700 bg-emerald-50"
-                      : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-white"
+                      ? "border-border-interactive-strong bg-surface-highlighted"
+                      : "border-border bg-surface-subtle hover:border-border-accent hover:bg-surface"
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-950">
+                    <p className="text-sm font-semibold text-text-strong">
                       {food.displayName}
                     </p>
                     {food.foodType === "personal" ? (
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[0.68rem] font-semibold text-emerald-800">
+                      <span className="rounded-full bg-positive-surface px-2 py-0.5 text-[0.68rem] font-semibold text-positive-foreground">
                         My food
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-slate-700">
+                  <p className="mt-1 text-sm leading-6 text-text-body">
                     {formatMacroLine(food.nutrientSummary)}
                   </p>
                 </button>
@@ -678,19 +678,19 @@ export function FoodLoggingCard({
         ) : null}
 
         {selectedFood ? (
-          <div className="space-y-3 rounded-[22px] bg-slate-50 px-4 py-3">
+          <div className="space-y-3 rounded-[22px] bg-surface-subtle px-4 py-3">
             <div className="grid gap-1">
-              <p className="text-sm font-semibold text-slate-950">
+              <p className="text-sm font-semibold text-text-strong">
                 Selected: {selectedFood.displayName}
               </p>
-              <p className="text-xs leading-5 text-slate-600">
+              <p className="text-xs leading-5 text-text-secondary">
                 {formatMacroLine(selectedFood.nutrientSummary)}
               </p>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-slate-900">Amount</span>
+                <span className="text-sm font-semibold text-text-primary">Amount</span>
                 <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
                   <input
                     type="number"
@@ -702,7 +702,7 @@ export function FoodLoggingCard({
                       setActionMessage(null);
                       setErrorMessage(null);
                     }}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                    className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
                   />
                   <select
                     value={selectedUnitKey}
@@ -714,7 +714,7 @@ export function FoodLoggingCard({
                       setActionMessage(null);
                       setErrorMessage(null);
                     }}
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 disabled:opacity-70"
+                    className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus disabled:opacity-70"
                   >
                     <option value="grams">grams</option>
                     {selectedFood.foodType === "personal" &&
@@ -733,7 +733,7 @@ export function FoodLoggingCard({
                     ))}
                   </select>
                 </div>
-                <span className="block text-xs leading-5 text-slate-600">
+                <span className="block text-xs leading-5 text-text-secondary">
                   {isLoadingServingUnits
                     ? "Loading serving units..."
                     : resolvedGramsIsValid
@@ -745,7 +745,7 @@ export function FoodLoggingCard({
               </label>
 
               <label className="space-y-2">
-                <span className="text-sm font-semibold text-slate-900">Meal</span>
+                <span className="text-sm font-semibold text-text-primary">Meal</span>
                 <select
                   value={mealType}
                   onChange={(event) => {
@@ -753,7 +753,7 @@ export function FoodLoggingCard({
                     setActionMessage(null);
                     setErrorMessage(null);
                   }}
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500"
+                  className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
                 >
                   {MEAL_OPTIONS.map((option) => (
                     <option key={option.value || "any"} value={option.value}>
@@ -764,19 +764,19 @@ export function FoodLoggingCard({
               </label>
             </div>
 
-            <div className="rounded-2xl bg-white px-4 py-2.5">
-              <p className="text-sm font-semibold text-slate-900">
+            <div className="rounded-2xl bg-surface px-4 py-2.5">
+              <p className="text-sm font-semibold text-text-primary">
                 Preview: {preview ?? "Enter an amount to preview this food."}
               </p>
             </div>
 
             {actionMessage ? (
-              <p className="rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-900">
+              <p className="rounded-2xl bg-surface-highlighted px-4 py-2.5 text-sm text-positive-foreground-strong">
                 {actionMessage}
               </p>
             ) : null}
             {errorMessage ? (
-              <p className="rounded-2xl bg-rose-50 px-4 py-2.5 text-sm text-rose-900">
+              <p className="rounded-2xl bg-danger-surface px-4 py-2.5 text-sm text-danger-foreground">
                 {errorMessage}
               </p>
             ) : null}
@@ -785,7 +785,7 @@ export function FoodLoggingCard({
               type="button"
               onClick={() => void handleLogFood()}
               disabled={isSaving}
-              className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="inline-flex w-full items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {isSaving ? "Logging food..." : "Log food"}
             </button>

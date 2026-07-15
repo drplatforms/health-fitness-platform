@@ -158,19 +158,19 @@ export function PersonalFoodsList({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           {variant === "standalone" ? (
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+            <h1 className="text-2xl font-semibold tracking-tight text-text-strong">
               My Foods
             </h1>
           ) : null}
           <p
-            className={`${variant === "standalone" ? "mt-1 " : ""}text-sm text-slate-600`}
+            className={`${variant === "standalone" ? "mt-1 " : ""}text-sm text-text-secondary`}
           >
             Foods you can find in the normal food search.
           </p>
         </div>
         <Link
           href={withContext("/personal-foods/new", userId, targetDate)}
-          className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
+          className="inline-flex items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover"
         >
           Add food
         </Link>
@@ -183,7 +183,7 @@ export function PersonalFoodsList({
           onChange={(event) => setQuery(event.target.value)}
           placeholder={showArchived ? "Search archived foods..." : "Search my foods..."}
           aria-label="Search personal foods"
-          className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-950 outline-none transition focus:border-emerald-500"
+          className="min-w-0 flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-strong outline-none transition focus:border-focus"
         />
         <button
           type="button"
@@ -191,24 +191,24 @@ export function PersonalFoodsList({
             setShowArchived((current) => !current);
             setConfirmingArchiveId(null);
           }}
-          className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-300"
+          className="rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-body transition hover:border-border-accent"
         >
           {showArchived ? "Show active" : "Archived"}
         </button>
       </div>
 
       {error ? (
-        <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="rounded-2xl bg-danger-surface px-4 py-3 text-sm text-danger-foreground">
           {error}
         </p>
       ) : null}
       {isLoading ? (
-        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
           Loading foods...
         </p>
       ) : null}
       {!isLoading && !error && foods.length === 0 ? (
-        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
           {showArchived
             ? "No archived foods found."
             : query.trim()
@@ -218,19 +218,19 @@ export function PersonalFoodsList({
       ) : null}
 
       {!isLoading && foods.length > 0 ? (
-        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white">
+        <div className="divide-y divide-border-subtle rounded-2xl border border-border bg-surface">
           {foods.map((food) => (
             <div
               key={food.id}
               className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
             >
               <div className="min-w-0">
-                <p className="font-semibold text-slate-950">{food.display_name}</p>
+                <p className="font-semibold text-text-strong">{food.display_name}</p>
                 {food.brand_name ? (
-                  <p className="text-sm text-slate-600">{food.brand_name}</p>
+                  <p className="text-sm text-text-secondary">{food.brand_name}</p>
                 ) : null}
                 {!showArchived ? (
-                  <p className="mt-1 text-xs leading-5 text-slate-600">
+                  <p className="mt-1 text-xs leading-5 text-text-secondary">
                     {food.current_revision.serving_grams !== null
                       ? `${food.current_revision.serving_name || "serving"} · ${formatNumber(food.current_revision.serving_grams)}g · `
                       : ""}
@@ -244,7 +244,7 @@ export function PersonalFoodsList({
                     type="button"
                     disabled={pendingFoodId === food.id}
                     onClick={() => void restore(food)}
-                    className="text-emerald-800 transition hover:text-emerald-950 disabled:opacity-60"
+                    className="text-accent-text transition hover:text-accent-text-hover disabled:opacity-60"
                   >
                     {pendingFoodId === food.id ? "Restoring..." : "Restore"}
                   </button>
@@ -252,7 +252,7 @@ export function PersonalFoodsList({
                   <>
                     <Link
                       href={withContext(`/personal-foods/${food.id}`, userId, targetDate)}
-                      className="text-emerald-800 transition hover:text-emerald-950"
+                      className="!text-accent-text transition hover:!text-accent-text-hover"
                     >
                       Edit
                     </Link>
@@ -262,8 +262,8 @@ export function PersonalFoodsList({
                       onClick={() => void archive(food)}
                       className={
                         confirmingArchiveId === food.id
-                          ? "text-rose-700 transition hover:text-rose-900 disabled:opacity-60"
-                          : "text-slate-500 transition hover:text-rose-700 disabled:opacity-60"
+                          ? "text-danger-action transition hover:text-danger-action-hover disabled:opacity-60"
+                          : "text-text-muted transition hover:text-danger-action disabled:opacity-60"
                       }
                     >
                       {pendingFoodId === food.id
@@ -276,7 +276,7 @@ export function PersonalFoodsList({
                       <button
                         type="button"
                         onClick={() => setConfirmingArchiveId(null)}
-                        className="text-slate-500 transition hover:text-slate-800"
+                        className="text-text-muted transition hover:text-text-body"
                       >
                         Cancel
                       </button>
