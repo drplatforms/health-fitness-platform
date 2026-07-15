@@ -23,6 +23,10 @@ Pending product-roadmap review after this milestone is merged and closed.
 
 No subsequent milestone is implementation-authorized.
 
+## Canonical Strategic Roadmap
+
+`docs/project_memory/product_roadmap.md` is the canonical strategic product roadmap and should be read by future Architecture onboarding alongside this current-state record. `current_state.md` describes where the project is now; `product_roadmap.md` describes where the product is headed.
+
 ---
 # Current State - Today Food Workspace Deck v1
 
