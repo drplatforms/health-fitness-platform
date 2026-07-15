@@ -1,37 +1,50 @@
-# Current State - Exercise Instruction API / Read Surface v1
+# Current State - Next.js Exercise Explanation UX v1
 
-Implementation baseline: `main` at `da660d8 Merge exercise instruction seed coverage v1`.
+Canonical starting baseline: `main` at `41dbb3a Merge exercise instruction API read surface v1`.
 
-Canonical starting snapshot: `fitness_ai_snapshot_2026-07-15_da660d8_main_merge-exercise-instruction-seed-coverage-v1.zip`.
+Canonical starting snapshot: `fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip`.
 
-Feature branch: `feature/exercise-instruction-api-read-surface-v1`.
+Feature branch: `feature/nextjs-exercise-explanation-ux-v1`.
 
 Status:
 
 ```text
-EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ARCHITECTURE_ACCEPTED
+NEXTJS_EXERCISE_EXPLANATION_UX_V1_ARCHITECTURE_ACCEPTED
 ```
 
 Implementation scope:
 
-- Added `GET /exercise-catalog/{catalog_exercise_id}/instruction` as an explicit detail read keyed only by the positive stable `exercise_catalog_exercises.id`.
-- The successful response composes the accepted catalog metadata with the complete persisted structured instruction. It exposes no second instruction identity, persistence JSON column names, timestamps, seed-resolution names, or implementation metadata.
-- Unknown catalog IDs return `404` with `Exercise not found`. Existing catalog rows without persisted instruction content return `404` with `Exercise instruction not found`; no content is fabricated and no name fallback is used.
-- Added the narrow `get_exercise_catalog_entry_by_id(...)` service seam with positive-ID validation and explicit absence for unknown IDs.
-- FastAPI lifespan initialization now runs `initialize_database()` and then the accepted atomic/idempotent `seed_exercise_instructions()` operation once per application startup, making all `240` repository-owned instructions available in the active runtime database.
-- Existing `GET /exercise-catalog` and `GET /exercises` response behavior remains unchanged. Instructions are not embedded into catalog-list responses.
-- Focused API coverage uses pytest-owned temporary databases and verifies the public response contract, both not-found states, stable-ID-only lookup, persistence-field exclusion, existing-route compatibility, complete `240/240` lifespan coverage, repeated-startup idempotence, and canonical-database isolation.
-- Validation passed: focused instruction/API/persistence tests `36 passed`; catalog/API regression tests `32 passed`; project-memory tests `29 passed`; project-memory checker `608 PASS`, `39 WARN`, `0 FAIL`; touched-file Ruff check, Ruff format check, and Python compilation passed.
-- No browser smoke was required because this milestone adds backend data exposure only. The canonical `fitness_ai.db` remained unchanged at SHA-256 `FEDC430E47E32B338E1E2EF471B355528B99AA5007A1EF577A32678EECF3ABA7` throughout automated validation.
-- No frontend, Streamlit, workout generation/selection/substitution/progression, instruction editing, media, provider/AI behavior, bulk endpoint, name search, schema redesign, or canonical database data change is included.
+- Added a compact, accessible `How to` disclosure to both exercise-card paths in the existing Next.js workout experience without changing workout selection, execution, substitution, progression, set logging, or completion behavior.
+- Instructions load lazily through a narrow same-origin Next.js proxy backed by `GET /exercise-catalog/{catalog_exercise_id}/instruction`; successful content is cached within the disclosure while it remains mounted, and no instruction corpus is preloaded.
+- Preview cards use `approvedPlan.exercises[].catalog_exercise_id`. Persisted cards use `plannedExercises[].catalog_exercise_id`. Active substitutions use `replacement_catalog_exercise_id`, so the explanation always follows the visible replacement exercise.
+- Legacy persisted exercises with a null catalog identity render no explanation control. No name lookup, fuzzy match, or fabricated fallback is used.
+- Expanded disclosures render the accepted overview plus Setup, How to do it, Form cues, Common mistakes, and Safety sections as plain text and structured lists.
+- Loading and retryable failure states remain local to the affected exercise card. The proxy validates positive integer IDs, preserves meaningful backend statuses and bounded detail text, and returns `502` when the backend cannot be reached.
+- No backend, database, instruction corpus, exercise library, media, provider/AI, or workout behavior change is included.
 
 Next recommended milestone after Architecture acceptance:
 
 ```text
-Next.js Exercise Explanation UX v1
+Mobile Workout UX Polish v1
 ```
 
-That next milestone is not implementation-authorized. Exercise Instruction API / Read Surface v1 is awaiting Architecture review and remains unstaged, uncommitted, unpushed, and unmerged.
+That next milestone is not implementation-authorized.
+
+---
+
+# Current State - Exercise Instruction API / Read Surface v1
+
+Accepted merge: `41dbb3a Merge exercise instruction API read surface v1`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip`.
+
+Status:
+
+```text
+EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ACCEPTED_MERGED_AND_CLOSED
+```
+
+Exercise Instruction API / Read Surface v1 was Architecture accepted and merged. Its stable-ID detail route, complete persisted instruction response, not-found behavior, runtime seed initialization, focused API coverage, and backend-only scope are the accepted baseline for the active Next.js explanation UX milestone.
 
 ---
 
