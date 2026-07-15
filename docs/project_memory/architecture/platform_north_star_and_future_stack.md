@@ -1,22 +1,22 @@
 # Platform North Star + Future Stack
 
 **Status:** Strategic architecture compass / non-authorizing future-stack reference
-**Baseline:** `123d115 main_merge-daily-coach-workout-set-intelligence-v1`
-**Baseline snapshot:** `fitness_ai_snapshot_2026-06-30_123d115_main_merge-daily-coach-workout-set-intelligence-v1.zip`
+**Baseline:** `14b09db Close personal custom foods UI v1`
+**Baseline snapshot:** `fitness_ai_snapshot_2026-07-15_14b09db_main_personal-custom-foods-ui-closed.zip`
 **Milestone:** Platform North Star + Future Stack Canonicalization v1
 **Accepted in:** `187e433 main_merge-platform-north-star-future-stack-canonicalization-v1`
 
-This file is the durable strategic north star for Fitness AI Platform. It preserves the big dream while keeping implementation sequencing disciplined.
+This file is the durable strategic north star for the Health & Fitness Platform. It preserves the long-term platform vision while keeping implementation sequencing disciplined.
 
 This file records direction. It does not authorize implementation by itself.
 
 ## One-Sentence North Star
 
-Fitness AI Platform is a private, data-grounded AI fitness operating system designed to evolve from deterministic local coaching into a serious adaptive coaching platform with backend intelligence, rich user context, cost-aware AI, multimodal input, mobile-first UX, and eventually advanced retrieval/orchestration.
+Health & Fitness Platform is a local-first, data-grounded product for managing nutrition, training, recovery, and progress through trustworthy data, deterministic services, practical workflows, and optional non-authoritative generative capabilities.
 
 ## What This Platform Is Not
 
-Fitness AI Platform is not:
+Health & Fitness Platform is not:
 
 - just a workout tracker
 - just a macro tracker
@@ -26,7 +26,7 @@ Fitness AI Platform is not:
 - a provider-wrapper
 - an agent demo
 
-The goal is a serious coaching platform where structured facts, deterministic intelligence, user context, and safe AI synthesis work together.
+The goal is a serious health and fitness platform where structured facts, deterministic intelligence, and useful product workflows stand on their own. Optional provider synthesis may enhance those workflows only inside backend-approved boundaries.
 
 ## Architecture Doctrine
 
@@ -37,13 +37,13 @@ The goal is a serious coaching platform where structured facts, deterministic in
 - Agents may assist later, but cannot own authority.
 - Docs/project memory are part of Definition of Done.
 - Cost, safety, provenance, confidence, and rollback paths are architecture concerns.
-- User-facing coach identity is product identity, not an incidental prompt detail.
+- Provider-written language is an optional product capability, not the product's identity or source of authority.
 
 ## Sequencing Doctrine
 
 Huge dream. Strong sequencing. No random feature explosion.
 
-Build the product brain first. Then build the advanced AI nervous system.
+Build and validate the core product first. Consider advanced retrieval, provider, or orchestration systems only when a scoped product need justifies them.
 
 Do not use RAG, vector search, agents, frontier-model workflows, or fancy orchestration to compensate for weak backend intelligence.
 
@@ -82,11 +82,15 @@ These layers must provide stable, inspectable source-data contracts before advan
 
 Current accepted state at this baseline:
 
-- Recovery Intelligence v1 is implemented.
-- Workout Set Intelligence v1 is implemented.
-- Daily Coach Intelligence Snapshot v2 carries recovery and workout-set intelligence.
-- Provider voice iteration remains paused.
-- Recovery Intelligence v2 is the expected next Backend Intelligence Foundation planning target after this docs-only milestone is accepted and a new Architecture chat is onboarded.
+- Next.js, React, and TypeScript provide the active product frontend; it runs on the project-standard production port `3100`.
+- FastAPI, SQLite, and deterministic backend services remain the product truth layer.
+- Canonical food search and logging are implemented.
+- Formula-derived nutrition targets and Target-vs-Actual are implemented.
+- Personal Custom Foods contract, persistence, logging, and UI milestones are accepted, merged, and closed.
+- Recovery workflows are implemented.
+- Deterministic workout planning, execution, substitution, history, and progression context are implemented.
+- Provider-written daily coaching narrative is paused after failing human product-quality acceptance. Provider infrastructure remains optional experimental capability outside the core product identity.
+- The immediate next milestone is Public Project Rebrand and README Refresh v1.
 
 ## Product Intelligence Vision
 
@@ -172,7 +176,7 @@ Retrieved content is context, not truth.
 Backend facts and deterministic policy remain authoritative.
 ```
 
-## AI / Model Stack
+## Optional Provider / Generative Stack
 
 Candidate future technologies and practices:
 
@@ -216,13 +220,17 @@ Multi-agent coaching waits until backend intelligence and service contracts are 
 
 ## Frontend / UX Stack
 
-Candidate technologies and direction:
+Current technologies and direction:
 
-- Streamlit now
 - React
 - Next.js
 - TypeScript
 - Tailwind
+- production frontend on project port `3100`
+- Streamlit retained only for legacy/developer-only surfaces where still needed
+
+Candidate future technologies and direction:
+
 - shadcn/ui
 - TanStack Query
 - Recharts / ECharts / Plotly
@@ -324,7 +332,7 @@ Big models are better reserved for:
 - internal QA
 - limited high-value analysis
 
-The coach voice is product identity. The product/user owner must be involved in prompt and coach-tone decisions. Prompt/voice work is not just backend implementation.
+Provider-written voice is optional and subordinate to the core product. The product/user owner must be involved in any future prompt and tone decisions, and human product-quality acceptance is required before promotion.
 
 ## Team Routing
 
@@ -334,7 +342,7 @@ Canonical visible team lanes:
 - Backend Development
 - QA
 - Agent Engineering
-- Streamlit UI / UX
+- Frontend UI / UX
 - Portfolio Packaging
 - DevOps & Tooling
 
@@ -356,8 +364,7 @@ This file does not authorize immediate implementation of:
 - custom GPT build
 - OpenAI/default provider changes
 - production provider coach
-- Streamlit rewrite
-- React migration
+- replacement of the accepted Next.js product frontend
 - mobile app
 - wearable integration
 - billing/SaaS infrastructure
@@ -380,33 +387,33 @@ merge/push/snapshot
 ## Suggested ChatGPT Project Instructions
 
 ```text
-You are operating inside the Fitness AI Platform project.
+You are operating inside the Health & Fitness Platform project.
 
-This project is building a private, data-grounded AI fitness operating system, not a toy chatbot or simple tracker. The long-term goal is a serious adaptive coaching platform that understands training, nutrition, recovery, readiness, equipment, preferences, history, trends, adherence, friction, goals, uncertainty, provenance, and user context.
+This project is building a local-first, data-grounded health and fitness platform. Its core value comes from trustworthy nutrition, training, recovery, and progress data; deterministic backend services; and practical user workflows. Provider or generative systems are optional experimental capabilities, not product identity or authority.
 
-Use the seven team lanes correctly: Architecture, Backend Development, QA, Agent Engineering, Streamlit UI / UX, Portfolio Packaging, and DevOps & Tooling.
+Use the seven team lanes correctly: Architecture, Backend Development, QA, Agent Engineering, Frontend UI / UX, Portfolio Packaging, and DevOps & Tooling.
 
 Repo documentation is the canonical source of truth. Chat memory is helpful but not authoritative. When project state, architecture direction, team routing, or milestone status is unclear, inspect the latest snapshot/docs before steering.
 
-Core doctrine: Backend owns facts, validation, persistence, provenance, confidence, safety boundaries, and deterministic fallback. AI may explain, summarize, propose, personalize, or generate candidates only inside backend-approved contracts. AI/provider output is not truth.
+Core doctrine: Backend owns facts, validation, persistence, provenance, confidence, safety boundaries, and deterministic behavior. Provider output may explain, summarize, or propose only inside backend-approved contracts. It is optional and is never truth.
 
-Keep the huge future vision alive: backend intelligence, adaptive coaching, long-term user memory, Prompt Lab discipline, cost-aware model routing, multimodal input, wearables, mobile-first UX, rich dashboards, RAG/vector search, agent orchestration, observability, cloud deployment, and SaaS-grade engineering are all part of the long-term dream.
+Keep the broad future vision available without turning it into authorization: stronger deterministic intelligence, adaptive workflows, long-term user context, multimodal input, wearables, mobile-first UX, rich dashboards, observability, cloud deployment, and SaaS-grade engineering may all be explored through scoped milestones. Retrieval, model routing, and agent orchestration remain optional deferred possibilities.
 
-Sequence hard. Do not use RAG, vector search, agents, frontier-model workflows, or fancy orchestration to compensate for weak backend intelligence. Build the product brain first, then the advanced AI nervous system.
+Sequence hard. Do not use RAG, vector search, agents, frontier-model workflows, or orchestration to compensate for weak core product behavior. Build and validate the product foundation first.
 
 Push back when the project drifts, skips foundation work, overuses the wrong team, chases shiny technology too early, or lets stale docs/chat memory override current repo truth.
 
 For major milestones, prefer team-specific handoffs, explicit non-goals, validation requirements, project-memory updates, and post-merge snapshots.
 ```
 
-## Continuation Rule After This Milestone
+## Immediate Continuation
 
-After this docs-only milestone is merged, pushed, and snapshotted:
+After this strategic project-memory sync is accepted, the next milestone is:
 
 ```text
-Archive the current Architecture chat.
-Onboard a new Architecture chat from the latest accepted snapshot, current project memory, this north-star file, team_routing_contract.md, and backend_intelligence_foundation_v1.md.
-Then resume Backend Intelligence Foundation planning.
+Public Project Rebrand and README Refresh v1
 ```
+
+That separate milestone owns README, repository naming and metadata, and public presentation changes.
 
 ## End
