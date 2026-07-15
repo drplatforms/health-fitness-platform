@@ -315,6 +315,137 @@ def test_personal_food_api_rejects_snapshot_overflow_without_entry(
     assert _personal_persistence_counts() == before
 
 
+def test_personal_log_list_update_and_delete_api_contract(client) -> None:
+    created = client.post(
+        "/nutrition/1/personal-foods",
+        json=_create_payload("API Logged Food", calories=120),
+    ).json()["personal_food"]
+    logged = client.post(
+        "/nutrition/1/log-personal",
+        json={
+            "personal_food_id": created["id"],
+            "serving_quantity": 1,
+            "entry_date": "2026-07-14",
+            "meal_type": "lunch",
+        },
+    ).json()
+    client.patch(
+        f"/nutrition/1/personal-foods/{created['id']}",
+        json=_create_payload("API Logged Food Revised", calories=300),
+    )
+
+    listed_response = client.get(
+        "/nutrition/1/personal-logs",
+        params={"date": "2026-07-14"},
+    )
+    assert listed_response.status_code == 200
+    listed = listed_response.json()["entries"]
+    assert len(listed) == 1
+    assert listed[0]["food_type"] == "personal"
+    assert listed[0]["personal_food_revision_id"] == logged["personal_food_revision_id"]
+    assert listed[0]["food_name"] == "API Logged Food"
+    assert listed[0]["carbs_g"] is None
+    assert "legacy_food_id" not in json.dumps(listed[0])
+
+    updated_response = client.patch(
+        f"/nutrition/1/personal-logs/{logged['logged_food_entry_id']}",
+        json={
+            "serving_quantity": 2,
+            "meal_type": "dinner",
+            "entry_date": "2026-07-14",
+        },
+    )
+    assert updated_response.status_code == 200
+    updated = updated_response.json()["entry"]
+    assert updated["grams"] == 80
+    assert updated["calories"] == 240
+    assert updated["meal_type"] == "dinner"
+    assert updated["food_name"] == "API Logged Food"
+
+    deleted_response = client.delete(
+        f"/nutrition/1/personal-logs/{logged['logged_food_entry_id']}",
+        params={"date": "2026-07-14"},
+    )
+    assert deleted_response.status_code == 200
+    assert deleted_response.json()["deleted"] is True
+    assert (
+        client.get(
+            "/nutrition/1/personal-logs",
+            params={"date": "2026-07-14"},
+        ).json()["entries"]
+        == []
+    )
+
+
+def test_personal_log_api_does_not_disclose_cross_user_or_wrong_date(client) -> None:
+    created = client.post(
+        "/nutrition/1/personal-foods",
+        json=_create_payload("API Private Log"),
+    ).json()["personal_food"]
+    logged = client.post(
+        "/nutrition/1/log-personal",
+        json={
+            "personal_food_id": created["id"],
+            "grams": 20,
+            "entry_date": "2026-07-14",
+        },
+    ).json()
+    entry_id = logged["logged_food_entry_id"]
+
+    assert (
+        client.get(
+            "/nutrition/2/personal-logs",
+            params={"date": "2026-07-14"},
+        ).json()["entries"]
+        == []
+    )
+    assert (
+        client.patch(
+            f"/nutrition/2/personal-logs/{entry_id}",
+            json={"grams": 30},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(
+            f"/nutrition/1/personal-logs/{entry_id}",
+            params={"date": "2026-07-15"},
+        ).status_code
+        == 404
+    )
+    assert (
+        client.patch(
+            "/nutrition/1/personal-logs/999999",
+            json={"grams": 30},
+        ).status_code
+        == 404
+    )
+
+
+@pytest.mark.parametrize("field_name", ("grams", "serving_quantity"))
+def test_personal_log_update_api_rejects_boolean_amounts_without_mutation(
+    client,
+    field_name,
+) -> None:
+    created = client.post(
+        "/nutrition/1/personal-foods",
+        json=_create_payload("API Boolean Log Update"),
+    ).json()["personal_food"]
+    logged = client.post(
+        "/nutrition/1/log-personal",
+        json={"personal_food_id": created["id"], "grams": 20},
+    ).json()
+    before = _personal_persistence_counts()
+
+    response = client.patch(
+        f"/nutrition/1/personal-logs/{logged['logged_food_entry_id']}",
+        json={field_name: True},
+    )
+
+    assert response.status_code == 422
+    assert _personal_persistence_counts() == before
+
+
 def _personal_persistence_counts() -> dict[str, int]:
     conn = database.get_connection()
     try:

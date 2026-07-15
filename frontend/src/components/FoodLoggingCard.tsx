@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 import { TodayCard } from "@/components/TodayCard";
 import {
@@ -17,6 +17,7 @@ import {
   logCanonicalFood,
   searchCanonicalFoods,
 } from "@/lib/canonicalFoodApi";
+import { logPersonalFood, searchPersonalFoods } from "@/lib/personalFoodApi";
 import {
   CANONICAL_FOOD_LOGGED_EVENT,
   CanonicalFoodNutrientSummary,
@@ -24,6 +25,11 @@ import {
   CanonicalFoodServingUnit,
   RecentCanonicalFood,
 } from "@/types/canonicalFood";
+import {
+  PERSONAL_FOOD_LOGGED_EVENT,
+  PersonalFood,
+  personalFoodNutrientSummary,
+} from "@/types/personalFood";
 
 interface FoodLoggingCardProps {
   userId: number;
@@ -45,6 +51,18 @@ interface PendingRecentContext {
   mealType: string | null;
   servingUnitId?: number;
   quantity?: number;
+}
+
+interface LoggingFoodResult {
+  key: string;
+  foodType: "canonical" | "personal";
+  displayName: string;
+  nutrientSummary?: CanonicalFoodNutrientSummary;
+  defaultGrams: number | null;
+  canonicalFoodId?: number;
+  personalFoodId?: number;
+  servingName?: string | null;
+  servingGrams?: number | null;
 }
 
 function formatCompactNumber(value: number, suffix = ""): string {
@@ -106,18 +124,39 @@ function scaleNutrient(
   return (value * grams) / 100;
 }
 
-function recentFoodToSearchResult(
-  food: RecentCanonicalFood,
-): CanonicalFoodSearchResult {
+function canonicalFoodToLoggingResult(
+  food: CanonicalFoodSearchResult,
+): LoggingFoodResult {
   return {
-    canonical_food_id: food.canonical_food_id,
-    display_name: food.display_name,
-    food_type: "canonical",
-    default_unit: "g",
-    default_grams: food.last_grams,
-    search_priority: 0,
-    matched_on: "recent",
-    aliases: [],
+    key: `canonical:${food.canonical_food_id}`,
+    foodType: "canonical",
+    displayName: food.display_name,
+    nutrientSummary: food.nutrient_summary,
+    defaultGrams: food.default_grams,
+    canonicalFoodId: food.canonical_food_id,
+  };
+}
+
+function personalFoodToLoggingResult(food: PersonalFood): LoggingFoodResult {
+  return {
+    key: `personal:${food.id}`,
+    foodType: "personal",
+    displayName: food.display_name,
+    nutrientSummary: personalFoodNutrientSummary(food),
+    defaultGrams: food.current_revision.serving_grams,
+    personalFoodId: food.id,
+    servingName: food.current_revision.serving_name,
+    servingGrams: food.current_revision.serving_grams,
+  };
+}
+
+function recentFoodToLoggingResult(food: RecentCanonicalFood): LoggingFoodResult {
+  return {
+    key: `canonical:${food.canonical_food_id}`,
+    foodType: "canonical",
+    displayName: food.display_name,
+    defaultGrams: food.last_grams,
+    canonicalFoodId: food.canonical_food_id,
   };
 }
 
@@ -126,13 +165,10 @@ export function FoodLoggingCard({
   targetDate,
   className,
 }: FoodLoggingCardProps) {
-  const router = useRouter();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CanonicalFoodSearchResult[]>([]);
+  const [results, setResults] = useState<LoggingFoodResult[]>([]);
   const [recentFoods, setRecentFoods] = useState<RecentCanonicalFood[]>([]);
-  const [selectedFood, setSelectedFood] = useState<CanonicalFoodSearchResult | null>(
-    null,
-  );
+  const [selectedFood, setSelectedFood] = useState<LoggingFoodResult | null>(null);
   const pendingRecentContextRef = useRef<PendingRecentContext | null>(null);
   const [selectedSearchQuery, setSelectedSearchQuery] = useState("");
   const [amount, setAmount] = useState("50");
@@ -201,15 +237,45 @@ export function FoodLoggingCard({
       setSearchMessage(null);
 
       try {
-        const response = await searchCanonicalFoods(deferredQuery, 8);
+        const [canonicalResult, personalResult] = await Promise.allSettled([
+          searchCanonicalFoods(deferredQuery, 8),
+          searchPersonalFoods(userId, deferredQuery, 8),
+        ]);
 
         if (!isActive) {
           return;
         }
 
-        setResults(response.results);
+        if (
+          canonicalResult.status === "rejected" &&
+          personalResult.status === "rejected"
+        ) {
+          setResults([]);
+          setSearchMessage("Unable to search foods right now.");
+          return;
+        }
+
+        const normalizedQuery = deferredQuery.toLocaleLowerCase();
+        const personalResults =
+          personalResult.status === "fulfilled"
+            ? personalResult.value.results.map(personalFoodToLoggingResult)
+            : [];
+        const exactPersonal = personalResults.filter(
+          (food) => food.displayName.toLocaleLowerCase() === normalizedQuery,
+        );
+        const remainingPersonal = personalResults.filter(
+          (food) => food.displayName.toLocaleLowerCase() !== normalizedQuery,
+        );
+        const mergedResults = [
+          ...exactPersonal,
+          ...(canonicalResult.status === "fulfilled"
+            ? canonicalResult.value.results.map(canonicalFoodToLoggingResult)
+            : []),
+          ...remainingPersonal,
+        ];
+        setResults(mergedResults);
         setSearchMessage(
-          response.results.length > 0 ? null : "No matching foods found.",
+          mergedResults.length > 0 ? null : "No matching foods found.",
         );
       } catch (error) {
         if (!isActive) {
@@ -233,16 +299,21 @@ export function FoodLoggingCard({
       isActive = false;
       window.clearTimeout(timeoutId);
     };
-  }, [deferredQuery]);
+  }, [deferredQuery, userId]);
 
   useEffect(() => {
     if (!selectedFood) {
       return;
     }
 
+    if (selectedFood.foodType === "personal") {
+      pendingRecentContextRef.current = null;
+      return;
+    }
+
     let isActive = true;
 
-    void fetchCanonicalFoodServingUnits(selectedFood.canonical_food_id)
+    void fetchCanonicalFoodServingUnits(selectedFood.canonicalFoodId as number)
       .then((response) => {
         if (!isActive) {
           return;
@@ -252,7 +323,7 @@ export function FoodLoggingCard({
         setServingUnits(units);
         const recentContext =
           pendingRecentContextRef.current?.canonicalFoodId ===
-          selectedFood.canonical_food_id
+          selectedFood.canonicalFoodId
             ? pendingRecentContextRef.current
             : null;
 
@@ -281,7 +352,7 @@ export function FoodLoggingCard({
           setAmount("1");
         } else {
           setSelectedUnitKey("grams");
-          setAmount(String(selectedFood.default_grams ?? 50));
+          setAmount(String(selectedFood.defaultGrams ?? 50));
         }
       })
       .catch(() => {
@@ -291,12 +362,12 @@ export function FoodLoggingCard({
 
         const recentContext =
           pendingRecentContextRef.current?.canonicalFoodId ===
-          selectedFood.canonical_food_id
+          selectedFood.canonicalFoodId
             ? pendingRecentContextRef.current
             : null;
         setServingUnits([]);
         setSelectedUnitKey("grams");
-        setAmount(String(recentContext?.grams ?? selectedFood.default_grams ?? 50));
+        setAmount(String(recentContext?.grams ?? selectedFood.defaultGrams ?? 50));
         pendingRecentContextRef.current = null;
       })
       .finally(() => {
@@ -311,7 +382,7 @@ export function FoodLoggingCard({
   }, [selectedFood]);
 
   function handleSelectRecentFood(food: RecentCanonicalFood) {
-    const selectedRecentFood = recentFoodToSearchResult(food);
+    const selectedRecentFood = recentFoodToLoggingResult(food);
 
     setServingUnits([]);
     setSelectedUnitKey("grams");
@@ -338,18 +409,26 @@ export function FoodLoggingCard({
   const amountIsValid = Number.isFinite(amountValue) && amountValue > 0;
   const selectedServingUnit = useMemo(
     () =>
-      selectedUnitKey === "grams"
+      selectedUnitKey === "grams" || selectedUnitKey === "personal-serving"
         ? null
         : (servingUnits.find(
             (unit) => String(unit.serving_unit_id) === selectedUnitKey,
           ) ?? null),
     [selectedUnitKey, servingUnits],
   );
+  const usesPersonalServing =
+    selectedUnitKey === "personal-serving" &&
+    selectedFood?.foodType === "personal" &&
+    selectedFood.servingGrams !== null &&
+    selectedFood.servingGrams !== undefined;
   const resolvedGrams =
-    selectedServingUnit === null
-      ? amountValue
-      : amountValue * selectedServingUnit.grams_per_unit;
-  const resolvedGramsIsValid = amountIsValid && Number.isFinite(resolvedGrams);
+    selectedServingUnit !== null
+      ? amountValue * selectedServingUnit.grams_per_unit
+      : usesPersonalServing
+        ? amountValue * (selectedFood.servingGrams as number)
+        : amountValue;
+  const resolvedGramsIsValid =
+    amountIsValid && Number.isFinite(resolvedGrams) && resolvedGrams <= 5_000;
   const searchChangedAfterSelection =
     selectedFood !== null && query.trim() !== selectedSearchQuery;
   const shouldShowResults =
@@ -360,7 +439,7 @@ export function FoodLoggingCard({
       return null;
     }
 
-    const summary = selectedFood.nutrient_summary;
+    const summary = selectedFood.nutrientSummary;
     const calories = scaleNutrient(summary?.calories_per_100g, resolvedGrams);
     const protein = scaleNutrient(summary?.protein_g_per_100g, resolvedGrams);
     const carbs = scaleNutrient(summary?.carbohydrate_g_per_100g, resolvedGrams);
@@ -399,28 +478,40 @@ export function FoodLoggingCard({
     setActionMessage(null);
 
     try {
-      const response = await logCanonicalFood({
-        user_id: userId,
-        entry_date: targetDate,
-        canonical_food_id: selectedFood.canonical_food_id,
-        meal_type: mealType || undefined,
-        ...(selectedServingUnit
-          ? {
-              serving_unit_id: selectedServingUnit.serving_unit_id,
-              quantity: amountValue,
-            }
-          : {
-              grams: resolvedGrams,
-            }),
-      });
-
-      setActionMessage(
-        `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
-      );
-      setAmount(selectedServingUnit ? "1" : "50");
-      void refreshRecentFoods();
-      window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
-      router.refresh();
+      if (selectedFood.foodType === "personal") {
+        const response = await logPersonalFood({
+          user_id: userId,
+          entry_date: targetDate,
+          personal_food_id: selectedFood.personalFoodId as number,
+          meal_type: mealType || undefined,
+          ...(usesPersonalServing
+            ? { serving_quantity: amountValue }
+            : { grams: resolvedGrams }),
+        });
+        setActionMessage(
+          `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
+        );
+        window.dispatchEvent(new CustomEvent(PERSONAL_FOOD_LOGGED_EVENT));
+      } else {
+        const response = await logCanonicalFood({
+          user_id: userId,
+          entry_date: targetDate,
+          canonical_food_id: selectedFood.canonicalFoodId as number,
+          meal_type: mealType || undefined,
+          ...(selectedServingUnit
+            ? {
+                serving_unit_id: selectedServingUnit.serving_unit_id,
+                quantity: amountValue,
+              }
+            : { grams: resolvedGrams }),
+        });
+        setActionMessage(
+          `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
+        );
+        void refreshRecentFoods();
+        window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
+      }
+      setAmount(selectedUnitKey === "grams" ? "50" : "1");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -435,6 +526,17 @@ export function FoodLoggingCard({
   return (
     <TodayCard title="Log Food" className={className}>
       <div className="space-y-3">
+        <div className="flex justify-end">
+          <Link
+            href={`/personal-foods?${new URLSearchParams({
+              user_id: String(userId),
+              date: targetDate,
+            }).toString()}`}
+            className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
+          >
+            My foods
+          </Link>
+        </div>
         {recentFoods.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-slate-900">Recent foods</p>
@@ -515,22 +617,32 @@ export function FoodLoggingCard({
         {shouldShowResults ? (
           <div className="space-y-2">
             {results.map((food) => {
-              const isSelected =
-                selectedFood?.canonical_food_id === food.canonical_food_id;
+              const isSelected = selectedFood?.key === food.key;
 
               return (
                 <button
-                  key={food.canonical_food_id}
+                  key={food.key}
                   type="button"
                   onClick={() => {
-                    const isSameSelection =
-                      selectedFood?.canonical_food_id === food.canonical_food_id;
+                    const isSameSelection = selectedFood?.key === food.key;
                     if (!isSameSelection) {
                       pendingRecentContextRef.current = null;
                       setServingUnits([]);
-                      setSelectedUnitKey("grams");
-                      setAmount("50");
-                      setIsLoadingServingUnits(true);
+                      if (food.foodType === "personal") {
+                        setSelectedUnitKey(
+                          food.servingGrams ? "personal-serving" : "grams",
+                        );
+                        setAmount(
+                          food.servingGrams
+                            ? "1"
+                            : String(food.defaultGrams ?? 50),
+                        );
+                        setIsLoadingServingUnits(false);
+                      } else {
+                        setSelectedUnitKey("grams");
+                        setAmount("50");
+                        setIsLoadingServingUnits(true);
+                      }
                     }
                     setSelectedFood(food);
                     setSelectedSearchQuery(query.trim());
@@ -543,11 +655,18 @@ export function FoodLoggingCard({
                       : "border-slate-200 bg-slate-50 hover:border-emerald-300 hover:bg-white"
                   }`}
                 >
-                  <p className="text-sm font-semibold text-slate-950">
-                    {food.display_name}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-slate-950">
+                      {food.displayName}
+                    </p>
+                    {food.foodType === "personal" ? (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[0.68rem] font-semibold text-emerald-800">
+                        My food
+                      </span>
+                    ) : null}
+                  </div>
                   <p className="mt-1 text-sm leading-6 text-slate-700">
-                    {formatMacroLine(food.nutrient_summary)}
+                    {formatMacroLine(food.nutrientSummary)}
                   </p>
                 </button>
               );
@@ -559,10 +678,10 @@ export function FoodLoggingCard({
           <div className="space-y-3 rounded-[22px] bg-slate-50 px-4 py-3">
             <div className="grid gap-1">
               <p className="text-sm font-semibold text-slate-950">
-                Selected: {selectedFood.display_name}
+                Selected: {selectedFood.displayName}
               </p>
               <p className="text-xs leading-5 text-slate-600">
-                {formatMacroLine(selectedFood.nutrient_summary)}
+                {formatMacroLine(selectedFood.nutrientSummary)}
               </p>
             </div>
 
@@ -573,7 +692,7 @@ export function FoodLoggingCard({
                   <input
                     type="number"
                     min="0"
-                    step={selectedServingUnit ? "0.25" : "1"}
+                    step={selectedUnitKey === "grams" ? "1" : "0.25"}
                     value={amount}
                     onChange={(event) => {
                       setAmount(event.target.value);
@@ -595,6 +714,12 @@ export function FoodLoggingCard({
                     className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 disabled:opacity-70"
                   >
                     <option value="grams">grams</option>
+                    {selectedFood.foodType === "personal" &&
+                    selectedFood.servingGrams ? (
+                      <option value="personal-serving">
+                        {selectedFood.servingName || "serving"}
+                      </option>
+                    ) : null}
                     {servingUnits.map((unit) => (
                       <option
                         key={unit.serving_unit_id}
@@ -610,7 +735,9 @@ export function FoodLoggingCard({
                     ? "Loading serving units..."
                     : resolvedGramsIsValid
                       ? `≈ ${formatCompactNumber(resolvedGrams)}g`
-                      : "Enter an amount to resolve grams."}
+                      : resolvedGrams > 5_000
+                        ? "Resolved amount must be 5,000g or less."
+                        : "Enter an amount to resolve grams."}
                 </span>
               </label>
 

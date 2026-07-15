@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TodayCard } from "@/components/TodayCard";
 import {
@@ -11,13 +10,26 @@ import {
   updateCanonicalFoodLog,
 } from "@/lib/canonicalFoodApi";
 import {
+  deletePersonalFoodLog,
+  fetchPersonalFoodLogs,
+  updatePersonalFoodLog,
+} from "@/lib/personalFoodApi";
+import {
   CANONICAL_FOOD_LOGGED_EVENT,
   CanonicalFoodLoggedEntry,
   CanonicalFoodServingUnit,
 } from "@/types/canonicalFood";
+import {
+  PERSONAL_FOOD_LOGGED_EVENT,
+  PersonalFoodLoggedEntry,
+} from "@/types/personalFood";
+
+type LoggedFoodEntry =
+  | (CanonicalFoodLoggedEntry & { food_type: "canonical" })
+  | PersonalFoodLoggedEntry;
 
 interface LoggedFoodsListProps {
-  initialEntries: CanonicalFoodLoggedEntry[];
+  initialEntries: LoggedFoodEntry[];
   initialError?: string | null;
   userId: number;
   targetDate: string;
@@ -75,7 +87,7 @@ function formatMacro(value: number | null, label: string): string {
   return `${formatCompactNumber(value)}${label}`;
 }
 
-function formatMacroLine(entry: CanonicalFoodLoggedEntry): string {
+function formatMacroLine(entry: LoggedFoodEntry): string {
   const macroParts = [
     entry.calories === null
       ? ""
@@ -88,8 +100,8 @@ function formatMacroLine(entry: CanonicalFoodLoggedEntry): string {
   return macroParts.length ? macroParts.join(" · ") : "Macros unavailable";
 }
 
-function formatLoggedAmount(entry: CanonicalFoodLoggedEntry): string {
-  if (entry.serving_display) {
+function formatLoggedAmount(entry: LoggedFoodEntry): string {
+  if (entry.food_type === "canonical" && entry.serving_display) {
     return `${entry.serving_display} (${formatCompactNumber(entry.grams, "g")})`;
   }
 
@@ -97,9 +109,9 @@ function formatLoggedAmount(entry: CanonicalFoodLoggedEntry): string {
 }
 
 function buildPreviewEntry(
-  entry: CanonicalFoodLoggedEntry,
+  entry: LoggedFoodEntry,
   gramsText: string,
-): CanonicalFoodLoggedEntry {
+): LoggedFoodEntry {
   const nextGrams = Number(gramsText);
 
   if (!Number.isFinite(nextGrams) || nextGrams <= 0 || entry.grams <= 0) {
@@ -120,7 +132,7 @@ function buildPreviewEntry(
   };
 }
 
-function groupEntriesByMeal(entries: CanonicalFoodLoggedEntry[]) {
+function groupEntriesByMeal(entries: LoggedFoodEntry[]) {
   const mealOrder = ["breakfast", "lunch", "dinner", "snack", "other"];
 
   return mealOrder
@@ -140,7 +152,6 @@ export function LoggedFoodsList({
   targetDate,
   className,
 }: LoggedFoodsListProps) {
-  const router = useRouter();
   const [entries, setEntries] = useState(initialEntries);
   const [error, setError] = useState(initialError ?? null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -159,47 +170,70 @@ export function LoggedFoodsList({
   >(null);
   const [pendingEntryId, setPendingEntryId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const refreshRequestIdRef = useRef(0);
   const mealGroups = groupEntriesByMeal(entries);
 
   const refreshLoggedFoods = useCallback(async () => {
+    const requestId = refreshRequestIdRef.current + 1;
+    refreshRequestIdRef.current = requestId;
     setIsRefreshing(true);
-    try {
-      const response = await fetchCanonicalFoodLogs({
-        userId,
-        date: targetDate,
-      });
-      setEntries(response.entries);
-      setError(null);
-    } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "Logged foods are unavailable right now.",
-      );
-    } finally {
-      setIsRefreshing(false);
+    const [canonicalResult, personalResult] = await Promise.allSettled([
+      fetchCanonicalFoodLogs({ userId, date: targetDate }),
+      fetchPersonalFoodLogs({ userId, date: targetDate }),
+    ]);
+
+    if (requestId !== refreshRequestIdRef.current) {
+      return;
     }
+
+    setEntries((currentEntries) => [
+      ...(canonicalResult.status === "fulfilled"
+        ? canonicalResult.value.entries.map((entry) => ({
+            ...entry,
+            food_type: "canonical" as const,
+          }))
+        : currentEntries.filter((entry) => entry.food_type === "canonical")),
+      ...(personalResult.status === "fulfilled"
+        ? personalResult.value.entries
+        : currentEntries.filter((entry) => entry.food_type === "personal")),
+    ]);
+    setError(
+      canonicalResult.status === "rejected" &&
+        personalResult.status === "rejected"
+        ? "Logged foods are unavailable right now."
+        : canonicalResult.status === "rejected" ||
+            personalResult.status === "rejected"
+          ? "Some logged foods are unavailable right now."
+          : null,
+    );
+    setIsRefreshing(false);
   }, [targetDate, userId]);
 
   useEffect(() => {
     window.addEventListener(CANONICAL_FOOD_LOGGED_EVENT, refreshLoggedFoods);
+    window.addEventListener(PERSONAL_FOOD_LOGGED_EVENT, refreshLoggedFoods);
 
     return () => {
       window.removeEventListener(CANONICAL_FOOD_LOGGED_EVENT, refreshLoggedFoods);
+      window.removeEventListener(PERSONAL_FOOD_LOGGED_EVENT, refreshLoggedFoods);
     };
   }, [refreshLoggedFoods]);
 
-  function startEditing(entry: CanonicalFoodLoggedEntry) {
+  function startEditing(entry: LoggedFoodEntry) {
     setActionError(null);
     setConfirmingDeleteEntryId(null);
     setEditingEntryId(entry.entry_id);
     setEditAmount(
-      entry.serving_unit_id && entry.serving_quantity !== undefined
+      entry.food_type === "canonical" &&
+        entry.serving_unit_id &&
+        entry.serving_quantity !== undefined
         ? formatCompactNumber(entry.serving_quantity)
         : formatCompactNumber(entry.grams),
     );
     setEditUnitKey(
-      entry.serving_unit_id === undefined ? "grams" : String(entry.serving_unit_id),
+      entry.food_type === "canonical" && entry.serving_unit_id !== undefined
+        ? String(entry.serving_unit_id)
+        : "grams",
     );
     setEditMealType(normalizeMealType(entry.meal_type));
     void loadServingUnitsForEntry(entry);
@@ -213,7 +247,10 @@ export function LoggedFoodsList({
     setActionError(null);
   }
 
-  async function loadServingUnitsForEntry(entry: CanonicalFoodLoggedEntry) {
+  async function loadServingUnitsForEntry(entry: LoggedFoodEntry) {
+    if (entry.food_type === "personal") {
+      return;
+    }
     if (servingUnitsByFoodId[entry.canonical_food_id] !== undefined) {
       return;
     }
@@ -239,11 +276,14 @@ export function LoggedFoodsList({
     }
   }
 
-  async function saveEntry(entry: CanonicalFoodLoggedEntry) {
+  async function saveEntry(entry: LoggedFoodEntry) {
     const amount = Number(editAmount);
-    const servingUnits = servingUnitsByFoodId[entry.canonical_food_id] ?? [];
+    const servingUnits =
+      entry.food_type === "canonical"
+        ? (servingUnitsByFoodId[entry.canonical_food_id] ?? [])
+        : [];
     const selectedServingUnit =
-      editUnitKey === "grams"
+      editUnitKey === "grams" || editUnitKey === "personal-serving"
         ? null
         : (servingUnits.find(
             (unit) => String(unit.serving_unit_id) === editUnitKey,
@@ -253,32 +293,67 @@ export function LoggedFoodsList({
       setActionError("Amount must be greater than 0.");
       return;
     }
-    if (editUnitKey !== "grams" && selectedServingUnit === null) {
+    const usesPersonalServing =
+      entry.food_type === "personal" && editUnitKey === "personal-serving";
+    if (
+      editUnitKey !== "grams" &&
+      !usesPersonalServing &&
+      selectedServingUnit === null
+    ) {
       setActionError("Serving unit is still loading. Try again in a moment.");
+      return;
+    }
+    if (usesPersonalServing && entry.serving_grams === null) {
+      setActionError("This logged revision has no saved serving size.");
+      return;
+    }
+    const resolvedGrams = selectedServingUnit
+      ? amount * selectedServingUnit.grams_per_unit
+      : usesPersonalServing
+        ? amount * (entry.serving_grams as number)
+        : amount;
+    if (!Number.isFinite(resolvedGrams) || resolvedGrams <= 0 || resolvedGrams > 5_000) {
+      setActionError("Resolved amount must be greater than 0 and no more than 5,000g.");
       return;
     }
 
     setPendingEntryId(entry.entry_id);
     setActionError(null);
     try {
-      const response = await updateCanonicalFoodLog({
-        user_id: userId,
-        entry_id: entry.entry_id,
-        ...(selectedServingUnit
-          ? {
-              serving_unit_id: selectedServingUnit.serving_unit_id,
-              quantity: amount,
-            }
-          : {
-              grams: amount,
-            }),
-        meal_type: editMealType,
-        entry_date: targetDate,
-      });
+      let responseEntry: LoggedFoodEntry;
+      if (entry.food_type === "personal") {
+        responseEntry = (
+          await updatePersonalFoodLog({
+            user_id: userId,
+            entry_id: entry.entry_id,
+            ...(usesPersonalServing
+              ? { serving_quantity: amount }
+              : { grams: amount }),
+            meal_type: editMealType,
+            entry_date: targetDate,
+          })
+        ).entry;
+      } else {
+        const canonicalEntry = (
+          await updateCanonicalFoodLog({
+            user_id: userId,
+            entry_id: entry.entry_id,
+            ...(selectedServingUnit
+              ? {
+                  serving_unit_id: selectedServingUnit.serving_unit_id,
+                  quantity: amount,
+                }
+              : { grams: amount }),
+            meal_type: editMealType,
+            entry_date: targetDate,
+          })
+        ).entry;
+        responseEntry = { ...canonicalEntry, food_type: "canonical" };
+      }
       setEntries((currentEntries) =>
         currentEntries.map((currentEntry) =>
           currentEntry.entry_id === entry.entry_id
-            ? response.entry
+            ? responseEntry
             : currentEntry,
         ),
       );
@@ -286,8 +361,13 @@ export function LoggedFoodsList({
       setEditAmount("");
       setEditUnitKey("grams");
       setEditMealType("other");
-      window.dispatchEvent(new Event(CANONICAL_FOOD_LOGGED_EVENT));
-      router.refresh();
+      window.dispatchEvent(
+        new Event(
+          entry.food_type === "personal"
+            ? PERSONAL_FOOD_LOGGED_EVENT
+            : CANONICAL_FOOD_LOGGED_EVENT,
+        ),
+      );
     } catch (saveError) {
       setActionError(
         saveError instanceof Error
@@ -299,7 +379,7 @@ export function LoggedFoodsList({
     }
   }
 
-  async function deleteEntry(entry: CanonicalFoodLoggedEntry) {
+  async function deleteEntry(entry: LoggedFoodEntry) {
     if (confirmingDeleteEntryId !== entry.entry_id) {
       setActionError(null);
       setEditingEntryId(null);
@@ -310,19 +390,32 @@ export function LoggedFoodsList({
     setPendingEntryId(entry.entry_id);
     setActionError(null);
     try {
-      await deleteCanonicalFoodLog({
-        user_id: userId,
-        entry_id: entry.entry_id,
-        entry_date: targetDate,
-      });
+      if (entry.food_type === "personal") {
+        await deletePersonalFoodLog({
+          userId,
+          entryId: entry.entry_id,
+          date: targetDate,
+        });
+      } else {
+        await deleteCanonicalFoodLog({
+          user_id: userId,
+          entry_id: entry.entry_id,
+          entry_date: targetDate,
+        });
+      }
       setEntries((currentEntries) =>
         currentEntries.filter(
           (currentEntry) => currentEntry.entry_id !== entry.entry_id,
         ),
       );
       setConfirmingDeleteEntryId(null);
-      window.dispatchEvent(new Event(CANONICAL_FOOD_LOGGED_EVENT));
-      router.refresh();
+      window.dispatchEvent(
+        new Event(
+          entry.food_type === "personal"
+            ? PERSONAL_FOOD_LOGGED_EVENT
+            : CANONICAL_FOOD_LOGGED_EVENT,
+        ),
+      );
     } catch (deleteError) {
       setActionError(
         deleteError instanceof Error
@@ -361,7 +454,7 @@ export function LoggedFoodsList({
           </p>
         ) : null}
 
-        {!error && entries.length > 0 ? (
+        {entries.length > 0 ? (
           <div className="max-h-[26rem] space-y-3 overflow-y-auto rounded-2xl bg-slate-50 px-3 py-3">
             {mealGroups.map((group) => (
               <section key={group.mealType} className="space-y-1.5">
@@ -416,13 +509,18 @@ export function LoggedFoodsList({
                                   className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-slate-950 outline-none focus:border-emerald-400 disabled:opacity-70"
                                 >
                                   <option value="grams">grams</option>
-                                  {editUnitKey !== "grams" &&
+                                  {entry.food_type === "personal" &&
+                                  entry.serving_grams !== null ? (
+                                    <option value="personal-serving">
+                                      {entry.serving_name || "serving"}
+                                    </option>
+                                  ) : null}
+                                  {entry.food_type === "canonical" &&
+                                  editUnitKey !== "grams" &&
                                   entry.serving_display &&
-                                  !(
-                                    servingUnitsByFoodId[
-                                      entry.canonical_food_id
-                                    ] ?? []
-                                  ).some(
+                                  !(servingUnitsByFoodId[
+                                    entry.canonical_food_id
+                                  ] ?? []).some(
                                     (unit) =>
                                       String(unit.serving_unit_id) === editUnitKey,
                                   ) ? (
@@ -430,17 +528,20 @@ export function LoggedFoodsList({
                                       {entry.serving_display}
                                     </option>
                                   ) : null}
-                                  {(
-                                    servingUnitsByFoodId[entry.canonical_food_id] ??
-                                    []
-                                  ).map((unit) => (
-                                    <option
-                                      key={unit.serving_unit_id}
-                                      value={String(unit.serving_unit_id)}
-                                    >
-                                      {unit.display_label}
-                                    </option>
-                                  ))}
+                                  {entry.food_type === "canonical"
+                                    ? (
+                                        servingUnitsByFoodId[
+                                          entry.canonical_food_id
+                                        ] ?? []
+                                      ).map((unit) => (
+                                        <option
+                                          key={unit.serving_unit_id}
+                                          value={String(unit.serving_unit_id)}
+                                        >
+                                          {unit.display_label}
+                                        </option>
+                                      ))
+                                    : null}
                                 </select>
                               </div>
                             </label>
@@ -483,20 +584,27 @@ export function LoggedFoodsList({
                             {(() => {
                               const amount = Number(editAmount);
                               const servingUnits =
-                                servingUnitsByFoodId[entry.canonical_food_id] ??
-                                [];
+                                entry.food_type === "canonical"
+                                  ? (servingUnitsByFoodId[
+                                      entry.canonical_food_id
+                                    ] ?? [])
+                                  : [];
                               const selectedServingUnit =
-                                editUnitKey === "grams"
+                                editUnitKey === "grams" ||
+                                editUnitKey === "personal-serving"
                                   ? null
                                   : (servingUnits.find(
                                       (unit) =>
                                         String(unit.serving_unit_id) ===
                                         editUnitKey,
                                     ) ?? null);
-                              const resolvedGrams =
-                                selectedServingUnit === null
-                                  ? amount
-                                  : amount * selectedServingUnit.grams_per_unit;
+                              const resolvedGrams = selectedServingUnit
+                                ? amount * selectedServingUnit.grams_per_unit
+                                : entry.food_type === "personal" &&
+                                    editUnitKey === "personal-serving" &&
+                                    entry.serving_grams !== null
+                                  ? amount * entry.serving_grams
+                                  : amount;
 
                               return Number.isFinite(resolvedGrams) &&
                                 resolvedGrams > 0 ? (

@@ -1,3 +1,49 @@
+# Current State - Personal Custom Foods UI v1
+
+Starting source: `main` at `8a7c5d60767d5573d85c2e84325bbe304c8eeef1`.
+
+Implementation branch: `feature/personal-custom-foods-ui-v1`.
+
+Status:
+
+```text
+PERSONAL_CUSTOM_FOODS_UI_V1_IMPLEMENTED_AWAITING_ARCHITECTURE_REVIEW
+```
+
+Implemented scope:
+
+- The accepted Personal Custom Foods contract and persistence v1 backend remains unchanged and accepted; UI v1 adds no schema, initialization-order, personal-food identity, or revision-contract changes.
+- Next.js now provides `/personal-foods`, `/personal-foods/new`, and `/personal-foods/{personalFoodId}` management pages with user/date-preserving navigation, compact create/edit forms, active/archived search, inline archive confirmation, and restore.
+- Nutrition-label and per-100g inputs preserve blank nutrients as unknown. Edit prefill uses the current revision's entered values, and the UI explains that revisions affect future logs only.
+- Normal Log Food search requests canonical and active personal foods concurrently after the existing two-character threshold. Results remain discriminated and stable, personal foods carry a `My food` label, and canonical duplicates are retained.
+- Personal foods can be logged in grams or by the logged revision's saved serving when available. Client validation enforces the shared 5,000 g ceiling, while the backend remains authoritative.
+- Bounded backend personal-log list/update/delete operations are user-, type-, and optional-date-scoped. Updates recalculate against each entry's stored `personal_food_revision_id`, preserving historical food names and nutrition when the personal food is revised later.
+- Logged today merges canonical and personal entries into a discriminated UI union. Personal entries support amount, saved-serving, meal, and delete operations without changing canonical behavior.
+- Architecture correction pass: canonical and personal searches now settle independently, so either successful source remains usable when the other source fails; only a double failure shows the full search error.
+- Architecture correction pass: Logged today refreshes each source independently, replaces successful source data, preserves the currently displayed failed-source entries, reports partial availability, and ignores superseded refresh responses.
+- Architecture correction pass: changing between Nutrition label and Per 100g clears all four nutrient inputs and prior success/error messages while preserving name, brand, and saved serving context; blank nutrients remain unknown rather than zero.
+- Architecture correction pass: the Nutrition summary listens to the same post-success canonical and personal logging events as Logged today and refreshes backend-owned Today totals after personal create, edit, and delete operations. Failed mutations dispatch no refresh event.
+
+Validation completed:
+
+- Personal-food models/service/logging/API slice: `84 passed`.
+- Canonical logging, canonical log edit/delete, recents, Target-vs-Actual, and API smoke regression slice: `93 passed`.
+- Ruff check passed for `api`, `services`, `models`, and `tests`; Ruff format check passed for all four touched Python files.
+- Python compile passed for `api/routes/nutrition.py` and `services/personal_food_logging_service.py`.
+- Frontend ESLint passed. Next.js production build passed and generated the three management pages plus six personal-food/log proxy routes.
+- The post-Architecture-correction frontend ESLint and Next.js production build both passed; static page generation completed `23/23`, and the expected route table was produced without adding a backend route or frontend nutrition calculation.
+- Browser smoke remains intentionally deferred to Architecture under the handoff's named-backup and dedicated-temporary-database procedure.
+- Project-memory checker passed with `590 PASS`, `58 WARN`, and `0 FAIL`; project-memory checker tests passed: `29`.
+- `git diff --check` passed. Final branch/status/staged-file and temporary-artifact inspection remains required.
+- The real ignored `fitness_ai.db` remained unchanged at length `5,443,584`, modification time `2026-07-15T00:37:43.3678125Z`, and SHA-256 `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38`.
+
+Non-goals remain unchanged: no recipes, saved meals, meal templates, barcode/OCR/import flows, AI food matching or nutrition generation, meal planning, recommendation changes, authentication changes, design-system dependency, schema change, workout change, or report change. Recipes and saved meals remain later milestones.
+
+See milestone memory:
+`docs/project_memory/milestones/personal_custom_foods_ui_v1.md`.
+
+---
+
 # Current State - Personal Custom Foods Contract and Persistence v1
 
 Accepted merge: `4da8672 Merge personal custom foods contract and persistence v1`.

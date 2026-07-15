@@ -34,7 +34,13 @@ from services.nutrition_serving_unit_logging_service import (
     ServingUnitNotFoundError,
     log_canonical_food_serving,
 )
-from services.personal_food_logging_service import log_personal_food
+from services.personal_food_logging_service import (
+    PersonalFoodLogEntryNotFoundError,
+    delete_personal_food_entry,
+    get_daily_personal_food_logs,
+    log_personal_food,
+    update_personal_food_entry,
+)
 from services.personal_food_service import (
     PersonalFoodArchivedError,
     PersonalFoodDuplicateNameError,
@@ -139,6 +145,13 @@ class PersonalFoodLogRequest(BaseModel):
     entry_date: str | None = None
     meal_type: str | None = None
     notes: str | None = None
+
+
+class PersonalFoodLogUpdateRequest(BaseModel):
+    grams: PersonalFoodNumber | None = None
+    serving_quantity: PersonalFoodNumber | None = None
+    meal_type: str | None = None
+    entry_date: str | None = None
 
 
 # =====================================
@@ -467,6 +480,71 @@ def log_owned_personal_food(user_id: int, request: PersonalFoodLogRequest):
         "success": True,
         "user_id": user_id,
         **logged.to_public_dict(),
+    }
+
+
+@router.get("/nutrition/{user_id}/personal-logs")
+def daily_personal_food_logs(user_id: int, date: str):
+    try:
+        entries = get_daily_personal_food_logs(user_id=user_id, entry_date=date)
+    except PersonalFoodUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "date": date,
+        "entries": entries,
+    }
+
+
+@router.patch("/nutrition/{user_id}/personal-logs/{entry_id}")
+def update_personal_logged_food_entry(
+    user_id: int,
+    entry_id: int,
+    request: PersonalFoodLogUpdateRequest,
+):
+    try:
+        updated_entry = update_personal_food_entry(
+            user_id=user_id,
+            entry_id=entry_id,
+            grams=request.grams,
+            serving_quantity=request.serving_quantity,
+            meal_type=request.meal_type,
+            entry_date=request.entry_date,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodLogEntryNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "entry": updated_entry,
+    }
+
+
+@router.delete("/nutrition/{user_id}/personal-logs/{entry_id}")
+def delete_personal_logged_food_entry(
+    user_id: int,
+    entry_id: int,
+    date: str | None = None,
+):
+    try:
+        deleted_entry = delete_personal_food_entry(
+            user_id=user_id,
+            entry_id=entry_id,
+            entry_date=date,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodLogEntryNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        **deleted_entry,
     }
 
 

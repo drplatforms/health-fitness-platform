@@ -1,5 +1,12 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 import { TodayCard } from "@/components/TodayCard";
+import { CANONICAL_FOOD_LOGGED_EVENT } from "@/types/canonicalFood";
 import { DailyDriverNutritionSummary } from "@/types/dailyDriver";
+import { PERSONAL_FOOD_LOGGED_EVENT } from "@/types/personalFood";
 
 function formatNumber(value: number | null, suffix = ""): string {
   if (value === null) {
@@ -16,6 +23,20 @@ export function NutritionMacroCard({
   nutrition: DailyDriverNutritionSummary;
   className?: string;
 }) {
+  const router = useRouter();
+
+  useEffect(() => {
+    const refreshNutrition = () => router.refresh();
+
+    window.addEventListener(CANONICAL_FOOD_LOGGED_EVENT, refreshNutrition);
+    window.addEventListener(PERSONAL_FOOD_LOGGED_EVENT, refreshNutrition);
+
+    return () => {
+      window.removeEventListener(CANONICAL_FOOD_LOGGED_EVENT, refreshNutrition);
+      window.removeEventListener(PERSONAL_FOOD_LOGGED_EVENT, refreshNutrition);
+    };
+  }, [router]);
+
   return (
     <TodayCard title="Nutrition" className={className}>
       <div className="space-y-3">
