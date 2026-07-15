@@ -14,6 +14,7 @@ import {
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
 import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
+import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
 import {
   buildTodayWorkoutHref,
   fetchTodayWorkout,
@@ -253,12 +254,34 @@ export default async function Home({
     todayWorkoutResult.data,
     currentWorkoutResult.data,
   );
-  const loggedFoodsResult = data
-    ? await fetchCanonicalFoodLogsFromBackend({
-        userId: currentUserId,
-        date: data.target_date,
-      })
-    : { data: null, error: null };
+  const [canonicalLoggedFoodsResult, personalLoggedFoodsResult] = data
+    ? await Promise.all([
+        fetchCanonicalFoodLogsFromBackend({
+          userId: currentUserId,
+          date: data.target_date,
+        }),
+        fetchPersonalFoodLogsFromBackend({
+          userId: currentUserId,
+          date: data.target_date,
+        }),
+      ])
+    : [
+        { data: null, error: null },
+        { data: null, error: null },
+      ];
+  const loggedFoodEntries = [
+    ...(canonicalLoggedFoodsResult.data?.entries ?? []).map((entry) => ({
+      ...entry,
+      food_type: "canonical" as const,
+    })),
+    ...(personalLoggedFoodsResult.data?.entries ?? []),
+  ];
+  const loggedFoodsError =
+    canonicalLoggedFoodsResult.error && personalLoggedFoodsResult.error
+      ? "Logged foods are unavailable right now."
+      : canonicalLoggedFoodsResult.error || personalLoggedFoodsResult.error
+        ? "Some logged foods are unavailable right now."
+        : null;
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
@@ -325,8 +348,8 @@ export default async function Home({
               <div className="grid gap-3 xl:grid-cols-2">
                 <LoggedFoodsList
                   key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
-                  initialEntries={loggedFoodsResult.data?.entries ?? []}
-                  initialError={loggedFoodsResult.error}
+                  initialEntries={loggedFoodEntries}
+                  initialError={loggedFoodsError}
                   userId={todayQuery.userId ?? data.user_id}
                   targetDate={data.target_date}
                 />

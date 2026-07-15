@@ -6,8 +6,19 @@ import pytest
 
 import database
 from models.personal_food_models import PersonalFoodRevisionInput
+from services.food_normalization_service import (
+    create_canonical_food,
+    create_canonical_food_nutrient,
+)
+from services.nutrition_service import add_canonical_food_entry
 from services.nutrition_target_vs_actual_service import build_nutrition_actuals
-from services.personal_food_logging_service import log_personal_food
+from services.personal_food_logging_service import (
+    PersonalFoodLogEntryNotFoundError,
+    delete_personal_food_entry,
+    get_daily_personal_food_logs,
+    log_personal_food,
+    update_personal_food_entry,
+)
 from services.personal_food_service import (
     PersonalFoodArchivedError,
     PersonalFoodNotFoundError,
@@ -305,3 +316,261 @@ def test_revision_history_and_target_actuals_remain_stable(personal_food_db) -> 
     archive_personal_food(user_id=1, personal_food_id=food.id)
     assert build_nutrition_actuals(1, "2026-07-14").logged_calories == 250
     conn.close()
+
+
+def test_personal_log_list_is_user_date_and_food_type_scoped(
+    personal_food_db,
+) -> None:
+    food = _create_label_food()
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=25,
+        entry_date="2026-07-14",
+        meal_type="lunch",
+    )
+    log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=10,
+        entry_date="2026-07-15",
+    )
+    canonical_food = create_canonical_food("Canonical Test Food", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 100)
+    add_canonical_food_entry(
+        user_id=1,
+        canonical_food_id=canonical_food.id,
+        grams=20,
+        entry_date="2026-07-14",
+    )
+
+    entries = get_daily_personal_food_logs(
+        user_id=1,
+        entry_date="2026-07-14",
+    )
+
+    assert entries == [
+        {
+            "entry_id": logged.logged_food_entry_id,
+            "food_type": "personal",
+            "personal_food_id": food.id,
+            "personal_food_revision_id": logged.personal_food_revision_id,
+            "food_name": "My Frozen Meal",
+            "grams": 25.0,
+            "meal_type": "lunch",
+            "calories": 50.0,
+            "protein_g": 5.0,
+            "carbs_g": None,
+            "fat_g": 0.0,
+            "serving_name": "1 tray",
+            "serving_grams": 50.0,
+        }
+    ]
+    assert "legacy_food_id" not in entries[0]
+    assert (
+        get_daily_personal_food_logs(
+            user_id=2,
+            entry_date="2026-07-14",
+        )
+        == []
+    )
+
+
+def test_personal_log_grams_update_uses_stored_revision(personal_food_db) -> None:
+    food = _create_label_food(calories=100, serving_grams=50)
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=50,
+        entry_date="2026-07-14",
+    )
+    revise_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        revision_input=PersonalFoodRevisionInput(
+            display_name="Renamed Frozen Meal",
+            input_basis="nutrition_label",
+            serving_name="new tray",
+            serving_grams=50,
+            calories=250,
+        ),
+    )
+
+    updated = update_personal_food_entry(
+        user_id=1,
+        entry_id=logged.logged_food_entry_id,
+        grams=100,
+        entry_date="2026-07-14",
+    )
+
+    assert updated["personal_food_revision_id"] == logged.personal_food_revision_id
+    assert updated["food_name"] == "My Frozen Meal"
+    assert updated["grams"] == 100
+    assert updated["calories"] == 200
+
+
+def test_personal_log_saved_serving_update_uses_stored_revision(
+    personal_food_db,
+) -> None:
+    food = _create_label_food(calories=100, serving_grams=40)
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=20,
+        entry_date="2026-07-14",
+    )
+    revise_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        revision_input=PersonalFoodRevisionInput(
+            display_name="My Frozen Meal",
+            input_basis="nutrition_label",
+            serving_name="larger tray",
+            serving_grams=100,
+            calories=500,
+        ),
+    )
+
+    updated = update_personal_food_entry(
+        user_id=1,
+        entry_id=logged.logged_food_entry_id,
+        serving_quantity=2,
+        entry_date="2026-07-14",
+    )
+
+    assert updated["grams"] == 80
+    assert updated["calories"] == 200
+    assert updated["serving_name"] == "1 tray"
+    assert updated["serving_grams"] == 40
+
+
+def test_personal_log_meal_only_update_preserves_amount_and_nutrients(
+    personal_food_db,
+) -> None:
+    food = _create_label_food()
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=25,
+        entry_date="2026-07-14",
+    )
+
+    updated = update_personal_food_entry(
+        user_id=1,
+        entry_id=logged.logged_food_entry_id,
+        meal_type="Dinner",
+        entry_date="2026-07-14",
+    )
+
+    assert updated["grams"] == 25
+    assert updated["calories"] == 50
+    assert updated["protein_g"] == 5
+    assert updated["meal_type"] == "dinner"
+
+
+def test_invalid_personal_log_update_rolls_back(personal_food_db) -> None:
+    food = _create_label_food()
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=25,
+        entry_date="2026-07-14",
+        meal_type="lunch",
+    )
+
+    with pytest.raises(PersonalFoodValidationError):
+        update_personal_food_entry(
+            user_id=1,
+            entry_id=logged.logged_food_entry_id,
+            grams=5_001,
+            meal_type="dinner",
+            entry_date="2026-07-14",
+        )
+
+    entry = get_daily_personal_food_logs(
+        user_id=1,
+        entry_date="2026-07-14",
+    )[0]
+    assert entry["grams"] == 25
+    assert entry["meal_type"] == "lunch"
+    assert entry["calories"] == 50
+
+
+def test_personal_log_update_rejects_cross_user_canonical_and_missing_entries(
+    personal_food_db,
+) -> None:
+    food = _create_label_food()
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=25,
+        entry_date="2026-07-14",
+    )
+    canonical_food = create_canonical_food("Canonical Update Guard", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 100)
+    canonical = add_canonical_food_entry(
+        user_id=1,
+        canonical_food_id=canonical_food.id,
+        grams=20,
+        entry_date="2026-07-14",
+    )
+
+    for user_id, entry_id in (
+        (2, logged.logged_food_entry_id),
+        (1, canonical["logged_food_entry_id"]),
+        (1, 999_999),
+    ):
+        with pytest.raises(PersonalFoodLogEntryNotFoundError):
+            update_personal_food_entry(
+                user_id=user_id,
+                entry_id=entry_id,
+                grams=50,
+            )
+
+
+def test_personal_log_delete_enforces_owner_type_and_date(personal_food_db) -> None:
+    food = _create_label_food()
+    logged = log_personal_food(
+        user_id=1,
+        personal_food_id=food.id,
+        grams=25,
+        entry_date="2026-07-14",
+    )
+    canonical_food = create_canonical_food("Canonical Delete Guard", "generic")
+    create_canonical_food_nutrient(canonical_food.id, "Calories", "kcal", 100)
+    canonical = add_canonical_food_entry(
+        user_id=1,
+        canonical_food_id=canonical_food.id,
+        grams=20,
+        entry_date="2026-07-14",
+    )
+
+    with pytest.raises(PersonalFoodLogEntryNotFoundError):
+        delete_personal_food_entry(
+            user_id=2,
+            entry_id=logged.logged_food_entry_id,
+        )
+    with pytest.raises(PersonalFoodLogEntryNotFoundError):
+        delete_personal_food_entry(
+            user_id=1,
+            entry_id=canonical["logged_food_entry_id"],
+        )
+    with pytest.raises(PersonalFoodLogEntryNotFoundError):
+        delete_personal_food_entry(
+            user_id=1,
+            entry_id=logged.logged_food_entry_id,
+            entry_date="2026-07-15",
+        )
+
+    assert delete_personal_food_entry(
+        user_id=1,
+        entry_id=logged.logged_food_entry_id,
+        entry_date="2026-07-14",
+    ) == {"deleted": True, "entry_id": logged.logged_food_entry_id}
+    assert (
+        get_daily_personal_food_logs(
+            user_id=1,
+            entry_date="2026-07-14",
+        )
+        == []
+    )
