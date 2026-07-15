@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Today Food Workspace Deck v1",
-    "current_recommended_milestone": "Theme System + Dark Mode v1",
+    "current_authorized_milestone": "Personal Food Serving Display Fix v1",
+    "current_recommended_milestone": "Pending product roadmap review",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "TODAY_FOOD_WORKSPACE_DECK_V1_ARCHITECTURE_ACCEPTED",
+    "implementation_status": "PERSONAL_FOOD_SERVING_DISPLAY_FIX_V1_ARCHITECTURE_ACCEPTED",
     "primary_question": "Does the Today food workspace provide a clear, accessible overlapping Log Food and My Foods deck with click, keyboard, and header-only swipe switching while preserving both child surfaces and their in-progress state?",
     "qa_class": "FRONTEND_PRODUCTION_BROWSER_SMOKE",
-    "recommended_next_milestone_after_acceptance": "Theme System + Dark Mode v1",
-    "recommended_owner": "Architecture review",
-    "source_feature_branch": "feature/today-food-workspace-deck-v1",
+    "recommended_next_milestone_after_acceptance": "Pending product roadmap review",
+    "recommended_owner": "Architecture review after product roadmap is provided",
+    "source_feature_branch": "feature/personal-food-serving-display-fix-v1",
     "source_feature_commit": "unstaged and uncommitted implementation",
-    "source_main_commit": "5c9ae9e"
+    "source_main_commit": "15964d7"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1654,5 +1654,23 @@
       "no backend write-path changes"
     ],
     "next_recommended_milestone": "Architecture Review for Workout Generation + Today Workout View v0"
+  },
+  "personal_food_serving_display_fix_v1": {
+    "baseline_commit": "15964d7",
+    "feature_branch": "feature/personal-food-serving-display-fix-v1",
+    "status": "PERSONAL_FOOD_SERVING_DISPLAY_FIX_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Display nutrition-label personal foods using persisted entered per-serving nutrition while preserving normalized per-100g display for per-100g foods.",
+    "ui_change": true,
+    "backend_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "normalization_change": false,
+    "logging_calculation_change": false,
+    "standalone_personal_foods_surface_validated": true,
+    "today_embedded_my_foods_surface_validated": true,
+    "desktop_browser_smoke_passed": true,
+    "mobile_browser_smoke_passed": true,
+    "next_milestone": "Pending product roadmap review",
+    "next_milestone_implementation_authorized": false
   }
 }
