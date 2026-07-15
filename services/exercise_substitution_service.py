@@ -141,7 +141,19 @@ def get_substitution_candidates(
         planned_exercise_id,
     )
 
-    planned_catalog_entry = find_catalog_entry_by_name(planned_exercise.name)
+    catalog = get_exercise_catalog()
+    planned_catalog_entry = None
+    if planned_exercise.catalog_exercise_id is not None:
+        planned_catalog_entry = next(
+            (
+                entry
+                for entry in catalog
+                if entry.id == planned_exercise.catalog_exercise_id
+            ),
+            None,
+        )
+    else:
+        planned_catalog_entry = find_catalog_entry_by_name(planned_exercise.name)
     if planned_catalog_entry is None:
         raise WorkoutPlanValidationError(
             "Planned exercise must exist in the exercise catalog before "
@@ -154,7 +166,7 @@ def get_substitution_candidates(
     exact_matches: list[ExerciseSubstitutionCandidate] = []
     family_matches: list[ExerciseSubstitutionCandidate] = []
 
-    for entry in get_exercise_catalog():
+    for entry in catalog:
         if _normalize_display_name(entry.name) == planned_name:
             continue
 

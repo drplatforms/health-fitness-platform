@@ -1033,6 +1033,7 @@ def _exercise(
     notes: str,
     equipment_required: list[str],
 ) -> CandidateWorkoutExercise:
+    catalog_entry = find_catalog_entry_by_name(name)
     return CandidateWorkoutExercise(
         name=name,
         sets=sets,
@@ -1042,6 +1043,7 @@ def _exercise(
         rir_max=rir_max,
         notes=notes,
         equipment_required=[_normalize_equipment(item) for item in equipment_required],
+        catalog_exercise_id=(catalog_entry.id if catalog_entry is not None else None),
     )
 
 
@@ -2133,6 +2135,7 @@ def approve_candidate_workout_plan(
                 rir_max=exercise.rir_max,
                 notes=exercise.notes,
                 equipment_required=exercise.equipment_required,
+                catalog_exercise_id=exercise.catalog_exercise_id,
             )
             for exercise in candidate.exercises
         ],

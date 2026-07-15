@@ -1,31 +1,37 @@
-# Current State - Project Memory + Developer Workflow Canonicalization v1
+# Current State - Exercise Catalog Identity Propagation v1
 
-Starting baseline: `c8349e0 Merge public project rebrand and README refresh v1`.
+Accepted baseline: `b3bae29 Merge project memory and developer workflow canonicalization v1`.
 
-Supporting accepted history:
-
-- `5f4ae50 Rebrand project as Health and Fitness Platform`
-- `c813f34 Merge strategic project memory sync before rebrand`
-- `11e8dad Synchronize strategic project memory before rebrand`
+Branch: `feature/exercise-catalog-identity-propagation-v1`.
 
 Status:
 
 ```text
-PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS
+EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT
 ```
 
 Current truth:
 
-- Public Project Rebrand and README Refresh v1 is complete on accepted `main` at `c8349e0`.
-- The product is the **Health & Fitness Platform** and the public repository identity is `health-fitness-platform`.
-- Windows at `C:\projects\fitness_ai` is the canonical daily development/runtime environment.
-- The primary product runtime is FastAPI on port `8000` plus the production Next.js frontend on port `3100`; the canonical product URL is `http://127.0.0.1:3100`.
-- Next.js development mode on port `3000` is optional. Linux at `~/projects/fitness-ai-platform` is secondary optional validation/runtime/demo infrastructure. Streamlit is legacy/developer-only.
-- Backend-owned facts, constraints, validation, persistence, and deterministic fallback remain authoritative. Provider/AI output is non-authoritative, and AI-written daily prose is paused indefinitely.
-- This milestone canonicalizes current developer memory, source/authority hierarchy, PowerShell helpers, safe profile installation, snapshot location, and validation expectations. It makes no application, provider, schema, persistence, or database change.
-- Implementation is not accepted by this status entry. Architecture must review the actual diff and validation evidence before any Git closeout.
+- Project Memory + Developer Workflow Canonicalization v1 is accepted and closed at `b3bae29`; its prior current-facing in-progress and architecture-review markers were metadata debt only.
+- Exercise Catalog Identity Propagation v1 is the active bounded product prerequisite.
+- The existing `exercise_catalog_exercises.id` remains the canonical identity for catalog-backed workout features.
+- The active scope preserves that nullable identity through candidate approval, approved-plan JSON, planned-exercise persistence, read models, and existing API serialization.
+- Legacy approved-plan JSON without the field and legacy planned rows with a null ID remain supported.
+- Substitution lookup prefers persisted catalog identity when present and retains name lookup only for legacy rows without an ID.
+- This milestone does not add exercise instructions, instruction persistence or API/UI surfaces, media, a second exercise identity, workout-generation behavior changes, or provider/AI work.
+- Architecture accepted the implementation; Git closeout remains pending.
+- The `catalog_exercise_id` schema addition is additive and nullable, and no legacy workout rows were backfilled.
+- Affected automated tests now use pytest-owned databases; guarded validation confirms they cannot access the canonical `fitness_ai.db`.
+- Canonical user data is not part of this milestone.
+- This entry does not claim merge or closeout.
 
-See milestone memory:
+Next intended milestone after acceptance:
+
+```text
+Exercise Instruction Contract + Persistence v1
+```
+
+See the closed baseline milestone memory:
 `docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md`.
 
 ---

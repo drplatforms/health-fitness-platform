@@ -39,6 +39,13 @@ def test_select_approved_workout_plan_persists_exact_visible_preview(
     assert [exercise.sets for exercise in planned_exercises] == [
         exercise.sets for exercise in visible_preview.exercises
     ]
+    assert [exercise.catalog_exercise_id for exercise in planned_exercises] == [
+        exercise.catalog_exercise_id for exercise in visible_preview.exercises
+    ]
+    assert all(
+        exercise.catalog_exercise_id is not None
+        for exercise in visible_preview.exercises
+    )
 
 
 def test_select_approved_workout_plan_does_not_rebuild_when_visible_preview_differs(
@@ -77,6 +84,28 @@ def test_approved_workout_plan_payload_round_trips_for_selection(tmp_path, monke
     assert [exercise.name for exercise in selected["planned_exercises"]] == [
         exercise.name for exercise in visible_preview.exercises
     ]
+    assert [exercise.catalog_exercise_id for exercise in approved_plan.exercises] == [
+        exercise.catalog_exercise_id for exercise in visible_preview.exercises
+    ]
+    assert [
+        exercise.catalog_exercise_id for exercise in selected["planned_exercises"]
+    ] == [exercise.catalog_exercise_id for exercise in visible_preview.exercises]
+
+
+def test_approved_workout_plan_payload_accepts_legacy_exercises_without_catalog_ids(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    visible_preview = build_approved_workout_plan(build_user_health_state(105))
+    legacy_payload = asdict(visible_preview)
+    for exercise in legacy_payload["exercises"]:
+        exercise.pop("catalog_exercise_id")
+
+    approved_plan = approved_workout_plan_from_payload(legacy_payload)
+
+    assert all(
+        exercise.catalog_exercise_id is None for exercise in approved_plan.exercises
+    )
 
 
 def test_select_preview_endpoint_persists_exact_visible_preview(tmp_path, monkeypatch):
@@ -101,6 +130,9 @@ def test_select_preview_endpoint_persists_exact_visible_preview(tmp_path, monkey
     assert [exercise["name"] for exercise in payload["planned_exercises"]] == [
         exercise["name"] for exercise in visible_plan["exercises"]
     ]
+    assert [
+        exercise["catalog_exercise_id"] for exercise in payload["planned_exercises"]
+    ] == [exercise["catalog_exercise_id"] for exercise in visible_plan["exercises"]]
 
 
 def test_select_approved_workout_plan_is_visible_to_current_day_state(

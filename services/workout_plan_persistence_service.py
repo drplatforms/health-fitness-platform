@@ -107,12 +107,21 @@ def ensure_workout_plan_persistence_tables() -> None:
         rir_max INTEGER NOT NULL,
         notes TEXT NOT NULL,
         equipment_required_json TEXT NOT NULL,
+        catalog_exercise_id INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
         FOREIGN KEY (workout_plan_instance_id)
             REFERENCES workout_plan_instances(id)
     )
     """)
+
+    cursor.execute("PRAGMA table_info(planned_workout_exercises)")
+    planned_workout_exercise_columns = {row["name"] for row in cursor.fetchall()}
+    if "catalog_exercise_id" not in planned_workout_exercise_columns:
+        cursor.execute(
+            "ALTER TABLE planned_workout_exercises "
+            "ADD COLUMN catalog_exercise_id INTEGER"
+        )
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS workout_execution_sessions (
@@ -226,6 +235,11 @@ def _approved_workout_plan_from_dict(raw_plan: dict) -> ApprovedWorkoutPlan:
             equipment_required=[
                 str(equipment) for equipment in exercise.get("equipment_required", [])
             ],
+            catalog_exercise_id=(
+                None
+                if exercise.get("catalog_exercise_id") is None
+                else int(exercise["catalog_exercise_id"])
+            ),
         )
         for exercise in raw_plan.get("exercises", [])
     ]
@@ -305,6 +319,7 @@ def _row_to_planned_exercise(row) -> PlannedWorkoutExercise:
             str(equipment)
             for equipment in _decode_json(row["equipment_required_json"], [])
         ],
+        catalog_exercise_id=_row_value(row, "catalog_exercise_id"),
     )
 
 
@@ -1623,9 +1638,10 @@ def _persist_selected_workout_plan(
                     rir_min,
                     rir_max,
                     notes,
-                    equipment_required_json
+                    equipment_required_json,
+                    catalog_exercise_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     instance_id,
@@ -1638,6 +1654,7 @@ def _persist_selected_workout_plan(
                     exercise.rir_max,
                     exercise.notes,
                     _encode_json(exercise.equipment_required),
+                    exercise.catalog_exercise_id,
                 ),
             )
 

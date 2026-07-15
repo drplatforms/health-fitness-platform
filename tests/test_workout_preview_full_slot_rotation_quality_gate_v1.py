@@ -1,8 +1,7 @@
 """Diagnostic quality gate for full-slot preview rotation.
 
-This test intentionally targets the real local runtime database/user that exposed
-smoke failures.  It should fail on the current failed-smoke branch before the
-next implementation patch is applied.
+This test recreates the equipment constraints that exposed the smoke failures in a
+fully seeded pytest database. It never resolves or copies the canonical database.
 """
 
 from __future__ import annotations
@@ -14,10 +13,27 @@ from typing import Any
 
 import pytest
 
+import database
 from api.routes.workout_plans import workout_plan_preview
+from scripts.seed_qa_scenarios import seed_qa_scenarios
+from services.equipment_profile_service import save_equipment_profile
 from services.exercise_catalog_service import find_catalog_entry_by_name
 
-QUALITY_GATE_USER_ID = 1
+QUALITY_GATE_USER_ID = 102
+QUALITY_GATE_EQUIPMENT = [
+    "adjustable_bench",
+    "barbell",
+    "bike",
+    "bodyweight",
+    "cable",
+    "dumbbell",
+    "ez_bar",
+    "plates",
+    "pull_up_bar",
+    "rack",
+    "resistance_band",
+    "treadmill",
+]
 SIZES = ("quick", "standard", "full")
 VARIATIONS = (0, 1, 2, 3, 4)
 
@@ -59,6 +75,23 @@ def _preview_exercises(size: str, variation_index: int) -> list[ExerciseInfo]:
 
     plan = result.get("approved_workout_plan") or {}
     return [_exercise_info(exercise) for exercise in plan.get("exercises") or []]
+
+
+def _seed_quality_gate_database(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        database, "DB_PATH", tmp_path / "fitness_ai_rotation_quality_gate.db"
+    )
+    seed_qa_scenarios()
+    save_equipment_profile(
+        user_id=QUALITY_GATE_USER_ID,
+        training_environment="home_gym",
+        available_equipment=QUALITY_GATE_EQUIPMENT,
+        unavailable_equipment=[
+            "exercise_ball",
+            "machine",
+            "rope_cable_attachment",
+        ],
+    )
 
 
 def _name_list(exercises: list[ExerciseInfo]) -> list[str]:
@@ -109,9 +142,9 @@ def _diagnostic_for_repeat(
     )
 
 
-def test_first_refresh_rejects_same_slot_repeats_when_observed_alternatives_exist() -> (
-    None
-):
+def test_first_refresh_rejects_same_slot_repeats_when_observed_alternatives_exist(
+    tmp_path, monkeypatch
+) -> None:
     """Quality gate for the real smoke failure: variation 0 -> variation 1.
 
     The current failed branch repeats Dumbbell Single-Leg RDL in slot 1 and can
@@ -120,6 +153,8 @@ def test_first_refresh_rejects_same_slot_repeats_when_observed_alternatives_exis
     patch and pass after the selector refuses previous same-slot winners when an
     alternative exists.
     """
+
+    _seed_quality_gate_database(tmp_path, monkeypatch)
 
     failures: list[str] = []
 

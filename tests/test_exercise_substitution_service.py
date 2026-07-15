@@ -3,6 +3,7 @@ from dataclasses import asdict
 from fastapi.testclient import TestClient
 
 import database
+import services.exercise_substitution_service as exercise_substitution_service
 from api.main import app
 from scripts.seed_qa_scenarios import seed_qa_scenarios
 from services.equipment_profile_service import save_equipment_profile
@@ -106,6 +107,75 @@ def test_substitution_candidates_return_same_movement_pattern(
     assert any(
         candidate.movement_pattern == "horizontal_pull" for candidate in candidates
     )
+
+
+def test_substitution_candidates_prefer_persisted_catalog_id(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    selected = _select_plan_for_user(
+        user_id=105,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+    planned_exercise = _planned_exercise_by_pattern(selected, "horizontal_pull")
+    assert planned_exercise.catalog_exercise_id is not None
+
+    def fail_name_lookup(_name):
+        raise AssertionError("Catalog name fallback must not run when an ID exists.")
+
+    monkeypatch.setattr(
+        exercise_substitution_service,
+        "find_catalog_entry_by_name",
+        fail_name_lookup,
+    )
+
+    candidates = get_substitution_candidates(
+        selected["workout_plan_instance"].id,
+        planned_exercise.id,
+    )
+
+    assert candidates
+
+
+def test_substitution_candidates_use_name_fallback_for_legacy_null_catalog_id(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    selected = _select_plan_for_user(
+        user_id=105,
+        training_environment="home_gym",
+        available_equipment=USER_HOME_GYM_EQUIPMENT,
+        unavailable_equipment=["machine"],
+    )
+    planned_exercise = _planned_exercise_by_pattern(selected, "horizontal_pull")
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE planned_workout_exercises SET catalog_exercise_id = NULL WHERE id = ?",
+        (planned_exercise.id,),
+    )
+    conn.commit()
+    conn.close()
+    lookup_names = []
+    original_lookup = exercise_substitution_service.find_catalog_entry_by_name
+
+    def track_name_lookup(name):
+        lookup_names.append(name)
+        return original_lookup(name)
+
+    monkeypatch.setattr(
+        exercise_substitution_service,
+        "find_catalog_entry_by_name",
+        track_name_lookup,
+    )
+
+    candidates = get_substitution_candidates(
+        selected["workout_plan_instance"].id,
+        planned_exercise.id,
+    )
+
+    assert candidates
+    assert lookup_names == [planned_exercise.name]
 
 
 def test_substitution_candidates_reject_missing_plan(tmp_path, monkeypatch):

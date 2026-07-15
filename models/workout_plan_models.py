@@ -63,6 +63,7 @@ class ApprovedWorkoutExercise:
     rir_max: int
     notes: str
     equipment_required: list[str] = field(default_factory=list)
+    catalog_exercise_id: int | None = None
 
 
 @dataclass
@@ -164,6 +165,7 @@ class PlannedWorkoutExercise:
     rir_max: int
     notes: str
     equipment_required: list[str] = field(default_factory=list)
+    catalog_exercise_id: int | None = None
 
 
 @dataclass
