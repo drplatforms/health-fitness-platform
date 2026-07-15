@@ -1,12 +1,12 @@
 # Premium Platform Blueprint
 
-Last updated: 2026-06-20
+Last updated: 2026-07-15
 
 ## Purpose
 
-This blueprint describes what AI Health Coach could become as a premium, paid-platform-quality health coaching system.
+This blueprint describes what the Health & Fitness Platform could become as a premium, paid-platform-quality product.
 
-It is aspirational but disciplined. It connects product experience, backend architecture, AI systems, data architecture, DevOps, frontend architecture, observability, testing, and agent workflows.
+It is aspirational but disciplined. It connects product experience, backend architecture, optional provider/generative systems, data architecture, DevOps, frontend architecture, observability, testing, and agent workflows.
 
 This document is aspirational. It does not authorize implementation of all features.
 
@@ -14,22 +14,23 @@ Every feature must still be implemented through scoped milestones, tests, valida
 
 ## 1. Platform vision
 
-AI Health Coach can become a local-first, safety-first, AI-assisted health coaching platform with:
+Health & Fitness Platform can become a local-first, data-grounded health and fitness platform with:
 
 - deterministic backend truth
-- validated AI explanation
+- practical nutrition, training, recovery, and progress workflows
+- validated optional provider explanation
 - long-term coach memory
 - RAG-backed coaching knowledge
 - vector search over user history and curated knowledge
-- explicit model routing
-- async provider orchestration
+- optional model routing
+- optional async provider orchestration
 - production-grade diagnostics
-- a real frontend
+- a production-grade frontend
 - strong data architecture
 - traceable project memory
 - agent-safe engineering workflows
 
-The platform should feel like a real coach: informed, useful, context-aware, proactive, and personal. It must not become a hallucination machine with a pretty UI.
+The platform should feel informed, useful, context-aware, practical, and personal. Optional generative features must never substitute fluent language for grounded product truth.
 
 ## 2. Premium product principles
 
@@ -43,7 +44,7 @@ The premium version should follow these principles:
 - coach-like but bounded
 - premium backend, not just premium UI
 - every recommendation can explain why
-- every AI sentence has an approved evidence path
+- every provider-generated sentence has an approved evidence path
 - every fallback is safe and understandable
 - every user-facing claim has a confidence boundary
 - every persistent memory item can be inspected and corrected
@@ -70,7 +71,7 @@ Future Today capabilities:
 - quick logging
 - context-aware nudges
 - same-day plan adjustments
-- clear distinction between deterministic and approved AI-assisted copy
+- clear distinction between deterministic product truth and optional approved provider copy
 
 The Today screen should answer:
 
@@ -181,13 +182,12 @@ Future reporting capabilities may include:
 
 Reports should become a trustworthy record of what happened, what changed, and what the coach recommends next.
 
-## 8. AI Coach experience
+## 8. Optional provider / generative capabilities
 
-Future AI coach capabilities may include:
+Future provider or generative capabilities may include:
 
 - provider preview lanes
 - approved provider narratives
-- `qwen3:32b` premium voice lane
 - async coach narratives
 - tone controls
 - model capability registry
@@ -201,7 +201,9 @@ Future AI coach capabilities may include:
 
 Strict boundary:
 
-AI may explain, synthesize, and coach within backend-approved context. It may not own truth, change decisions, persist memories, or override validators without explicit backend/user approval.
+Provider output may explain or synthesize within backend-approved context. It is optional, non-authoritative, and subordinate to deterministic product behavior. It may not own truth, change decisions, persist memories, or override validators without explicit backend/user approval.
+
+Provider-written daily coaching narrative is currently paused after failing human product-quality acceptance. No specific model is part of the public product identity or an active roadmap commitment.
 
 ## 9. RAG / knowledge experience
 
@@ -307,13 +309,15 @@ Async work should be observable and recoverable.
 
 Current frontend:
 
-- Streamlit
+- Next.js
+- React
+- TypeScript
+- Tailwind
+- production runtime on project port `3100`
+- Streamlit retained only for legacy/developer-only surfaces where still needed
 
 Future frontend possibilities:
 
-- React
-- Next.js
-- TypeScript
 - design system
 - theme system
 - mobile-responsive UI
@@ -333,7 +337,7 @@ The future frontend should preserve the product spine:
 - Developer Mode
 - traceable diagnostics
 
-A frontend rewrite is not approved yet.
+Replacement of the accepted Next.js frontend is not approved by this blueprint.
 
 ## 15. Observability / QA systems
 
@@ -408,7 +412,7 @@ Deployment should improve reliability without hiding failures.
 
 ## 18. Developer / learning platform
 
-AI Health Coach is also a serious learning vehicle.
+Health & Fitness Platform is also a serious learning vehicle.
 
 Developer systems may include:
 
@@ -432,23 +436,16 @@ The agent memory is the architecture continuity layer. The repo docs must keep f
 
 ## 19. Suggested long-term build order
 
-A disciplined long-term sequence:
+A disciplined long-term sequence from the accepted `14b09db` baseline:
 
-1. Project Memory Alignment + North Star Architecture v1
-2. Premium Platform Blueprint v1
-3. Daily Coach Provider Preview Contract Reliability v1
-4. Same-Session Approved Preview Bridge Retry
-5. Provider Narrative QA Matrix v2
-6. Async Provider Job System v1
-7. Unified Health State Snapshot v1
-8. Long-Term Memory Ledger v1
-9. RAG Architecture v1
-10. Vector Store Prototype v1
-11. Model Routing / MoE v1
-12. MCP Tool Interface Design v1
-13. Real Frontend Architecture v1
-14. Docker Compose Platform v1
-15. Observability v1
+1. Public Project Rebrand and README Refresh v1
+2. Continued refinement of the Next.js daily product loop
+3. Saved meals, recipes, and other explicitly prioritized nutrition workflows
+4. Richer progress, trend, and history experiences
+5. Mobile, accessibility, privacy, export, and deployment hardening
+6. Observability and operational reliability
+7. Optional long-term memory or curated knowledge capabilities when a concrete product need is approved
+8. Optional provider, retrieval, model-routing, or tool-interface experiments only after separate Architecture authorization and human acceptance
 
 The order can change, but every step must remain scoped and accepted.
 
@@ -463,13 +460,15 @@ It does not change current runtime behavior, provider behavior, persistence, sch
 Every feature must still be implemented through scoped milestones, tests, validation, project-memory updates, and Architecture acceptance.
 
 <!-- START ASYNC_DAILY_COACH_NARRATIVE_IMPLEMENTATION_PLAN_V1 -->
-## Premium Daily Coach Narrative Path
+## Historical Daily Coach Narrative Direction
 
 Date: 2026-06-21
 
-The premium coach voice path should use async generation rather than page-load generation.
+Earlier architecture explored async generation rather than page-load generation for provider-written coaching narrative. That history is retained as experimental context, not as an active roadmap commitment.
 
-qwen3:32b is documented as a future premium async candidate because it has shown promising language quality during manual Developer Preview. It remains research-only and is not bridge-approved.
+Provider-written daily coaching narrative is currently paused after failing human product-quality acceptance. No specific model is part of the public product identity or promised as a premium capability.
 
-Premium voice must remain bounded by backend-approved truth, validation gates, context identity checks, and deterministic fallback.
+Historical research evaluated `qwen3:32b` and MoE/model-routing concepts. They remain deferred experimental references only, not product commitments or implementation authorization.
+
+Any future provider-written narrative must remain optional and bounded by backend-approved truth, validation gates, context identity checks, deterministic fallback, and explicit human product-quality acceptance.
 <!-- END ASYNC_DAILY_COACH_NARRATIVE_IMPLEMENTATION_PLAN_V1 -->

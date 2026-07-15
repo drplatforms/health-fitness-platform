@@ -8,7 +8,11 @@ docs/project_memory/architecture/platform_north_star_and_future_stack.md
 
 Use that file as the strategic source of truth for future-stack, SaaS, RAG, vector, agent, model-routing, and product-platform decisions. This ledger remains a historical/future-direction companion.
 
-Current accepted baseline for this reference: `187e433 main_merge-platform-north-star-future-stack-canonicalization-v1`.
+Current accepted baseline for this reference: `14b09db Close personal custom foods UI v1`.
+
+Current product direction: `Health & Fitness Platform`.
+
+Provider and generative systems are optional experimental capabilities, not the product identity. Provider-written daily coaching narrative is paused after failing human product-quality acceptance.
 
 Backend Intelligence Foundation remains the prerequisite for advanced retrieval/orchestration candidates.
 
@@ -16,7 +20,7 @@ Backend Intelligence Foundation remains the prerequisite for advanced retrieval/
 
 # Backend Intelligence Foundation prerequisite sequencing
 
-Current accepted evidence at `23b5378` shows provider voice iteration should pause until backend intelligence improves.
+Current accepted evidence at `14b09db` shows that core product workflows must remain useful without provider output. Provider-written daily coaching narrative remains paused after failing human product-quality acceptance.
 
 Required sequencing:
 
@@ -39,11 +43,11 @@ Rules:
 
 # Future Architecture Ledger
 
-Last updated: 2026-06-20
+Last updated: 2026-07-15
 
 ## Purpose
 
-This ledger preserves the long-term technical architecture north star for AI Health Coach.
+This ledger preserves the long-term technical architecture north star for the Health & Fitness Platform.
 
 It records future platform directions, dependencies, sequencing, and safety boundaries so future agents do not lose the architectural thread. It is intentionally future-facing and strict.
 
@@ -62,7 +66,7 @@ This file does not approve:
 - frontend rewrite
 - deployment rewrite
 - provider persistence
-- qwen3:32b production promotion
+- production promotion of any specific model
 - same-session approval
 - normal Today page provider calls
 - database migrations
@@ -76,12 +80,14 @@ Current accepted behavior remains governed by `current_state.md`, `ai_boundaries
 The future architecture must preserve the project doctrine:
 
 - Backend owns truth.
-- AI explains backend-approved truth.
-- Validators gate AI output.
-- Deterministic fallback always exists.
+- Deterministic services own core product behavior.
+- Provider output is optional and may explain only backend-approved truth.
+- Validators gate provider output.
+- Core workflows remain useful without provider output.
+- Deterministic behavior and fallback always remain available.
 - Provider paths remain manual/developer-gated unless explicitly promoted.
 - No model is production-approved without QA matrix evidence.
-- `qwen3:32b` is a future premium voice candidate, not a current default.
+- No specific model is an active product-roadmap commitment or part of the product identity.
 - Raw or rejected provider output must not appear in normal UI.
 - Model output must not write permanent truth without backend and user approval.
 - Retrieved knowledge supports explanation, not authority.
@@ -98,14 +104,18 @@ The future architecture must preserve the project doctrine:
 
 The current platform is local-first:
 
-- Streamlit frontend shell
+- Next.js, React, and TypeScript product frontend
 - FastAPI backend
 - SQLite local data store
 - deterministic service layer
 - Pydantic-style contracts and explicit service boundaries
-- report section registry
+- canonical food search and logging
+- personal custom foods contract, persistence, logging, and UI
+- formula-derived nutrition targets and Target-vs-Actual
+- recovery workflows
+- deterministic workout planning, execution, substitution, history, and progression context
 - validation-first provider architecture
-- local Ollama experimentation
+- optional provider experiments outside the core product identity
 - Windows source-of-truth development flow
 - Linux runtime/staging QA flow
 - project-memory and stale-doc checks
@@ -132,7 +142,7 @@ Local-first can evolve without being discarded:
 
 - local server / LAN deployment
 - Docker Compose
-- service-managed FastAPI and Streamlit processes
+- service-managed FastAPI and Next.js processes
 - PostgreSQL when migration discipline is ready
 - reverse proxy through Apache, Nginx, or Caddy
 - model-serving separation
@@ -184,45 +194,13 @@ Future provider work must keep these boundaries:
 - deterministic fallback remains available
 - provider diagnostics stay developer-only and sanitized
 
-## 3. `qwen3:32b` premium coach voice lane
+## 3. Deferred provider and model experimentation
 
-### Future role
+Provider/model experiments are retained as historical engineering context, not as active product-roadmap commitments. Prior local-model comparisons, including Qwen-family experiments, helped test parsing, validation, latency, and narrative quality boundaries.
 
-`qwen3:32b` is a future premium narrative candidate. It may eventually support:
+Provider-written daily coaching narrative is currently paused after failing human product-quality acceptance. No specific model is production-promoted, promised as a premium lane, or part of the Health & Fitness Platform identity.
 
-- richer Today Coach Note language
-- premium Coach's Read variants
-- report narrative polish
-- weekly review synthesis
-- monthly review synthesis
-- motivational but bounded coaching language
-- more natural transitions between nutrition, workout, and recovery context
-
-### Required operating model
-
-A future `qwen3:32b` lane should likely be:
-
-- async/precomputed
-- not page-load blocking
-- not enabled by default
-- manually evaluated first
-- gated by parser and validator
-- operated only on backend-approved context
-- compared against smaller baselines in a QA matrix
-- blocked from changing truth, targets, decisions, CTA, or persistence
-
-### Current status
-
-`qwen3:32b` is not production-promoted.
-
-Other local model roles may remain:
-
-- `qwen2.5:3b`: reliable JSON/contract baseline candidate
-- `qwen3:8b`: practical voice/quality probe
-- `qwen3:14b`: intermediate probe candidate
-- `qwen3:30b-a3b`: optional experimental candidate where locally available
-
-No model may promote itself. The backend owns provider selection policy.
+Any future provider experiment must be separately authorized, manually evaluated, gated by parser and validators, operated only on backend-approved context, and blocked from changing truth, targets, decisions, calls to action, or persistence. The backend owns provider selection policy.
 
 ## 4. RAG / curated knowledge base
 
@@ -493,13 +471,12 @@ Observability should make fallback and validator behavior visible without exposi
 
 ### Current frontend
 
-Streamlit is the current learning/product shell. It is useful for local iteration and Developer Mode diagnostics.
+Next.js, React, TypeScript, and Tailwind provide the active product frontend. The production frontend runs on project port `3100`. Streamlit is legacy/developer-only where still retained.
 
 ### Future frontend options
 
 Future frontend directions may include:
 
-- React / Next.js / TypeScript
 - generated API client from FastAPI OpenAPI
 - Tailwind or shadcn-style component system
 - real design system
@@ -521,7 +498,7 @@ Deployment may evolve toward:
 - TLS later
 - Kubernetes only much later if useful for learning or scale
 
-No frontend rewrite or deployment rewrite is approved yet.
+No replacement of the accepted frontend or deployment rewrite is approved by this ledger.
 
 ## 14. Agent engineering
 
@@ -560,8 +537,9 @@ Agents must obey project memory and milestone boundaries.
 Future architecture must continue to enforce:
 
 - backend owns truth
-- AI explains truth
-- validators gate AI
+- deterministic services own core behavior
+- provider output is optional and may explain only backend-approved truth
+- validators gate provider output
 - deterministic fallback always available
 - no unsupported medical claims
 - no unsupported nutrition claims
@@ -576,23 +554,14 @@ Safety is not a later bolt-on. It is the architecture.
 
 ## 16. Roadmap phases
 
-The long-term architecture can be thought of in phases:
+The current and future architecture can be thought of in phases:
 
-1. Deterministic backend truth
-2. Validated report sections
-3. Daily product loop
-4. Developer preview stability
-5. Provider preview contract reliability
-6. Same-session approved provider display
-7. Async provider narrative generation
-8. Unified Health State Snapshot
-9. Long-term memory ledger
-10. RAG / curated knowledge base
-11. Vector search over knowledge and user history
-12. Model routing / MoE
-13. MCP / tool interface architecture
-14. Real frontend / deployment architecture
-15. Observability and premium operations
+1. Maintain deterministic backend truth and validation-first service contracts.
+2. Strengthen the Next.js daily product loop across nutrition, workouts, recovery, and history.
+3. Complete the public project rebrand and README refresh.
+4. Expand product capabilities such as saved meals, richer trends, and mobile-friendly workflows through separate milestones.
+5. Improve observability, deployment reliability, privacy controls, and data portability as product needs justify them.
+6. Evaluate long-term memory, curated retrieval, provider generation, model routing, or tool interfaces only as optional, separately authorized capabilities.
 
 Each phase must still be implemented through a scoped milestone.
 
@@ -603,14 +572,14 @@ This ledger records direction. It does not authorize implementation.
 Future systems must be promoted through explicit Architecture approval, tests, validation, QA, project-memory updates, and user acceptance.
 
 <!-- START ASYNC_DAILY_COACH_NARRATIVE_IMPLEMENTATION_PLAN_V1 -->
-## Async Daily Coach Narrative Roadmap
+## Historical Async Daily Coach Narrative Direction
 
 Date: 2026-06-21
 
-Accepted design direction:
-The Daily Coach Narrative premium lane should move toward async generation so larger models can be explored without blocking Today page load.
+Historical design direction:
+Earlier architecture explored async generation so provider experiments would not block Today page load.
 
-Current planned sequence:
+Historical sequence:
 
 1. Implementation Plan v1
 2. Async Contracts + Data Model v1
@@ -622,4 +591,7 @@ Current planned sequence:
 
 Architecture rule:
 No model promotion or normal-load provider generation happens without explicit Architecture acceptance.
+
+Current status:
+Provider-written daily coaching narrative is paused after failing human product-quality acceptance. This historical sequence is not an active roadmap commitment.
 <!-- END ASYNC_DAILY_COACH_NARRATIVE_IMPLEMENTATION_PLAN_V1 -->
