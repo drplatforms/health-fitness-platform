@@ -284,31 +284,31 @@ export default async function Home({
         : null;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_35%),linear-gradient(180deg,#fffdf7_0%,#f8fafc_100%)] px-4 py-6 text-slate-950">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-4 py-6 text-text-strong">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pb-8 lg:gap-6 lg:px-2">
-        <section className="rounded-[28px] bg-[linear-gradient(160deg,rgba(255,255,255,0.96),rgba(255,247,237,0.96))] px-5 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] lg:px-6 lg:py-5">
+        <section className="rounded-[28px] bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-5 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] lg:px-6 lg:py-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-2xl space-y-1">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-amber-700">
+              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm">
                 Today
               </p>
-              <h1 className="text-2xl font-semibold tracking-tight text-slate-950 lg:text-[2rem]">
+              <h1 className="text-2xl font-semibold tracking-tight text-text-strong lg:text-[2rem]">
                 {displayDate}
               </h1>
             </div>
 
             <div className="flex flex-col gap-2 lg:items-end">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
                 User
               </p>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold text-text-primary">
                   {currentUserLabel}
                 </p>
                 <UserSwitcher
                   currentUserId={currentUserId}
                   showLabel={false}
-                  selectClassName="bg-white/90 py-2.5"
+                  selectClassName="bg-surface/90 py-2.5"
                 />
               </div>
             </div>
@@ -318,9 +318,9 @@ export default async function Home({
         {error ? (
           <TodayCard title={error.heading} accent="warm">
             <div className="space-y-3">
-              <p className="text-sm leading-6 text-slate-700">{error.message}</p>
+              <p className="text-sm leading-6 text-text-body">{error.message}</p>
               {error.statusCode ? (
-                <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                   Status {error.statusCode}
                 </p>
               ) : null}
@@ -330,7 +330,7 @@ export default async function Home({
 
         {!error && !data ? (
           <TodayCard title="Today is empty" accent="warm">
-            <p className="text-sm leading-6 text-slate-700">
+            <p className="text-sm leading-6 text-text-body">
               The backend did not return a usable Today response yet.
             </p>
           </TodayCard>
@@ -356,7 +356,7 @@ export default async function Home({
                 <TodayCard title="Today's Workout">
                   <div className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <span className="text-sm font-semibold text-slate-800">
+                      <span className="text-sm font-semibold text-text-body">
                         {getWorkoutSupportLine(data.workout.status)}
                       </span>
                       <StatusPill
@@ -368,37 +368,37 @@ export default async function Home({
                       {workoutMeta.map((item) => (
                         <span
                           key={item}
-                          className="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700"
+                          className="rounded-full bg-surface-muted px-3 py-1.5 font-semibold text-text-body"
                         >
                           {item}
                         </span>
                       ))}
                     </div>
                     {workoutRows.length > 0 ? (
-                      <div className="divide-y divide-slate-100 rounded-2xl bg-slate-50 px-4 py-2">
+                      <div className="divide-y divide-border-subtle rounded-2xl bg-surface-subtle px-4 py-2">
                         {workoutRows.map((exercise) => (
                           <div
                             key={exercise.key}
                             className="grid gap-1 py-2 text-sm sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
                           >
-                            <span className="font-semibold text-slate-900">
+                            <span className="font-semibold text-text-primary">
                               {exercise.name}
                             </span>
-                            <span className="text-slate-600 sm:text-right">
+                            <span className="text-text-secondary sm:text-right">
                               {exercise.detail}
                             </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                      <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
                         {data.workout.first_action_label}
                       </p>
                     )}
                     {data.workout.planned ? (
                       <Link
                         href={workoutHref}
-                        className="inline-flex items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800"
+                        className="inline-flex items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover"
                       >
                         {getWorkoutActionLabel(data.workout.status)}
                       </Link>
@@ -417,7 +417,7 @@ export default async function Home({
 
               {data.coach_note.enabled && data.coach_note.text ? (
                 <TodayCard title="Coach Note" accent="warm">
-                  <p className="text-sm leading-7 text-slate-800">
+                  <p className="text-sm leading-7 text-text-body">
                     {data.coach_note.text}
                   </p>
                 </TodayCard>

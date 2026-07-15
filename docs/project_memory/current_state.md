@@ -1,3 +1,27 @@
+# Current State - Theme Daily Surface Migration v1
+
+Canonical implementation baseline: main at 9589586.
+
+Feature branch: feature/theme-daily-surface-migration-v1.
+
+Status: THEME_DAILY_SURFACE_MIGRATION_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Migrated the highest-frequency Today and daily-use surfaces from direct palette-specific color utilities to the accepted semantic theme system.
+- Migrated the Today shell/header, Food Logging, Logged Today, Recovery Check-In, and My Foods surfaces.
+- Added only narrowly required semantic roles for daily interactive, selected, focus, positive, caution, danger, and Today-header treatments.
+- The accepted light appearance and existing interaction behavior are intentionally preserved.
+- The Personal Food Serving Display Fix remains intact for both per-serving and per-100g personal foods.
+- Production browser smoke passed on desktop and narrow/mobile Today, standalone /personal-foods, and /today/workout.
+- No dark mode, theme toggle, theme preference, persistence, hydration logic, dependency, backend, schema, or database behavior was added.
+
+Theme initiative status:
+
+The shared theme foundation and core daily-surface semantic migration are accepted.
+The next bounded Theme System + Dark Mode milestone remains pending Architecture review and is not implementation-authorized.
+
+---
 # Current State - Theme System Foundation v1
 
 Canonical implementation baseline: main at c526289.
