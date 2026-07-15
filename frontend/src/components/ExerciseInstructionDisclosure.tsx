@@ -25,8 +25,8 @@ function InstructionSection({ heading, items }: InstructionSectionProps) {
 
   return (
     <section className="space-y-1.5">
-      <h3 className="text-sm font-semibold text-slate-900">{heading}</h3>
-      <ul className="list-disc space-y-1 pl-5 text-sm leading-5 text-slate-700 marker:text-emerald-700">
+      <h3 className="text-sm font-semibold text-text-primary">{heading}</h3>
+      <ul className="list-disc space-y-1 pl-5 text-sm leading-5 text-text-body marker:text-accent-text">
         {items.map((item, index) => (
           <li key={`${heading}-${index + 1}`}>{item}</li>
         ))}
@@ -81,7 +81,7 @@ export function ExerciseInstructionDisclosure({
   const renderInstructionContent = (isDesktop: boolean) => {
     if (isLoading) {
       return (
-        <p className="text-sm text-slate-600" role="status">
+        <p className="text-sm text-text-secondary" role="status">
           Loading instructions…
         </p>
       );
@@ -90,11 +90,11 @@ export function ExerciseInstructionDisclosure({
     if (errorMessage) {
       return (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1" role="status">
-          <p className="text-sm text-slate-600">{errorMessage}</p>
+          <p className="text-sm text-text-secondary">{errorMessage}</p>
           <button
             type="button"
             onClick={() => void loadInstruction()}
-            className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950 focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+            className="text-sm font-semibold text-accent-text transition hover:text-accent-text-hover focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
             Retry
           </button>
@@ -111,8 +111,8 @@ export function ExerciseInstructionDisclosure({
         <p
           className={
             isDesktop
-              ? "max-w-4xl text-base leading-7 text-slate-700"
-              : "text-sm leading-5 text-slate-700"
+              ? "max-w-4xl text-base leading-7 text-text-body"
+              : "text-sm leading-5 text-text-body"
           }
         >
           {instruction.overview}
@@ -147,7 +147,7 @@ export function ExerciseInstructionDisclosure({
         aria-expanded={isExpanded}
         aria-controls={`${mobilePanelId} ${desktopPanelId}`}
         onClick={handleToggle}
-        className="shrink-0 rounded-full px-2 py-1 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 hover:text-emerald-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700"
+        className="shrink-0 rounded-full px-2 py-1 text-sm font-semibold text-accent-text transition hover:bg-surface-highlighted hover:text-accent-text-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         <span className="md:hidden">{isExpanded ? "Hide" : "How To"}</span>
         <span className="hidden md:inline">
@@ -161,7 +161,7 @@ export function ExerciseInstructionDisclosure({
             id={mobilePanelId}
             role="region"
             aria-label={`${exerciseName} instructions`}
-            className="basis-full rounded-xl border border-emerald-100 bg-white/80 px-3 py-3 md:hidden"
+            className="basis-full rounded-xl border border-positive-surface bg-surface/80 px-3 py-3 md:hidden"
           >
             {renderInstructionContent(false)}
           </div>
@@ -169,7 +169,7 @@ export function ExerciseInstructionDisclosure({
             id={desktopPanelId}
             role="region"
             aria-label={`${exerciseName} instructions`}
-            className={`${styles.expandedSurface} hidden basis-full border-t border-emerald-100 pt-5 md:block`}
+            className={`${styles.expandedSurface} hidden basis-full border-t border-positive-surface pt-5 md:block`}
           >
             {renderInstructionContent(true)}
           </div>

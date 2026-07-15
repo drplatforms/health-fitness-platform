@@ -1,3 +1,30 @@
+# Current State - Theme Workout Surface Migration v1
+
+Canonical implementation baseline: main at 2439fb6.
+
+Feature branch: feature/theme-workout-surface-migration-v1.
+
+Status: THEME_WORKOUT_SURFACE_MIGRATION_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Migrated the core workout and training experience from direct palette-specific color utilities to the accepted semantic theme system.
+- Migrated the workout route shell, WorkoutPreviewExperience, and ExerciseInstructionDisclosure.
+- Covered workout preview, selection controls, exercise cards, active execution, set logging/edit/delete, completion review, history context, and exercise instructions.
+- Added only narrowly required semantic workout roles for canvas/header/focused-card gradients, focused borders, caution actions, selected-control hover, and completion indicators.
+- The accepted light appearance and existing workout behavior are intentionally preserved.
+- Scoped direct-color audit is clean across all three workout surface files.
+- Production browser smoke passed across desktop and approximately 390px mobile workout flows and the Today regression route.
+- No dark mode, theme preference, persistence, provider, hydration behavior, dependency, backend, schema, or database change was added.
+
+Theme initiative status:
+
+Theme System Foundation v1, Theme Daily Surface Migration v1, and Theme Workout Surface Migration v1 are accepted.
+No additional standalone preparatory theme-migration milestone is planned.
+The next bounded theme milestone is the user-visible Dark Mode + Theme Preference v1 milestone, which may include the remaining small residual semantic cleanup required for complete dark-theme coverage.
+That next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Theme Daily Surface Migration v1
 
 Canonical implementation baseline: main at 9589586.
