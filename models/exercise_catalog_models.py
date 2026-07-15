@@ -13,6 +13,17 @@ class ExerciseCatalogEntry:
 
 
 @dataclass
+class ExerciseInstruction:
+    catalog_exercise_id: int
+    overview: str
+    setup_steps: list[str]
+    execution_steps: list[str]
+    form_cues: list[str]
+    common_mistakes: list[str]
+    safety_notes: list[str]
+
+
+@dataclass
 class ExerciseSubstitutionCandidate:
     catalog_exercise_id: int
     name: str

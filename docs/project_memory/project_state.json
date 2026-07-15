@@ -68,18 +68,43 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_b3bae29_main_project-memory-workflow-canonicalized.zip",
-    "commit_check_mode": "docs_tooling",
-    "current_authorized_milestone": "none; no implementation milestone currently authorized",
-    "current_recommended_milestone": "Exercise Instruction Contract + Persistence v1",
-    "current_recommended_status": "RECOMMENDED_FOR_ARCHITECTURE_DEFINITION_NOT_IMPLEMENTATION_AUTHORIZED",
-    "primary_question": "How should trusted structured exercise instructions attach to exercise_catalog_exercises.id without duplicating exercise identity or muscle metadata?",
-    "qa_class": "ARCHITECTURE_DEFINITION_REQUIRED",
-    "recommended_next_milestone_after_acceptance": "Exercise Instruction Contract + Persistence v1",
-    "recommended_owner": "Architecture for milestone definition, then Backend Development after explicit authorization",
-    "source_feature_branch": "feature/exercise-catalog-identity-propagation-v1",
-    "source_feature_commit": "65fccbd",
-    "source_main_commit": "6227f50"
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_c0b7fbb_main_exercise-catalog-identity-propagation-v1.zip",
+    "commit_check_mode": "code",
+    "current_authorized_milestone": "Exercise Instruction Contract + Persistence v1",
+    "current_recommended_milestone": "Exercise Instruction Seed Coverage v1",
+    "current_recommended_status": "RECOMMENDED_AFTER_ARCHITECTURE_ACCEPTANCE",
+    "implementation_status": "EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should deterministic production instruction coverage be seeded against stable exercise_catalog_exercises.id values after this contract is accepted?",
+    "qa_class": "BACKEND_SCHEMA_PERSISTENCE",
+    "recommended_next_milestone_after_acceptance": "Exercise Instruction Seed Coverage v1",
+    "recommended_owner": "Architecture review, then Backend Development only after explicit authorization",
+    "source_feature_branch": "feature/exercise-instruction-contract-persistence-v1",
+    "source_feature_commit": "unstaged and uncommitted implementation",
+    "source_main_commit": "c0b7fbb"
+  },
+  "exercise_instruction_contract_persistence_v1": {
+    "baseline_commit": "c0b7fbb",
+    "feature_branch": "feature/exercise-instruction-contract-persistence-v1",
+    "status": "EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Structured exercise-instruction contract plus additive one-to-one persistence and internal deterministic upsert/read seams keyed by exercise_catalog_exercises.id.",
+    "schema": {
+      "table": "exercise_catalog_instructions",
+      "primary_and_foreign_key": "exercise_id -> exercise_catalog_exercises.id",
+      "second_instruction_identity": false,
+      "additive_initialization": true,
+      "catalog_backfill": false
+    },
+    "service_functions": [
+      "upsert_exercise_instruction",
+      "get_exercise_instruction"
+    ],
+    "production_instruction_coverage": false,
+    "api_change": false,
+    "frontend_change": false,
+    "provider_change": false,
+    "workout_behavior_change": false,
+    "canonical_database_data_change": false,
+    "next_recommended_milestone": "Exercise Instruction Seed Coverage v1"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
