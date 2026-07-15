@@ -1,13 +1,13 @@
 # Current State - Personal Custom Foods Contract and Persistence v1
 
-Branch: `feature/personal-custom-foods-contract-persistence-v1`.
+Accepted merge: `4da8672 Merge personal custom foods contract and persistence v1`.
 
-Implementation base: `main` at `c669a2d`.
+Feature implementation: `89c1d58 Add personal custom food persistence`.
 
 Status:
 
 ```text
-PERSONAL_CUSTOM_FOODS_CONTRACT_PERSISTENCE_V1_IMPLEMENTED_AWAITING_ARCHITECTURE_REVIEW
+PERSONAL_CUSTOM_FOODS_CONTRACT_PERSISTENCE_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 Active scope:
@@ -34,7 +34,10 @@ Implementation and validation:
 - Cleanup evidence is retained at `C:\projects\fitness_ai_external\db_recovery\personal_custom_foods_schema_cleanup_20260714_203741`. Pre-existing table counts and data fingerprints matched before and after; `integrity_check` remained `ok`; and the exact pre-existing 34-row foreign-key violation set remained unchanged with SHA-256 `E8B9DF295C8DAA60E5B5E41AB0BAA15605B216A1D4B207412EB6EB0993F1F133`.
 - Underflow-correction validation ran from an isolated temporary source mirror with no live database. Personal-food tests passed: `73`; nutrition regression tests passed: `143`. The prior final-correction full repository suite passed: `2496`. The cleaned live database hash remained `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38` throughout validation.
 - Browser smoke remains intentionally deferred to Personal Custom Foods UI v1.
-- The database-safety blocker is resolved. The implementation is awaiting Architecture review and is not accepted, merged, closed, or product-ready.
+- Merged-main validation passed: personal-food focused tests `73 passed`; nutrition regression tests passed; the full repository suite passed; touched-file Ruff, format, compile, project-memory, and diff checks passed.
+- Architecture accepted the complete implementation and final correction diffs. The separate automated review produced no usable result and was not repeated.
+- The real ignored database remained unchanged during merged-main validation at SHA-256 `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38`.
+- The backend milestone is accepted, merged locally, and closed. Personal Custom Foods UI v1 is next.
 
 Prior experiment closeout:
 

@@ -3,14 +3,14 @@
 ## Status
 
 ```text
-PERSONAL_CUSTOM_FOODS_CONTRACT_PERSISTENCE_V1_IMPLEMENTED_AWAITING_ARCHITECTURE_REVIEW
+PERSONAL_CUSTOM_FOODS_CONTRACT_PERSISTENCE_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 ## Git State
 
-- Branch: `feature/personal-custom-foods-contract-persistence-v1`.
-- Implementation base: `main` at `c669a2d`.
-- The milestone is not accepted, merged, closed, or product-ready.
+- Feature implementation: `89c1d58 Add personal custom food persistence`.
+- Accepted merge: `4da8672 Merge personal custom foods contract and persistence v1`.
+- Accepted on local `main`; push and snapshot remain pending.
 
 ## Scope
 
@@ -68,4 +68,18 @@ Database-safety incident and authorized recovery:
 
 Browser smoke is deferred to Personal Custom Foods UI v1. Before that future manual smoke, make a named backup copy of the real database, configure both backend and frontend smoke processes to use a dedicated temporary database, verify the configured database path before starting either process, and restore from the named backup only with explicit authorization if recovery is required. The backend-only milestone performs no browser smoke.
 
-The database-safety blocker is resolved. The code implementation is complete and awaiting Architecture review. It is not accepted, merged, closed, or product-ready.
+The database-safety blocker is resolved. Architecture reviewed and accepted the complete implementation and final correction diffs. Merged-main focused, nutrition-regression, full-suite, Ruff, format, compile, project-memory, and diff validation passed. The backend milestone is accepted, merged, and closed. Personal Custom Foods UI v1 is next.
+
+
+## Accepted Closeout
+
+- Feature commit: `89c1d58 Add personal custom food persistence`.
+- Merge commit: `4da8672 Merge personal custom foods contract and persistence v1`.
+- Merged-main personal-food focused validation: `73 passed`.
+- Merged-main nutrition regression validation: passed.
+- Merged-main full repository suite: passed.
+- Touched-file Ruff, format, compile, project-memory, and `git diff --check`: passed.
+- Real ignored database SHA-256 remained unchanged:
+  `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38`.
+- Browser smoke remains deferred to Personal Custom Foods UI v1.
+- A separate automated review produced no usable result and was not repeated.
