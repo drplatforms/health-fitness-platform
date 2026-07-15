@@ -1,43 +1,39 @@
 # Current State - Personal Custom Foods UI v1
 
-Starting source: `main` at `8a7c5d60767d5573d85c2e84325bbe304c8eeef1`.
+Accepted merge: `0715c63 Merge personal custom foods UI v1`.
 
-Implementation branch: `feature/personal-custom-foods-ui-v1`.
+Feature implementation: `f1df5fb Add personal custom foods UI`.
 
 Status:
 
 ```text
-PERSONAL_CUSTOM_FOODS_UI_V1_IMPLEMENTED_AWAITING_ARCHITECTURE_REVIEW
+PERSONAL_CUSTOM_FOODS_UI_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
-Implemented scope:
+Closeout:
 
-- The accepted Personal Custom Foods contract and persistence v1 backend remains unchanged and accepted; UI v1 adds no schema, initialization-order, personal-food identity, or revision-contract changes.
-- Next.js now provides `/personal-foods`, `/personal-foods/new`, and `/personal-foods/{personalFoodId}` management pages with user/date-preserving navigation, compact create/edit forms, active/archived search, inline archive confirmation, and restore.
-- Nutrition-label and per-100g inputs preserve blank nutrients as unknown. Edit prefill uses the current revision's entered values, and the UI explains that revisions affect future logs only.
-- Normal Log Food search requests canonical and active personal foods concurrently after the existing two-character threshold. Results remain discriminated and stable, personal foods carry a `My food` label, and canonical duplicates are retained.
-- Personal foods can be logged in grams or by the logged revision's saved serving when available. Client validation enforces the shared 5,000 g ceiling, while the backend remains authoritative.
-- Bounded backend personal-log list/update/delete operations are user-, type-, and optional-date-scoped. Updates recalculate against each entry's stored `personal_food_revision_id`, preserving historical food names and nutrition when the personal food is revised later.
-- Logged today merges canonical and personal entries into a discriminated UI union. Personal entries support amount, saved-serving, meal, and delete operations without changing canonical behavior.
-- Architecture correction pass: canonical and personal searches now settle independently, so either successful source remains usable when the other source fails; only a double failure shows the full search error.
-- Architecture correction pass: Logged today refreshes each source independently, replaces successful source data, preserves the currently displayed failed-source entries, reports partial availability, and ignores superseded refresh responses.
-- Architecture correction pass: changing between Nutrition label and Per 100g clears all four nutrient inputs and prior success/error messages while preserving name, brand, and saved serving context; blank nutrients remain unknown rather than zero.
-- Architecture correction pass: the Nutrition summary listens to the same post-success canonical and personal logging events as Logged today and refreshes backend-owned Today totals after personal create, edit, and delete operations. Failed mutations dispatch no refresh event.
+- The accepted Personal Custom Foods backend contract/persistence milestone is now exposed through the Next.js product workflow without changing the accepted schema, personal-food identity model, immutable revision model, or historical logging contract.
+- Added `/personal-foods`, `/personal-foods/new`, and `/personal-foods/{personalFoodId}` management pages with user/date-preserving navigation, active/archived views, search, create, future-facing revision edits, archive, and restore.
+- Normal Log Food search now combines canonical and active user-owned personal foods while preserving discriminated result types, canonical duplicates, and the existing two-character threshold. Personal results are labeled `My food`.
+- Personal foods can be logged in grams or by a stored serving when available. Logged today now displays canonical and personal entries together and supports personal amount, saved-serving, meal, and delete operations.
+- Bounded personal-log list/update/delete routes remain user-, type-, and date-scoped. Edits recalculate against the exact stored `personal_food_revision_id`; historical logs never silently switch to a newer revision.
+- Blank personal-food nutrient inputs remain unknown rather than becoming zero. Switching between Nutrition label and Per 100g clears nutrient inputs so values cannot be silently reinterpreted under a different basis.
+- Canonical and personal search/refresh sources settle independently. One failing source no longer hides successful results from the other, and stale concurrent refreshes cannot overwrite newer data.
+- Today nutrition totals refresh after successful canonical or personal log mutations without moving nutrition calculations into the frontend.
+- Browser acceptance passed on the production Next.js build served on the project's standard port `3100`. The smoke covered personal-food creation, search, normal Log Food discovery, grams and saved-serving logging, Logged today updates, macro refresh, personal-log editing/deletion, immutable historical revision behavior, archive/restore, canonical logging regression behavior, and responsive layout.
+- The `My foods` entry point is functionally accepted but visually too subtle in the current Log Food card. This is recorded as a future navigation/UI-polish follow-up rather than a blocker for this milestone.
+- Pre-merge implementation validation passed: personal-food focused tests `84 passed`; canonical/edit/recents/Target-vs-Actual/API regression slice `93 passed`; project-memory tests `29 passed`; project-memory checker `590 PASS`, `58 WARN`, `0 FAIL`; Ruff, Ruff format, Python compile, frontend lint, Next.js production build, and `git diff --check` passed.
+- Merged-main validation completed successfully through the targeted backend regression slices, Ruff/format/compile checks, frontend lint and production build, project-memory checker/tests, and `git diff --check`.
+- The browser smoke intentionally created personal-food test data in the real local database. The resulting hash change was investigated and matched that intentional smoke activity; it was not database corruption. Post-smoke database SHA-256: `7269CF76E3C4AAE714E6D168CE9E5B30BEDD28F50FFCC8FAC8565E5CC0CBE5B3`.
+- No recipes, saved meals, meal templates, barcode/OCR/import flows, authentication changes, new AI/provider behavior, workout behavior, report behavior, or new schema design was added in this milestone.
 
-Validation completed:
+Next architecture milestone:
 
-- Personal-food models/service/logging/API slice: `84 passed`.
-- Canonical logging, canonical log edit/delete, recents, Target-vs-Actual, and API smoke regression slice: `93 passed`.
-- Ruff check passed for `api`, `services`, `models`, and `tests`; Ruff format check passed for all four touched Python files.
-- Python compile passed for `api/routes/nutrition.py` and `services/personal_food_logging_service.py`.
-- Frontend ESLint passed. Next.js production build passed and generated the three management pages plus six personal-food/log proxy routes.
-- The post-Architecture-correction frontend ESLint and Next.js production build both passed; static page generation completed `23/23`, and the expected route table was produced without adding a backend route or frontend nutrition calculation.
-- Browser smoke remains intentionally deferred to Architecture under the handoff's named-backup and dedicated-temporary-database procedure.
-- Project-memory checker passed with `590 PASS`, `58 WARN`, and `0 FAIL`; project-memory checker tests passed: `29`.
-- `git diff --check` passed. Final branch/status/staged-file and temporary-artifact inspection remains required.
-- The real ignored `fitness_ai.db` remained unchanged at length `5,443,584`, modification time `2026-07-15T00:37:43.3678125Z`, and SHA-256 `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38`.
+```text
+PUBLIC_PROJECT_REBRAND_AND_README_REFRESH_V1
+```
 
-Non-goals remain unchanged: no recipes, saved meals, meal templates, barcode/OCR/import flows, AI food matching or nutrition generation, meal planning, recommendation changes, authentication changes, design-system dependency, schema change, workout change, or report change. Recipes and saved meals remain later milestones.
+The public rebrand should remove the obsolete AI-first identity from the project name and primary public surfaces, rename the GitHub repository, rewrite the README around the actual health/fitness platform capabilities, update repository description/topics, and refresh the LinkedIn project presentation. Historical architecture documents may retain accurate references to prior AI/provider experiments where relevant.
 
 See milestone memory:
 `docs/project_memory/milestones/personal_custom_foods_ui_v1.md`.
@@ -473,7 +469,7 @@ See milestone memory: `docs/project_memory/milestones/workout_execution_integrit
 
 ---
 
-# Current State — Agent Workflow Hardening v0 (Closed)
+# Current State â€” Agent Workflow Hardening v0 (Closed)
 
 Current source of truth: `main` at `4e89f27 Merge agent workflow hardening v0`.
 
@@ -527,7 +523,7 @@ See milestone memory: `docs/project_memory/milestones/agent_workflow_hardening_v
 
 ---
 
-# Current State — Workout Actuals Summary v0
+# Current State â€” Workout Actuals Summary v0
 
 Current source of truth: `feature/workout-actuals-summary-v0`.
 
@@ -579,7 +575,7 @@ See milestone memory: `docs/project_memory/milestones/workout_actuals_summary_v0
 
 ---
 
-# Current State — Workout Completion Review UX v0.1
+# Current State â€” Workout Completion Review UX v0.1
 
 Current source of truth: `feature/workout-completion-review-ux-v0-1`.
 
@@ -631,7 +627,7 @@ See milestone memory: `docs/project_memory/milestones/workout_completion_review_
 
 ---
 
-# Current State — Workout Set Logging UX v0.1
+# Current State â€” Workout Set Logging UX v0.1
 
 Current source of truth: `feature/workout-set-logging-ux-v0-1`.
 
@@ -686,7 +682,7 @@ See milestone memory: `docs/project_memory/milestones/workout_set_logging_ux_v0_
 
 ---
 
-# Current State — Workout Progression History v0
+# Current State â€” Workout Progression History v0
 
 Current accepted source of truth: `main` after `ce5d316 Merge workout progression history v0`.
 
@@ -728,7 +724,7 @@ See milestone memory: `docs/project_memory/milestones/workout_progression_histor
 
 ---
 
-# Current State — Food Logging Edit UX v0.1
+# Current State â€” Food Logging Edit UX v0.1
 
 Current accepted source of truth: `main` after `a2bc7b3 Merge food logging edit UX v0.1`.
 
@@ -781,7 +777,7 @@ See milestone memory: `docs/project_memory/milestones/food_logging_edit_ux_v0_1.
 
 ---
 
-# Current State — Food Logging Recents v0
+# Current State â€” Food Logging Recents v0
 
 Current accepted source of truth: `main` after `merge-food-logging-recents-v0`.
 
@@ -834,7 +830,7 @@ See milestone memory: `docs/project_memory/milestones/food_logging_recents_v0.md
 
 ---
 
-# Current State — Serving Unit UX v0
+# Current State â€” Serving Unit UX v0
 
 Current source of truth: `feature/serving-unit-ux-v0`.
 
@@ -884,7 +880,7 @@ See milestone memory: `docs/project_memory/milestones/serving_unit_ux_v0.md`.
 
 ---
 
-# Current State — Exercise Rotation Coverage v0
+# Current State â€” Exercise Rotation Coverage v0
 
 Current source of truth: `feature/exercise-rotation-coverage-v0`.
 
@@ -947,7 +943,7 @@ Validation target:
 
 ---
 
-# Current State — Canonical Food Bulk Catalog Builder Hardening v0.1
+# Current State â€” Canonical Food Bulk Catalog Builder Hardening v0.1
 
 Current source of truth: `feature/canonical-food-bulk-catalog-builder-hardening-v0-1`.
 
@@ -998,7 +994,7 @@ Validation target:
 
 ---
 
-# Current State — Canonical Food Bulk Catalog Builder v0
+# Current State â€” Canonical Food Bulk Catalog Builder v0
 
 Current source of truth: `feature/canonical-food-bulk-catalog-builder-v0`.
 
@@ -1050,7 +1046,7 @@ Validation target:
 
 ---
 
-# Current State — Canonical Food Starter Set Promotion Pack v0
+# Current State â€” Canonical Food Starter Set Promotion Pack v0
 
 Current source of truth: `feature/canonical-food-starter-set-promotion-pack-v0`.
 
@@ -1100,7 +1096,7 @@ Validation target:
 
 ---
 
-# Current State — Edit/Delete Logged Food v0
+# Current State â€” Edit/Delete Logged Food v0
 
 Current accepted baseline:
 
@@ -1167,7 +1163,7 @@ Validation target:
 
 ---
 
-# Current State — Today Food Log Grouping + Workout Prose Cleanup v0
+# Current State â€” Today Food Log Grouping + Workout Prose Cleanup v0
 
 Current accepted baseline:
 
@@ -1224,7 +1220,7 @@ Validation target:
 
 ---
 
-# Current State — Today Logged Foods Read-Only List v0
+# Current State â€” Today Logged Foods Read-Only List v0
 
 Current accepted baseline:
 
@@ -1281,7 +1277,7 @@ Validation target:
 
 ---
 
-# Current State — Canonical Food Search Result Curation v0
+# Current State â€” Canonical Food Search Result Curation v0
 
 Current accepted baseline:
 
@@ -1336,7 +1332,7 @@ Validation target:
 
 ---
 
-# Current State — Today Workout Detail UX Refinement v0
+# Current State â€” Today Workout Detail UX Refinement v0
 
 Current accepted baseline:
 
@@ -1390,7 +1386,7 @@ Validation target:
 
 ---
 
-# Current State — Today Main Loop Density Polish v0
+# Current State â€” Today Main Loop Density Polish v0
 
 Current accepted baseline:
 
@@ -1441,7 +1437,7 @@ Validation target:
 
 ---
 
-# Current State — Next.js Canonical Food Logging UI v0
+# Current State â€” Next.js Canonical Food Logging UI v0
 
 Current accepted baseline:
 
@@ -1492,7 +1488,7 @@ Validation target:
 
 ---
 
-# Current State — Today Nutrition Logged Totals Integration v0
+# Current State â€” Today Nutrition Logged Totals Integration v0
 
 Current accepted baseline:
 
@@ -1542,11 +1538,11 @@ Validation target:
 
 ---
 
-# Current State — Next.js Today Workout UI Polish v0
+# Current State â€” Next.js Today Workout UI Polish v0
 
 ---
 
-# Current State — Canonical Food Logging Backend v0
+# Current State â€” Canonical Food Logging Backend v0
 
 Current accepted baseline:
 
@@ -1598,7 +1594,7 @@ Validation target:
 
 ---
 
-# Current State — Canonical Food Search API v0
+# Current State â€” Canonical Food Search API v0
 
 Current accepted baseline:
 
@@ -1650,7 +1646,7 @@ Validation target:
 
 ---
 
-# Current State — USDA Raw Source Canonical Promotion v0
+# Current State â€” USDA Raw Source Canonical Promotion v0
 
 Current accepted baseline:
 
@@ -1702,7 +1698,7 @@ Validation target:
 
 ---
 
-# Current State — USDA Import Loggable Foundation Filter v0
+# Current State â€” USDA Import Loggable Foundation Filter v0
 
 Current accepted baseline:
 
@@ -1801,7 +1797,7 @@ Validation target:
 
 ---
 
-# Current State — USDA Real Dataset Adapter Smoke v0
+# Current State â€” USDA Real Dataset Adapter Smoke v0
 
 Current accepted baseline:
 
@@ -1852,7 +1848,7 @@ Validation target:
 
 ---
 
-# Current State — USDA Food Data Import Foundation v0
+# Current State â€” USDA Food Data Import Foundation v0
 
 Current accepted baseline:
 
@@ -1910,7 +1906,7 @@ Validation target:
 
 ---
 
-# Current State — Next.js Nutrition Macro Card v0
+# Current State â€” Next.js Nutrition Macro Card v0
 
 Current accepted baseline:
 
@@ -1967,7 +1963,7 @@ Validation target:
 
 ---
 
-# Current State — Workout Generation + Today Workout View v0
+# Current State â€” Workout Generation + Today Workout View v0
 
 Current accepted baseline:
 
@@ -2078,7 +2074,7 @@ no provider execution added
 
 ---
 
-# Current State — Daily Driver Core Contract v0
+# Current State â€” Daily Driver Core Contract v0
 
 Current accepted baseline:
 
@@ -2128,7 +2124,7 @@ Boundaries preserved:
 
 ---
 
-# Current State — Daily Coach GPT Family Human Voice Trial v1
+# Current State â€” Daily Coach GPT Family Human Voice Trial v1
 
 Current accepted baseline:
 
@@ -2221,7 +2217,7 @@ OpenAI behavior outside explicit developer CLI
 ```
 
 ---
-# Current State — Daily Coach Human Voice Prompt Contract v1
+# Current State â€” Daily Coach Human Voice Prompt Contract v1
 
 Current accepted baseline:
 
@@ -2328,7 +2324,7 @@ OpenAI behavior
 ```
 
 ---
-# Current State — Daily Coach Provider Preview Raw Data Payload v1
+# Current State â€” Daily Coach Provider Preview Raw Data Payload v1
 
 Current accepted baseline:
 
@@ -2431,7 +2427,7 @@ Linux is pull/validate/runtime QA only and must never commit, merge, or push.
 Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_service.py` has copy-expectation mismatches, including expected `Read the day before adding more` vs actual `Consider the full day`. Do not patch that drift inside unrelated Daily Coach Provider Preview Raw Data Payload work.
 
 ---
-# Current State — Daily Coach Note Copy QA Matrix v1
+# Current State â€” Daily Coach Note Copy QA Matrix v1
 
 Current accepted baseline:
 
@@ -2533,7 +2529,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Daily Coach Note Recovery-Aware Language v1
+# Current State â€” Daily Coach Note Recovery-Aware Language v1
 
 Current accepted baseline:
 
@@ -2629,7 +2625,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery-Aware Coach Copy Contract v1
+# Current State â€” Recovery-Aware Coach Copy Contract v1
 
 Current accepted baseline:
 
@@ -2721,7 +2717,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Daily Coach Note Recovery v2 Integration v1
+# Current State â€” Daily Coach Note Recovery v2 Integration v1
 
 Current accepted baseline:
 
@@ -2805,7 +2801,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery Intelligence v2 QA Seed Matrix Validation v1
+# Current State â€” Recovery Intelligence v2 QA Seed Matrix Validation v1
 
 Current accepted baseline:
 
@@ -2889,7 +2885,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery Intelligence v2 Developer Artifact / Inspection Tool v1
+# Current State â€” Recovery Intelligence v2 Developer Artifact / Inspection Tool v1
 
 Current accepted baseline:
 
@@ -2958,7 +2954,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery Intelligence v2 Service v1
+# Current State â€” Recovery Intelligence v2 Service v1
 
 Current accepted baseline:
 
@@ -3028,7 +3024,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery Intelligence v2 Model Contract v1
+# Current State â€” Recovery Intelligence v2 Model Contract v1
 
 Current accepted baseline:
 
@@ -3100,7 +3096,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Recovery Intelligence v2 Architecture Planning v1
+# Current State â€” Recovery Intelligence v2 Architecture Planning v1
 
 Current accepted baseline before this docs-only planning slice:
 
@@ -3167,7 +3163,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2
+# Current State â€” Daily Coach Workout Set Intelligence v1 + Intelligence Snapshot v2
 
 Current accepted main:
 
@@ -3228,7 +3224,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Daily Coach Intelligence Snapshot + Recovery Intelligence v1
+# Current State â€” Daily Coach Intelligence Snapshot + Recovery Intelligence v1
 
 Current accepted main:
 
@@ -3282,7 +3278,7 @@ Known baseline drift remains documented: `tests/test_daily_narrative_rich_day_se
 
 ---
 
-# Current State — Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1
+# Current State â€” Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1
 
 Current accepted main:
 
@@ -3366,7 +3362,7 @@ This milestone does not authorize runtime behavior changes, provider behavior ch
 
 The sections below are retained for history only. The active state is the `23b5378` docs refresh state above.
 
-# Current State — Daily Coach Fully Free Source-Data Lab v1
+# Current State â€” Daily Coach Fully Free Source-Data Lab v1
 
 Current source of truth: `main` at `56d63c4 Merge daily coach free-range decaging diagnostic baseline v4`.
 
@@ -3384,7 +3380,7 @@ Requested final status: `DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_IMPLEMENTATIO
 
 ---
 
-# Current State — Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3
+# Current State â€” Daily Coach Free-Range Output Completion + Coach Surface Polish + Data Seeding v3
 
 Current source of truth: `feature/daily-coach-free-range-voice-precision-payload-enrichment-v2` at `d731a6c Enrich free range voice precision payload`.
 
@@ -3402,7 +3398,7 @@ Requested final status: `DAILY_COACH_FREE_RANGE_OUTPUT_COMPLETION_COACH_SURFACE_
 
 ---
 
-# Current State — Daily Coach Free-Range Voice + Precision + Payload Enrichment v2
+# Current State â€” Daily Coach Free-Range Voice + Precision + Payload Enrichment v2
 
 Current source of truth: `feature/daily-coach-full-user-day-free-range-payload-baseline-v1` at `eb26c59 Add daily coach full user-day free-range trial`.
 
@@ -3420,7 +3416,7 @@ Requested final status: `DAILY_COACH_FREE_RANGE_VOICE_PRECISION_PAYLOAD_ENRICHME
 
 ---
 
-# Current State — Daily Coach Full User-Day Free-Range Payload Baseline v1
+# Current State â€” Daily Coach Full User-Day Free-Range Payload Baseline v1
 
 Current source of truth: `main` at `490d2ae Merge daily coach wide context copy cleanup qa readability v1`.
 
@@ -3438,7 +3434,7 @@ Requested final status: `DAILY_COACH_FULL_USER_DAY_FREE_RANGE_PAYLOAD_BASELINE_V
 
 ---
 
-# Current State — Daily Coach Wide Context Copy Cleanup + QA Readability v1
+# Current State â€” Daily Coach Wide Context Copy Cleanup + QA Readability v1
 
 Current source of truth: `main` at `42d0bd4 Merge daily coach wide context ceiling trial v1`.
 
@@ -3456,7 +3452,7 @@ Requested final status: `DAILY_COACH_WIDE_CONTEXT_COPY_CLEANUP_QA_READABILITY_V1
 
 ---
 
-# Current State — Daily Coach Wide Context Uncaged GPT-5.5 Ceiling Trial v1
+# Current State â€” Daily Coach Wide Context Uncaged GPT-5.5 Ceiling Trial v1
 
 Current source of truth: `main` at `718c614 Merge daily coach product voice audit gate fix v1`.
 
@@ -3474,7 +3470,7 @@ Requested final status: `DAILY_COACH_WIDE_CONTEXT_UNCAGED_GPT55_CEILING_TRIAL_V1
 
 ---
 
-# Current State — Daily Coach Product Voice Audit Calibration + Final Approval Gate Fix v1
+# Current State â€” Daily Coach Product Voice Audit Calibration + Final Approval Gate Fix v1
 
 Current source of truth: `feature/daily-coach-natural-draft-product-voice-audit-v2` at `9ba9579 Add daily coach natural draft product voice audit v2`.
 
@@ -3490,7 +3486,7 @@ Required status: `DAILY_COACH_PRODUCT_VOICE_AUDIT_CALIBRATION_FINAL_APPROVAL_GAT
 
 ---
 
-# Current State — Daily Coach Natural Draft + Product Voice Audit v2
+# Current State â€” Daily Coach Natural Draft + Product Voice Audit v2
 
 Current source of truth: `main` at `4104796 Merge daily coach natural draft claim audit v1`.
 
@@ -3508,7 +3504,7 @@ Requested final status: `DAILY_COACH_NATURAL_DRAFT_PRODUCT_VOICE_AUDIT_V2_IMPLEM
 
 ---
 
-# Current State — Daily Coach Natural Draft + Claim Audit v1
+# Current State â€” Daily Coach Natural Draft + Claim Audit v1
 
 Current source of truth: `main` at `b9b46c9 Merge daily coach prompt lab voice lab v1`.
 
@@ -3516,7 +3512,7 @@ Active backend milestone: `Daily Coach Natural Draft + Claim Audit v1`.
 
 Status: Architecture approved for Backend implementation.
 
-Prompt Lab / Voice Lab v1 is merged as technical developer tooling, but product strategy has pivoted to Natural Draft + Claim Audit. The active architecture is: backend-approved coach brief → natural coach draft → deterministic claim extraction → backend claim audit → one targeted repair attempt → final approved copy or deterministic fallback.
+Prompt Lab / Voice Lab v1 is merged as technical developer tooling, but product strategy has pivoted to Natural Draft + Claim Audit. The active architecture is: backend-approved coach brief â†’ natural coach draft â†’ deterministic claim extraction â†’ backend claim audit â†’ one targeted repair attempt â†’ final approved copy or deterministic fallback.
 
 Core principle: loosen the writer, tighten the reviewer. GPT-5.5 may draft naturally from a clean `ApprovedCoachBrief`, but Backend remains final authority for facts, interpretations, claim audit, repair limits, fallback, and final approval.
 
@@ -3526,7 +3522,7 @@ Requested final status: `DAILY_COACH_NATURAL_DRAFT_CLAIM_AUDIT_V1_IMPLEMENTATION
 
 ---
 
-# Current State — Daily Coach Provider Prompt Lab / Voice Lab v1
+# Current State â€” Daily Coach Provider Prompt Lab / Voice Lab v1
 
 Current source of truth: `main` at `2835d09 Merge daily coach plainspoken voice action clarity v5`.
 
@@ -3544,7 +3540,7 @@ Requested final status: `DAILY_COACH_PROVIDER_PROMPT_LAB_VOICE_LAB_V1_IMPLEMENTA
 
 ---
 
-# Current State — Daily Coach Provider Plainspoken Voice & Action Clarity v5
+# Current State â€” Daily Coach Provider Plainspoken Voice & Action Clarity v5
 
 Current source of truth: `feature/daily-coach-provider-human-voice-food-action-specificity-v4` at `0ace3da`.
 
@@ -3570,7 +3566,7 @@ Requested final status: `DAILY_COACH_PROVIDER_PLAINSPOKEN_VOICE_ACTION_CLARITY_V
 
 ---
 
-# Current State — Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
+# Current State â€” Daily Coach Provider Voice, Context Freedom & Rich Synthesis v3
 
 Current source of truth: `feature/daily-coach-context-selection-coaching-synthesis-v2` at `2cd7708`.
 
@@ -3588,7 +3584,7 @@ Requested final status: `DAILY_COACH_PROVIDER_VOICE_CONTEXT_FREEDOM_RICH_SYNTHES
 
 ---
 
-# Current State — Daily Coach Provider Context Selection & Coaching Synthesis v2
+# Current State â€” Daily Coach Provider Context Selection & Coaching Synthesis v2
 
 Current source of truth: accepted copy-grounding branch baseline at `2bbffdb`.
 
@@ -3608,7 +3604,7 @@ Requested final status: `DAILY_COACH_PROVIDER_CONTEXT_SELECTION_COACHING_SYNTHES
 
 ---
 
-# Current State — Daily Coach Provider Copy Grounding & Approved Context Enrichment v1
+# Current State â€” Daily Coach Provider Copy Grounding & Approved Context Enrichment v1
 
 Current source of truth: `main` / accepted runtime-fix baseline at `60fe77b`.
 
@@ -3633,7 +3629,7 @@ Requested final status: `DAILY_COACH_PROVIDER_COPY_GROUNDING_APPROVED_CONTEXT_EN
 
 ---
 
-# Current State — Daily Coach Provider Trial Diagnostics v1
+# Current State â€” Daily Coach Provider Trial Diagnostics v1
 
 Current source of truth: `main` at `a6cd8d0` plus accepted Daily Coach Narrative Provider Trial Matrix tooling at `4641c91`.
 
@@ -3649,7 +3645,7 @@ Requested final status: `DAILY_COACH_PROVIDER_TRIAL_DIAGNOSTICS_V1_ACCEPTED`.
 
 ---
 
-# Current State Update — Daily Coach Narrative Provider Trial Matrix v1
+# Current State Update â€” Daily Coach Narrative Provider Trial Matrix v1
 
 Current source of truth: `main`.
 
@@ -3726,7 +3722,7 @@ Requested final status:
 `DAILY_COACH_NARRATIVE_PROVIDER_TRIAL_MATRIX_V1_ACCEPTED`.
 
 
-## Historical continuity anchors — reference-only
+## Historical continuity anchors â€” reference-only
 
 These phrases are preserved for project-memory continuity checks and are reference-only, not current scope:
 
@@ -3740,7 +3736,7 @@ These phrases are preserved for project-memory continuity checks and are referen
 - AI explains backend-approved truth
 - no provider on normal Today page load unless explicitly configured
 
-## Historical continuity anchors — additional reference-only preservation
+## Historical continuity anchors â€” additional reference-only preservation
 
 These phrases are preserved to avoid losing accepted historical continuity context:
 
@@ -3763,7 +3759,7 @@ These phrases are preserved to avoid losing accepted historical continuity conte
 
 ---
 
-# Current Implementation Update — Daily Coach Provider Human Voice & Food Action Specificity v4
+# Current Implementation Update â€” Daily Coach Provider Human Voice & Food Action Specificity v4
 
 Status: Backend v4 patch candidate built from v3 baseline `e23a435`.
 
@@ -3793,7 +3789,7 @@ Boundaries preserved:
 
 ---
 
-# Current Implementation Update — Daily Coach Free-Range Prompt + Payload Decaging v4
+# Current Implementation Update â€” Daily Coach Free-Range Prompt + Payload Decaging v4
 
 Status: Backend v4 patch candidate built from v3 baseline `c36c50a`.
 
@@ -3822,4 +3818,4 @@ Boundaries preserved:
 - no public UI or Streamlit controls;
 - no raw provider envelope persistence, secrets, or raw DB dumps;
 - no medical advice generation;
-- no meal planning, workout generation, nutrition target, recovery score, RAG, embeddings, multi-agent runtime, Headroom/context compression, local/cheaper model comparison, or full 450–500 food expansion.
+- no meal planning, workout generation, nutrition target, recovery score, RAG, embeddings, multi-agent runtime, Headroom/context compression, local/cheaper model comparison, or full 450â€“500 food expansion.
