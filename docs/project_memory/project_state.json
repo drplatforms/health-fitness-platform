@@ -68,19 +68,19 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_da660d8_main_merge-exercise-instruction-seed-coverage-v1.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Exercise Instruction API / Read Surface v1",
-    "current_recommended_milestone": "Next.js Exercise Explanation UX v1",
+    "current_authorized_milestone": "Next.js Exercise Explanation UX v1",
+    "current_recommended_milestone": "Mobile Workout UX Polish v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "Does the stable-ID instruction detail API provide the complete persisted corpus safely enough for a later Next.js explanation UX?",
-    "qa_class": "BACKEND_API_RUNTIME_INITIALIZATION",
-    "recommended_next_milestone_after_acceptance": "Next.js Exercise Explanation UX v1",
+    "implementation_status": "NEXTJS_EXERCISE_EXPLANATION_UX_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "Does the workout experience expose the accepted stable-ID exercise explanations lazily, accessibly, and without disrupting workout behavior?",
+    "qa_class": "FRONTEND_PRODUCTION_BROWSER_SMOKE",
+    "recommended_next_milestone_after_acceptance": "Mobile Workout UX Polish v1",
     "recommended_owner": "Architecture review",
-    "source_feature_branch": "feature/exercise-instruction-api-read-surface-v1",
+    "source_feature_branch": "feature/nextjs-exercise-explanation-ux-v1",
     "source_feature_commit": "unstaged and uncommitted implementation",
-    "source_main_commit": "da660d8"
+    "source_main_commit": "41dbb3a"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -138,8 +138,10 @@
   "exercise_instruction_api_read_surface_v1": {
     "baseline_commit": "da660d8",
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_da660d8_main_merge-exercise-instruction-seed-coverage-v1.zip",
+    "accepted_merge_commit": "41dbb3a",
+    "accepted_snapshot": "fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip",
     "feature_branch": "feature/exercise-instruction-api-read-surface-v1",
-    "status": "EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ARCHITECTURE_ACCEPTED",
+    "status": "EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ACCEPTED_MERGED_AND_CLOSED",
     "endpoint": "GET /exercise-catalog/{catalog_exercise_id}/instruction",
     "public_identity": "exercise_catalog_exercises.id",
     "runtime_instruction_seeding": true,
@@ -154,6 +156,26 @@
     "provider_change": false,
     "canonical_database_data_change_during_automated_validation": false,
     "next_recommended_milestone": "Next.js Exercise Explanation UX v1",
+    "next_milestone_implementation_authorized": true
+  },
+  "nextjs_exercise_explanation_ux_v1": {
+    "baseline_commit": "41dbb3a",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip",
+    "feature_branch": "feature/nextjs-exercise-explanation-ux-v1",
+    "status": "NEXTJS_EXERCISE_EXPLANATION_UX_V1_ARCHITECTURE_ACCEPTED",
+    "instruction_endpoint": "GET /exercise-catalog/{catalog_exercise_id}/instruction",
+    "lazy_loading": true,
+    "component_local_success_cache": true,
+    "preview_identity": "approvedPlan.exercises[].catalog_exercise_id",
+    "persisted_identity": "plannedExercises[].catalog_exercise_id",
+    "substitution_identity": "activeSubstitution.replacement_catalog_exercise_id",
+    "null_identity_control_omitted": true,
+    "name_lookup": false,
+    "backend_change": false,
+    "workout_behavior_change": false,
+    "provider_change": false,
+    "canonical_database_data_change": false,
+    "next_recommended_milestone": "Mobile Workout UX Polish v1",
     "next_milestone_implementation_authorized": false
   },
   "architecture_direction": {

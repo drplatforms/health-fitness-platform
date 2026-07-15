@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
+import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
@@ -1601,6 +1602,9 @@ export function WorkoutPreviewExperience({
                   nextActualSetFormState(exercise, actualSets);
                 const displayExerciseName =
                   activeSubstitution?.replacement_exercise_name ?? exercise.name;
+                const displayedCatalogExerciseId =
+                  activeSubstitution?.replacement_catalog_exercise_id ??
+                  exercise.catalog_exercise_id;
                 const exerciseActualSets = loggedSetsForExercise(
                   actualSets,
                   exercise.id,
@@ -1631,9 +1635,15 @@ export function WorkoutPreviewExperience({
                     className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
                   >
                     <div className="space-y-2">
-                      <h2 className="text-xl font-semibold text-slate-950">
-                        {displayExerciseName}
-                      </h2>
+                      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                        <h2 className="min-w-0 text-xl font-semibold text-slate-950">
+                          {displayExerciseName}
+                        </h2>
+                        <ExerciseInstructionDisclosure
+                          key={displayedCatalogExerciseId ?? "legacy"}
+                          catalogExerciseId={displayedCatalogExerciseId}
+                        />
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {exerciseMeta(exercise).map((item) => (
                           <span
@@ -1946,9 +1956,15 @@ export function WorkoutPreviewExperience({
                     className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
                   >
                     <div className="space-y-2">
-                      <h2 className="text-xl font-semibold text-slate-950">
-                        {exercise.name}
-                      </h2>
+                      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                        <h2 className="min-w-0 text-xl font-semibold text-slate-950">
+                          {exercise.name}
+                        </h2>
+                        <ExerciseInstructionDisclosure
+                          key={exercise.catalog_exercise_id ?? "legacy"}
+                          catalogExerciseId={exercise.catalog_exercise_id}
+                        />
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         {exerciseMeta(exercise).map((item) => (
                           <span

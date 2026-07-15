@@ -13,6 +13,7 @@ export type TodayWorkoutSource =
 export type WorkoutSizePreference = "quick" | "standard" | "full";
 
 export interface WorkoutPreviewExercise {
+  catalog_exercise_id: number | null;
   name: string;
   sets: number;
   reps_min: number;
@@ -61,6 +62,7 @@ export interface WorkoutPreviewResponse {
 
 export interface PlannedWorkoutExerciseSummary {
   id: number;
+  catalog_exercise_id: number | null;
   workout_plan_instance_id: number;
   exercise_order: number;
   name: string;
