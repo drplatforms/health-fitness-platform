@@ -3271,11 +3271,11 @@ def display_exercise_catalog(user_id: int) -> None:
 # =====================================
 
 st.set_page_config(
-    page_title="Fitness AI",
+    page_title="Health & Fitness Platform",
     layout="wide",
 )
 
-st.title("AI Health Coach")
+st.title("Health & Fitness Platform")
 st.caption(
     "Backend-grounded coaching across training, nutrition, and recovery. "
     "The backend owns facts, AI explains approved context, and validators decide "

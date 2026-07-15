@@ -72,7 +72,7 @@ app.include_router(workout_plan_router)
 
 @app.get("/")
 def root():
-    return {"message": "Fitness AI API is running"}
+    return {"message": "Health & Fitness Platform API is running"}
 
 
 # =====================================
