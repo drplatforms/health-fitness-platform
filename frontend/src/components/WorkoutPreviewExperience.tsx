@@ -429,21 +429,21 @@ function ExerciseActualsSummaryPanel({
   summaries: ExerciseActualsSummary[];
 }) {
   return (
-    <div className="mt-4 border-t border-slate-200 pt-4">
-      <h3 className="text-sm font-semibold text-slate-950">
+    <div className="mt-4 border-t border-border pt-4">
+      <h3 className="text-sm font-semibold text-text-strong">
         Exercise actuals
       </h3>
-      <div className="mt-2 divide-y divide-slate-200">
+      <div className="mt-2 divide-y divide-border">
         {summaries.map((summary) => (
           <div
             key={summary.plannedExerciseId}
             className="grid gap-2 py-3 first:pt-1 last:pb-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-slate-900">
+              <p className="truncate text-sm font-semibold text-text-primary">
                 {summary.exerciseName}
               </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-slate-600">
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-text-secondary">
                 <span
                   className="flex items-center gap-1"
                   aria-label={`${summary.loggedSets} of ${summary.plannedSets} planned sets logged`}
@@ -454,8 +454,8 @@ function ExerciseActualsSummaryPanel({
                       aria-hidden="true"
                       className={
                         dotStatus === "logged"
-                          ? "text-emerald-700"
-                          : "text-slate-300"
+                          ? "text-completed-indicator"
+                          : "text-incomplete-indicator"
                       }
                     >
                       {dotStatus === "logged" ? "●" : "○"}
@@ -471,21 +471,21 @@ function ExerciseActualsSummaryPanel({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-              <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-900">
+              <span className="rounded-full bg-positive-surface px-2 py-1 text-xs font-semibold text-positive-foreground-strong">
                 {summary.completionStatus}
               </span>
               {summary.loggedSets > 0 ? (
-                <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
                   Avg RIR{" "}
                   {summary.averageRir === null
                     ? "not available"
                     : formatAverageRir(summary.averageRir)}
                 </span>
               ) : null}
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
                 {summary.effortStatus}
               </span>
-              <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+              <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
                 {summary.repRangeStatus}
               </span>
             </div>
@@ -540,34 +540,34 @@ function PreviousPerformanceLine({
 
   if (!history.has_history) {
     return (
-      <div className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
+      <div className="rounded-lg bg-surface px-3 py-2 text-xs font-medium text-text-secondary ring-1 ring-border">
         {history.message}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1 rounded-lg bg-white px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-200">
+    <div className="space-y-1 rounded-lg bg-surface px-3 py-2 text-xs text-text-body ring-1 ring-border">
       {history.last_session_summary ? (
         <p>
-          <span className="font-semibold text-slate-900">Last time:</span>{" "}
+          <span className="font-semibold text-text-primary">Last time:</span>{" "}
           {history.last_session_summary}
         </p>
       ) : null}
       {history.recent_best_set ? (
         <p>
-          <span className="font-semibold text-slate-900">Recent best:</span>{" "}
+          <span className="font-semibold text-text-primary">Recent best:</span>{" "}
           {history.recent_best_set.summary}
         </p>
       ) : null}
       <p>
-        <span className="font-semibold text-slate-900">History:</span>{" "}
+        <span className="font-semibold text-text-primary">History:</span>{" "}
         {history.completed_session_count} completed{" "}
         {history.completed_session_count === 1 ? "session" : "sessions"} in last{" "}
         {HISTORY_LOOKBACK_DAYS} days
       </p>
       {history.logging_quality !== "complete" ? (
-        <p className="font-medium text-amber-800">{history.message}</p>
+        <p className="font-medium text-caution-foreground">{history.message}</p>
       ) : null}
     </div>
   );
@@ -1354,10 +1354,10 @@ export function WorkoutPreviewExperience({
         <div className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
-              <p className="text-2xl font-semibold uppercase tracking-[0.12em] text-slate-950">
+              <p className="text-2xl font-semibold uppercase tracking-[0.12em] text-text-strong">
                 {statusLabel.replaceAll("_", " ")}
               </p>
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="text-sm font-semibold text-text-body">
                 {statusSummaryLine(
                   approvedPlan,
                   preview,
@@ -1377,7 +1377,7 @@ export function WorkoutPreviewExperience({
             {topMetrics.map((item) => (
               <span
                 key={item}
-                className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-text-body ring-1 ring-border"
               >
                 {item}
               </span>
@@ -1385,17 +1385,17 @@ export function WorkoutPreviewExperience({
           </div>
 
           {isLoadingPreview ? (
-            <div className="rounded-2xl bg-slate-100 px-4 py-3 text-sm font-medium text-slate-700">
+            <div className="rounded-2xl bg-neutral-surface px-4 py-3 text-sm font-medium text-neutral-foreground">
               Loading workout preview...
             </div>
           ) : null}
           {actionMessage ? (
-            <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+            <div className="rounded-2xl bg-positive-surface px-4 py-3 text-sm font-medium text-positive-foreground-strong">
               {actionMessage}
             </div>
           ) : null}
           {errorMessage ? (
-            <div className="rounded-2xl bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900">
+            <div className="rounded-2xl bg-danger-surface px-4 py-3 text-sm font-medium text-danger-foreground">
               {errorMessage}
             </div>
           ) : null}
@@ -1409,42 +1409,42 @@ export function WorkoutPreviewExperience({
           className="lg:col-span-2"
         >
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                 Completion
               </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
+              <p className="mt-2 text-xl font-semibold text-text-primary">
                 {compactMetric(plannedVsActualSummary.completion_percentage, "%")}
               </p>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                 Completed Sets
               </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
+              <p className="mt-2 text-xl font-semibold text-text-primary">
                 {plannedVsActualSummary.completed_set_count}/
                 {plannedVsActualSummary.planned_set_count}
               </p>
               {plannedVsActualSummary.extra_set_count > 0 ? (
-                <p className="mt-1 text-xs font-medium text-slate-500">
+                <p className="mt-1 text-xs font-medium text-text-muted">
                   {plannedVsActualSummary.extra_set_count} extra set
                   {plannedVsActualSummary.extra_set_count === 1 ? "" : "s"}
                 </p>
               ) : null}
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                 Average Actual RIR
               </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
+              <p className="mt-2 text-xl font-semibold text-text-primary">
                 {compactMetric(plannedVsActualSummary.average_actual_rir)}
               </p>
             </div>
-            <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
-              <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
+            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
                 Rep Range Match
               </p>
-              <p className="mt-2 text-xl font-semibold text-slate-900">
+              <p className="mt-2 text-xl font-semibold text-text-primary">
                 {plannedVsActualSummary.sets_inside_planned_reps}
               </p>
             </div>
@@ -1460,7 +1460,7 @@ export function WorkoutPreviewExperience({
         <div className="space-y-4">
           {!isPersistedState && !isCompletedState ? (
             <div
-              className={`rounded-2xl bg-slate-50 px-4 py-4 ${
+              className={`rounded-2xl bg-surface-subtle px-4 py-4 ${
                 expandedInstructionKey !== null ? "md:hidden" : ""
               }`}
             >
@@ -1475,8 +1475,8 @@ export function WorkoutPreviewExperience({
                         onClick={() => handleSizeChange(option.value)}
                         className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                           isActive
-                            ? "bg-emerald-900 text-emerald-50"
-                            : "bg-white text-slate-700 ring-1 ring-slate-200 hover:bg-emerald-50"
+                            ? "bg-action-primary text-action-primary-foreground"
+                            : "bg-surface text-text-body ring-1 ring-border hover:bg-surface-highlighted"
                         }`}
                       >
                         {option.label}
@@ -1489,7 +1489,7 @@ export function WorkoutPreviewExperience({
                     type="button"
                     onClick={handleTryDifferentVersion}
                     disabled={isLoadingPreview || isSubmitting}
-                    className="rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-slate-900 ring-1 ring-slate-200 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl bg-surface px-4 py-3 text-sm font-semibold text-text-primary ring-1 ring-border transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Try different version
                   </button>
@@ -1497,7 +1497,7 @@ export function WorkoutPreviewExperience({
                     type="button"
                     onClick={() => void handleSelectWorkout()}
                     disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
-                    className="rounded-2xl bg-emerald-900 px-4 py-3 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl bg-action-primary px-4 py-3 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Select this workout
                   </button>
@@ -1518,7 +1518,7 @@ export function WorkoutPreviewExperience({
                     type="button"
                     onClick={() => void handleStartWorkout()}
                     disabled={isLoadingPreview || isSubmitting}
-                    className="rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl bg-control-selected-surface px-4 py-3 text-sm font-semibold text-text-inverse transition hover:bg-control-selected-surface-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Start workout
                   </button>
@@ -1528,7 +1528,7 @@ export function WorkoutPreviewExperience({
                     type="button"
                     onClick={() => void handleOpenCompletionReview()}
                     disabled={isSubmitting}
-                    className="rounded-2xl bg-amber-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-2xl bg-caution-action px-4 py-3 text-sm font-semibold text-text-inverse transition hover:bg-caution-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     Complete workout
                   </button>
@@ -1536,30 +1536,30 @@ export function WorkoutPreviewExperience({
               </div>
 
               {canCompleteWorkout && isCompletionReviewOpen ? (
-                <div className="rounded-xl bg-white px-3 py-3 ring-1 ring-amber-200">
+                <div className="rounded-xl bg-surface px-3 py-3 ring-1 ring-border-warm">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
-                      <p className="text-sm font-semibold text-slate-950">
+                      <p className="text-sm font-semibold text-text-strong">
                         Complete workout?
                       </p>
                       {plannedVsActualSummary ? (
                         <div className="flex flex-wrap gap-2 text-xs font-semibold">
-                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                          <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
                             Logged: {plannedVsActualSummary.completed_set_count} /{" "}
                             {plannedVsActualSummary.planned_set_count} sets
                           </span>
-                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                          <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
                             Exercises:{" "}
                             {plannedVsActualSummary.completed_exercise_count} /{" "}
                             {plannedVsActualSummary.planned_exercise_count}
                           </span>
-                          <span className="rounded-full bg-slate-50 px-3 py-1 text-slate-700 ring-1 ring-slate-200">
+                          <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
                             Avg RIR:{" "}
                             {compactMetric(plannedVsActualSummary.average_actual_rir)}
                           </span>
                         </div>
                       ) : (
-                        <p className="text-sm font-medium text-slate-600">
+                        <p className="text-sm font-medium text-text-secondary">
                           Workout summary is still loading.
                         </p>
                       )}
@@ -1567,8 +1567,8 @@ export function WorkoutPreviewExperience({
                         <p
                           className={`text-sm font-medium ${
                             hasCompletionReviewMissingSets
-                              ? "text-amber-800"
-                              : "text-emerald-800"
+                              ? "text-caution-foreground"
+                              : "text-positive-foreground"
                           }`}
                         >
                           {hasCompletionReviewMissingSets
@@ -1584,7 +1584,7 @@ export function WorkoutPreviewExperience({
                         type="button"
                         onClick={handleCancelCompletionReview}
                         disabled={isSubmitting}
-                        className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl bg-surface-muted px-3 py-2 text-sm font-semibold text-text-body transition hover:bg-surface-interactive-hover disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         Cancel
                       </button>
@@ -1592,7 +1592,7 @@ export function WorkoutPreviewExperience({
                         type="button"
                         onClick={() => void handleCompleteWorkout()}
                         disabled={isSubmitting || plannedVsActualSummary === null}
-                        className="rounded-xl bg-amber-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="rounded-xl bg-caution-action px-3 py-2 text-sm font-semibold text-text-inverse transition hover:bg-caution-action-hover disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {hasCompletionReviewMissingSets
                           ? "Complete anyway"
@@ -1652,9 +1652,9 @@ export function WorkoutPreviewExperience({
                   <article
                     key={exercise.id}
                     data-expanded={isInstructionExpanded}
-                    className={`rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
+                    className={`rounded-[24px] border border-border bg-surface-subtle/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
                       isInstructionExpanded
-                        ? "md:col-span-full md:border-emerald-200 md:bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(236,253,245,0.72))] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
+                        ? "md:col-span-full md:border-workout-card-active-border md:[background:var(--theme-workout-card-active-surface)] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
                         : expandedInstructionKey !== null
                           ? "md:hidden"
                           : ""
@@ -1662,7 +1662,7 @@ export function WorkoutPreviewExperience({
                   >
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                        <h2 className="min-w-0 text-xl font-semibold text-slate-950">
+                        <h2 className="min-w-0 text-xl font-semibold text-text-strong">
                           {displayExerciseName}
                         </h2>
                         <ExerciseInstructionDisclosure
@@ -1690,7 +1690,7 @@ export function WorkoutPreviewExperience({
                           {exerciseMeta(exercise).map((item) => (
                             <span
                               key={`${exercise.id}-${item}`}
-                              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                              className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-body"
                             >
                               {item}
                             </span>
@@ -1698,21 +1698,21 @@ export function WorkoutPreviewExperience({
                           {exercise.equipment_required.map((item) => (
                             <span
                               key={`${exercise.id}-${item}`}
-                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                              className="rounded-full bg-surface-highlighted px-3 py-1 text-xs font-medium text-positive-foreground-strong"
                             >
                               {item}
                             </span>
                           ))}
                         </div>
                         {exerciseActualSets.length ? (
-                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-emerald-800">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-positive-foreground">
                             <span>
                               {loggedSetCountLabel(
                                 exerciseActualSets,
                                 exercise.sets,
                               )}
                             </span>
-                            <span className="text-slate-500">
+                            <span className="text-text-muted">
                               {remainingSetLabel(
                                 completedLoggedSetCount,
                                 exercise.sets,
@@ -1738,12 +1738,12 @@ export function WorkoutPreviewExperience({
                           return (
                             <div
                               key={actualSet.id}
-                              className="rounded-lg bg-white/90 px-3 py-2 ring-1 ring-slate-200"
+                              className="rounded-lg bg-surface/90 px-3 py-2 ring-1 ring-border"
                             >
                               {isEditing ? (
                                 <div className="space-y-2">
                                   <div className="grid gap-2 sm:grid-cols-3">
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                    <label className="space-y-1 text-xs font-medium text-text-body">
                                       <span>Reps</span>
                                       <input
                                         type="number"
@@ -1756,10 +1756,10 @@ export function WorkoutPreviewExperience({
                                             event.target.value,
                                           )
                                         }
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                        className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle"
                                       />
                                     </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                    <label className="space-y-1 text-xs font-medium text-text-body">
                                       <span>Weight</span>
                                       <input
                                         type="number"
@@ -1773,10 +1773,10 @@ export function WorkoutPreviewExperience({
                                             event.target.value,
                                           )
                                         }
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                        className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle"
                                       />
                                     </label>
-                                    <label className="space-y-1 text-xs font-medium text-slate-700">
+                                    <label className="space-y-1 text-xs font-medium text-text-body">
                                       <span>RIR</span>
                                       <input
                                         type="number"
@@ -1790,11 +1790,11 @@ export function WorkoutPreviewExperience({
                                             event.target.value,
                                           )
                                         }
-                                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                        className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle"
                                       />
                                     </label>
                                   </div>
-                                  <label className="block space-y-1 text-xs font-medium text-slate-700">
+                                  <label className="block space-y-1 text-xs font-medium text-text-body">
                                     <span>Notes</span>
                                     <textarea
                                       rows={2}
@@ -1806,7 +1806,7 @@ export function WorkoutPreviewExperience({
                                           event.target.value,
                                         )
                                       }
-                                      className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none focus:border-emerald-400"
+                                      className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle"
                                     />
                                   </label>
                                   <div className="flex flex-wrap gap-3">
@@ -1814,7 +1814,7 @@ export function WorkoutPreviewExperience({
                                       type="button"
                                       onClick={() => void handleUpdateActualSet(actualSet)}
                                       disabled={isSubmitting}
-                                      className="text-xs font-semibold text-emerald-800 transition hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-60"
+                                      className="text-xs font-semibold text-accent-text transition hover:text-accent-text-hover disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                       Save
                                     </button>
@@ -1822,7 +1822,7 @@ export function WorkoutPreviewExperience({
                                       type="button"
                                       onClick={() => handleCancelEditSet(actualSet.id)}
                                       disabled={isSubmitting}
-                                      className="text-xs font-semibold text-slate-500 transition hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                      className="text-xs font-semibold text-text-muted transition hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-60"
                                     >
                                       Cancel
                                     </button>
@@ -1831,11 +1831,11 @@ export function WorkoutPreviewExperience({
                               ) : (
                                 <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
                                   <div className="min-w-0">
-                                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-slate-900">
+                                    <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-text-primary">
                                       {formatActualSetLine(actualSet)}
                                     </p>
                                     {actualSet.notes ? (
-                                      <p className="mt-0.5 text-xs text-slate-600">
+                                      <p className="mt-0.5 text-xs text-text-secondary">
                                         {actualSet.notes}
                                       </p>
                                     ) : null}
@@ -1846,16 +1846,16 @@ export function WorkoutPreviewExperience({
                                         type="button"
                                         onClick={() => handleEditSet(actualSet)}
                                         disabled={isSubmitting}
-                                        className="text-slate-600 transition hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-60"
+                                        className="text-text-secondary transition hover:text-text-strong disabled:cursor-not-allowed disabled:opacity-60"
                                       >
                                         Edit
                                       </button>
-                                      <span className="text-slate-300">·</span>
+                                      <span className="text-incomplete-indicator">·</span>
                                       <button
                                         type="button"
                                         onClick={() => void handleDeleteActualSet(actualSet)}
                                         disabled={isSubmitting}
-                                        className="text-slate-500 transition hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-60"
+                                        className="text-text-muted transition hover:text-danger-action disabled:cursor-not-allowed disabled:opacity-60"
                                       >
                                         Delete
                                       </button>
@@ -1868,23 +1868,23 @@ export function WorkoutPreviewExperience({
                         })}
                         </div>
                       ) : canLogWorkout ? (
-                        <div className="mt-4 rounded-[18px] bg-white px-3 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
+                        <div className="mt-4 rounded-[18px] bg-surface px-3 py-3 text-sm font-medium text-text-secondary ring-1 ring-border">
                           No sets logged for this exercise yet.
                         </div>
                       ) : null}
 
                       {canLogWorkout && allPlannedSetsLogged ? (
-                        <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-100">
+                        <div className="mt-3 rounded-lg bg-positive-surface px-3 py-2 text-sm font-semibold text-positive-foreground-strong ring-1 ring-positive-surface">
                           All planned sets logged
                         </div>
                       ) : canLogWorkout ? (
-                        <div className="mt-4 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
+                        <div className="mt-4 rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-slate-950">
+                            <p className="text-sm font-semibold text-text-strong">
                               Log next set
                             </p>
-                            <p className="text-xs font-medium text-slate-500">
+                            <p className="text-xs font-medium text-text-muted">
                               Set {nextSetNumber} of {exercise.sets} ·{" "}
                               {remainingSetLabel(
                                 completedLoggedSetCount,
@@ -1896,14 +1896,14 @@ export function WorkoutPreviewExperience({
                             type="button"
                             onClick={() => void handleLogSet(exercise)}
                             disabled={isSubmitting}
-                            className="rounded-xl bg-emerald-900 px-3 py-2 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="rounded-xl bg-action-primary px-3 py-2 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
                           >
                             Save set
                           </button>
                         </div>
 
                         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                          <label className="space-y-1 text-sm text-slate-700">
+                          <label className="space-y-1 text-sm text-text-body">
                             <span className="font-medium">Reps</span>
                             <input
                               type="number"
@@ -1916,10 +1916,10 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none ring-0 focus:border-focus-subtle"
                             />
                           </label>
-                          <label className="space-y-1 text-sm text-slate-700">
+                          <label className="space-y-1 text-sm text-text-body">
                             <span className="font-medium">Weight</span>
                             <input
                               type="number"
@@ -1933,10 +1933,10 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none ring-0 focus:border-focus-subtle"
                             />
                           </label>
-                          <label className="space-y-1 text-sm text-slate-700">
+                          <label className="space-y-1 text-sm text-text-body">
                             <span className="font-medium">RIR</span>
                             <input
                               type="number"
@@ -1950,19 +1950,19 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none ring-0 focus:border-focus-subtle"
                             />
                           </label>
                         </div>
 
                         {exerciseNoteInputExpanded ? (
-                          <div className="mt-3 space-y-1 text-sm text-slate-700">
+                          <div className="mt-3 space-y-1 text-sm text-text-body">
                             <div className="flex items-center justify-between">
                               <span className="font-medium">Notes</span>
                               <button
                                 type="button"
                                 onClick={() => toggleExerciseNoteInput(exercise.id)}
-                                className="text-xs font-semibold text-slate-500 transition hover:text-slate-900"
+                                className="text-xs font-semibold text-text-muted transition hover:text-text-primary"
                               >
                                 Hide
                               </button>
@@ -1977,7 +1977,7 @@ export function WorkoutPreviewExperience({
                                   event.target.value,
                                 )
                               }
-                              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-950 outline-none ring-0 focus:border-emerald-400"
+                              className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none ring-0 focus:border-focus-subtle"
                               placeholder="Optional: form note, pain note, or context."
                             />
                           </div>
@@ -1985,7 +1985,7 @@ export function WorkoutPreviewExperience({
                           <button
                             type="button"
                             onClick={() => toggleExerciseNoteInput(exercise.id)}
-                            className="mt-3 text-xs font-semibold text-slate-500 transition hover:text-slate-900"
+                            className="mt-3 text-xs font-semibold text-text-muted transition hover:text-text-primary"
                           >
                             Add note
                           </button>
@@ -2014,9 +2014,9 @@ export function WorkoutPreviewExperience({
                   <article
                     key={`${exercise.name}-${index + 1}`}
                     data-expanded={isInstructionExpanded}
-                    className={`rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
+                    className={`rounded-[24px] border border-border bg-surface-subtle/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
                       isInstructionExpanded
-                        ? "md:col-span-full md:border-emerald-200 md:bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(236,253,245,0.72))] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
+                        ? "md:col-span-full md:border-workout-card-active-border md:[background:var(--theme-workout-card-active-surface)] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
                         : expandedInstructionKey !== null
                           ? "md:hidden"
                           : ""
@@ -2024,7 +2024,7 @@ export function WorkoutPreviewExperience({
                   >
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                        <h2 className="min-w-0 text-xl font-semibold text-slate-950">
+                        <h2 className="min-w-0 text-xl font-semibold text-text-strong">
                           {exercise.name}
                         </h2>
                         <ExerciseInstructionDisclosure
@@ -2052,7 +2052,7 @@ export function WorkoutPreviewExperience({
                           {exerciseMeta(exercise).map((item) => (
                             <span
                               key={`${exercise.name}-${item}`}
-                              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                              className="rounded-full bg-surface px-3 py-1 text-xs font-medium text-text-body"
                             >
                               {item}
                             </span>
@@ -2060,7 +2060,7 @@ export function WorkoutPreviewExperience({
                           {exercise.equipment_required.map((item) => (
                             <span
                               key={`${exercise.name}-${item}`}
-                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                              className="rounded-full bg-surface-highlighted px-3 py-1 text-xs font-medium text-positive-foreground-strong"
                             >
                               {item}
                             </span>
@@ -2074,7 +2074,7 @@ export function WorkoutPreviewExperience({
               })}
             </div>
           ) : (
-            <p className="text-sm leading-6 text-slate-700">
+            <p className="text-sm leading-6 text-text-body">
               No exercise details are available for this workout yet.
             </p>
           )}

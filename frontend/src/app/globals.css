@@ -12,6 +12,23 @@
   --theme-surface-interactive-hover: #e2e8f0;
   --theme-header-surface-start: rgb(255 255 255 / 0.96);
   --theme-header-surface-end: rgb(255 247 237 / 0.96);
+  --theme-workout-canvas-background: radial-gradient(
+      circle at top,
+      rgb(16 185 129 / 0.18),
+      transparent 32%
+    ),
+    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --theme-workout-header-surface: linear-gradient(
+    160deg,
+    rgb(255 255 255 / 0.98),
+    rgb(236 253 245 / 0.94)
+  );
+  --theme-workout-card-active-surface: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 0.98),
+    rgb(236 253 245 / 0.72)
+  );
+  --theme-workout-card-active-border: #a7f3d0;
 
   --theme-text-strong: #020617;
   --theme-text-primary: #0f172a;
@@ -48,10 +65,15 @@
   --theme-danger-foreground: #881337;
   --theme-danger-action: #be123c;
   --theme-danger-action-hover: #881337;
+  --theme-caution-action: #d97706;
+  --theme-caution-action-hover: #f59e0b;
 
   --theme-control-selected-surface: #020617;
+  --theme-control-selected-surface-hover: #1e293b;
   --theme-control-positive-accent: #047857;
   --theme-control-caution-accent: #d97706;
+  --theme-completed-indicator: #047857;
+  --theme-incomplete-indicator: #cbd5e1;
 
   --background: var(--theme-canvas);
   --foreground: var(--theme-text-primary);
@@ -99,9 +121,19 @@
   --color-danger-foreground: var(--theme-danger-foreground);
   --color-danger-action: var(--theme-danger-action);
   --color-danger-action-hover: var(--theme-danger-action-hover);
+  --color-caution-action: var(--theme-caution-action);
+  --color-caution-action-hover: var(--theme-caution-action-hover);
   --color-control-selected-surface: var(--theme-control-selected-surface);
+  --color-control-selected-surface-hover: var(
+    --theme-control-selected-surface-hover
+  );
   --color-control-positive-accent: var(--theme-control-positive-accent);
   --color-control-caution-accent: var(--theme-control-caution-accent);
+  --color-workout-card-active-border: var(
+    --theme-workout-card-active-border
+  );
+  --color-completed-indicator: var(--theme-completed-indicator);
+  --color-incomplete-indicator: var(--theme-incomplete-indicator);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
