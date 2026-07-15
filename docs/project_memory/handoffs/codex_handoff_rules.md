@@ -1,22 +1,11 @@
-# Codex / Coding Agent Handoff Rules
+# Codex Handoff Rules
 
-Codex-style coding helpers may be used only for scoped implementation work.
+Every Codex handoff must identify the Health & Fitness Platform repository, exact expected branch/base, authoritative working-tree assumptions, authorized scope/non-goals, database/runtime/browser boundaries, required validation, allowed Git endpoint, and expected final evidence.
 
-## Required reading
+Codex resolves context using this hierarchy: explicit user authority; approved Architecture handoff reconciled with repo truth; `AGENTS.md`; project-memory `README.md`; `current_state.md`; `current_workflow_contract.md`; strategic architecture; active milestone/contracts; historical evidence; then validated code/runtime evidence for stale documentation.
 
-- `AGENTS.md`
-- `docs/project_memory/current_state.md`
-- `docs/project_memory/ai_boundaries.md`
-- `docs/project_memory/future_architecture_ledger.md`
-- milestone-specific docs
+Codex may implement, test, update memory, and report within the bounded milestone. It may not expand scope, set product direction, self-accept, or stage/commit/push/merge/snapshot without explicit authority. It must preserve all pre-existing work and stop on material branch/base/scope conflicts, validation failure, database risk, or missing consequential authority.
 
-## Rules
+For UI work, require production Next.js browser smoke on port `3100` unless explicitly waived. For docs/tooling-only work, do not invent browser smoke. Never use the real `fitness_ai.db` as automated test state.
 
-- Do not change architecture boundaries.
-- Do not promote providers or models.
-- Do not add same-session approval unless the milestone explicitly authorizes it.
-- Do not add persistence/schema changes unless explicitly scoped.
-- Do not add `CLAUDE.md` or Claude workflow files.
-- Do not use Aider or Headroom unless reapproved.
-- Do update project memory for meaningful changes.
-- Keep patches narrow and validation commands explicit.
+The handoff closeout must report exact files, commands/results, skipped checks, browser coverage, database safety, artifacts, `git diff --check`, branch/status, and staged/committed state.

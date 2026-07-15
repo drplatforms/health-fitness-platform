@@ -1,3 +1,35 @@
+# Current State - Project Memory + Developer Workflow Canonicalization v1
+
+Starting baseline: `c8349e0 Merge public project rebrand and README refresh v1`.
+
+Supporting accepted history:
+
+- `5f4ae50 Rebrand project as Health and Fitness Platform`
+- `c813f34 Merge strategic project memory sync before rebrand`
+- `11e8dad Synchronize strategic project memory before rebrand`
+
+Status:
+
+```text
+PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS
+```
+
+Current truth:
+
+- Public Project Rebrand and README Refresh v1 is complete on accepted `main` at `c8349e0`.
+- The product is the **Health & Fitness Platform** and the public repository identity is `health-fitness-platform`.
+- Windows at `C:\projects\fitness_ai` is the canonical daily development/runtime environment.
+- The primary product runtime is FastAPI on port `8000` plus the production Next.js frontend on port `3100`; the canonical product URL is `http://127.0.0.1:3100`.
+- Next.js development mode on port `3000` is optional. Linux at `~/projects/fitness-ai-platform` is secondary optional validation/runtime/demo infrastructure. Streamlit is legacy/developer-only.
+- Backend-owned facts, constraints, validation, persistence, and deterministic fallback remain authoritative. Provider/AI output is non-authoritative, and AI-written daily prose is paused indefinitely.
+- This milestone canonicalizes current developer memory, source/authority hierarchy, PowerShell helpers, safe profile installation, snapshot location, and validation expectations. It makes no application, provider, schema, persistence, or database change.
+- Implementation is not accepted by this status entry. Architecture must review the actual diff and validation evidence before any Git closeout.
+
+See milestone memory:
+`docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md`.
+
+---
+
 # Current State - Personal Custom Foods UI v1
 
 Accepted merge: `0715c63 Merge personal custom foods UI v1`.

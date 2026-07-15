@@ -948,7 +948,9 @@ def test_daily_coach_async_persistence_contracts_schema_memory_is_required() -> 
     )
 
 
-def test_daily_coach_async_developer_only_prototype_memory_is_required() -> None:
+def test_historical_daily_coach_prototype_files_remain_required_without_current_pointer() -> (
+    None
+):
     assert (
         "docs/project_memory/milestones/daily_coach_async_developer_only_prototype_v1.md"
         in project_memory_check.REQUIRED_FILES
@@ -958,10 +960,8 @@ def test_daily_coach_async_developer_only_prototype_memory_is_required() -> None
         in project_memory_check.REQUIRED_FILES
     )
     assert (
-        "Daily Coach Async Developer-Only Prototype v1"
-        in project_memory_check.REQUIRED_PHRASES[
-            "docs/project_memory/project_continuity_bootstrap.md"
-        ]
+        "docs/project_memory/project_continuity_bootstrap.md"
+        not in project_memory_check.REQUIRED_PHRASES
     )
 
 

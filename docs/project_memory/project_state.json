@@ -68,18 +68,18 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-05_9192863_main_merge-nextjs-mobile-today-shell-v0.zip",
-    "commit_check_mode": "code",
-    "current_authorized_milestone": "Workout Generation + Today Workout View v0",
-    "current_recommended_milestone": "Architecture Review for Workout Generation + Today Workout View v0",
-    "current_recommended_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "primary_question": "Can the product expose backend-owned generated and planned workout details through Next.js without rebuilding the workout engine or duplicating frontend truth?",
-    "qa_class": "FRONTEND_WORKOUT_TODAY_VIEW",
-    "recommended_next_milestone_after_acceptance": "Architecture selection after Workout Generation + Today Workout View v0",
-    "recommended_owner": "Frontend Development / Workout Today View",
-    "source_feature_branch": "feature/workout-generation-today-view-v0",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_c8349e0_main_post-rebrand-main.zip",
+    "commit_check_mode": "docs_tooling",
+    "current_authorized_milestone": "Project Memory + Developer Workflow Canonicalization v1",
+    "current_recommended_milestone": "Architecture Review for Project Memory + Developer Workflow Canonicalization v1",
+    "current_recommended_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
+    "primary_question": "Can a fresh Architecture or Codex chat recover the current identity, authority hierarchy, runtime, helper commands, and delivery workflow from repository-owned memory alone?",
+    "qa_class": "DOCS_TOOLING_WORKFLOW",
+    "recommended_next_milestone_after_acceptance": "User supplies the rough current product roadmap; a fresh Architecture chat reviews it and selects the next product milestone",
+    "recommended_owner": "Architecture / DevOps & Tooling",
+    "source_feature_branch": "feature/project-memory-developer-workflow-canonicalization-v1",
     "source_feature_commit": null,
-    "source_main_commit": "9192863"
+    "source_main_commit": "c8349e0"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -90,7 +90,7 @@
       "Food Knowledge Expansion",
       "Unified Daily Coach Intelligence Snapshot"
     ],
-    "next_center_of_gravity": "Recovery Intelligence v2 Developer Artifact / Inspection Tool v1, followed by Architecture selection of QA Seed Matrix Validation or Daily Coach Note integration after acceptance",
+    "next_center_of_gravity": "Complete Project Memory + Developer Workflow Canonicalization v1, close it out with Architecture, receive the user's rough current product roadmap, onboard a fresh Architecture chat, then have Architecture select the next product milestone.",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "sequencing_rule": "No serious RAG/vector/embeddings/multi-agent/orchestration until backend intelligence layers and source-data contracts are robust enough to feed them.",
     "recovery_intelligence_v2_plan": "docs/project_memory/architecture/recovery_intelligence_v2_plan.md"
@@ -420,29 +420,29 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "Daily Coach Provider Preview Raw Data Payload v1",
-    "active_backend_status": "DAILY_COACH_PROVIDER_PREVIEW_RAW_DATA_PAYLOAD_V1_IMPLEMENTATION_COMPLETE",
-    "active_project_memory_milestone": "Daily Coach Note Recovery-Aware Language v1",
-    "active_project_memory_status": "daily_coach_note_recovery_aware_language_active",
-    "current_source_of_truth": "main at c940ff4 Merge recovery-aware coach copy contract v1",
+    "active_backend_milestone": "none; docs/tooling workflow canonicalization only",
+    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
+    "active_project_memory_milestone": "Project Memory + Developer Workflow Canonicalization v1",
+    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
+    "current_source_of_truth": "main at c8349e0 Merge public project rebrand and README refresh v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "e26c4e0",
-    "latest_accepted_milestone": "Daily Coach Note Copy QA Matrix v1",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-01_e26c4e0_main_merge-daily-coach-note-copy-qa-matrix-v1.zip",
-    "latest_final_status": "RECOVERY_INTELLIGENCE_V2_QA_SEED_MATRIX_VALIDATION_V1_ACCEPTED_AND_MERGED",
-    "latest_main_merge_commit": "c940ff4",
+    "latest_accepted_commit": "c8349e0",
+    "latest_accepted_milestone": "Public Project Rebrand and README Refresh v1",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-15_c8349e0_main_post-rebrand-main.zip",
+    "latest_final_status": "PUBLIC_PROJECT_REBRAND_AND_README_REFRESH_V1_ACCEPTED_AND_MERGED",
+    "latest_main_merge_commit": "c8349e0",
     "latest_technical_baseline_commit": "23b5378",
     "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip",
-    "next_product_architecture_center": "Daily Coach Note recovery-aware language review, then Architecture chooses the next narrow Daily Coach Note integration slice",
+    "next_product_architecture_center": "Complete developer-workflow canonicalization, then Architecture selects the next product milestone from the current roadmap",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "previous_accepted_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "previous_main_merge_commit": "56d63c4",
     "previous_snapshot": "fitness_ai_snapshot_2026-06-29_56d63c4_main_merge-daily-coach-free-range-decaging-diagnostic-baseline-v4.zip",
-    "provider_voice_iteration": "paused"
+    "provider_voice_iteration": "AI-written daily coaching prose paused indefinitely"
   },
   "daily_coach_async_boundary": {
-    "current": "Daily Coach async/provider work remains gated by accepted designs and developer-only/manual preview boundaries unless a later milestone explicitly authorizes runtime behavior.",
-    "normal_today_behavior": "Normal Today behavior remains deterministic and must not block on provider generation.",
+    "current": "AI-written daily coaching prose is paused indefinitely. Historical provider infrastructure remains non-authoritative and gated unless a later explicit milestone changes that boundary.",
+    "normal_today_behavior": "Normal product behavior remains deterministic and backend-authoritative; it must not block on provider generation.",
     "not_authorized": [
       "normal Today provider call by default",
       "public async narrative display without approval",
@@ -517,22 +517,17 @@
   "first_files_to_read": {
     "all_roles": [
       "AGENTS.md",
-      "readme.md",
+      "docs/project_memory/README.md",
       "docs/project_memory/current_state.md",
+      "docs/project_memory/current_workflow_contract.md",
+      "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
+      "docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md",
       "docs/project_memory/project_state.json",
-      "docs/project_memory/project_continuity_bootstrap.md",
-      "docs/project_memory/development_workflow.md",
-      "docs/project_memory/developer_delivery_workflow_contract.md",
       "docs/project_memory/architecture_principles.md",
       "docs/project_memory/open_questions.md",
-      "docs/project_memory/next_milestone.md",
-      "docs/project_memory/handoffs/architecture_handoff_current.md",
-      "docs/project_memory/handoffs/backend_handoff_current.md",
-      "docs/project_memory/handoffs/qa_handoff_current.md",
       "docs/project_memory/team_routing_contract.md",
       "docs/project_memory/team_quickstarts.md",
-      "docs/project_memory/development_architecture_chatgpt_workflow_v1.md",
-      "docs/project_memory/architecture/backend_intelligence_foundation_v1.md"
+      "docs/project_memory/development_architecture_chatgpt_workflow_v1.md"
     ]
   },
   "future_feature_technology_inventory_v1": {
@@ -609,12 +604,12 @@
     "qwen3_32b": "Research/future premium async candidate only; not approved for normal runtime."
   },
   "model_provider_policy": {
-    "boundary": "Provider may propose only inside approved schemas/contracts. Backend validates. User sees only approved output.",
-    "fallback": "Deterministic fallback remains mandatory for all provider-backed paths.",
-    "model_promotion": "No model may be promoted to default without explicit Architecture acceptance, runtime QA, fallback behavior, and project-memory update.",
-    "qwen2_5_3b": "Approved local bridge/default experimental model for direct_ollama nutrition explanation provider paths when explicitly enabled.",
-    "qwen3": "Not approved as a bridge/default model. Do not promote without an explicit model-evaluation milestone.",
-    "qwen3_32b": "Research/future premium async candidate only; not approved for normal runtime."
+    "boundary": "Provider/AI output is non-authoritative. Backend owns facts, constraints, validation, persistence, and deterministic fallback; the user approves consequential actions.",
+    "fallback": "Deterministic fallback remains the default unless an authorized milestone explicitly changes that boundary.",
+    "model_promotion": "No provider or model is promoted by current workflow memory. Promotion requires an explicit milestone, validation, fallback, and Architecture acceptance.",
+    "qwen2_5_3b": "Historical optional experiment only; no current default or product authority is established here.",
+    "qwen3": "Historical research context only; not approved as a current default.",
+    "qwen3_32b": "Historical future-research context only; not approved for normal runtime."
   },
   "nutrition_actuals_provenance_confidence_model_v1": {
     "accepted_boundaries": [
@@ -1012,9 +1007,10 @@
   },
   "project": {
     "canonical_branch": "main",
-    "name": "AI Health Coach",
-    "platform_repo": "fitness-ai-platform",
-    "repo": "fitness_ai"
+    "name": "Health & Fitness Platform",
+    "platform_repo": "health-fitness-platform",
+    "repo": "health-fitness-platform",
+    "windows_path": "C:\\projects\\fitness_ai"
   },
   "project_memory_warning_review_v1": {
     "branch": "feature/project-memory-warning-review-v1",
@@ -1063,19 +1059,23 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
+  "requested_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
   "runtime_split": {
     "linux": [
-      "Runtime/smoke environment at ~/projects/fitness-ai-platform. Pull feature or main branches after push/merge and run Linux validation when runtime-relevant."
+      "Secondary/back-burner optional validation, runtime, or demo environment at ~/projects/fitness-ai-platform. Linux sync is task-specific rather than an automatic closeout phase."
     ],
     "windows": [
-      "Primary development workstation at C:\\projects\\fitness_ai. Use Windows for patch application, validation, explicit staging, commit, push, and feature snapshots."
+      "Canonical daily development and Git/write environment at C:\\projects\\fitness_ai.",
+      "Primary runtime is FastAPI on 8000 plus production Next.js on 3100; product URL is http://127.0.0.1:3100.",
+      "Next.js dev on 3000 is optional; Streamlit is legacy/developer-only."
     ]
   },
   "status": {
-    "active_backend_milestone": "Workout Generation + Today Workout View v0",
-    "active_backend_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW",
-    "requested_final_status": "WORKOUT_GENERATION_TODAY_VIEW_V0_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_REVIEW"
+    "active_backend_milestone": "none; no application/backend milestone currently authorized",
+    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
+    "active_project_memory_milestone": "Project Memory + Developer Workflow Canonicalization v1",
+    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
+    "requested_final_status": "ARCHITECTURE_REVIEW_REQUIRED_BEFORE_ACCEPTANCE"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
@@ -1100,11 +1100,13 @@
     "no_broad_formatters_for_docs_only": "For docs-only milestones, do not run broad formatters that can rewrite unrelated application files.",
     "no_git_add_dot": "Do not use git add .; stage explicit files only.",
     "no_repo_wide_mutating_formatters_for_feature_work": "Use targeted Ruff/Black on touched files only. Use whole-repo checks in non-mutating mode when appropriate.",
-    "phase_separated_delivery": "Use separate phases: preflight/branch, implement/apply, validate, review diff, stage only, commit only, push only, snapshot, Linux pull/smoke.",
-    "push_separate_phase": "Push must be its own separate phase; do not combine commit and push.",
+    "phase_separated_delivery": "Use medium phases: preflight/branch, implementation/apply, targeted validation, runtime/browser smoke when required, explicit staging review, feature commit/push, Architecture acceptance, merge, merged-main validation, main push, and external snapshot.",
+    "push_separate_phase": "Push only after the applicable review, acceptance, validation, and explicit authority.",
     "run_apply_scripts_from_repo_as": "Run temporary apply scripts from the repo root using python ..\\<script>.py.",
-    "temporary_apply_artifact_root": "C:\\projects",
-    "temporary_apply_artifacts_outside_repo": "Temporary patches and apply scripts stay outside the repo."
+    "temporary_apply_artifact_root": "system temporary directory or an explicitly authorized external location",
+    "temporary_apply_artifacts_outside_repo": "Temporary patches and apply scripts stay outside the repo and are removed after use.",
+    "snapshot_directory": "C:\\projects\\fitness_ai_external\\snapshots",
+    "linux_sync": "Optional and task-specific; not automatically coupled to snapshot creation."
   },
   "recovery_intelligence_v2_dev_inspection_tool_v1": {
     "status": "accepted and merged",
