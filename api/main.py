@@ -33,6 +33,7 @@ from api.routes.reports import router as report_router
 from api.routes.workout_plans import router as workout_plan_router
 from api.routes.workouts import router as workout_router
 from database import initialize_database
+from services.exercise_catalog_service import seed_exercise_instructions
 
 # =====================================
 # App Initialization
@@ -43,6 +44,7 @@ from database import initialize_database
 async def lifespan(app: FastAPI):
     del app
     initialize_database()
+    seed_exercise_instructions()
     yield
 
 

@@ -1,13 +1,56 @@
+# Current State - Exercise Instruction API / Read Surface v1
+
+Implementation baseline: `main` at `da660d8 Merge exercise instruction seed coverage v1`.
+
+Canonical starting snapshot: `fitness_ai_snapshot_2026-07-15_da660d8_main_merge-exercise-instruction-seed-coverage-v1.zip`.
+
+Feature branch: `feature/exercise-instruction-api-read-surface-v1`.
+
+Status:
+
+```text
+EXERCISE_INSTRUCTION_API_READ_SURFACE_V1_ARCHITECTURE_ACCEPTED
+```
+
+Implementation scope:
+
+- Added `GET /exercise-catalog/{catalog_exercise_id}/instruction` as an explicit detail read keyed only by the positive stable `exercise_catalog_exercises.id`.
+- The successful response composes the accepted catalog metadata with the complete persisted structured instruction. It exposes no second instruction identity, persistence JSON column names, timestamps, seed-resolution names, or implementation metadata.
+- Unknown catalog IDs return `404` with `Exercise not found`. Existing catalog rows without persisted instruction content return `404` with `Exercise instruction not found`; no content is fabricated and no name fallback is used.
+- Added the narrow `get_exercise_catalog_entry_by_id(...)` service seam with positive-ID validation and explicit absence for unknown IDs.
+- FastAPI lifespan initialization now runs `initialize_database()` and then the accepted atomic/idempotent `seed_exercise_instructions()` operation once per application startup, making all `240` repository-owned instructions available in the active runtime database.
+- Existing `GET /exercise-catalog` and `GET /exercises` response behavior remains unchanged. Instructions are not embedded into catalog-list responses.
+- Focused API coverage uses pytest-owned temporary databases and verifies the public response contract, both not-found states, stable-ID-only lookup, persistence-field exclusion, existing-route compatibility, complete `240/240` lifespan coverage, repeated-startup idempotence, and canonical-database isolation.
+- Validation passed: focused instruction/API/persistence tests `36 passed`; catalog/API regression tests `32 passed`; project-memory tests `29 passed`; project-memory checker `608 PASS`, `39 WARN`, `0 FAIL`; touched-file Ruff check, Ruff format check, and Python compilation passed.
+- No browser smoke was required because this milestone adds backend data exposure only. The canonical `fitness_ai.db` remained unchanged at SHA-256 `FEDC430E47E32B338E1E2EF471B355528B99AA5007A1EF577A32678EECF3ABA7` throughout automated validation.
+- No frontend, Streamlit, workout generation/selection/substitution/progression, instruction editing, media, provider/AI behavior, bulk endpoint, name search, schema redesign, or canonical database data change is included.
+
+Next recommended milestone after Architecture acceptance:
+
+```text
+Next.js Exercise Explanation UX v1
+```
+
+That next milestone is not implementation-authorized. Exercise Instruction API / Read Surface v1 is awaiting Architecture review and remains unstaged, uncommitted, unpushed, and unmerged.
+
+---
+
 # Current State - Exercise Instruction Seed Coverage v1
 
 Implementation baseline: `main` at `08a962c Merge exercise instruction contract and persistence v1`.
 
 Feature branch: `feature/exercise-instruction-seed-coverage-v1`.
 
+Feature implementation: `fed767c Add exercise instruction seed coverage`.
+
+Accepted merge: `da660d8 Merge exercise instruction seed coverage v1`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-15_da660d8_main_merge-exercise-instruction-seed-coverage-v1.zip`.
+
 Status:
 
 ```text
-EXERCISE_INSTRUCTION_SEED_COVERAGE_V1_ARCHITECTURE_ACCEPTED
+EXERCISE_INSTRUCTION_SEED_COVERAGE_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 Implementation scope:
@@ -30,7 +73,7 @@ Next recommended milestone after Architecture acceptance:
 Exercise Instruction API / Read Surface v1
 ```
 
-That next milestone is not implementation-authorized. This seed implementation is awaiting Architecture review and is not accepted, merged, pushed, or snapshotted.
+Exercise Instruction Seed Coverage v1 is Architecture accepted, merged, and closed. Its instruction corpus is exposed only through the separately authorized Exercise Instruction API / Read Surface v1 milestone.
 
 ---
 

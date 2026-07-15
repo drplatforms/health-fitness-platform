@@ -2639,6 +2639,44 @@ def _row_to_catalog_entry(row, equipment_required: list[str]) -> ExerciseCatalog
     )
 
 
+def get_exercise_catalog_entry_by_id(
+    catalog_exercise_id: int,
+) -> ExerciseCatalogEntry | None:
+    """Return one catalog entry by its stable persisted ID, or explicit absence."""
+
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT *
+        FROM exercise_catalog_exercises
+        WHERE id = ?
+        """,
+        (catalog_exercise_id,),
+    )
+    row = cursor.fetchone()
+    if row is None:
+        conn.close()
+        return None
+
+    cursor.execute(
+        """
+        SELECT equipment
+        FROM exercise_equipment_requirements
+        WHERE exercise_id = ?
+        ORDER BY equipment
+        """,
+        (catalog_exercise_id,),
+    )
+    equipment_required = [
+        equipment_row["equipment"] for equipment_row in cursor.fetchall()
+    ]
+    conn.close()
+    return _row_to_catalog_entry(row, equipment_required)
+
+
 def get_exercise_catalog() -> list[ExerciseCatalogEntry]:
     cache_key = _exercise_catalog_cache_key()
     cached_entries = _CATALOG_CACHE_BY_DB_PATH.get(cache_key)
