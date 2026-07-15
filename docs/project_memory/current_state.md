@@ -1,3 +1,37 @@
+# Current State - Exercise Instruction Contract + Persistence v1
+
+Implementation baseline: `main` at `c0b7fbb Close exercise catalog identity propagation v1`.
+
+Feature branch: `feature/exercise-instruction-contract-persistence-v1`.
+
+Status:
+
+```text
+EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED
+```
+
+Implementation scope:
+
+- Added a structured `ExerciseInstruction` backend contract keyed only by the existing stable `exercise_catalog_exercises.id`.
+- Added the additive one-to-one `exercise_catalog_instructions` table. `exercise_id` is both its primary key and its foreign key to the parent catalog exercise; there is no second instruction identity.
+- Added internal deterministic `upsert_exercise_instruction(...)` and `get_exercise_instruction(...)` service seams. Upsert replaces the record for the same catalog exercise, rejects a missing parent exercise, and preserves ordered instruction-list content through JSON persistence.
+- Catalog exercises without instruction records return explicit absence. No instruction fallback or exercise-name matching is used.
+- Existing catalog initialization gains the empty instruction table additively without rebuilding, backfilling, or changing catalog records or IDs.
+- Focused coverage uses pytest-owned temporary databases and verifies the contract, schema identity, round-trip behavior, update behavior, independent records, absence, invalid parent rejection, empty lists, deterministic catalog seeding, unchanged catalog rows, and additive initialization.
+- No production instruction corpus, API route or response, frontend, Streamlit, workout generation/selection/substitution, progression, media, provider/AI, or canonical database data change is included.
+- Validation passed: focused instruction persistence `12 passed`; required catalog/workout regression slice `263 passed`; project-memory tests `29 passed`; project-memory checker `608 PASS`, `39 WARN`, `0 FAIL`; touched-file Ruff check, Ruff format check, and Python compilation passed.
+- No browser smoke was required because there is no frontend or public API behavior. The canonical `fitness_ai.db` remained unchanged at SHA-256 `FEDC430E47E32B338E1E2EF471B355528B99AA5007A1EF577A32678EECF3ABA7` throughout validation.
+
+Next recommended milestone after Architecture acceptance:
+
+```text
+Exercise Instruction Seed Coverage v1
+```
+
+This implementation is awaiting Architecture review. It is not accepted, merged, pushed, snapshotted, seeded with production instruction coverage, or exposed through an API/frontend.
+
+---
+
 # Current State - Exercise Catalog Identity Propagation v1
 
 Accepted main merge: `6227f50 Merge exercise catalog identity propagation v1`.

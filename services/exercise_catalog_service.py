@@ -5,7 +5,7 @@ from dataclasses import asdict
 
 import database
 from database import get_connection
-from models.exercise_catalog_models import ExerciseCatalogEntry
+from models.exercise_catalog_models import ExerciseCatalogEntry, ExerciseInstruction
 
 _CATALOG_CACHE_BY_DB_PATH: dict[str, list[ExerciseCatalogEntry]] = {}
 
@@ -2232,6 +2232,52 @@ def _decode_json_list(raw_value: str | None) -> list[str]:
     return _normalize_list([str(value) for value in decoded])
 
 
+def _encode_instruction_list(values: list[str]) -> str:
+    return json.dumps(values, ensure_ascii=False)
+
+
+def _decode_instruction_list(raw_value: str, field_name: str) -> list[str]:
+    try:
+        decoded = json.loads(raw_value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid persisted {field_name} instruction list") from exc
+    if not isinstance(decoded, list) or any(
+        not isinstance(value, str) for value in decoded
+    ):
+        raise ValueError(f"Invalid persisted {field_name} instruction list")
+    return decoded
+
+
+def _validate_catalog_exercise_id(catalog_exercise_id: int) -> None:
+    if (
+        isinstance(catalog_exercise_id, bool)
+        or not isinstance(catalog_exercise_id, int)
+        or catalog_exercise_id <= 0
+    ):
+        raise ValueError("catalog_exercise_id must be a positive integer")
+
+
+def _validate_exercise_instruction(instruction: ExerciseInstruction) -> None:
+    if not isinstance(instruction, ExerciseInstruction):
+        raise TypeError("instruction must be an ExerciseInstruction")
+    _validate_catalog_exercise_id(instruction.catalog_exercise_id)
+    if not isinstance(instruction.overview, str):
+        raise TypeError("overview must be a string")
+
+    for field_name in (
+        "setup_steps",
+        "execution_steps",
+        "form_cues",
+        "common_mistakes",
+        "safety_notes",
+    ):
+        values = getattr(instruction, field_name)
+        if not isinstance(values, list) or any(
+            not isinstance(value, str) for value in values
+        ):
+            raise TypeError(f"{field_name} must be a list of strings")
+
+
 def ensure_exercise_catalog_tables() -> None:
     conn = get_connection()
     cursor = conn.cursor()
@@ -2261,8 +2307,133 @@ def ensure_exercise_catalog_tables() -> None:
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_catalog_instructions (
+        exercise_id INTEGER PRIMARY KEY,
+        overview TEXT NOT NULL,
+        setup_steps_json TEXT NOT NULL,
+        execution_steps_json TEXT NOT NULL,
+        form_cues_json TEXT NOT NULL,
+        common_mistakes_json TEXT NOT NULL,
+        safety_notes_json TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
+    )
+    """)
+
     conn.commit()
     conn.close()
+
+
+def upsert_exercise_instruction(
+    instruction: ExerciseInstruction,
+) -> ExerciseInstruction:
+    """Persist one structured instruction record for a stable catalog exercise ID."""
+
+    _validate_exercise_instruction(instruction)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT 1 FROM exercise_catalog_exercises WHERE id = ?",
+        (instruction.catalog_exercise_id,),
+    )
+    if cursor.fetchone() is None:
+        conn.close()
+        raise ValueError(
+            f"Catalog exercise {instruction.catalog_exercise_id} does not exist"
+        )
+
+    cursor.execute(
+        """
+        INSERT INTO exercise_catalog_instructions (
+            exercise_id,
+            overview,
+            setup_steps_json,
+            execution_steps_json,
+            form_cues_json,
+            common_mistakes_json,
+            safety_notes_json,
+            updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(exercise_id) DO UPDATE SET
+            overview = excluded.overview,
+            setup_steps_json = excluded.setup_steps_json,
+            execution_steps_json = excluded.execution_steps_json,
+            form_cues_json = excluded.form_cues_json,
+            common_mistakes_json = excluded.common_mistakes_json,
+            safety_notes_json = excluded.safety_notes_json,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            instruction.catalog_exercise_id,
+            instruction.overview,
+            _encode_instruction_list(instruction.setup_steps),
+            _encode_instruction_list(instruction.execution_steps),
+            _encode_instruction_list(instruction.form_cues),
+            _encode_instruction_list(instruction.common_mistakes),
+            _encode_instruction_list(instruction.safety_notes),
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return ExerciseInstruction(
+        catalog_exercise_id=instruction.catalog_exercise_id,
+        overview=instruction.overview,
+        setup_steps=list(instruction.setup_steps),
+        execution_steps=list(instruction.execution_steps),
+        form_cues=list(instruction.form_cues),
+        common_mistakes=list(instruction.common_mistakes),
+        safety_notes=list(instruction.safety_notes),
+    )
+
+
+def get_exercise_instruction(
+    catalog_exercise_id: int,
+) -> ExerciseInstruction | None:
+    """Return persisted instructions by stable catalog identity, or explicit absence."""
+
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT
+            exercise_id,
+            overview,
+            setup_steps_json,
+            execution_steps_json,
+            form_cues_json,
+            common_mistakes_json,
+            safety_notes_json
+        FROM exercise_catalog_instructions
+        WHERE exercise_id = ?
+        """,
+        (catalog_exercise_id,),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    if row is None:
+        return None
+
+    return ExerciseInstruction(
+        catalog_exercise_id=row["exercise_id"],
+        overview=row["overview"],
+        setup_steps=_decode_instruction_list(row["setup_steps_json"], "setup_steps"),
+        execution_steps=_decode_instruction_list(
+            row["execution_steps_json"], "execution_steps"
+        ),
+        form_cues=_decode_instruction_list(row["form_cues_json"], "form_cues"),
+        common_mistakes=_decode_instruction_list(
+            row["common_mistakes_json"], "common_mistakes"
+        ),
+        safety_notes=_decode_instruction_list(row["safety_notes_json"], "safety_notes"),
+    )
 
 
 def _entry_to_legacy_exercise_row(
