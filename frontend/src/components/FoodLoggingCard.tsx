@@ -35,6 +35,7 @@ interface FoodLoggingCardProps {
   userId: number;
   targetDate: string;
   className?: string;
+  variant?: "card" | "embedded";
 }
 
 const MEAL_OPTIONS = [
@@ -164,6 +165,7 @@ export function FoodLoggingCard({
   userId,
   targetDate,
   className,
+  variant = "card",
 }: FoodLoggingCardProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<LoggingFoodResult[]>([]);
@@ -523,9 +525,9 @@ export function FoodLoggingCard({
     }
   }
 
-  return (
-    <TodayCard title="Log Food" className={className}>
-      <div className="space-y-3">
+  const content = (
+    <div className="space-y-3">
+      {variant === "card" ? (
         <div className="flex justify-end">
           <Link
             href={`/personal-foods?${new URLSearchParams({
@@ -537,6 +539,7 @@ export function FoodLoggingCard({
             My Foods
           </Link>
         </div>
+      ) : null}
         {recentFoods.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-slate-900">Recent foods</p>
@@ -788,7 +791,16 @@ export function FoodLoggingCard({
             </button>
           </div>
         ) : null}
-      </div>
+    </div>
+  );
+
+  if (variant === "embedded") {
+    return <div className={className}>{content}</div>;
+  }
+
+  return (
+    <TodayCard title="Log Food" className={className}>
+      {content}
     </TodayCard>
   );
 }

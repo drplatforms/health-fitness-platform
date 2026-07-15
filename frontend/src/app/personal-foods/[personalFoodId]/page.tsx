@@ -47,7 +47,7 @@ export default async function EditPersonalFoodPage({
             href={`/personal-foods?${contextParams.toString()}`}
             className="text-slate-600"
           >
-            My foods
+            My Foods
           </Link>
         </div>
         <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:px-6">

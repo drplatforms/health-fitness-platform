@@ -13,6 +13,7 @@ import { PersonalFood } from "@/types/personalFood";
 interface PersonalFoodsListProps {
   userId: number;
   targetDate?: string;
+  variant?: "standalone" | "embedded";
 }
 
 function formatNumber(value: number): string {
@@ -49,6 +50,7 @@ function withContext(path: string, userId: number, targetDate?: string) {
 export function PersonalFoodsList({
   userId,
   targetDate,
+  variant = "standalone",
 }: PersonalFoodsListProps) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim());
@@ -148,10 +150,14 @@ export function PersonalFoodsList({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
-            My foods
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          {variant === "standalone" ? (
+            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">
+              My Foods
+            </h1>
+          ) : null}
+          <p
+            className={`${variant === "standalone" ? "mt-1 " : ""}text-sm text-slate-600`}
+          >
             Foods you can find in the normal food search.
           </p>
         </div>
