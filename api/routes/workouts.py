@@ -2,10 +2,16 @@
 # Imports
 # =====================================
 
-from fastapi import APIRouter
+from dataclasses import asdict
+
+from fastapi import APIRouter, HTTPException, Path
 
 from api.models.workout_models import WorkoutRequest
-from services.exercise_catalog_service import get_exercise_catalog_dicts
+from services.exercise_catalog_service import (
+    get_exercise_catalog_dicts,
+    get_exercise_catalog_entry_by_id,
+    get_exercise_instruction,
+)
 from services.workout_service import (
     add_workout_set,
     create_workout_session,
@@ -59,6 +65,33 @@ def exercise_catalog():
     return {
         "success": True,
         "exercises": exercises,
+    }
+
+
+# =====================================
+# Exercise Instruction Endpoint
+# =====================================
+
+
+@router.get("/exercise-catalog/{catalog_exercise_id}/instruction")
+def exercise_instruction(
+    catalog_exercise_id: int = Path(gt=0),
+):
+    exercise = get_exercise_catalog_entry_by_id(catalog_exercise_id)
+    if exercise is None:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+
+    instruction = get_exercise_instruction(catalog_exercise_id)
+    if instruction is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Exercise instruction not found",
+        )
+
+    return {
+        "success": True,
+        "exercise": asdict(exercise),
+        "instruction": asdict(instruction),
     }
 
 
