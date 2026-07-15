@@ -15,15 +15,15 @@ export function DataQualityNote({
 
   return (
     <section
-      className={`rounded-[24px] border border-slate-200/90 bg-slate-50/90 p-5 ${className}`}
+      className={`rounded-[24px] border border-border-subtle/90 bg-surface-subtle/90 p-5 ${className}`}
     >
       <div className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-slate-600">
+        <h2 className="text-sm font-semibold uppercase tracking-[0.18em] text-text-secondary">
           {title}
         </h2>
-        <ul className="space-y-2 text-sm leading-6 text-slate-700">
+        <ul className="space-y-2 text-sm leading-6 text-text-body">
           {items.map((item) => (
-            <li key={item} className="rounded-2xl bg-white px-4 py-3">
+            <li key={item} className="rounded-2xl bg-surface px-4 py-3">
               {item}
             </li>
           ))}

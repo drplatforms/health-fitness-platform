@@ -4,10 +4,10 @@ interface StatusPillProps {
 }
 
 const TONE_CLASS_MAP = {
-  neutral: "bg-slate-100 text-slate-700",
-  positive: "bg-emerald-100 text-emerald-800",
-  caution: "bg-amber-100 text-amber-900",
-  warning: "bg-rose-100 text-rose-800",
+  neutral: "bg-neutral-surface text-neutral-foreground",
+  positive: "bg-positive-surface text-positive-foreground",
+  caution: "bg-caution-surface text-caution-foreground",
+  warning: "bg-warning-surface text-warning-foreground",
 } as const;
 
 export function StatusPill({

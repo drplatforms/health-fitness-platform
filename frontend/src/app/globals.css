@@ -1,13 +1,80 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --theme-canvas: #f8fafc;
+  --theme-canvas-start: #fffdf7;
+  --theme-canvas-glow: rgba(251, 191, 36, 0.16);
+  --theme-surface: #ffffff;
+  --theme-surface-subtle: #f8fafc;
+  --theme-surface-muted: #f1f5f9;
+  --theme-surface-warm: rgb(255 251 235 / 0.7);
+  --theme-surface-highlighted: rgb(236 253 245 / 0.9);
+
+  --theme-text-strong: #020617;
+  --theme-text-primary: #0f172a;
+  --theme-text-body: #334155;
+  --theme-text-secondary: #475569;
+  --theme-text-muted: #64748b;
+  --theme-text-inverse: #ffffff;
+
+  --theme-border: #e2e8f0;
+  --theme-border-subtle: #e2e8f0;
+  --theme-border-accent: #6ee7b7;
+  --theme-border-warm: #fde68a;
+
+  --theme-action-primary: #064e3b;
+  --theme-action-primary-hover: #065f46;
+  --theme-action-primary-foreground: #ecfdf5;
+  --theme-accent-text: #065f46;
+  --theme-accent-text-hover: #022c22;
+  --theme-focus: #10b981;
+
+  --theme-neutral-surface: #f1f5f9;
+  --theme-neutral-foreground: #334155;
+  --theme-positive-surface: #d1fae5;
+  --theme-positive-foreground: #065f46;
+  --theme-caution-surface: #fef3c7;
+  --theme-caution-foreground: #78350f;
+  --theme-warning-surface: #ffe4e6;
+  --theme-warning-foreground: #9f1239;
+
+  --background: var(--theme-canvas);
+  --foreground: var(--theme-text-primary);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-canvas: var(--theme-canvas);
+  --color-surface: var(--theme-surface);
+  --color-surface-subtle: var(--theme-surface-subtle);
+  --color-surface-muted: var(--theme-surface-muted);
+  --color-surface-warm: var(--theme-surface-warm);
+  --color-surface-highlighted: var(--theme-surface-highlighted);
+  --color-text-strong: var(--theme-text-strong);
+  --color-text-primary: var(--theme-text-primary);
+  --color-text-body: var(--theme-text-body);
+  --color-text-secondary: var(--theme-text-secondary);
+  --color-text-muted: var(--theme-text-muted);
+  --color-text-inverse: var(--theme-text-inverse);
+  --color-border: var(--theme-border);
+  --color-border-subtle: var(--theme-border-subtle);
+  --color-border-accent: var(--theme-border-accent);
+  --color-border-warm: var(--theme-border-warm);
+  --color-action-primary: var(--theme-action-primary);
+  --color-action-primary-hover: var(--theme-action-primary-hover);
+  --color-action-primary-foreground: var(--theme-action-primary-foreground);
+  --color-accent-text: var(--theme-accent-text);
+  --color-accent-text-hover: var(--theme-accent-text-hover);
+  --color-focus: var(--theme-focus);
+  --color-neutral-surface: var(--theme-neutral-surface);
+  --color-neutral-foreground: var(--theme-neutral-foreground);
+  --color-positive-surface: var(--theme-positive-surface);
+  --color-positive-foreground: var(--theme-positive-foreground);
+  --color-caution-surface: var(--theme-caution-surface);
+  --color-caution-foreground: var(--theme-caution-foreground);
+  --color-warning-surface: var(--theme-warning-surface);
+  --color-warning-foreground: var(--theme-warning-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -18,8 +85,8 @@
 
 html {
   background:
-    radial-gradient(circle at top, rgba(251, 191, 36, 0.16), transparent 35%),
-    linear-gradient(180deg, #fffdf7 0%, #f8fafc 100%);
+    radial-gradient(circle at top, var(--theme-canvas-glow), transparent 35%),
+    linear-gradient(180deg, var(--theme-canvas-start) 0%, var(--theme-canvas) 100%);
 }
 
 body {

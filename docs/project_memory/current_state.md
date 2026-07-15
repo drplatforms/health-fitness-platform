@@ -1,3 +1,25 @@
+# Current State - Theme System Foundation v1
+
+Canonical implementation baseline: main at c526289.
+
+Feature branch: feature/theme-system-foundation-v1.
+
+Status: THEME_SYSTEM_FOUNDATION_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Added the first semantic frontend color-token foundation using CSS custom properties exposed through the existing Tailwind v4 theme layer.
+- Added semantic roles for application canvas and surfaces, text hierarchy, borders, primary interaction and focus, neutral/positive/caution/warning states, and warm/highlighted surfaces.
+- Migrated TodayCard, StatusPill, DataQualityNote, UserSwitcher, and NutritionMacroCard from direct palette-oriented color utilities to semantic theme roles.
+- The accepted light-theme color and opacity values are intentionally preserved.
+- Production browser smoke passed on desktop and narrow/mobile Today, standalone /personal-foods, and /today/workout.
+- No dark mode, theme preference, persistence, theme provider, first-paint script, dependency, backend, schema, or database behavior was added.
+
+Theme initiative status:
+
+The semantic foundation is accepted. The next bounded Theme System + Dark Mode milestone remains pending Architecture review and is not implementation-authorized.
+
+---
 # Current State - Personal Food Serving Display Fix v1
 
 Canonical implementation baseline: main at 15964d7.
