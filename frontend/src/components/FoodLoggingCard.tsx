@@ -534,7 +534,7 @@ export function FoodLoggingCard({
             }).toString()}`}
             className="text-sm font-semibold text-emerald-800 transition hover:text-emerald-950"
           >
-            My foods
+            My Foods
           </Link>
         </div>
         {recentFoods.length > 0 ? (

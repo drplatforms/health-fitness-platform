@@ -650,6 +650,9 @@ export function WorkoutPreviewExperience({
     Record<number, ActualSetFormState>
   >({});
   const [isCompletionReviewOpen, setIsCompletionReviewOpen] = useState(false);
+  const [expandedInstructionKey, setExpandedInstructionKey] = useState<
+    string | null
+  >(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
@@ -891,6 +894,7 @@ export function WorkoutPreviewExperience({
   ]);
 
   function handleSizeChange(nextValue: WorkoutSizePreference) {
+    setExpandedInstructionKey(null);
     setWorkoutSizePreference(nextValue);
     setPreviewVariationIndex(0);
     setViewMode("preview");
@@ -909,6 +913,7 @@ export function WorkoutPreviewExperience({
   }
 
   function handleTryDifferentVersion() {
+    setExpandedInstructionKey(null);
     setPreviewVariationIndex((current) => current + 1);
     setViewMode("preview");
     setDailyState(null);
@@ -990,6 +995,7 @@ export function WorkoutPreviewExperience({
       return;
     }
 
+    setExpandedInstructionKey(null);
     setIsSubmitting(true);
     try {
       setErrorMessage(null);
@@ -1400,7 +1406,7 @@ export function WorkoutPreviewExperience({
         <TodayCard
           title="Execution Summary"
           accent="subtle"
-          className="lg:col-start-2 lg:row-start-2"
+          className="lg:col-span-2"
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-slate-200">
@@ -1449,11 +1455,15 @@ export function WorkoutPreviewExperience({
 
       <TodayCard
         title={canLogWorkout ? "Exercises And Logging" : "Exercises"}
-        className="lg:col-start-1 lg:row-start-2"
+        className="lg:col-span-2"
       >
         <div className="space-y-4">
           {!isPersistedState && !isCompletedState ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-4">
+            <div
+              className={`rounded-2xl bg-slate-50 px-4 py-4 ${
+                expandedInstructionKey !== null ? "md:hidden" : ""
+              }`}
+            >
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2">
                   {sizeOptions.map((option) => {
@@ -1497,7 +1507,11 @@ export function WorkoutPreviewExperience({
           ) : null}
 
           {canStartWorkout || canCompleteWorkout ? (
-            <div className="space-y-3">
+            <div
+              className={`space-y-3 ${
+                expandedInstructionKey !== null ? "md:hidden" : ""
+              }`}
+            >
               <div className="flex flex-wrap gap-3">
                 {canStartWorkout ? (
                   <button
@@ -1592,7 +1606,7 @@ export function WorkoutPreviewExperience({
           ) : null}
 
           {plannedExercises.length ? (
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
               {plannedExercises.map((exercise) => {
                 const activeSubstitution = activeSubstitutionByExerciseId.get(
                   exercise.id,
@@ -1628,11 +1642,23 @@ export function WorkoutPreviewExperience({
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(exercise.name)
                   ];
+                const instructionKey = `persisted-${exercise.id}-${
+                  displayedCatalogExerciseId ?? "legacy"
+                }`;
+                const isInstructionExpanded =
+                  expandedInstructionKey === instructionKey;
 
                 return (
                   <article
                     key={exercise.id}
-                    className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                    data-expanded={isInstructionExpanded}
+                    className={`rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
+                      isInstructionExpanded
+                        ? "md:col-span-full md:border-emerald-200 md:bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(236,253,245,0.72))] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
+                        : expandedInstructionKey !== null
+                          ? "md:hidden"
+                          : ""
+                    }`}
                   >
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -1642,39 +1668,67 @@ export function WorkoutPreviewExperience({
                         <ExerciseInstructionDisclosure
                           key={displayedCatalogExerciseId ?? "legacy"}
                           catalogExerciseId={displayedCatalogExerciseId}
+                          exerciseName={displayExerciseName}
+                          isExpanded={isInstructionExpanded}
+                          onExpandedChange={(nextIsExpanded) =>
+                            setExpandedInstructionKey((current) =>
+                              nextIsExpanded
+                                ? instructionKey
+                                : current === instructionKey
+                                  ? null
+                                  : current,
+                            )
+                          }
                         />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {exerciseMeta(exercise).map((item) => (
-                          <span
-                            key={`${exercise.id}-${item}`}
-                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                        {exercise.equipment_required.map((item) => (
-                          <span
-                            key={`${exercise.id}-${item}`}
-                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                      </div>
-                      {exerciseActualSets.length ? (
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-emerald-800">
-                          <span>{loggedSetCountLabel(exerciseActualSets, exercise.sets)}</span>
-                          <span className="text-slate-500">
-                            {remainingSetLabel(completedLoggedSetCount, exercise.sets)}
-                          </span>
+                      <div
+                        className={`space-y-2 ${
+                          isInstructionExpanded ? "md:hidden" : ""
+                        }`}
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          {exerciseMeta(exercise).map((item) => (
+                            <span
+                              key={`${exercise.id}-${item}`}
+                              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                          {exercise.equipment_required.map((item) => (
+                            <span
+                              key={`${exercise.id}-${item}`}
+                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                            >
+                              {item}
+                            </span>
+                          ))}
                         </div>
-                      ) : null}
-                      <PreviousPerformanceLine history={history} />
+                        {exerciseActualSets.length ? (
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-emerald-800">
+                            <span>
+                              {loggedSetCountLabel(
+                                exerciseActualSets,
+                                exercise.sets,
+                              )}
+                            </span>
+                            <span className="text-slate-500">
+                              {remainingSetLabel(
+                                completedLoggedSetCount,
+                                exercise.sets,
+                              )}
+                            </span>
+                          </div>
+                        ) : null}
+                        <PreviousPerformanceLine history={history} />
+                      </div>
                     </div>
 
-                    {exerciseActualSets.length ? (
-                      <div className="mt-4 space-y-2">
+                    <div
+                      className={isInstructionExpanded ? "md:hidden" : ""}
+                    >
+                      {exerciseActualSets.length ? (
+                        <div className="mt-4 space-y-2">
                         {exerciseActualSets.map((actualSet) => {
                           const isEditing = editingActualSetId === actualSet.id;
                           const editFormState =
@@ -1812,19 +1866,19 @@ export function WorkoutPreviewExperience({
                             </div>
                           );
                         })}
-                      </div>
-                    ) : canLogWorkout ? (
-                      <div className="mt-4 rounded-[18px] bg-white px-3 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
-                        No sets logged for this exercise yet.
-                      </div>
-                    ) : null}
+                        </div>
+                      ) : canLogWorkout ? (
+                        <div className="mt-4 rounded-[18px] bg-white px-3 py-3 text-sm font-medium text-slate-600 ring-1 ring-slate-200">
+                          No sets logged for this exercise yet.
+                        </div>
+                      ) : null}
 
-                    {canLogWorkout && allPlannedSetsLogged ? (
-                      <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-100">
-                        All planned sets logged
-                      </div>
-                    ) : canLogWorkout ? (
-                      <div className="mt-4 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
+                      {canLogWorkout && allPlannedSetsLogged ? (
+                        <div className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-900 ring-1 ring-emerald-100">
+                          All planned sets logged
+                        </div>
+                      ) : canLogWorkout ? (
+                        <div className="mt-4 rounded-xl bg-white px-3 py-3 ring-1 ring-slate-200">
                         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-slate-950">
@@ -1936,24 +1990,37 @@ export function WorkoutPreviewExperience({
                             Add note
                           </button>
                         )}
-                      </div>
-                    ) : null}
+                        </div>
+                      ) : null}
+                    </div>
                   </article>
                 );
               })}
             </div>
           ) : approvedPlan?.exercises.length ? (
-            <div className="grid gap-3 lg:grid-cols-2">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
               {approvedPlan.exercises.map((exercise, index) => {
                 const history =
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(exercise.name)
                   ];
+                const instructionKey = `preview-${workoutSizePreference}-${previewVariationIndex}-${index}-${
+                  exercise.catalog_exercise_id ?? "legacy"
+                }`;
+                const isInstructionExpanded =
+                  expandedInstructionKey === instructionKey;
 
                 return (
                   <article
                     key={`${exercise.name}-${index + 1}`}
-                    className="rounded-[24px] border border-slate-200 bg-slate-50/80 p-4"
+                    data-expanded={isInstructionExpanded}
+                    className={`rounded-[24px] border border-slate-200 bg-slate-50/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
+                      isInstructionExpanded
+                        ? "md:col-span-full md:border-emerald-200 md:bg-[linear-gradient(145deg,rgba(255,255,255,0.98),rgba(236,253,245,0.72))] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
+                        : expandedInstructionKey !== null
+                          ? "md:hidden"
+                          : ""
+                    }`}
                   >
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
@@ -1963,27 +2030,44 @@ export function WorkoutPreviewExperience({
                         <ExerciseInstructionDisclosure
                           key={exercise.catalog_exercise_id ?? "legacy"}
                           catalogExerciseId={exercise.catalog_exercise_id}
+                          exerciseName={exercise.name}
+                          isExpanded={isInstructionExpanded}
+                          onExpandedChange={(nextIsExpanded) =>
+                            setExpandedInstructionKey((current) =>
+                              nextIsExpanded
+                                ? instructionKey
+                                : current === instructionKey
+                                  ? null
+                                  : current,
+                            )
+                          }
                         />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {exerciseMeta(exercise).map((item) => (
-                          <span
-                            key={`${exercise.name}-${item}`}
-                            className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                          >
-                            {item}
-                          </span>
-                        ))}
-                        {exercise.equipment_required.map((item) => (
-                          <span
-                            key={`${exercise.name}-${item}`}
-                            className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
-                          >
-                            {item}
-                          </span>
-                        ))}
+                      <div
+                        className={`space-y-2 ${
+                          isInstructionExpanded ? "md:hidden" : ""
+                        }`}
+                      >
+                        <div className="flex flex-wrap gap-2">
+                          {exerciseMeta(exercise).map((item) => (
+                            <span
+                              key={`${exercise.name}-${item}`}
+                              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-slate-700"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                          {exercise.equipment_required.map((item) => (
+                            <span
+                              key={`${exercise.name}-${item}`}
+                              className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-900"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                        <PreviousPerformanceLine history={history} />
                       </div>
-                      <PreviousPerformanceLine history={history} />
                     </div>
                   </article>
                 );
