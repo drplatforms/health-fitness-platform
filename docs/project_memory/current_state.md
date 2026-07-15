@@ -1,15 +1,48 @@
+# Current State - Desktop Workout Layout + Explanation Interaction Polish v1
+
+Canonical baseline: `main` at `0159393 Merge Next.js exercise explanation UX v1`.
+
+Canonical baseline snapshot: `fitness_ai_snapshot_2026-07-15_0159393_main_merge-nextjs-exercise-explanation-ux-v1.zip`.
+
+Feature branch: `feature/desktop-workout-layout-explanation-polish-v1`.
+
+Status:
+
+```text
+DESKTOP_WORKOUT_LAYOUT_EXPLANATION_POLISH_V1_ARCHITECTURE_ACCEPTED
+```
+
+Implementation scope:
+
+- The Exercises workspace now spans the existing centered workout shell instead of remaining in the left column. Exercise cards use an auto-fitting CSS grid with a readable `20rem` minimum, producing a single column at narrow widths and naturally adapting to roughly two or three columns across the available desktop width.
+- Explanation expansion is coordinated by one parent-owned active key. On desktop, opening `How To` enters a focused detail state: the selected card spans the full exercise grid, the other exercise cards and workout controls are hidden, and compact workout details are replaced by the structured explanation surface without navigation or workout-state changes.
+- The desktop detail surface retains the exercise name and a clear `Back to workout` control, keeps the overview prominent, and arranges Setup, How to do it, Form cues, Common mistakes, and Safety in a readable two-column layout where width allows.
+- The reveal uses a short perspective rotation and crossfade when motion is allowed. `prefers-reduced-motion` receives only a brief fade, and the semantic disclosure buttons retain `aria-expanded`, panel associations, keyboard operation, and visible focus treatment.
+- Closing the focused detail state restores the complete exercise grid and its controls in their prior responsive layout. Narrow layouts retain the accepted inline disclosure behavior, compact exercise content, and single-column flow; the focused-card hiding begins only at the existing medium breakpoint, with no nested instruction scroll region.
+- Stable catalog-ID lookup, lazy instruction fetching, mounted component-local success caching, retry behavior, active-substitution identity, and null-ID omission remain unchanged. No backend, database, instruction corpus, workout generation, selection, execution, substitution, progression, set logging, or completion behavior changed.
+
+Next recommended milestone after Architecture acceptance:
+
+```text
+Today Food Workspace Deck v1
+```
+
+That next milestone is not implementation-authorized.
+
+---
+
 # Current State - Next.js Exercise Explanation UX v1
 
-Canonical starting baseline: `main` at `41dbb3a Merge exercise instruction API read surface v1`.
+Accepted merge: `0159393 Merge Next.js exercise explanation UX v1`.
 
-Canonical starting snapshot: `fitness_ai_snapshot_2026-07-15_41dbb3a_main_merge-exercise-instruction-api-read-surface-v1.zip`.
+Accepted snapshot: `fitness_ai_snapshot_2026-07-15_0159393_main_merge-nextjs-exercise-explanation-ux-v1.zip`.
 
 Feature branch: `feature/nextjs-exercise-explanation-ux-v1`.
 
 Status:
 
 ```text
-NEXTJS_EXERCISE_EXPLANATION_UX_V1_ARCHITECTURE_ACCEPTED
+NEXTJS_EXERCISE_EXPLANATION_UX_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 Implementation scope:
@@ -22,13 +55,13 @@ Implementation scope:
 - Loading and retryable failure states remain local to the affected exercise card. The proxy validates positive integer IDs, preserves meaningful backend statuses and bounded detail text, and returns `502` when the backend cannot be reached.
 - No backend, database, instruction corpus, exercise library, media, provider/AI, or workout behavior change is included.
 
-Next recommended milestone after Architecture acceptance:
+Next implemented milestone:
 
 ```text
-Mobile Workout UX Polish v1
+Desktop Workout Layout + Explanation Interaction Polish v1
 ```
 
-That next milestone is not implementation-authorized.
+The accepted explanation UX is the stable functional baseline for that separately authorized desktop-only layout and interaction milestone.
 
 ---
 
