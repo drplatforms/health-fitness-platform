@@ -37,7 +37,7 @@ export function UserSwitcher({
       className={`flex ${showLabel ? "flex-col gap-2 sm:items-end" : "items-center gap-2"} ${className}`}
     >
       {showLabel ? (
-        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
           User
         </span>
       ) : null}
@@ -45,7 +45,7 @@ export function UserSwitcher({
         value={String(currentUserId)}
         onChange={(event) => handleChange(event.target.value)}
         disabled={isPending}
-        className={`min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-70 ${selectClassName}`}
+        className={`min-w-[180px] rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary outline-none transition focus:border-focus disabled:cursor-not-allowed disabled:opacity-70 ${selectClassName}`}
       >
         {SWITCHABLE_USERS.map((user) => (
           <option key={user.id} value={user.id}>

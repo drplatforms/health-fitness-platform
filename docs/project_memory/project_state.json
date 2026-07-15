@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Personal Food Serving Display Fix v1",
-    "current_recommended_milestone": "Pending product roadmap review",
+    "current_authorized_milestone": "Theme System Foundation v1",
+    "current_recommended_milestone": "Pending next bounded Theme System + Dark Mode milestone review",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "PERSONAL_FOOD_SERVING_DISPLAY_FIX_V1_ARCHITECTURE_ACCEPTED",
+    "implementation_status": "THEME_SYSTEM_FOUNDATION_V1_ARCHITECTURE_ACCEPTED",
     "primary_question": "Does the Today food workspace provide a clear, accessible overlapping Log Food and My Foods deck with click, keyboard, and header-only swipe switching while preserving both child surfaces and their in-progress state?",
     "qa_class": "FRONTEND_PRODUCTION_BROWSER_SMOKE",
-    "recommended_next_milestone_after_acceptance": "Pending product roadmap review",
-    "recommended_owner": "Architecture review after product roadmap is provided",
-    "source_feature_branch": "feature/personal-food-serving-display-fix-v1",
-    "source_feature_commit": "unstaged and uncommitted implementation",
-    "source_main_commit": "15964d7"
+    "recommended_next_milestone_after_acceptance": "Pending Architecture review",
+    "recommended_owner": "Architecture",
+    "source_feature_branch": "feature/theme-system-foundation-v1",
+    "source_feature_commit": "uncommitted accepted implementation",
+    "source_main_commit": "c526289"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -704,7 +704,7 @@
     "north_star": "Fitness AI Platform is a personal AI health operating system.",
     "primary_doc": "docs/project_memory/future_feature_technology_inventory_v1.md",
     "purpose": "Preserve future product, technology, architecture, AI, workflow, UX, learning, and platform ideas without authorizing implementation.",
-    "qa_class": "CLASS 0 \u2014 DOCS / PROJECT MEMORY ONLY",
+    "qa_class": "CLASS 0 — DOCS / PROJECT MEMORY ONLY",
     "requested_final_status": "FUTURE_FEATURE_TECHNOLOGY_INVENTORY_V1_ACCEPTED",
     "source_main_commit": "9d66514",
     "status": "docs/project-memory update complete / ready for Architecture review"
@@ -802,7 +802,7 @@
       "low_confidence",
       "unknown"
     ],
-    "qa_class": "CLASS 3 \u2014 PERSISTENCE / DATA INTEGRITY / ACTUALS SEMANTICS",
+    "qa_class": "CLASS 3 — PERSISTENCE / DATA INTEGRITY / ACTUALS SEMANTICS",
     "qa_result": "NUTRITION_ACTUALS_PROVENANCE_CONFIDENCE_MODEL_QA_V1_PASS",
     "requested_final_status": "NUTRITION_ACTUALS_PROVENANCE_CONFIDENCE_MODEL_V1_ACCEPTED",
     "sandbox_validation": {
@@ -1671,6 +1671,35 @@
     "desktop_browser_smoke_passed": true,
     "mobile_browser_smoke_passed": true,
     "next_milestone": "Pending product roadmap review",
+    "next_milestone_implementation_authorized": false
+  },
+  "theme_system_foundation_v1": {
+    "baseline_commit": "c526289",
+    "feature_branch": "feature/theme-system-foundation-v1",
+    "status": "THEME_SYSTEM_FOUNDATION_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Semantic frontend color-token foundation plus bounded migration of shared UI primitives while preserving the accepted light theme.",
+    "ui_change": true,
+    "semantic_theme_tokens_added": true,
+    "accepted_light_theme_preserved": true,
+    "migrated_components": [
+      "TodayCard",
+      "StatusPill",
+      "DataQualityNote",
+      "UserSwitcher",
+      "NutritionMacroCard"
+    ],
+    "dark_mode_added": false,
+    "theme_preference_added": false,
+    "theme_persistence_added": false,
+    "theme_provider_added": false,
+    "first_paint_theme_script_added": false,
+    "dependency_change": false,
+    "backend_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "desktop_browser_smoke_passed": true,
+    "mobile_browser_smoke_passed": true,
+    "next_theme_milestone": "Pending Architecture review",
     "next_milestone_implementation_authorized": false
   }
 }

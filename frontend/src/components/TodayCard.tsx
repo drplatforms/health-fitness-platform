@@ -9,10 +9,10 @@ interface TodayCardProps {
 }
 
 const ACCENT_CLASS_MAP = {
-  default: "border-slate-200 bg-white",
-  warm: "border-amber-200 bg-amber-50/70",
-  highlight: "border-emerald-300 bg-emerald-50/90 shadow-[0_18px_45px_-28px_rgba(5,150,105,0.55)]",
-  subtle: "border-slate-200/80 bg-slate-50/90",
+  default: "border-border bg-surface",
+  warm: "border-border-warm bg-surface-warm",
+  highlight: "border-border-accent bg-surface-highlighted shadow-[0_18px_45px_-28px_rgba(5,150,105,0.55)]",
+  subtle: "border-border-subtle/80 bg-surface-subtle/90",
 } as const;
 
 export function TodayCard({
@@ -29,11 +29,11 @@ export function TodayCard({
       <div className="flex flex-col gap-4">
         <div className="space-y-1">
           {eyebrow ? (
-            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-text-muted">
               {eyebrow}
             </p>
           ) : null}
-          <h2 className="text-xl font-semibold text-slate-950">{title}</h2>
+          <h2 className="text-xl font-semibold text-text-strong">{title}</h2>
         </div>
         {children}
       </div>
