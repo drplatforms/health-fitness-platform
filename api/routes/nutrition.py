@@ -3,10 +3,12 @@
 # =====================================
 
 from datetime import date as date_cls
+from typing import Annotated, Any
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, BeforeValidator
 
+from models.personal_food_models import PersonalFoodRevisionInput
 from services.food_logging_recents_service import get_recent_canonical_foods
 from services.nutrition_actuals_confidence_service import (
     build_public_nutrition_actuals_confidence_for_date,
@@ -32,6 +34,21 @@ from services.nutrition_serving_unit_logging_service import (
     ServingUnitNotFoundError,
     log_canonical_food_serving,
 )
+from services.personal_food_logging_service import log_personal_food
+from services.personal_food_service import (
+    PersonalFoodArchivedError,
+    PersonalFoodDuplicateNameError,
+    PersonalFoodNotFoundError,
+    PersonalFoodUserNotFoundError,
+    PersonalFoodValidationError,
+    archive_personal_food,
+    create_personal_food,
+    get_personal_food,
+    list_personal_foods,
+    restore_personal_food,
+    revise_personal_food,
+    search_personal_foods,
+)
 
 # =====================================
 # Router Initialization
@@ -43,6 +60,16 @@ router = APIRouter()
 # =====================================
 # Request Models
 # =====================================
+
+
+def _reject_boolean_numeric(value: Any) -> Any:
+    if isinstance(value, bool):
+        raise ValueError("Boolean values are not valid numeric input.")
+    return value
+
+
+PersonalFoodNumber = Annotated[float, BeforeValidator(_reject_boolean_numeric)]
+PersonalFoodId = Annotated[int, BeforeValidator(_reject_boolean_numeric)]
 
 
 class NutritionLogRequest(BaseModel):
@@ -76,6 +103,41 @@ class ServingUnitNutritionLogRequest(BaseModel):
     meal: str | None = None
     meal_type: str | None = None
     logged_date: str | None = None
+    notes: str | None = None
+
+
+class PersonalFoodCreateRequest(BaseModel):
+    display_name: str
+    brand_name: str | None = None
+    input_basis: str
+    serving_name: str | None = None
+    serving_grams: PersonalFoodNumber | None = None
+    calories: PersonalFoodNumber | None = None
+    protein_g: PersonalFoodNumber | None = None
+    carbs_g: PersonalFoodNumber | None = None
+    fat_g: PersonalFoodNumber | None = None
+    source_note: str | None = None
+
+
+class PersonalFoodRevisionRequest(BaseModel):
+    display_name: str | None = None
+    brand_name: str | None = None
+    input_basis: str
+    serving_name: str | None = None
+    serving_grams: PersonalFoodNumber | None = None
+    calories: PersonalFoodNumber | None = None
+    protein_g: PersonalFoodNumber | None = None
+    carbs_g: PersonalFoodNumber | None = None
+    fat_g: PersonalFoodNumber | None = None
+    source_note: str | None = None
+
+
+class PersonalFoodLogRequest(BaseModel):
+    personal_food_id: PersonalFoodId
+    grams: PersonalFoodNumber | None = None
+    serving_quantity: PersonalFoodNumber | None = None
+    entry_date: str | None = None
+    meal_type: str | None = None
     notes: str | None = None
 
 
@@ -236,6 +298,178 @@ def recent_canonical_foods(user_id: int, limit: str = "10"):
     }
 
 
+# =====================================
+# Personal Food Endpoints
+# =====================================
+
+
+@router.post("/nutrition/{user_id}/personal-foods")
+def create_owned_personal_food(
+    user_id: int,
+    request: PersonalFoodCreateRequest,
+):
+    try:
+        personal_food = create_personal_food(
+            user_id=user_id,
+            revision_input=_personal_food_revision_input(request),
+        )
+    except PersonalFoodDuplicateNameError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "personal_food": personal_food.to_public_dict(),
+    }
+
+
+@router.get("/nutrition/{user_id}/personal-foods")
+def list_owned_personal_foods(
+    user_id: int,
+    include_archived: bool = False,
+    limit: int = 50,
+):
+    try:
+        personal_foods = list_personal_foods(
+            user_id=user_id,
+            include_archived=include_archived,
+            limit=limit,
+        )
+    except PersonalFoodUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": [item.to_public_dict() for item in personal_foods],
+    }
+
+
+@router.get("/nutrition/{user_id}/personal-foods/search")
+def search_owned_personal_foods(
+    user_id: int,
+    q: str,
+    include_archived: bool = False,
+    limit: int = 20,
+):
+    try:
+        personal_foods = search_personal_foods(
+            user_id=user_id,
+            query=q,
+            include_archived=include_archived,
+            limit=limit,
+        )
+    except PersonalFoodUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": [item.to_public_dict() for item in personal_foods],
+    }
+
+
+@router.get("/nutrition/{user_id}/personal-foods/{personal_food_id}")
+def read_owned_personal_food(user_id: int, personal_food_id: int):
+    try:
+        personal_food = get_personal_food(
+            user_id=user_id,
+            personal_food_id=personal_food_id,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "personal_food": personal_food.to_public_dict(),
+    }
+
+
+@router.patch("/nutrition/{user_id}/personal-foods/{personal_food_id}")
+def revise_owned_personal_food(
+    user_id: int,
+    personal_food_id: int,
+    request: PersonalFoodRevisionRequest,
+):
+    try:
+        personal_food = revise_personal_food(
+            user_id=user_id,
+            personal_food_id=personal_food_id,
+            revision_input=_personal_food_revision_input(request),
+        )
+    except PersonalFoodDuplicateNameError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PersonalFoodValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "personal_food": personal_food.to_public_dict(),
+    }
+
+
+@router.delete("/nutrition/{user_id}/personal-foods/{personal_food_id}")
+def archive_owned_personal_food(user_id: int, personal_food_id: int):
+    try:
+        personal_food = archive_personal_food(
+            user_id=user_id,
+            personal_food_id=personal_food_id,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "personal_food": personal_food.to_public_dict(),
+    }
+
+
+@router.post("/nutrition/{user_id}/personal-foods/{personal_food_id}/restore")
+def restore_owned_personal_food(user_id: int, personal_food_id: int):
+    try:
+        personal_food = restore_personal_food(
+            user_id=user_id,
+            personal_food_id=personal_food_id,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "personal_food": personal_food.to_public_dict(),
+    }
+
+
+@router.post("/nutrition/{user_id}/log-personal")
+def log_owned_personal_food(user_id: int, request: PersonalFoodLogRequest):
+    try:
+        logged = log_personal_food(
+            user_id=user_id,
+            personal_food_id=request.personal_food_id,
+            grams=request.grams,
+            serving_quantity=request.serving_quantity,
+            entry_date=request.entry_date,
+            meal_type=request.meal_type,
+            notes=request.notes,
+        )
+    except (PersonalFoodUserNotFoundError, PersonalFoodNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (PersonalFoodArchivedError, PersonalFoodValidationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        **logged.to_public_dict(),
+    }
+
+
 @router.get("/nutrition/{user_id}/{entry_date}")
 def daily_nutrition(user_id: int, entry_date: str):
     nutrition = get_daily_nutrition(user_id, entry_date)
@@ -244,6 +478,23 @@ def daily_nutrition(user_id: int, entry_date: str):
         "success": True,
         "nutrition": nutrition,
     }
+
+
+def _personal_food_revision_input(
+    request: PersonalFoodCreateRequest | PersonalFoodRevisionRequest,
+) -> PersonalFoodRevisionInput:
+    return PersonalFoodRevisionInput(
+        display_name=request.display_name,
+        brand_name=request.brand_name,
+        input_basis=request.input_basis,
+        serving_name=request.serving_name,
+        serving_grams=request.serving_grams,
+        calories=request.calories,
+        protein_g=request.protein_g,
+        carbs_g=request.carbs_g,
+        fat_g=request.fat_g,
+        source_note=request.source_note,
+    )
 
 
 # =====================================
