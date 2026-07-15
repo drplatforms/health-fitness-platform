@@ -1,15 +1,49 @@
+# Current State - Today Food Workspace Deck v1
+
+Canonical baseline: `main` at `5c9ae9e Merge desktop workout layout and explanation polish v1`.
+
+Canonical baseline snapshot: `fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip`.
+
+Feature branch: `feature/today-food-workspace-deck-v1`.
+
+Status:
+
+```text
+TODAY_FOOD_WORKSPACE_DECK_V1_ARCHITECTURE_ACCEPTED
+```
+
+Implementation scope:
+
+- The Today page now presents Log Food and My Foods as one overlapping two-card workspace. The compact card headers are semantic tabs, preserve the Today URL, and switch between the existing logging and personal-food management surfaces without a route change.
+- Both child surfaces remain mounted while one is hidden, so in-progress Log Food search, selection, amount, unit, and meal state and My Foods search/archive-view state survive card switching.
+- The semantic selector buttons own ordinary click/tap activation. The header alone recognizes bounded horizontal pointer swipes: left opens My Foods and right opens Log Food, with pointer capture and click suppression beginning only after horizontal movement crosses the swipe threshold. Vertical movement remains available for page scrolling, and inputs, food results, action controls, and the card body do not initiate deck swipes.
+- Keyboard Arrow Left/Right and Home/End switch the tab state with roving focus. Active/inactive stacking, overlap, and motion remain clear at desktop and mobile widths, with reduced-motion support.
+- The existing Log Food and Personal Foods business logic is reused through narrow embedded variants. Standalone `/personal-foods`, create, edit, archive, restore, canonical/personal search, logging, and Today refresh behavior remain unchanged.
+- User-facing capitalization in the touched Personal Foods surfaces is consistently `My Foods`.
+- No backend API, database, schema, nutrition calculation, food identity, logging contract, workout behavior, provider, or AI behavior changed.
+
+Next recommended milestone after Architecture acceptance:
+
+```text
+Theme System + Dark Mode v1
+```
+
+That next milestone is not implementation-authorized.
+
+---
+
 # Current State - Desktop Workout Layout + Explanation Interaction Polish v1
 
-Canonical baseline: `main` at `0159393 Merge Next.js exercise explanation UX v1`.
+Accepted merge: `5c9ae9e Merge desktop workout layout and explanation polish v1`.
 
-Canonical baseline snapshot: `fitness_ai_snapshot_2026-07-15_0159393_main_merge-nextjs-exercise-explanation-ux-v1.zip`.
+Accepted snapshot: `fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip`.
 
 Feature branch: `feature/desktop-workout-layout-explanation-polish-v1`.
 
 Status:
 
 ```text
-DESKTOP_WORKOUT_LAYOUT_EXPLANATION_POLISH_V1_ARCHITECTURE_ACCEPTED
+DESKTOP_WORKOUT_LAYOUT_EXPLANATION_POLISH_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 Implementation scope:
@@ -21,13 +55,13 @@ Implementation scope:
 - Closing the focused detail state restores the complete exercise grid and its controls in their prior responsive layout. Narrow layouts retain the accepted inline disclosure behavior, compact exercise content, and single-column flow; the focused-card hiding begins only at the existing medium breakpoint, with no nested instruction scroll region.
 - Stable catalog-ID lookup, lazy instruction fetching, mounted component-local success caching, retry behavior, active-substitution identity, and null-ID omission remain unchanged. No backend, database, instruction corpus, workout generation, selection, execution, substitution, progression, set logging, or completion behavior changed.
 
-Next recommended milestone after Architecture acceptance:
+Next implemented milestone:
 
 ```text
 Today Food Workspace Deck v1
 ```
 
-That next milestone is not implementation-authorized.
+The accepted desktop workout layout is the stable baseline for the separately authorized Today Food Workspace Deck v1 milestone.
 
 ---
 

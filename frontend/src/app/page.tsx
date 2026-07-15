@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { FoodLoggingCard } from "@/components/FoodLoggingCard";
+import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
@@ -340,7 +340,7 @@ export default async function Home({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
-              <FoodLoggingCard
+              <FoodWorkspaceDeck
                 key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
                 userId={todayQuery.userId ?? data.user_id}
                 targetDate={data.target_date}

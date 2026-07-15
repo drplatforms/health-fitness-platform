@@ -1,0 +1,125 @@
+.deck {
+  isolation: isolate;
+}
+
+.tabList {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0.75rem;
+  margin-bottom: -0.9rem;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.tab {
+  position: relative;
+  flex: 0 1 calc(50% + 0.75rem);
+  min-width: 0;
+  min-height: 4.5rem;
+  border: 1px solid rgb(203 213 225);
+  border-radius: 1.5rem 1.5rem 1rem 1rem;
+  padding: 0.9rem 1.1rem 1.35rem;
+  text-align: left;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.tab + .tab {
+  margin-left: -1.5rem;
+}
+
+.activeTab {
+  z-index: 2;
+  border-color: rgb(167 243 208);
+  background: rgb(255 255 255);
+  color: rgb(6 78 59);
+  box-shadow: 0 18px 35px -24px rgb(15 23 42 / 0.55);
+  transform: translateY(0);
+}
+
+.inactiveTab {
+  z-index: 1;
+  border-color: rgb(226 232 240);
+  background: rgb(241 245 249);
+  color: rgb(71 85 105);
+  box-shadow: 0 12px 26px -24px rgb(15 23 42 / 0.5);
+  transform: translateY(0.55rem) scale(0.98);
+}
+
+.tabLabel {
+  display: block;
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabHint {
+  display: block;
+  margin-top: 0.15rem;
+  overflow: hidden;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.surface {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 1.75rem;
+  background: rgb(255 255 255);
+  padding: 2.15rem 1.25rem 1.25rem;
+  box-shadow: 0 22px 55px -38px rgb(15 23 42 / 0.55);
+}
+
+.panel {
+  min-width: 0;
+  animation: panel-reveal 180ms ease-out;
+}
+
+@keyframes panel-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(0.2rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 640px) {
+  .tabList {
+    padding-inline: 1.25rem;
+  }
+
+  .tab {
+    min-height: 4.8rem;
+    padding-inline: 1.35rem;
+  }
+
+  .surface {
+    padding: 2.4rem 1.5rem 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .panel {
+    transition: none;
+    animation: none;
+  }
+}
