@@ -68,24 +68,27 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_c0b7fbb_main_exercise-catalog-identity-propagation-v1.zip",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_08a962c_main_merge-exercise-instruction-contract-persistence-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Exercise Instruction Contract + Persistence v1",
-    "current_recommended_milestone": "Exercise Instruction Seed Coverage v1",
-    "current_recommended_status": "RECOMMENDED_AFTER_ARCHITECTURE_ACCEPTANCE",
-    "implementation_status": "EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should deterministic production instruction coverage be seeded against stable exercise_catalog_exercises.id values after this contract is accepted?",
-    "qa_class": "BACKEND_SCHEMA_PERSISTENCE",
-    "recommended_next_milestone_after_acceptance": "Exercise Instruction Seed Coverage v1",
+    "current_authorized_milestone": "Exercise Instruction Seed Coverage v1",
+    "current_recommended_milestone": "Exercise Instruction API / Read Surface v1",
+    "current_recommended_status": "RECOMMENDED_AFTER_ARCHITECTURE_ACCEPTANCE_NOT_IMPLEMENTATION_AUTHORIZED",
+    "implementation_status": "EXERCISE_INSTRUCTION_SEED_COVERAGE_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should complete persisted exercise instructions be exposed through a narrow backend-owned public read surface after seed coverage is accepted?",
+    "qa_class": "BACKEND_SEED_DATA_PERSISTENCE",
+    "recommended_next_milestone_after_acceptance": "Exercise Instruction API / Read Surface v1",
     "recommended_owner": "Architecture review, then Backend Development only after explicit authorization",
-    "source_feature_branch": "feature/exercise-instruction-contract-persistence-v1",
+    "source_feature_branch": "feature/exercise-instruction-seed-coverage-v1",
     "source_feature_commit": "unstaged and uncommitted implementation",
-    "source_main_commit": "c0b7fbb"
+    "source_main_commit": "08a962c"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
+    "feature_implementation_commit": "cc06a25",
+    "accepted_merge_commit": "08a962c",
+    "accepted_snapshot": "fitness_ai_snapshot_2026-07-15_08a962c_main_merge-exercise-instruction-contract-persistence-v1.zip",
     "feature_branch": "feature/exercise-instruction-contract-persistence-v1",
-    "status": "EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED",
+    "status": "EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ACCEPTED_MERGED_AND_CLOSED",
     "scope": "Structured exercise-instruction contract plus additive one-to-one persistence and internal deterministic upsert/read seams keyed by exercise_catalog_exercises.id.",
     "schema": {
       "table": "exercise_catalog_instructions",
@@ -105,6 +108,29 @@
     "workout_behavior_change": false,
     "canonical_database_data_change": false,
     "next_recommended_milestone": "Exercise Instruction Seed Coverage v1"
+  },
+  "exercise_instruction_seed_coverage_v1": {
+    "baseline_commit": "08a962c",
+    "feature_branch": "feature/exercise-instruction-seed-coverage-v1",
+    "status": "EXERCISE_INSTRUCTION_SEED_COVERAGE_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Deterministic repository-owned structured instruction seed coverage for every current curated exercise, atomically persisted by stable exercise_catalog_exercises.id.",
+    "expected_catalog_count": 240,
+    "instruction_seed_count": 240,
+    "exact_catalog_coverage": true,
+    "exercise_specific_corpus_quality_repair": true,
+    "generic_execution_template_leakage_rejected": true,
+    "placeholder_language_rejected": true,
+    "atomic_instruction_seeding": true,
+    "idempotent_reseeding": true,
+    "runtime_name_fallback": false,
+    "production_instruction_coverage": true,
+    "api_change": false,
+    "frontend_change": false,
+    "provider_change": false,
+    "workout_behavior_change": false,
+    "canonical_database_data_change": false,
+    "next_recommended_milestone": "Exercise Instruction API / Read Surface v1",
+    "next_milestone_implementation_authorized": false
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
