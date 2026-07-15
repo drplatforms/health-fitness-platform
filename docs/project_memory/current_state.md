@@ -1,13 +1,51 @@
-# Current State - Exercise Instruction Contract + Persistence v1
+# Current State - Exercise Instruction Seed Coverage v1
 
-Implementation baseline: `main` at `c0b7fbb Close exercise catalog identity propagation v1`.
+Implementation baseline: `main` at `08a962c Merge exercise instruction contract and persistence v1`.
 
-Feature branch: `feature/exercise-instruction-contract-persistence-v1`.
+Feature branch: `feature/exercise-instruction-seed-coverage-v1`.
 
 Status:
 
 ```text
-EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ARCHITECTURE_ACCEPTED
+EXERCISE_INSTRUCTION_SEED_COVERAGE_V1_ARCHITECTURE_ACCEPTED
+```
+
+Implementation scope:
+
+- Added deterministic repository-owned structured instruction seed coverage for all `240` current curated catalog exercises.
+- The dedicated seed-data module organizes shared movement/equipment-specific instruction profiles plus exact-name definitions and exercise-specific overrides where mechanics diverge. Every final payload contains an overview, setup steps, one coherent execution sequence, form cues, common mistakes, and conservative safety notes written for the named exercise.
+- Architecture's corpus-quality repair removed the generic-profile-plus-specific-step composition from all `240` final records. Supported and unsupported rows, unilateral and bilateral work, holds and moving repetitions, rotational and anti-rotational work, technique drills, and conditioning modalities no longer share incompatible execution copy.
+- Exact catalog names are used only to validate and resolve the static seed corpus. Persisted instruction ownership remains keyed solely by `exercise_catalog_exercises.id`; no second identity, fuzzy matching, or runtime name fallback was added.
+- `seed_exercise_instructions()` seeds the curated catalog, validates complete exact coverage before instruction writes, resolves stable persisted IDs, validates every instruction object, and upserts all `240` rows in one rollback-capable transaction.
+- Repeated seeding is deterministic and idempotent. Repository copy changes may update the corresponding instruction rows without creating duplicates.
+- Coverage validation fails on missing, unknown, or duplicate names before instruction writes. A simulated mid-write failure test verifies that partial instruction coverage is rolled back.
+- Content integrity checks reject blank fields, empty production lists, placeholder words such as `specified`, `required`, and `chosen`, the known leaked template phrases, generic profile execution steps in final records, tautological name-overview openings, ambiguous mixed-variant fragments, and explicit equipment terms not present in the exercise's catalog requirements.
+- No API route or response, frontend, Streamlit, workout generation/selection/substitution, progression, provider/AI, or canonical database data change is included.
+- Validation passed after the corpus-quality repair: focused seed-coverage plus accepted persistence tests `25 passed`; required catalog/workout regression slice `263 passed`; project-memory tests `29 passed`; project-memory checker `608 PASS`, `39 WARN`, `0 FAIL`; touched-file Ruff check, Ruff format check, and Python compilation passed.
+- No browser smoke was required because there is no frontend or public API behavior. The canonical `fitness_ai.db` remained unchanged at SHA-256 `FEDC430E47E32B338E1E2EF471B355528B99AA5007A1EF577A32678EECF3ABA7` throughout validation.
+
+Next recommended milestone after Architecture acceptance:
+
+```text
+Exercise Instruction API / Read Surface v1
+```
+
+That next milestone is not implementation-authorized. This seed implementation is awaiting Architecture review and is not accepted, merged, pushed, or snapshotted.
+
+---
+
+# Current State - Exercise Instruction Contract + Persistence v1
+
+Feature implementation: `cc06a25 Add exercise instruction contract and persistence`.
+
+Accepted merge: `08a962c Merge exercise instruction contract and persistence v1`.
+
+Accepted snapshot: `fitness_ai_snapshot_2026-07-15_08a962c_main_merge-exercise-instruction-contract-persistence-v1.zip`.
+
+Status:
+
+```text
+EXERCISE_INSTRUCTION_CONTRACT_PERSISTENCE_V1_ACCEPTED_MERGED_AND_CLOSED
 ```
 
 Implementation scope:
@@ -22,13 +60,13 @@ Implementation scope:
 - Validation passed: focused instruction persistence `12 passed`; required catalog/workout regression slice `263 passed`; project-memory tests `29 passed`; project-memory checker `608 PASS`, `39 WARN`, `0 FAIL`; touched-file Ruff check, Ruff format check, and Python compilation passed.
 - No browser smoke was required because there is no frontend or public API behavior. The canonical `fitness_ai.db` remained unchanged at SHA-256 `FEDC430E47E32B338E1E2EF471B355528B99AA5007A1EF577A32678EECF3ABA7` throughout validation.
 
-Next recommended milestone after Architecture acceptance:
+Next implemented milestone:
 
 ```text
 Exercise Instruction Seed Coverage v1
 ```
 
-This implementation is awaiting Architecture review. It is not accepted, merged, pushed, snapshotted, seeded with production instruction coverage, or exposed through an API/frontend.
+Exercise Instruction Contract + Persistence v1 is accepted, merged, and closed. It did not add production instruction coverage, API exposure, or frontend behavior.
 
 ---
 

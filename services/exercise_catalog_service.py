@@ -6,6 +6,7 @@ from dataclasses import asdict
 import database
 from database import get_connection
 from models.exercise_catalog_models import ExerciseCatalogEntry, ExerciseInstruction
+from services import exercise_instruction_seed_data
 
 _CATALOG_CACHE_BY_DB_PATH: dict[str, list[ExerciseCatalogEntry]] = {}
 
@@ -2336,12 +2337,29 @@ def upsert_exercise_instruction(
     ensure_exercise_catalog_tables()
     conn = get_connection()
     cursor = conn.cursor()
+    try:
+        with conn:
+            _upsert_exercise_instruction_row(cursor, instruction)
+    finally:
+        conn.close()
+
+    return ExerciseInstruction(
+        catalog_exercise_id=instruction.catalog_exercise_id,
+        overview=instruction.overview,
+        setup_steps=list(instruction.setup_steps),
+        execution_steps=list(instruction.execution_steps),
+        form_cues=list(instruction.form_cues),
+        common_mistakes=list(instruction.common_mistakes),
+        safety_notes=list(instruction.safety_notes),
+    )
+
+
+def _upsert_exercise_instruction_row(cursor, instruction: ExerciseInstruction) -> None:
     cursor.execute(
         "SELECT 1 FROM exercise_catalog_exercises WHERE id = ?",
         (instruction.catalog_exercise_id,),
     )
     if cursor.fetchone() is None:
-        conn.close()
         raise ValueError(
             f"Catalog exercise {instruction.catalog_exercise_id} does not exist"
         )
@@ -2377,18 +2395,6 @@ def upsert_exercise_instruction(
             _encode_instruction_list(instruction.common_mistakes),
             _encode_instruction_list(instruction.safety_notes),
         ),
-    )
-    conn.commit()
-    conn.close()
-
-    return ExerciseInstruction(
-        catalog_exercise_id=instruction.catalog_exercise_id,
-        overview=instruction.overview,
-        setup_steps=list(instruction.setup_steps),
-        execution_steps=list(instruction.execution_steps),
-        form_cues=list(instruction.form_cues),
-        common_mistakes=list(instruction.common_mistakes),
-        safety_notes=list(instruction.safety_notes),
     )
 
 
@@ -2551,6 +2557,74 @@ def seed_exercise_catalog() -> list[ExerciseCatalogEntry]:
     conn.close()
     _CATALOG_CACHE_BY_DB_PATH.pop(_exercise_catalog_cache_key(), None)
     return list(CURATED_EXERCISE_CATALOG)
+
+
+def _validate_exercise_instruction_seed_coverage(
+    catalog_names: list[str],
+    seed_names: set[str],
+) -> None:
+    catalog_name_set = set(catalog_names)
+    if len(catalog_name_set) != len(catalog_names):
+        raise ValueError("Curated exercise catalog contains duplicate names")
+
+    missing = sorted(catalog_name_set - seed_names)
+    unknown = sorted(seed_names - catalog_name_set)
+    if missing or unknown:
+        details: list[str] = []
+        if missing:
+            details.append(f"missing seed exercises: {', '.join(missing)}")
+        if unknown:
+            details.append(f"unknown seed exercises: {', '.join(unknown)}")
+        raise ValueError(
+            "Exercise instruction seed coverage mismatch; " + "; ".join(details)
+        )
+
+
+def seed_exercise_instructions() -> list[ExerciseInstruction]:
+    """Atomically persist complete repository-owned instruction seed coverage."""
+
+    seed_exercise_catalog()
+    catalog_names = [entry.name for entry in CURATED_EXERCISE_CATALOG]
+    instruction_seeds = exercise_instruction_seed_data.EXERCISE_INSTRUCTION_SEEDS
+    _validate_exercise_instruction_seed_coverage(
+        catalog_names,
+        set(instruction_seeds),
+    )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT id, name FROM exercise_catalog_exercises")
+        persisted_ids_by_name = {row["name"]: row["id"] for row in cursor.fetchall()}
+        unresolved = sorted(set(catalog_names) - set(persisted_ids_by_name))
+        if unresolved:
+            raise ValueError(
+                "Persisted exercise catalog is missing seed targets: "
+                + ", ".join(unresolved)
+            )
+
+        instructions = []
+        for name in catalog_names:
+            seed = instruction_seeds[name]
+            instruction = ExerciseInstruction(
+                catalog_exercise_id=persisted_ids_by_name[name],
+                overview=seed.overview,
+                setup_steps=list(seed.setup_steps),
+                execution_steps=list(seed.execution_steps),
+                form_cues=list(seed.form_cues),
+                common_mistakes=list(seed.common_mistakes),
+                safety_notes=list(seed.safety_notes),
+            )
+            _validate_exercise_instruction(instruction)
+            instructions.append(instruction)
+
+        with conn:
+            for instruction in instructions:
+                _upsert_exercise_instruction_row(cursor, instruction)
+    finally:
+        conn.close()
+
+    return instructions
 
 
 def _row_to_catalog_entry(row, equipment_required: list[str]) -> ExerciseCatalogEntry:
