@@ -115,6 +115,19 @@ def test_seeded_users_build_valid_approved_workout_plans(tmp_path, monkeypatch):
         assert "RIR" in rendered
 
 
+def test_catalog_exercise_identity_survives_candidate_approval(tmp_path, monkeypatch):
+    health_state = _seeded_health_states(tmp_path, monkeypatch)[102]
+    context = build_workout_context(health_state)
+    candidate = generate_candidate_workout_plan(context)
+
+    approved = approve_candidate_workout_plan(candidate, context)
+
+    candidate_ids = [exercise.catalog_exercise_id for exercise in candidate.exercises]
+    approved_ids = [exercise.catalog_exercise_id for exercise in approved.exercises]
+    assert all(catalog_exercise_id is not None for catalog_exercise_id in candidate_ids)
+    assert approved_ids == candidate_ids
+
+
 def test_recovery_limited_workout_is_recovery_aware(tmp_path, monkeypatch):
     health_states = _seeded_health_states(tmp_path, monkeypatch)
     approved = build_approved_workout_plan(health_states[101])
@@ -1565,7 +1578,8 @@ def test_deterministic_workout_explanation_preserves_approved_plan(monkeypatch):
     assert explanation.confidence == approved_plan.confidence
 
 
-def test_crewai_workout_explanation_prompt_is_secondary_to_plan(monkeypatch):
+def test_crewai_workout_explanation_prompt_is_secondary_to_plan(tmp_path, monkeypatch):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
     approved_plan, context = _lightweight_approved_plan(monkeypatch)
 
     prompt = build_crewai_workout_explanation_prompt(approved_plan, context)

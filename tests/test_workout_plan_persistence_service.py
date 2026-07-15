@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -11,6 +13,7 @@ from services.workout_plan_persistence_service import (
     build_planned_vs_actual_summary,
     count_workout_plan_instances,
     delete_actual_set,
+    ensure_workout_plan_persistence_tables,
     get_actual_sets,
     get_execution_state,
     get_planned_workout_exercises,
@@ -86,8 +89,108 @@ def test_selected_plan_can_be_read_back_from_database(tmp_path, monkeypatch):
     assert stored_instance.status == "selected"
     assert stored_instance.approved_workout_plan.exercises
     assert stored_exercises
+    assert [exercise.catalog_exercise_id for exercise in stored_exercises] == [
+        exercise.catalog_exercise_id
+        for exercise in stored_instance.approved_workout_plan.exercises
+    ]
+    assert all(
+        exercise.catalog_exercise_id is not None for exercise in stored_exercises
+    )
     assert stored_execution_session is not None
     assert stored_execution_session.status == "selected"
+
+
+def test_legacy_approved_workout_json_without_catalog_ids_still_loads(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    selected = select_current_workout_plan(102)
+    instance_id = selected["workout_plan_instance"].id
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT approved_workout_plan_json FROM workout_plan_instances WHERE id = ?",
+        (instance_id,),
+    )
+    legacy_plan = json.loads(cursor.fetchone()["approved_workout_plan_json"])
+    assert all(
+        exercise["catalog_exercise_id"] is not None
+        for exercise in legacy_plan["exercises"]
+    )
+    for exercise in legacy_plan["exercises"]:
+        exercise.pop("catalog_exercise_id")
+    cursor.execute(
+        "UPDATE workout_plan_instances SET approved_workout_plan_json = ? WHERE id = ?",
+        (json.dumps(legacy_plan), instance_id),
+    )
+    conn.commit()
+    conn.close()
+
+    stored_instance = get_workout_plan_instance(instance_id)
+
+    assert stored_instance is not None
+    assert all(
+        exercise.catalog_exercise_id is None
+        for exercise in stored_instance.approved_workout_plan.exercises
+    )
+
+
+def test_legacy_planned_exercise_schema_upgrades_additively_and_reads_null_id(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        CREATE TABLE planned_workout_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workout_plan_instance_id INTEGER NOT NULL,
+            exercise_order INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            sets INTEGER NOT NULL,
+            reps_min INTEGER NOT NULL,
+            reps_max INTEGER NOT NULL,
+            rir_min INTEGER NOT NULL,
+            rir_max INTEGER NOT NULL,
+            notes TEXT NOT NULL,
+            equipment_required_json TEXT NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+    cursor.execute(
+        """
+        INSERT INTO planned_workout_exercises (
+            workout_plan_instance_id,
+            exercise_order,
+            name,
+            sets,
+            reps_min,
+            reps_max,
+            rir_min,
+            rir_max,
+            notes,
+            equipment_required_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (1, 1, "Legacy Row", 3, 8, 10, 2, 3, "Legacy notes", "[]"),
+    )
+    conn.commit()
+    conn.close()
+
+    ensure_workout_plan_persistence_tables()
+    conn = database.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(planned_workout_exercises)")
+    column_names = {row["name"] for row in cursor.fetchall()}
+    conn.close()
+    stored_exercise = get_planned_workout_exercises(1)[0]
+
+    assert "catalog_exercise_id" in column_names
+    assert stored_exercise.name == "Legacy Row"
+    assert stored_exercise.catalog_exercise_id is None
 
 
 def test_select_workout_plan_endpoint_smoke(tmp_path, monkeypatch):
@@ -307,6 +410,13 @@ def test_started_plan_can_read_execution_state(tmp_path, monkeypatch):
     assert execution_state["workout_plan_instance"].status == "started"
     assert execution_state["execution_session"].status == "started"
     assert execution_state["planned_exercises"]
+    assert [
+        exercise.catalog_exercise_id
+        for exercise in execution_state["planned_exercises"]
+    ] == [
+        exercise.catalog_exercise_id
+        for exercise in execution_state["approved_workout_plan"].exercises
+    ]
     assert execution_state["actual_sets"] == []
 
 

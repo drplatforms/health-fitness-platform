@@ -68,18 +68,18 @@
     }
   },
   "active_roadmap": {
-    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_c8349e0_main_post-rebrand-main.zip",
-    "commit_check_mode": "docs_tooling",
-    "current_authorized_milestone": "Project Memory + Developer Workflow Canonicalization v1",
-    "current_recommended_milestone": "Architecture Review for Project Memory + Developer Workflow Canonicalization v1",
-    "current_recommended_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
-    "primary_question": "Can a fresh Architecture or Codex chat recover the current identity, authority hierarchy, runtime, helper commands, and delivery workflow from repository-owned memory alone?",
-    "qa_class": "DOCS_TOOLING_WORKFLOW",
-    "recommended_next_milestone_after_acceptance": "User supplies the rough current product roadmap; a fresh Architecture chat reviews it and selects the next product milestone",
-    "recommended_owner": "Architecture / DevOps & Tooling",
-    "source_feature_branch": "feature/project-memory-developer-workflow-canonicalization-v1",
+    "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_b3bae29_main_project-memory-workflow-canonicalized.zip",
+    "commit_check_mode": "code",
+    "current_authorized_milestone": "Exercise Catalog Identity Propagation v1",
+    "current_recommended_milestone": "Exercise Catalog Identity Propagation v1 Git closeout",
+    "current_recommended_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+    "primary_question": "Does the existing exercise catalog ID survive candidate approval, approved-plan serialization, planned-exercise persistence, and downstream reads without breaking legacy records?",
+    "qa_class": "CLASS_2_SCHEMA_PERSISTENCE_COMPATIBILITY",
+    "recommended_next_milestone_after_acceptance": "Exercise Instruction Contract + Persistence v1",
+    "recommended_owner": "Backend Development",
+    "source_feature_branch": "feature/exercise-catalog-identity-propagation-v1",
     "source_feature_commit": null,
-    "source_main_commit": "c8349e0"
+    "source_main_commit": "b3bae29"
   },
   "architecture_direction": {
     "backend_intelligence_layers": [
@@ -420,20 +420,20 @@
     ]
   },
   "current_baseline": {
-    "active_backend_milestone": "none; docs/tooling workflow canonicalization only",
-    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
-    "active_project_memory_milestone": "Project Memory + Developer Workflow Canonicalization v1",
-    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
-    "current_source_of_truth": "main at c8349e0 Merge public project rebrand and README refresh v1",
+    "active_backend_milestone": "Exercise Catalog Identity Propagation v1",
+    "active_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+    "active_project_memory_milestone": "none; Project Memory + Developer Workflow Canonicalization v1 closed at b3bae29",
+    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
+    "current_source_of_truth": "accepted main at b3bae29 Merge project memory and developer workflow canonicalization v1",
     "fully_free_lab_review_classification": "DAILY_COACH_FULLY_FREE_SOURCE_DATA_LAB_V1_QA_REVIEWED_NOT_BETTER_THAN_V4_GENERIC_STILL_CONSTRAINED_PROVIDER_PAUSE_RECOMMENDED",
-    "latest_accepted_commit": "c8349e0",
-    "latest_accepted_milestone": "Public Project Rebrand and README Refresh v1",
-    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-15_c8349e0_main_post-rebrand-main.zip",
-    "latest_final_status": "PUBLIC_PROJECT_REBRAND_AND_README_REFRESH_V1_ACCEPTED_AND_MERGED",
-    "latest_main_merge_commit": "c8349e0",
+    "latest_accepted_commit": "b3bae29",
+    "latest_accepted_milestone": "Project Memory + Developer Workflow Canonicalization v1",
+    "latest_accepted_snapshot": "fitness_ai_snapshot_2026-07-15_b3bae29_main_project-memory-workflow-canonicalized.zip",
+    "latest_final_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
+    "latest_main_merge_commit": "b3bae29",
     "latest_technical_baseline_commit": "23b5378",
     "latest_technical_baseline_snapshot": "fitness_ai_snapshot_2026-06-29_23b5378_main_merge-daily-coach-fully-free-source-data-lab-evidence-v1.zip",
-    "next_product_architecture_center": "Complete developer-workflow canonicalization, then Architecture selects the next product milestone from the current roadmap",
+    "next_product_architecture_center": "Complete exercise catalog identity propagation, then proceed to Exercise Instruction Contract + Persistence v1",
     "platform_north_star_file": "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "previous_accepted_milestone": "Daily Coach Free-Range Prompt + Payload Decaging v4",
     "previous_main_merge_commit": "56d63c4",
@@ -1059,7 +1059,7 @@
       "status": "ACCEPTED_AND_MERGED"
     }
   },
-  "requested_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
+  "requested_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
   "runtime_split": {
     "linux": [
       "Secondary/back-burner optional validation, runtime, or demo environment at ~/projects/fitness-ai-platform. Linux sync is task-specific rather than an automatic closeout phase."
@@ -1071,11 +1071,11 @@
     ]
   },
   "status": {
-    "active_backend_milestone": "none; no application/backend milestone currently authorized",
-    "active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED",
-    "active_project_memory_milestone": "Project Memory + Developer Workflow Canonicalization v1",
-    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
-    "requested_final_status": "ARCHITECTURE_REVIEW_REQUIRED_BEFORE_ACCEPTANCE"
+    "active_backend_milestone": "Exercise Catalog Identity Propagation v1",
+    "active_backend_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT",
+    "active_project_memory_milestone": "none; Project Memory + Developer Workflow Canonicalization v1 closed at b3bae29",
+    "active_project_memory_status": "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED",
+    "requested_final_status": "EXERCISE_CATALOG_IDENTITY_PROPAGATION_V1_ARCHITECTURE_ACCEPTED_PENDING_GIT_CLOSEOUT"
   },
   "team_routing_contract": {
     "project_memory_note": "Project Memory / All Future Agents is not a visible team lane; it is a repo continuity concern every team must respect.",
