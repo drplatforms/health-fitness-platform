@@ -404,6 +404,7 @@ def search_foods(search_term, limit=10):
     SELECT *
     FROM foods
     WHERE name LIKE ?
+      AND name NOT LIKE 'Internal Personal Food:%'
     ORDER BY name
     LIMIT ?
     """,

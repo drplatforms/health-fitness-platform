@@ -166,6 +166,9 @@ def initialize_database():
         user_id INTEGER NOT NULL,
         food_id INTEGER NOT NULL,
         canonical_food_id INTEGER,
+        personal_food_id INTEGER,
+        personal_food_revision_id INTEGER,
+        food_name_snapshot TEXT,
 
         grams REAL NOT NULL,
         meal_type TEXT,
@@ -180,7 +183,9 @@ def initialize_database():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
         FOREIGN KEY (user_id) REFERENCES users(id),
-        FOREIGN KEY (food_id) REFERENCES foods(id)
+        FOREIGN KEY (food_id) REFERENCES foods(id),
+        FOREIGN KEY (personal_food_id) REFERENCES personal_foods(id),
+        FOREIGN KEY (personal_food_revision_id) REFERENCES personal_food_revisions(id)
     )
     """)
 
@@ -197,6 +202,120 @@ def initialize_database():
             "fat_g": "fat_g REAL",
         },
     )
+
+    # -----------------------------
+    # Personal Foods
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS personal_foods (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        display_name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL,
+        brand_name TEXT,
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        current_revision_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(user_id, normalized_name),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (current_revision_id) REFERENCES personal_food_revisions(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS personal_food_revisions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        personal_food_id INTEGER NOT NULL,
+        revision_number INTEGER NOT NULL CHECK (revision_number >= 1),
+        display_name_snapshot TEXT NOT NULL,
+        brand_name_snapshot TEXT,
+        input_basis TEXT NOT NULL CHECK (
+            input_basis IN ('nutrition_label', 'per_100g')
+        ),
+        serving_name TEXT,
+        serving_grams REAL CHECK (serving_grams IS NULL OR serving_grams > 0),
+        calories_per_100g REAL CHECK (
+            calories_per_100g IS NULL OR calories_per_100g >= 0
+        ),
+        protein_g_per_100g REAL CHECK (
+            protein_g_per_100g IS NULL OR protein_g_per_100g >= 0
+        ),
+        carbs_g_per_100g REAL CHECK (
+            carbs_g_per_100g IS NULL OR carbs_g_per_100g >= 0
+        ),
+        fat_g_per_100g REAL CHECK (
+            fat_g_per_100g IS NULL OR fat_g_per_100g >= 0
+        ),
+        entered_calories REAL CHECK (
+            entered_calories IS NULL OR entered_calories >= 0
+        ),
+        entered_protein_g REAL CHECK (
+            entered_protein_g IS NULL OR entered_protein_g >= 0
+        ),
+        entered_carbs_g REAL CHECK (
+            entered_carbs_g IS NULL OR entered_carbs_g >= 0
+        ),
+        entered_fat_g REAL CHECK (
+            entered_fat_g IS NULL OR entered_fat_g >= 0
+        ),
+        source_note TEXT,
+        legacy_food_id INTEGER NOT NULL UNIQUE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(personal_food_id, revision_number),
+        CHECK (
+            input_basis != 'nutrition_label'
+            OR serving_grams IS NOT NULL
+        ),
+        CHECK (
+            calories_per_100g IS NOT NULL
+            OR protein_g_per_100g IS NOT NULL
+            OR carbs_g_per_100g IS NOT NULL
+            OR fat_g_per_100g IS NOT NULL
+        ),
+        CHECK (
+            entered_calories IS NOT NULL
+            OR entered_protein_g IS NOT NULL
+            OR entered_carbs_g IS NOT NULL
+            OR entered_fat_g IS NOT NULL
+        ),
+        FOREIGN KEY (personal_food_id) REFERENCES personal_foods(id),
+        FOREIGN KEY (legacy_food_id) REFERENCES foods(id)
+    )
+    """)
+
+    _ensure_table_columns(
+        cursor,
+        "food_entries",
+        {
+            "personal_food_id": (
+                "personal_food_id INTEGER REFERENCES personal_foods(id)"
+            ),
+            "personal_food_revision_id": (
+                "personal_food_revision_id INTEGER "
+                "REFERENCES personal_food_revisions(id)"
+            ),
+            "food_name_snapshot": "food_name_snapshot TEXT",
+        },
+    )
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_personal_foods_user_active_name
+    ON personal_foods(user_id, active, normalized_name, id)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_personal_food_revisions_food_number
+    ON personal_food_revisions(personal_food_id, revision_number)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_food_entries_personal_revision
+    ON food_entries(personal_food_revision_id, id)
+    """)
 
     # -----------------------------
     # Seed Users

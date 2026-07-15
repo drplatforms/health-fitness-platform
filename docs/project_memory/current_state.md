@@ -1,3 +1,56 @@
+# Current State - Personal Custom Foods Contract and Persistence v1
+
+Branch: `feature/personal-custom-foods-contract-persistence-v1`.
+
+Implementation base: `main` at `c669a2d`.
+
+Status:
+
+```text
+PERSONAL_CUSTOM_FOODS_CONTRACT_PERSISTENCE_V1_IMPLEMENTED_AWAITING_ARCHITECTURE_REVIEW
+```
+
+Active scope:
+
+- Add deterministic, user-owned personal-food identities with immutable nutrition revisions, archive behavior, user-scoped search, and historically stable logging.
+- Keep personal foods separate from global canonical foods and future recipes/saved meals.
+- Preserve unknown nutrient values as `NULL`; preserve explicitly entered zeroes as zero.
+- Use immutable internal legacy food/nutrient rows per revision so existing nutrition actuals remain historically correct while internal rows stay hidden from global legacy search.
+- Add explicit `food_entries` provenance for personal identity, exact revision, and user-facing name snapshot.
+- This is backend contract, persistence, service, and API work only. Personal Custom Foods UI v1 is a later milestone.
+
+Implementation and validation:
+
+- Added explicit personal-food identities, immutable revisions, internal legacy nutrition rows, and nullable `food_entries` provenance columns through database initialization only.
+- Added atomic create, revise, archive, restore, and log services with user ownership checks, deterministic label normalization, unknown-value preservation, and historical macro/name snapshots.
+- Added user-scoped API contracts and excluded opaque internal personal-food rows from legacy global food search without changing canonical search responses.
+- Architecture corrections ensure existing databases add both personal-food provenance foreign keys after the referenced tables exist, reject non-finite derived label normalization before persistence, and apply the established 5,000 g ceiling to direct and serving-resolved personal-food logs.
+- Final boundary corrections reject JSON booleans before Pydantic numeric coercion for every personal-food nutrition/log field, validate positive integer personal-food IDs in direct service calls, and reject non-finite nutrient snapshots before log insertion.
+- Resolved serving grams are validated after multiplication, so finite positive inputs that underflow to `0.0` are rejected without a log entry. Latest personal-food tests passed: `73`; existing nutrition regression tests passed: `143`. The prior final-correction full repository suite passed: `2496`; this narrow underflow handoff did not require a full rerun.
+- Touched-file Ruff check and format check passed for all ten milestone Python files. Formatting was limited to milestone-touched files.
+- Python compile checks passed. The project-memory checker passed with `590 PASS`, `58 WARN`, and `0 FAIL`; its tests passed: `29`.
+- A final audit after the initial full-suite run found that the real ignored `fitness_ai.db` had unintentionally received the new empty personal-food schema. Both personal tables contained zero rows and all personal provenance values on existing food entries were `NULL`.
+- Architecture authorized a bounded recovery. The current database was backed up externally through both a filesystem copy and SQLite's backup API, then only the empty personal tables, indexes, and provenance columns were removed in one `BEGIN IMMEDIATE` transaction.
+- Cleanup evidence is retained at `C:\projects\fitness_ai_external\db_recovery\personal_custom_foods_schema_cleanup_20260714_203741`. Pre-existing table counts and data fingerprints matched before and after; `integrity_check` remained `ok`; and the exact pre-existing 34-row foreign-key violation set remained unchanged with SHA-256 `E8B9DF295C8DAA60E5B5E41AB0BAA15605B216A1D4B207412EB6EB0993F1F133`.
+- Underflow-correction validation ran from an isolated temporary source mirror with no live database. Personal-food tests passed: `73`; nutrition regression tests passed: `143`. The prior final-correction full repository suite passed: `2496`. The cleaned live database hash remained `5829A88632674377CC4A7AB5BD3D2022F01128A474EF859FB270F7B77768BA38` throughout validation.
+- Browser smoke remains intentionally deferred to Personal Custom Foods UI v1.
+- The database-safety blocker is resolved. The implementation is awaiting Architecture review and is not accepted, merged, closed, or product-ready.
+
+Prior experiment closeout:
+
+- Cross-Domain Narrative Decision Freedom v1 was not merged.
+- Qwen3:8B safety enforcement worked, but its narrative product quality failed human acceptance.
+- AI-written daily coaching prose is paused indefinitely. The product-voice audit is not an accepted readiness gate.
+- The nominal read path can invoke workout schema initialization and was sufficient to explain the observed database hash change.
+
+See milestone memory:
+`docs/project_memory/milestones/personal_custom_foods_contract_persistence_v1.md`.
+
+See experiment closeout:
+`docs/project_memory/milestones/cross_domain_narrative_experiment_closeout_v1.md`.
+
+---
+
 # Current State - Cross-Domain Coaching Synthesis Preview v1
 
 Accepted merge: `b63ec69 Merge semantic cross-domain coaching preview`.
