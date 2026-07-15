@@ -1,96 +1,21 @@
-# Role Bootstrap — DevOps / Tooling
+# DevOps and Tooling Role Bootstrap
 
-Last updated: 2026-06-22
+You support the Health & Fitness Platform developer workflow.
 
-## Purpose
+Canonical daily environment:
 
-Use this file to onboard a new DevOps / Tooling chat for AI Health Coach / fitness_ai.
+```text
+Windows repository: C:\projects\fitness_ai
+FastAPI:            http://127.0.0.1:8000
+Next.js production: http://127.0.0.1:3100
+Product URL:        http://127.0.0.1:3100
+Snapshots:          C:\projects\fitness_ai_external\snapshots
+```
 
-## Runtime split
+Next.js dev on `3000` is optional. Linux at `~/projects/fitness-ai-platform` is secondary optional validation/runtime/demo infrastructure. Streamlit is legacy/developer-only.
 
-Windows is the source-of-truth development/control machine.
+Keep all project command logic in `scripts/fitness_commands.ps1`; the PowerShell profile should contain only the repo-owned loader. The installer must preserve unknown content by default, create a backup before profile writes, and require an explicit opt-in to replace the whole profile with the thin loader. Automated tests use a temporary `-ProfilePath`, never the real profile.
 
-Windows owns:
+Primary commands are `fapi`, `ffront`, `ffrontbuild`, `fvalidatefront`, `fstart`/`app`, `frestart`, optional `fnext`, and scoped status/stop helpers. `app` must not call Linux or Streamlit. Git helpers preserve explicit staging and post-merge ancestry safety. `fsnap` writes only from clean `main` to the external snapshot directory.
 
-- Git orchestration
-- branch creation
-- patch apply
-- commit
-- push
-- snapshot creation
-- Ollama host
-
-Linux is the canonical FastAPI + Streamlit runtime.
-
-Linux runtime repo:
-
-`~/projects/fitness-ai-platform`
-
-Linux tmux sessions:
-
-- `fitness-api`
-- `fitness-ui`
-
-Linux runtime uses Windows Ollama over LAN.
-
-## Command truth
-
-- `app` launches/manages Linux FastAPI + Streamlit runtime.
-- `wapp` is Windows-local only.
-- `fports` is Windows-side ports only.
-
-Do not confuse `app` and `wapp`.
-
-Do not treat old Windows-local Streamlit behavior as canonical runtime.
-
-## Command-menu changes
-
-Command-menu changes require:
-
-- focused command-menu tests
-- project memory updates
-- manual `fitness` menu smoke
-- confirmation that `app`, `wapp`, and `fports` labels remain correct
-- `fsweep` clean
-
-## Linux Git safety
-
-Do not reset/stash/clean on Linux unless diagnosing a dirty tree and preserving work first.
-
-If Linux Git state is unclear, run diagnostics only:
-
-- `git status -sb`
-- `git fetch origin --prune`
-- `git branch -vv`
-- `git log --oneline --decorate --graph --all -15`
-- `git diff --name-only`
-- `git diff --cached --name-only`
-- `git ls-files --others --exclude-standard`
-
-## Runtime restart rule
-
-Restart Linux runtime after code/UI/runtime changes are pulled to Linux.
-
-Docs-only/design-only changes generally do not require runtime restart unless the user asks.
-
----
-
-# Current Routing / State Addendum — 23b5378
-
-Current accepted main: `23b5378 Merge daily coach fully free source-data lab evidence v1`.
-
-Active milestone: `Project Memory + Handoff Workflow Compression + Stale Docs Hygiene + Development Architecture v1`.
-
-Exact visible team lanes: Architecture, Backend Development, QA, Agent Engineering, Streamlit UI / UX, Portfolio Packaging, DevOps & Tooling.
-
-Project Memory / All Future Agents is not a visible team lane. It is a repo continuity concern every team must respect.
-
-Provider voice iteration is paused. Backend Intelligence Foundation is next after docs cleanup.
-
----
-
-# DevOps & Tooling narrow-scope addendum
-
-DevOps & Tooling is narrow and low-frequency. It owns helper commands, command menu, environment setup, Windows/Linux workflow support, snapshots/tooling mechanics, and runtime setup diagnostics.
-
-Do not route general architecture, backend product logic, provider decisions, normal UI work, or broad product/platform ownership here.
+Do not start/kill runtime, alter Git state, write snapshots, migrate profiles, or touch the real database without the relevant authorization. Follow `current_workflow_contract.md` and `local_developer_command_menu.md`.

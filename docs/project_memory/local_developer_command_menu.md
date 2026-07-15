@@ -1,169 +1,59 @@
 # Local Developer Command Menu
 
-Status: `LOCAL_COMMAND_MENU_APP_LINUX_RUNTIME_CORRECTION_V1_ACCEPTED`
+The repo-owned PowerShell command menu is `scripts/fitness_commands.ps1`. It implements the Windows-first Health & Fitness Platform workflow and must be the only location for project command logic. A user profile should contain only a thin loader.
 
-AI Health Coach helper commands are repo-owned developer tooling.
+## Install and reload
 
-Command definitions live in:
-
-`C:\projects\fitness_ai\scripts\fitness_commands.ps1`
-
-Repo-relative path: `scripts/fitness_commands.ps1`
-
-The PowerShell profile should only dot-source the repo script. Project command logic should not live only in a hidden user profile.
-
-## Install or reload
-
-Manual reload:
+The safe default installer preserves unknown profile content, removes recognized prior managed blocks, creates a timestamped backup when a profile exists, and installs one managed loader:
 
 ```powershell
-. "C:\projects\fitness_ai\scripts\fitness_commands.ps1"
-fitness
-```
-
-Optional profile installer:
-
-```powershell
-cd C:\projects\fitness_ai
-.\scripts\install_fitness_commands_profile.ps1
+& "C:\projects\fitness_ai\scripts\install_fitness_commands_profile.ps1"
 . $PROFILE
-fitness
 ```
 
-The installer backs up the current PowerShell profile, appends a guarded dot-source block if missing, and does not overwrite existing profile content.
-
-Expected profile block:
+For a deliberately simplified profile, use the explicit opt-in only after reviewing the backup behavior:
 
 ```powershell
-# AI Health Coach command menu
-$fitnessCommands = "C:\projects\fitness_ai\scripts\fitness_commands.ps1"
-if (Test-Path $fitnessCommands) {
-    . $fitnessCommands
-}
+& "C:\projects\fitness_ai\scripts\install_fitness_commands_profile.ps1" -ReplaceProfileWithThinLoader
 ```
 
-## Configuration defaults
+The installer supports `-ProfilePath` for safe temporary-file validation. Automated validation must never target the real `$PROFILE`.
 
-Defaults match current project usage:
+## Primary Windows runtime
 
-- Windows source repo: `C:\projects\fitness_ai`
-- Linux mirror repo: `~/projects/fitness-ai-platform`
-- Linux SSH target: `dusty@itsAlwaysDNS`
-- Canonical app runtime: Linux FastAPI + Streamlit launched over SSH with `app` / `lrestart`
-- Windows-local FastAPI escape hatch: `http://127.0.0.1:8000` through `wapp`
-- Windows-local Streamlit escape hatch: `http://127.0.0.1:8510` through `wapp`
-- Windows Ollama: `http://127.0.0.1:11434`
-- Linux runtime reaches Windows Ollama with `OLLAMA_BASE_URL=http://192.168.1.104:11434`
-- Linux Streamlit URL opened by Windows command menu: `FITNESS_LINUX_STREAMLIT_URL` override or default host parsed from `FITNESS_LINUX_SSH` with Linux Streamlit port `8501`
+| Command | Meaning |
+| --- | --- |
+| `cdf` | Enter `C:\projects\fitness_ai`, set `PYTHONPATH`, and activate `.venv` when available. |
+| `cdff` | Enter the `frontend` directory. |
+| `fapi` | Start `python -m uvicorn api.main:app` on `127.0.0.1:8000` in a hidden process. |
+| `ffront` | Start an existing production Next.js build on port `3100`; fail clearly when `.next` is absent. |
+| `ffrontbuild` | Stop only repo-scoped production frontend processes, build, and start production Next.js. |
+| `fvalidatefront` | Run frontend lint and production build without starting a server. |
+| `fstart` / `app` | Start FastAPI and the existing production frontend build. `app` never invokes Linux or Streamlit. |
+| `frestart` | Stop repo-scoped product processes and restart the primary runtime without rebuilding. |
+| `fnext` / `fnextfg` | Optional background/foreground Next.js development server on port `3000`. |
+| `fopen` | Open the canonical product URL, `http://127.0.0.1:3100`. |
+| `fports` | Show FastAPI `8000`, production Next.js `3100`, optional Next.js dev `3000`, and optional Ollama `11434`. |
+| `wstatus` / `wstop` | Inspect or stop only verified repository-owned runtime listeners/process trees. |
 
-Supported environment variable overrides:
+`fapi`, `ffront`, `fnext`, and `fnextfg` refuse to create a duplicate when their expected port is already occupied. Stop helpers inspect the listener PID and parent chain, require both repository-path and expected-command evidence, and refuse to kill an unverified process. `wapp` remains a compatibility alias for `fstart` and emits a migration warning. Streamlit is legacy/developer-only. Streamlit is not started by any primary command.
 
-- `FITNESS_WINDOWS_REPO`
-- `FITNESS_LINUX_REPO`
-- `FITNESS_LINUX_SSH`
-- `FITNESS_WINDOWS_OLLAMA_URL`
-- `FITNESS_LINUX_OLLAMA_URL`
-- `FITNESS_FASTAPI_PORT`
-- `FITNESS_STREAMLIT_PORT`
-- `FITNESS_LINUX_STREAMLIT_PORT`
-- `FITNESS_LINUX_STREAMLIT_URL`
+## Git and delivery helpers
 
-## Command list
+- `fpull` fetches/prunes origin, switches to clean `main`, pulls `origin main` with `--ff-only`, verifies local `main == origin/main`, and shows status/history. `gsync` is its compatibility alias.
+- `gstate`, `fports`, and `fdoctor` are non-destructive inspection helpers.
+- `gcheck [-Mode docs-only|code|full]` runs `git diff --check`, the supported `scripts/dev_commit_check.ps1` mode, the project-memory checker/tests, and developer-assistant memory/stale-document checks. It does not stage files.
+- `gacp -Message <message>` never stages files and refuses `main` by default. `-AllowMain` is an explicit reviewed escape hatch.
+- `fbranch <name>` requires a clean tree, fetches origin, fast-forwards `main`, verifies local `main == origin/main`, then creates the feature branch.
+- `fmerge <feature-branch> <accepted-final-commit>` requires a clean/up-to-date `main`, performs a non-fast-forward merge, and verifies that the exact Architecture-accepted final commit—not merely the moving branch tip—is an ancestor of `main`. This is the required post-merge ancestry guard.
+- `fsweep` scans tracked repository content for citation/tracking/placeholder contamination. `fbranches` separately lists branches already merged into `main`.
+- `fsnap <slug>` requires clean `main`, validates a lowercase kebab-case slug, and writes the Git archive to `C:\projects\fitness_ai_external\snapshots`.
+- `fmem` runs the project-memory checker, developer-assistant `memory-check`, `stale-doc-check`, and `continuity-brief`, plus project-memory pytest.
 
-Daily commands preserved:
+## Secondary Linux helpers
 
-- `fitness` — show the AI Health Coach command menu.
-- `cdf` — go to the Windows project root.
-- `gsync` / `fpull` — fetch, switch to `main`, fast-forward pull, show status/log.
-- `gstate` — show branch, status, latest commit, tracking, and untracked files.
-- `gcheck` — run common validation including project-memory checks.
-- `gacp` — commit already-staged files and push the current branch; does not auto-stage and refuses `main` unless explicitly allowed.
-- `app` — canonical app launcher; restarts Linux FastAPI + Streamlit through SSH and opens the Linux-hosted Streamlit URL from Windows.
-- `wapp` — explicit Windows-local developer launcher; preserves the old local FastAPI/Streamlit behavior and is not the canonical runtime.
-
-Windows workflow commands added:
-
-- `fsnap` — create standard git archive snapshot outside the repo.
-- `fbranch <branch>` — create a feature branch from clean `origin/main`.
-- `fmerge <branch> <accepted-final-commit>` — merge with `git merge-base --is-ancestor` safety verification.
-- `fsweep` — run artifact/citation contamination sweep.
-- `fmem` — run project-memory checks.
-- `fports` — show Windows-side listeners for ports `8000`, `8501`, `8510`, and `11434` only; use `lstatus` for Linux app health.
-- `fkill` — stop local FastAPI/Streamlit project processes tied to this repo or configured ports.
-- `fdoctor` — run local environment sanity checks.
-
-Linux commands preserved and refreshed:
-
-- `lstatus` — show Linux repo, app, port, and DB status.
-- `lsetup` — pull Linux `main` and install requirements.
-- `lpull` — pull Linux `main` only, no restart.
-- `lvalidate` — run Linux project-memory validation.
-- `lollama` — verify Linux can reach Windows Ollama; does not start Linux Ollama.
-
-Linux command hotfix note: `lstatus`, `lpull`, and `lollama` were smoke-tested after the initial repo-owned command-menu patch exposed fragile Bash payload formatting. `lstatus` now uses safe `printf` labels and DB file checks without escaped Bash parentheses; `lpull` uses `git log -5 --oneline --decorate`; `lollama` uses `printf` instead of a literal `\n` suffix.
-- `lstop` — stop project FastAPI/Streamlit processes only.
-- `lrestart` — restart canonical Linux FastAPI/Streamlit runtime with Windows Ollama URL.
-- `lupdate` — pull Linux `main` and restart the app.
-- `lsh` — SSH into Linux project with `.venv` active.
-
-## Local Command Menu App Runtime Correction v1
-
-`app` is now the canonical Linux runtime launcher.
-
-Accepted runtime split:
-
-- Windows owns source-of-truth repo control and hosts Ollama.
-- Linux is the canonical FastAPI + Streamlit app runtime.
-- Linux runtime uses Windows Ollama through `OLLAMA_BASE_URL=http://192.168.1.104:11434`.
-- Windows-local app startup remains available only through the explicit `wapp` escape hatch.
-
-Command semantics:
-
-- `app` calls the Linux restart path and opens the Linux-hosted Streamlit URL from Windows.
-- `app` must not launch Windows-local `uvicorn` or Windows-local Streamlit shells.
-- `wapp` is explicitly labeled Windows-local and may launch local Windows FastAPI/Streamlit for developer-only escape-hatch use.
-- `fports` reports Windows-side ports only.
-- `lstatus` reports Linux-side Git/app/process/port status.
+Linux is secondary. `lpull`, `lstatus`, `lsetup`, `lvalidate`, `lollama`, and `lsh` support optional Linux validation/runtime/demo work at `~/projects/fitness-ai-platform`. They are not invoked by primary Windows commands, and a Linux pull is not automatically required after a snapshot.
 
 ## Safety boundaries
 
-- Commands are developer tooling only.
-- Commands do not change FastAPI, Streamlit, provider, database, persistence, report, nutrition, workout, catalog, or model behavior.
-- `app` is Linux-canonical; `wapp` is the explicit Windows-local escape hatch.
-- `gacp` does not auto-stage files.
-- `fbranch` refuses a dirty working tree.
-- `fmerge` must verify the accepted final feature commit is an ancestor of `main` before push/snapshot/Linux pull.
-- `fsnap` creates snapshots outside the repo and does not stage them.
-- Linux commands use Windows Ollama by default and do not assume Ollama runs on Linux.
-- Profile installation is additive and backed up; it must not overwrite user profile content.
-
-## Linux tmux runtime correction
-
-The canonical Linux runtime launcher follows `docs/fitness_ai_dev_cheatsheet.md` section `Linux Runtime With tmux`.
-
-Runtime process ownership:
-
-- `lrestart` starts `fitness-api` and `fitness-ui` tmux sessions on Linux.
-- `lstop` kills those tmux sessions and project FastAPI/Streamlit processes.
-- Linux FastAPI listens on port `8000`.
-- Linux Streamlit listens on port `8501` by default.
-- Windows-local Streamlit remains on port `8510` through `wapp` only.
-- `app` opens the Linux-hosted Streamlit URL, defaulting to `http://<linux-host>:8501`.
-
-Do not replace the Linux tmux runtime with Windows-local shells or Linux `nohup` background processes unless a future DevOps milestone explicitly changes the runtime architecture.
-
-## Windows-local latency comparison helper
-
-`wapp` is the supported Windows-local FastAPI + Streamlit launcher for developer productivity and side-by-side latency comparison. It does not replace the Linux runtime workflow.
-
-Expected behavior:
-
-- `wapp` starts Windows-local FastAPI on `127.0.0.1:8000`.
-- `wapp` starts Windows-local Streamlit on the configured Windows-local Streamlit port, default `127.0.0.1:8510`.
-- `wapp` uses the repo virtual environment Python at `.venv\Scripts\python.exe` by default.
-- `wapp` sets `PYTHONPATH` to the Windows repo root.
-- `wapp` avoids SSH and does not call `app`, `lrestart`, or `lstop`.
-- `wstatus` shows Windows-local port status.
-- `wstop` stops Windows-local FastAPI + Streamlit processes only.
-
-Linux remains the canonical runtime validation environment. Use `app`, `lrestart`, `lstatus`, and Linux pull validation for deployed-style checks.
+Starting/stopping runtime, changing Git state, writing snapshots, or replacing a real profile requires the relevant user authority. Do not use helper smoke tests to start or kill live processes. Do not initialize or mutate `fitness_ai.db` while validating this command layer.

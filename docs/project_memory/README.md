@@ -1,117 +1,66 @@
-# Current Project Memory Status — 871d090
+# Project Memory — Health & Fitness Platform
 
-Latest accepted main evidence: `Recovery Intelligence v2 Architecture Planning v1 @ 871d090`.
+Project memory is the repository-owned continuity layer for the Health & Fitness Platform. It records accepted product truth, architecture boundaries, delivery rules, current status, and historical evidence. Chat memory and a local PowerShell profile are not authoritative substitutes.
 
-Latest accepted snapshot:
+## Canonical source hierarchy
 
-```text
-fitness_ai_snapshot_2026-06-30_871d090_main_merge-recovery-intelligence-v2-architecture-planning-v1.zip
-```
+When sources disagree, reconcile them in this order:
 
-Canonical long-term platform vision and future technology stack:
+1. Explicit user authority and decisions.
+2. The approved Architecture milestone or handoff, reconciled with repository truth.
+3. `AGENTS.md`.
+4. This entry point.
+5. `current_state.md`.
+6. `current_workflow_contract.md`.
+7. Strategic architecture and product-boundary documents.
+8. The active milestone, ADRs, and affected contracts.
+9. Historical milestone, review, and runtime-QA evidence.
+10. Current validated code/runtime evidence when a document is stale.
 
-```text
-docs/project_memory/architecture/platform_north_star_and_future_stack.md
-```
-
-Read the north-star file before making future-stack, SaaS, RAG, vector, agent, model-routing, or product-platform decisions.
-
-Provider voice iteration is paused. Backend Intelligence Foundation remains the product-brain center of gravity.
-
-Current Backend implementation target: `Recovery Intelligence v2 Model Contract v1`. This slice adds models/tests only; v2 service and snapshot integration remain future milestones.
-
-Canonical seven visible team lanes are recorded in `team_routing_contract.md`.
-
----
-
-# Project Memory
-
-Project memory is the continuity layer for AI Health Coach.
-
-Agents and humans should read these files before changing architecture, provider behavior, persistence, UI behavior, tests, or accepted milestone status.
-
-
-## Workflow command memory
-
-The phase-separated Backend patch workflow and Architecture acceptance/merge/snapshot workflow are preserved in:
-
-```text
-docs/project_memory/architecture_backend_command_workflow_v1.md
-```
-
-Architecture may handle docs-only project-memory patches when no runtime/code files are touched. Backend Development remains the owner for implementation patches.
+Code evidence can reveal stale documentation; it does not independently authorize new scope, a product-direction change, or acceptance.
 
 ## Required starting files
 
+Read the smallest relevant set, beginning with:
+
 1. `current_state.md`
-2. `product_vision.md`
-3. `architecture_principles.md`
-4. `backend_truth_contract.md`
-5. `ai_boundaries.md`
-6. `section_registry_summary.md`
-7. `future_architecture_ledger.md`
-8. `premium_platform_blueprint.md`
-9. `development_workflow.md`
-10. `developer_delivery_workflow_contract.md`
-11. `architecture_backend_command_workflow_v1.md`
-12. `developer_delivery_workflow_script_safety_addendum_v1.md`
-13. `agent_workflow.md`
-14. `local_developer_command_menu.md`
-15. `open_questions.md`
+2. `current_workflow_contract.md`
+3. `product_vision.md`
+4. `architecture_principles.md`
+5. `backend_truth_contract.md`
+6. `ai_boundaries.md`
+7. the active milestone and affected architecture contracts
+8. `validation_matrix.md`
 
-## Project memory update requirement
+Use `team_routing_contract.md`, `team_quickstarts.md`, and the applicable role bootstrap when preparing a specialist handoff.
 
-Every meaningful feature/milestone branch must update project memory before acceptance.
+## Current product and runtime truth
 
-A milestone is not accepted if docs still describe old state, imply unapproved provider behavior, omit reference-only failed branches, or rely on chat memory instead of repo memory.
+- Product name: **Health & Fitness Platform**.
+- Public repository identity: `health-fitness-platform`.
+- Canonical daily development/runtime environment: Windows at `C:\projects\fitness_ai`.
+- Primary product runtime: FastAPI on port `8000` plus the production Next.js frontend on port `3100`.
+- Canonical product URL: `http://127.0.0.1:3100`.
+- Next.js development mode on port `3000` is optional and is not acceptance evidence by itself.
+- Linux at `~/projects/fitness-ai-platform` is secondary, optional validation/runtime/demo infrastructure.
+- Streamlit is legacy/developer-only and is not part of the canonical product runtime.
+- Provider/AI output is non-authoritative. AI-written daily prose is paused indefinitely.
 
+## Delivery workflow
 
-## Developer delivery workflow contract
+`current_workflow_contract.md` is the canonical workflow contract. Supporting implementation detail lives in:
 
-Implementation delivery is patch-first by default. Snapshot restore is fallback only.
+- `developer_delivery_workflow_contract.md`
+- `developer_delivery_workflow_script_safety_addendum_v1.md`
+- `development_workflow.md`
+- `local_developer_command_menu.md`
 
-All future agents should follow `developer_delivery_workflow_contract.md` for branch checks, patch application, validation, explicit staging, snapshot creation, and the hard rule that Linux pull is provided immediately after a snapshot filename.
+The normal phase flow is preflight and branch safety, bounded implementation, targeted validation, runtime/browser smoke only when required, explicit staging review, feature commit/push, Architecture acceptance, merge, merged-main validation, main push, and external snapshot. Stop at meaningful failures or risks rather than between every mechanical command.
 
-`developer_delivery_workflow_script_safety_addendum_v1.md` extends the contract with script hard-stop gates, including the mandatory post-merge ancestry check that proves the accepted final feature commit is an ancestor of `main` before push, snapshot, or Linux pull.
+Codex must not stage, commit, push, merge, snapshot, mutate the real database, or modify a real user profile unless the user explicitly authorizes that action. Architecture acceptance and Git closeout remain separate from implementation evidence.
 
+Snapshots belong in `C:\projects\fitness_ai_external\snapshots` and are created only from clean, validated `main`. A Linux pull is optional and task-specific, not an automatic post-snapshot requirement.
 
-## Local developer command menu
+## History and memory updates
 
-Local helper commands are repo-owned in `scripts/fitness_commands.ps1`.
-
-Installation and reload guidance live in `local_developer_command_menu.md`. The PowerShell profile should only dot-source the repo script; project command logic should not live only in a hidden user profile.
-
-The command menu preserves `fitness`, `app`, `lstop`, `lrestart`, and `lupdate`, and adds workflow safety commands including `fsnap`, `fbranch`, `fmerge`, `fsweep`, `fmem`, `fports`, `fkill`, `fdoctor`, `lpull`, `lvalidate`, and `lollama`.
-
-## Active strategic architecture docs
-
-The current canonical long-term platform vision and future technology stack is:
-
-- `docs/project_memory/architecture/platform_north_star_and_future_stack.md`
-- `docs/project_memory/architecture/recovery_intelligence_v2_plan.md`
-
-This file is a strategic compass. It does not authorize immediate implementation of RAG, vector databases, agents, provider promotion, SaaS infrastructure, UI rewrites, or runtime behavior changes.
-
-## Historical docs
-
-Historical milestone, review, runtime QA, and architecture docs are preserved. Do not rewrite history to pretend failed smoke tests did not happen. Classify old branches and decisions instead.
-
-## Test-first quality gate doctrine
-
-The current process doctrine is recorded in `milestones/test_first_quality_gate_development_plan_v1.md`.
-
-Future agents must follow the Complex Backend Quality Gate for complex state, scoring, selection, persistence, provider, nutrition, workout, recommendation, or user-visible workflow behavior.
-
-The short version:
-
-```text
-diagnostic
-→ failing/coverage test
-→ narrow implementation
-→ targeted validation
-→ original smoke reproduction
-→ project memory update
-→ Architecture acceptance
-```
-
-Bigger milestone is okay. Bigger single patch is not okay.
+Preserve historical milestone and review documents as evidence. Correct current-facing entry points instead of rewriting history. Meaningful behavior, architecture, workflow, or accepted-status changes require a same-branch project-memory update and project-memory validation.

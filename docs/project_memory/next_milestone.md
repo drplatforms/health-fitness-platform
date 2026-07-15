@@ -1,4 +1,18 @@
-# Next Milestone — Architecture Review for Workout Generation + Today Workout View v0
+# Next Milestone — Roadmap Review and Fresh Architecture Selection
+
+The current authorized milestone is Project Memory + Developer Workflow Canonicalization v1. Its remaining sequence is:
+
+1. Complete the canonicalization cleanup and validation.
+2. Submit the resulting repository-owned memory and workflow to Architecture for review and closeout.
+3. Have the user provide the rough current product roadmap.
+4. Onboard a fresh Architecture chat from the canonical repository memory.
+5. Have Architecture review that roadmap and select the next narrow product milestone.
+
+No next product milestone is authorized by this file. Exercise Instruction Contract / Data Design v1 may be considered as a candidate only after the user supplies the roadmap and fresh Architecture reviews it.
+
+---
+
+# Historical Next Milestone — Architecture Review for Workout Generation + Today Workout View v0
 
 This next milestone should be selected only after Workout Generation + Today Workout View v0 is reviewed by Architecture.
 

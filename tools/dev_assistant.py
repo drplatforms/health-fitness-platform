@@ -1,4 +1,4 @@
-"""Developer workflow assistant for AI Health Coach.
+"""Developer workflow assistant for the Health & Fitness Platform.
 
 This script is intentionally read-only except for explicit local artifact
 commands such as session-brief. It summarizes local Git state, suggests
@@ -18,41 +18,43 @@ from datetime import datetime
 from pathlib import Path
 
 DEFAULT_BASE_BRANCHES = [
-    "feature/coaching-decision-layer",
-    "origin/feature/coaching-decision-layer",
     "main",
     "origin/main",
 ]
 
 SOURCE_OF_TRUTH_DOCS = [
     "AGENTS.md",
+    "docs/project_memory/README.md",
     "docs/project_memory/current_state.md",
-    "docs/project_memory/project_state.json",
     "docs/project_memory/current_workflow_contract.md",
-    "docs/project_memory/next_milestone.md",
-    "docs/project_memory/role_bootstrap_architecture.md",
-    "docs/project_memory/role_bootstrap_backend.md",
-    "docs/project_memory/role_bootstrap_qa.md",
-    "docs/project_memory/role_bootstrap_devops_tooling.md",
-    "docs/project_memory/chat_onboarding_test.md",
-    "docs/project_memory/product_vision.md",
+    "docs/project_memory/project_state.json",
+    "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "docs/project_memory/architecture_principles.md",
-    "docs/project_memory/backend_truth_contract.md",
-    "docs/project_memory/ai_boundaries.md",
-    "docs/project_memory/section_registry_summary.md",
-    "docs/project_memory/development_workflow.md",
-    "docs/project_memory/agent_workflow.md",
     "docs/project_memory/open_questions.md",
+    "docs/project_memory/team_routing_contract.md",
+    "docs/project_memory/team_quickstarts.md",
+    "docs/project_memory/development_architecture_chatgpt_workflow_v1.md",
 ]
 
 FOCUSED_SAFETY_TESTS = [
-    "pytest tests/test_project_memory_check.py -q",
-    "pytest tests/test_daily_coach_narrative_preview_route.py -q",
-    "pytest tests/test_daily_coach_narrative_preview_service.py -q",
-    "pytest tests/test_daily_next_action_service.py -q",
-    "pytest tests/test_report_persistence_boundary.py -q",
-    "pytest tests/test_full_report_section_registry.py -q",
+    "git diff --check",
+    "Select targeted tests from the active handoff and docs/project_memory/validation_matrix.md.",
+    "When project memory changes: run tools/project_memory_check.py and tests/test_project_memory_check.py.",
+    "When frontend/ changes: run npm run lint and npm run build from frontend/.",
+    "When user-facing UI changes: run production browser smoke on http://127.0.0.1:3100, including console and mobile-width checks.",
 ]
+
+
+def get_source_of_truth_docs() -> list[str]:
+    docs = list(SOURCE_OF_TRUTH_DOCS)
+    state = load_project_state()
+    milestone = state.get("active_roadmap", {}).get("current_authorized_milestone")
+    if milestone:
+        milestone_slug = slugify(milestone).replace("-", "_")
+        milestone_path = f"docs/project_memory/milestones/{milestone_slug}.md"
+        if path_exists(milestone_path) and milestone_path not in docs:
+            docs.append(milestone_path)
+    return docs
 
 
 @dataclass
@@ -222,7 +224,7 @@ def recommend_next_action(short_status: str, upstream_status: str) -> str:
             "Working tree has changes. Recommended next step:\n"
             "1. Review changes with: git status\n"
             "2. Review summary with: git diff --stat\n"
-            "3. Run checks before committing: pre-commit run --all-files"
+            "3. Run targeted checks from the active handoff and docs/project_memory/validation_matrix.md."
         )
 
     if "ahead" in upstream_status and "behind" in upstream_status:
@@ -261,16 +263,27 @@ def add_if_exists(recommendations: list[str], command: str, path: str) -> None:
 
 
 def recommend_tests(changed_files: list[str]) -> list[str]:
-    recommendations: list[str] = []
+    recommendations: list[str] = ["git diff --check"]
 
     if not changed_files:
         return [
-            "pre-commit run --all-files",
-            "pytest -q",
+            "git diff --check",
+            "Select targeted tests from the active handoff and docs/project_memory/validation_matrix.md.",
         ]
 
+    if any(file.startswith("frontend/") for file in changed_files):
+        recommendations.extend(
+            [
+                "cd frontend && npm run lint",
+                "cd frontend && npm run build",
+                "For user-facing changes, run production browser smoke on http://127.0.0.1:3100 with console and mobile-width checks.",
+            ]
+        )
+
     if any(file.startswith("ui/") for file in changed_files):
-        recommendations.append("python -m py_compile ui/streamlit_app.py")
+        recommendations.append(
+            "Legacy UI/developer tooling changed: select targeted checks from the active handoff."
+        )
 
     if any(
         file.startswith("tools/") or file.startswith("docs/project_memory")
@@ -293,62 +306,10 @@ def recommend_tests(changed_files: list[str]) -> list[str]:
             "tests/test_api_smoke.py",
         )
 
-    if any("user_state" in file for file in changed_files):
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_user_state_service.py -q",
-            "tests/test_user_state_service.py",
+    if any(file.endswith(".py") for file in changed_files):
+        recommendations.append(
+            "Select targeted pytest files for the changed contract from the active handoff and validation matrix."
         )
-
-    if any("coaching_decision" in file for file in changed_files):
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_coaching_decision_service.py -q",
-            "tests/test_coaching_decision_service.py",
-        )
-
-    if any("recommendation" in file for file in changed_files):
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_grounded_recommendation_engine.py -q",
-            "tests/test_grounded_recommendation_engine.py",
-        )
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_recommendation_candidate_service.py -q",
-            "tests/test_recommendation_candidate_service.py",
-        )
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_recommendation_runtime.py -q",
-            "tests/test_recommendation_runtime.py",
-        )
-
-    if any("report" in file or "coordinator" in file for file in changed_files):
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_report_language_validator.py -q",
-            "tests/test_report_language_validator.py",
-        )
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_report_status.py -q",
-            "tests/test_report_status.py",
-        )
-
-    if any(file.startswith("scripts/seed_qa_scenarios") for file in changed_files):
-        add_if_exists(
-            recommendations,
-            "pytest tests/test_seed_qa_scenarios.py -q",
-            "tests/test_seed_qa_scenarios.py",
-        )
-
-    recommendations.extend(
-        [
-            "pre-commit run --all-files",
-            "pytest -q",
-        ]
-    )
 
     return unique_sorted(recommendations)
 
@@ -357,6 +318,9 @@ def suggest_recipient_chat(changed_files: list[str]) -> str:
     if not changed_files:
         return "DevOps & Tooling or the active milestone chat"
 
+    if any(file.startswith("frontend/") for file in changed_files):
+        return "Frontend"
+
     if any(
         file.startswith("tools/") or file in {".gitignore", "pyproject.toml"}
         for file in changed_files
@@ -364,7 +328,7 @@ def suggest_recipient_chat(changed_files: list[str]) -> str:
         return "DevOps & Tooling"
 
     if any(file.startswith("ui/") for file in changed_files):
-        return "Streamlit UI"
+        return "Legacy UI / Developer Tooling"
 
     if any(file.startswith("tests/") for file in changed_files):
         return "QA & Testing"
@@ -406,7 +370,7 @@ def generate_handoff_template(
     changed_files: list[str],
     recipient_chat: str,
 ) -> str:
-    return f"""Project sync — AI Health Coach
+    return f"""Project sync — Health & Fitness Platform
 
 Source of truth:
 Branch: {branch}
@@ -424,9 +388,9 @@ What changed:
 - <fill in>
 
 Validation:
-- pre-commit: <pass/fail/not run>
-- pytest: <pass/fail/not run>
-- manual QA: <pass/fail/not run>
+- targeted validation: <commands and pass/fail/not run>
+- project-memory checks: <pass/fail/not applicable>
+- production browser smoke: <coverage/pass/fail/not applicable>
 
 Important files:
 {format_file_list(changed_files)}
@@ -462,18 +426,23 @@ def generate_pr_template(changed_files: list[str], recommended_tests: list[str])
 def generate_snapshot_name(commit_hash: str, commit_subject: str) -> str:
     today = datetime.now().strftime("%Y-%m-%d")
     slug = slugify(commit_subject)
-    return f"fitness_ai_snapshot_{today}_{commit_hash}_{slug}.zip"
+    return f"fitness_ai_snapshot_{today}_{commit_hash}_main_{slug}.zip"
 
 
 def generate_snapshot_command() -> str:
-    return r"""$commit = git rev-parse --short HEAD
+    return r"""if ((git branch --show-current).Trim() -ne "main") { throw "Snapshots require main." }
+if (git status --porcelain) { throw "Snapshots require a clean working tree." }
+
+$commit = git rev-parse --short HEAD
 $date = Get-Date -Format "yyyy-MM-dd"
 $commitMessage = git log -1 --pretty=%s
 
 $safeMessage = $commitMessage -replace '[^a-zA-Z0-9]+', '-'
 $safeMessage = $safeMessage.ToLower().Trim('-')
 
-$zipName = "..\fitness_ai_snapshot_${date}_${commit}_${safeMessage}.zip"
+$snapshotDir = "C:\projects\fitness_ai_external\snapshots"
+New-Item -ItemType Directory -Path $snapshotDir -Force | Out-Null
+$zipName = Join-Path $snapshotDir "fitness_ai_snapshot_${date}_${commit}_main_${safeMessage}.zip"
 
 git archive --format=zip --output=$zipName HEAD
 
@@ -504,36 +473,31 @@ git log --oneline -5
 git push -u origin {selected_branch}"""
 
 
-def generate_runtime_restart_commands(ollama_base_url: str) -> str:
-    return f"""# Linux deterministic-safe FastAPI restart.
-# OLLAMA_BASE_URL only tells FastAPI where Windows Ollama lives.
-# It does not make provider output the default.
+def generate_runtime_restart_commands() -> str:
+    return r"""# Canonical Windows production runtime.
+# These commands use FastAPI on 127.0.0.1:8000 and the existing production
+# Next.js build on 3100. They do not rebuild the frontend.
 
-cd ~/projects/fitness-ai-platform
+cdf
+fkillapi
+fkillfront
+fapi
+ffront
 
-unset RECOMMENDATION_CANDIDATE_PROVIDER
-unset NUTRITION_EXPLANATION_PROVIDER
-export OLLAMA_BASE_URL={ollama_base_url}
+# Intentional rebuild + production start when frontend source changed:
+# ffrontbuild
 
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-
-# Connectivity check from Linux to Windows Ollama:
-curl -s {ollama_base_url}/api/tags | head
-
-# Daily Coach Narrative direct_ollama lane smoke test:
-curl -s "http://127.0.0.1:8000/daily-coach/102/narrative-preview/debug?provider=direct_ollama&model=qwen3:8b&date=2026-06-19&timeout_seconds=180" | python -m json.tool
-
-# Streamlit alternate-port restart when 8501 is occupied:
-streamlit run ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8502"""
+# Production acceptance: http://127.0.0.1:3100
+# Optional Next.js development mode: fnext or fnextfg on port 3000
+# Development mode is not production acceptance."""
 
 
 def generate_validation_block() -> str:
     checks = [
         "git diff --check",
-        "powershell -ExecutionPolicy Bypass -File scripts/dev_commit_check.ps1 -Mode code",
-        ".\\.venv\\Scripts\\python.exe -m py_compile tools\\dev_assistant.py",
-        ".\\.venv\\Scripts\\python.exe -m py_compile tools\\project_memory_check.py",
-        ".\\.venv\\Scripts\\python.exe -m pytest tests\\test_project_memory_check.py -q",
+        "Select targeted tests from the active handoff and docs/project_memory/validation_matrix.md.",
+        "Run project-memory checker/tests when project memory changes.",
+        "Run frontend lint/build and production browser smoke on 3100 when UI-impacting.",
     ]
     return "\n".join(checks)
 
@@ -541,13 +505,13 @@ def generate_validation_block() -> str:
 def generate_agent_prompt(target: str, milestone: str) -> str:
     branch = get_current_branch()
     commit = get_latest_commit()
-    source_docs = "\n".join(f"- {doc}" for doc in SOURCE_OF_TRUTH_DOCS)
+    source_docs = "\n".join(f"- {doc}" for doc in get_source_of_truth_docs())
     focused_tests = "\n".join(f"- {test}" for test in FOCUSED_SAFETY_TESTS)
     return f"""Recipient:
 {target}
 
 Project:
-AI Health Coach / fitness-ai
+Health & Fitness Platform / health-fitness-platform
 
 Branch:
 {branch}
@@ -565,23 +529,23 @@ Source-of-truth docs to read first:
 {source_docs}
 
 Core doctrine:
-- Backend owns truth.
-- AI explains backend-approved truth only.
-- Validators enforce reality.
-- Deterministic fallback remains default.
-- Provider defaults must not change.
-- qwen3 is not production-approved.
-- Do not loosen validators.
-- Do not add Claude workflow files or commands.
+- Health & Fitness Platform is local-first, data-first, deterministic-first, and validation-first.
+- Backend owns facts, calculations, constraints, validation, persistence, and fallback.
+- Provider/AI output is optional and non-authoritative.
+- AI-written daily coaching prose is paused indefinitely.
+- Do not add provider, RAG, vector, or runtime-agent behavior unless the active milestone explicitly authorizes it.
+- Preserve current repository and Architecture contracts.
+- Do not stage, commit, push, merge, or snapshot without explicit authority.
+- Never mutate the real fitness_ai.db during automated work.
+- Use targeted validation from the active handoff and docs/project_memory/validation_matrix.md.
 
 Scope:
 <fill in exact approved scope>
 
 Strict non-goals:
 - no product/runtime behavior changes unless explicitly scoped
-- no provider behavior changes unless explicitly scoped
-- no validator loosening
-- no deterministic fallback weakening
+- no provider/RAG/vector/agent behavior unless explicitly scoped
+- no backend-truth or deterministic-fallback weakening
 - no broad rewrites
 - no staged artifacts or snapshots
 
@@ -605,8 +569,8 @@ def generate_context_pack(target: str, milestone: str) -> str:
     branch = get_current_branch()
     commit = get_latest_commit()
     recent = get_recent_commits()
-    docs = "\n".join(f"- {doc}" for doc in SOURCE_OF_TRUTH_DOCS)
-    return f"""AI Health Coach context pack
+    docs = "\n".join(f"- {doc}" for doc in get_source_of_truth_docs())
+    return f"""Health & Fitness Platform context pack
 
 Target: {target}
 Milestone: {milestone}
@@ -620,22 +584,23 @@ Recent commits:
 {recent}
 
 Non-negotiable boundaries:
-- backend owns facts/calculations/validation/persistence/fallback
-- AI/provider output is never source of truth
-- deterministic fallback remains default
-- provider lanes remain opt-in/manual/debug unless explicitly promoted
-- raw provider output/prompts/payloads/validation internals stay out of normal UI/API
-- do not add CLAUDE.md or Claude-specific commands
-- do not stage patch/snapshot/runtime artifacts
+- Health & Fitness Platform is local-first, data-first, deterministic-first, and validation-first.
+- Backend owns facts, calculations, constraints, validation, persistence, and fallback.
+- Provider/AI output is optional and non-authoritative; AI-written daily coaching prose is paused indefinitely.
+- Do not add provider/RAG/vector/agent behavior unless the active milestone explicitly authorizes it.
+- Do not stage, commit, push, merge, or snapshot without explicit authority.
+- Never mutate the real fitness_ai.db during automated work.
+- Use targeted validation from the active handoff and validation matrix.
 
-Windows path:
+Canonical Windows environment:
 C:\\projects\\fitness_ai
+FastAPI: http://127.0.0.1:8000
+Production Next.js: http://127.0.0.1:3100
+Optional Next.js development mode: port 3000; not production acceptance.
 
-Linux path:
-~/projects/fitness-ai-platform
-
-Linux provider-lane note:
-FastAPI may set OLLAMA_BASE_URL to reach Windows Ollama without changing provider defaults.
+Secondary environment:
+Linux at ~/projects/fitness-ai-platform is optional validation/runtime/demo infrastructure.
+Streamlit is legacy/developer-only and is not the canonical product frontend.
 """
 
 
@@ -645,17 +610,20 @@ def generate_qa_plan(milestone: str) -> str:
 
 Static checks:
 - git diff --check
-- scripts/dev_commit_check.ps1 -Mode code
+- Inspect the final branch, status, diff, and staged files.
 
-Focused tests:
+Risk-based validation:
 {focused_tests}
 
 Manual checks:
-- Confirm expected surfaces exist only where scoped.
-- Confirm normal product UI is unchanged unless explicitly scoped.
-- Confirm no raw provider output, prompts, payloads, validation internals, stack traces, or rejected text leak.
-- Confirm deterministic fallback remains available.
-- Confirm provider defaults did not change.
+- Confirm acceptance criteria from the active handoff on every touched surface.
+- Confirm persisted backend state and validation remain authoritative.
+- Confirm consequential actions still require user approval.
+- Confirm deterministic fallback remains available unless the milestone explicitly changes it.
+- Confirm no unrelated routes, schemas, dependencies, or workflow systems were added.
+- Confirm the real fitness_ai.db was not initialized or mutated by automated work.
+- Confirm project memory was synchronized when behavior, architecture, workflow, or accepted status changed.
+- For UI work, run production-mode browser smoke last at mobile and desktop widths.
 
 Artifact checks:
 - git status --short
@@ -697,10 +665,10 @@ def build_session_brief(milestone: str | None = None) -> str:
     stale_doc_check = get_project_memory_check_text()
 
     lines = [
-        "AI Health Coach - Developer Workflow Assistant",
+        "Health & Fitness Platform - Developer Workflow Assistant",
         "=" * 72,
         f"Generated: {datetime.now().isoformat(timespec='seconds')}",
-        "Project: AI Health Coach / fitness-ai",
+        "Project: Health & Fitness Platform / health-fitness-platform",
     ]
 
     if milestone:
@@ -744,15 +712,15 @@ def build_session_brief(milestone: str | None = None) -> str:
             "-" * 72,
             generate_snapshot_command(),
             "",
-            "Linux Sync Reminder",
+            "Optional Linux Sync",
             "-" * 72,
             generate_linux_sync_command(branch),
             "",
             "Artifact Rules",
             "-" * 72,
             "- qa_artifacts is local handoff output and should not be committed.",
-            "- Do not stage snapshots, patches, local DB files, logs, raw provider output, or Headroom artifacts.",
-            "- Do not include secrets, provider payloads, or local database contents in handoff briefs.",
+            "- Do not stage snapshots, patches, local DB files, logs, or runtime artifacts.",
+            "- Do not include secrets or local database contents in handoff briefs.",
         ]
     )
 
@@ -798,7 +766,7 @@ def print_status_report() -> None:
     )
     snapshot_name = generate_snapshot_name(latest_commit_hash, latest_commit_subject)
 
-    print_section("AI Health Coach — Developer Workflow Assistant")
+    print_section("Health & Fitness Platform — Developer Workflow Assistant")
 
     print(f"Branch:\n{branch}")
     print()
@@ -846,11 +814,11 @@ def print_status_report() -> None:
     print_section("Snapshot command")
     print(generate_snapshot_command())
 
-    print_section("Linux sync after snapshot")
+    print_section("Optional Linux sync")
     print(generate_linux_sync_command(branch))
 
-    print_section("Runtime restart / provider-lane commands")
-    print(generate_runtime_restart_commands("http://192.168.1.104:11434"))
+    print_section("Primary Windows product runtime commands")
+    print(generate_runtime_restart_commands())
 
     print_section("PR description template")
     print(pr_template)
@@ -913,11 +881,10 @@ def generate_continuity_brief() -> str:
     workflow = state.get("workflow_rules", {})
     first_files = state.get("first_files_to_read", {})
 
-    not_authorized = async_boundary.get("not_authorized", [])
     all_role_files = first_files.get("all_roles", [])
 
     lines = [
-        "AI Health Coach Continuity Brief",
+        "Health & Fitness Platform Continuity Brief",
         "=" * 72,
         "",
         f"Project: {project.get('name', 'Unavailable')} / {project.get('repo', 'Unavailable')}",
@@ -929,7 +896,18 @@ def generate_continuity_brief() -> str:
         f"Current authorized milestone: {roadmap.get('current_authorized_milestone', 'Unavailable')}",
         f"Recommended next milestone after acceptance: {roadmap.get('recommended_next_milestone_after_acceptance', 'Unavailable')}",
         "",
-        "Runtime split",
+        "Canonical source hierarchy / first files to read",
+        "-" * 72,
+        _format_list(all_role_files),
+        "",
+        "Authority hierarchy",
+        "-" * 72,
+        "- User: approves consequential actions and authorizes delivery phases.",
+        "- Architecture: defines and accepts product, data, and system contracts.",
+        "- Codex: implements only the authorized milestone and reports evidence.",
+        "- Human QA: performs acceptance checks where the handoff requires them.",
+        "",
+        "Primary environment and runtime",
         "-" * 72,
         "Windows:",
         _format_list(runtime.get("windows", [])),
@@ -937,23 +915,14 @@ def generate_continuity_brief() -> str:
         "Linux:",
         _format_list(runtime.get("linux", [])),
         "",
-        "Model / provider policy",
+        "Current product and AI boundary",
         "-" * 72,
-        f"- qwen2.5:3b: {model_policy.get('qwen2_5_3b', 'Unavailable')}",
-        f"- qwen3: {model_policy.get('qwen3', 'Unavailable')}",
-        f"- qwen3:32b: {model_policy.get('qwen3_32b', 'Unavailable')}",
-        f"- model promotion: {model_policy.get('model_promotion', 'Unavailable')}",
-        f"- fallback: {model_policy.get('fallback', 'Unavailable')}",
-        f"- boundary: {model_policy.get('boundary', 'Unavailable')}",
+        f"- Authority: {model_policy.get('boundary', 'Unavailable')}",
+        f"- Fallback: {model_policy.get('fallback', 'Unavailable')}",
+        f"- Current AI prose boundary: {async_boundary.get('current', 'Unavailable')}",
+        f"- Normal product behavior: {async_boundary.get('normal_today_behavior', 'Unavailable')}",
         "",
-        "Daily Coach async boundary",
-        "-" * 72,
-        f"- Current: {async_boundary.get('current', 'Unavailable')}",
-        f"- Normal Today behavior: {async_boundary.get('normal_today_behavior', 'Unavailable')}",
-        "- Not authorized:",
-        _format_list(not_authorized),
-        "",
-        "Workflow rules",
+        "Workflow and delivery rules",
         "-" * 72,
         f"- phase-separated delivery: {workflow.get('phase_separated_delivery', 'Unavailable')}",
         f"- no git add .: {workflow.get('no_git_add_dot', 'Unavailable')}",
@@ -963,10 +932,6 @@ def generate_continuity_brief() -> str:
         f"- raw patches: {workflow.get('apply_raw_patches_from_repo_as', 'Unavailable')}",
         f"- docs-only broad formatters disabled: {workflow.get('no_broad_formatters_for_docs_only', 'Unavailable')}",
         f"- long handoffs in code blocks: {workflow.get('long_handoffs_in_code_blocks', 'Unavailable')}",
-        "",
-        "First files to read",
-        "-" * 72,
-        _format_list(all_role_files),
     ]
 
     return "\n".join(lines)
@@ -974,7 +939,7 @@ def generate_continuity_brief() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Read-only developer workflow assistant for AI Health Coach."
+        description="Read-only developer workflow assistant for the Health & Fitness Platform."
     )
     subparsers = parser.add_subparsers(dest="command")
 
@@ -1015,18 +980,14 @@ def build_parser() -> argparse.ArgumentParser:
     session_brief.add_argument("--milestone", default=None)
 
     snapshot_command = subparsers.add_parser(
-        "snapshot-command", help="Print snapshot and Linux sync commands."
+        "snapshot-command",
+        help="Print a safe snapshot command and optional Linux sync.",
     )
     snapshot_command.add_argument("--branch", default=None)
 
-    runtime_restart = subparsers.add_parser(
+    subparsers.add_parser(
         "runtime-restart",
-        help="Print deterministic-safe restart/provider-lane commands.",
-    )
-    runtime_restart.add_argument(
-        "--ollama-base-url",
-        default="http://192.168.1.104:11434",
-        help="Windows-hosted Ollama base URL reachable from Linux FastAPI.",
+        help="Print canonical Windows production runtime helper commands.",
     )
 
     sync = subparsers.add_parser(
@@ -1072,12 +1033,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "snapshot-command":
         print_section("Windows snapshot command")
         print(generate_snapshot_command())
-        print_section("Linux sync after snapshot")
+        print_section("Optional Linux sync")
         print(generate_linux_sync_command(args.branch))
         return 0
 
     if args.command == "runtime-restart":
-        print(generate_runtime_restart_commands(args.ollama_base_url))
+        print(generate_runtime_restart_commands())
         return 0
 
     if args.command == "sync-commands":
