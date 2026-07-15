@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fitness AI Today",
-  description: "Mobile-first Today shell for the Fitness AI daily driver contract.",
+  title: "Health & Fitness Platform",
+  description: "Local-first nutrition, training, recovery, and fitness tracking platform.",
 };
 
 export default function RootLayout({

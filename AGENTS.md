@@ -1,10 +1,10 @@
-# AI Health Coach Repository Instructions
+# Health & Fitness Platform Repository Instructions
 
 ## Product Boundaries
 
 - Build a local-first health and fitness platform that is data-first, deterministic-first, and validation-first.
 - Backend owns facts, calculations, constraints, validation, persistence, and fallback. The user approves consequential actions.
-- AI may propose or explain backend-approved options, but it must never silently control health decisions.
+- Optional generative or provider systems may propose or explain backend-approved options, but they must never silently control health decisions.
 - Preserve source and decision provenance. Do not replace validated data with unexplained generated output.
 - Reuse existing services, contracts, models, and helpers before creating new implementations.
 - Keep UI compact, practical, and focused on persisted backend state.
