@@ -22,21 +22,28 @@ function formatNumber(value: number): string {
 
 function macroLine(food: PersonalFood): string {
   const revision = food.current_revision;
+  const isNutritionLabel = revision.input_basis === "nutrition_label";
+  const calories = isNutritionLabel
+    ? revision.entered_calories
+    : revision.calories_per_100g;
+  const protein = isNutritionLabel
+    ? revision.entered_protein_g
+    : revision.protein_g_per_100g;
+  const carbs = isNutritionLabel
+    ? revision.entered_carbs_g
+    : revision.carbs_g_per_100g;
+  const fat = isNutritionLabel
+    ? revision.entered_fat_g
+    : revision.fat_g_per_100g;
   const parts = [
-    revision.calories_per_100g === null
-      ? null
-      : `${formatNumber(revision.calories_per_100g)} cal`,
-    revision.protein_g_per_100g === null
-      ? null
-      : `${formatNumber(revision.protein_g_per_100g)}g protein`,
-    revision.carbs_g_per_100g === null
-      ? null
-      : `${formatNumber(revision.carbs_g_per_100g)}g carbs`,
-    revision.fat_g_per_100g === null
-      ? null
-      : `${formatNumber(revision.fat_g_per_100g)}g fat`,
+    calories === null ? null : `${formatNumber(calories)} cal`,
+    protein === null ? null : `${formatNumber(protein)}g protein`,
+    carbs === null ? null : `${formatNumber(carbs)}g carbs`,
+    fat === null ? null : `${formatNumber(fat)}g fat`,
   ].filter((value): value is string => value !== null);
-  return parts.length ? `${parts.join(" · ")} per 100g` : "Nutrition details limited";
+  return parts.length
+    ? `${parts.join(" · ")} ${isNutritionLabel ? "per serving" : "per 100g"}`
+    : "Nutrition details limited";
 }
 
 function withContext(path: string, userId: number, targetDate?: string) {

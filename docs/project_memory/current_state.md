@@ -1,3 +1,29 @@
+# Current State - Personal Food Serving Display Fix v1
+
+Canonical implementation baseline: main at 15964d7.
+
+Feature branch: feature/personal-food-serving-display-fix-v1.
+
+Status: PERSONAL_FOOD_SERVING_DISPLAY_FIX_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Personal foods created from a nutrition label now display persisted entered_* nutrition values as per-serving nutrition in the shared My Foods renderer.
+- Nutrition-label foods display per serving.
+- Foods entered on a per-100g basis retain normalized *_per_100g values and the per 100g label.
+- Existing serving-name and serving-weight context remains unchanged.
+- Missing nutrients continue to be omitted individually.
+- Foods without displayable nutrition retain the Nutrition details limited fallback.
+- The corrected shared renderer was validated on standalone /personal-foods and Today -> My Foods at desktop and narrow/mobile widths.
+- Backend APIs, database/schema, personal-food persistence, normalization, logging calculations, canonical foods, and target-vs-actual behavior are unchanged.
+
+Next product milestone:
+
+Pending product-roadmap review after this milestone is merged and closed.
+
+No subsequent milestone is implementation-authorized.
+
+---
 # Current State - Today Food Workspace Deck v1
 
 Canonical baseline: `main` at `5c9ae9e Merge desktop workout layout and explanation polish v1`.
