@@ -341,7 +341,7 @@ export default async function Home({
 
         {data ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
-            <div className="space-y-3 lg:space-y-4">
+            <div className="min-w-0 space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
               <div id="food-workspace" className="scroll-mt-3 sm:scroll-mt-6">
                 <FoodWorkspaceDeck
@@ -413,7 +413,7 @@ export default async function Home({
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="min-w-0 space-y-4">
               <div id="recovery" className="scroll-mt-3 sm:scroll-mt-6">
                 <RecoveryCheckInCard
                   userId={todayQuery.userId ?? data.user_id}

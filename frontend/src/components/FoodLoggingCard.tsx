@@ -72,15 +72,6 @@ function formatCompactNumber(value: number, suffix = ""): string {
   return `${normalized}${suffix}`;
 }
 
-function formatMealLabel(value: string | null | undefined): string {
-  if (!value) {
-    return "Any time";
-  }
-
-  const normalized = value.replace("_", " ");
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
 function formatRecentAmount(food: RecentCanonicalFood): string {
   if (food.last_serving_unit_label) {
     return food.last_serving_unit_label;
@@ -183,7 +174,6 @@ export function FoodLoggingCard({
   const [isSaving, setIsSaving] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
 
   const refreshRecentFoods = useCallback(async () => {
@@ -403,7 +393,6 @@ export function FoodLoggingCard({
     setQuery(food.display_name);
     setResults([]);
     setSearchMessage(null);
-    setActionMessage(null);
     setErrorMessage(null);
   }
 
@@ -477,11 +466,10 @@ export function FoodLoggingCard({
 
     setIsSaving(true);
     setErrorMessage(null);
-    setActionMessage(null);
 
     try {
       if (selectedFood.foodType === "personal") {
-        const response = await logPersonalFood({
+        await logPersonalFood({
           user_id: userId,
           entry_date: targetDate,
           personal_food_id: selectedFood.personalFoodId as number,
@@ -490,12 +478,9 @@ export function FoodLoggingCard({
             ? { serving_quantity: amountValue }
             : { grams: resolvedGrams }),
         });
-        setActionMessage(
-          `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
-        );
         window.dispatchEvent(new CustomEvent(PERSONAL_FOOD_LOGGED_EVENT));
       } else {
-        const response = await logCanonicalFood({
+        await logCanonicalFood({
           user_id: userId,
           entry_date: targetDate,
           canonical_food_id: selectedFood.canonicalFoodId as number,
@@ -507,13 +492,20 @@ export function FoodLoggingCard({
               }
             : { grams: resolvedGrams }),
         });
-        setActionMessage(
-          `Logged ${formatCompactNumber(response.grams)}g ${response.display_name}.`,
-        );
         void refreshRecentFoods();
         window.dispatchEvent(new CustomEvent(CANONICAL_FOOD_LOGGED_EVENT));
       }
-      setAmount(selectedUnitKey === "grams" ? "50" : "1");
+      pendingRecentContextRef.current = null;
+      setSelectedFood(null);
+      setSelectedSearchQuery("");
+      setQuery("");
+      setResults([]);
+      setServingUnits([]);
+      setSelectedUnitKey("grams");
+      setAmount("50");
+      setIsLoadingServingUnits(false);
+      setSearchMessage(null);
+      setErrorMessage(null);
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -543,21 +535,19 @@ export function FoodLoggingCard({
         {recentFoods.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-text-primary">Recent foods</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex snap-x snap-proximity flex-nowrap gap-2 overflow-x-auto pb-1">
               {recentFoods.map((food) => (
                 <button
                   key={food.canonical_food_id}
                   type="button"
                   onClick={() => handleSelectRecentFood(food)}
-                  className="max-w-full rounded-2xl border border-border bg-surface px-3 py-2 text-left text-xs leading-5 text-text-body transition hover:border-border-accent hover:bg-surface-highlighted"
+                  className="shrink-0 snap-start rounded-xl border border-border bg-surface px-3 py-2 text-left text-xs text-text-body transition hover:border-border-accent hover:bg-surface-highlighted"
                 >
                   <span className="font-semibold text-text-strong">
                     {food.display_name}
                   </span>
                   <span className="text-text-muted">
-                    {" "}
-                    · {formatRecentAmount(food)} ·{" "}
-                    {formatMealLabel(food.last_meal_type)}
+                    {" "}· {formatRecentAmount(food)}
                   </span>
                 </button>
               ))}
@@ -586,7 +576,6 @@ export function FoodLoggingCard({
               setQuery(nextQuery);
               setIsSearching(false);
               setErrorMessage(null);
-              setActionMessage(null);
 
               if (trimmedQuery.length < 2) {
                 setResults([]);
@@ -618,7 +607,7 @@ export function FoodLoggingCard({
         ) : null}
 
         {shouldShowResults ? (
-          <div className="space-y-2">
+          <div className="max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-border bg-surface p-1">
             {results.map((food) => {
               const isSelected = selectedFood?.key === food.key;
 
@@ -649,13 +638,12 @@ export function FoodLoggingCard({
                     }
                     setSelectedFood(food);
                     setSelectedSearchQuery(query.trim());
-                    setActionMessage(null);
                     setErrorMessage(null);
                   }}
-                  className={`w-full rounded-[20px] border px-4 py-2.5 text-left transition ${
+                  className={`w-full rounded-xl px-3 py-2 text-left transition ${
                     isSelected
-                      ? "border-border-interactive-strong bg-surface-highlighted"
-                      : "border-border bg-surface-subtle hover:border-border-accent hover:bg-surface"
+                      ? "bg-surface-highlighted"
+                      : "hover:bg-surface-subtle"
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -668,7 +656,7 @@ export function FoodLoggingCard({
                       </span>
                     ) : null}
                   </div>
-                  <p className="mt-1 text-sm leading-6 text-text-body">
+                  <p className="mt-0.5 text-xs leading-4 text-text-secondary">
                     {formatMacroLine(food.nutrientSummary)}
                   </p>
                 </button>
@@ -678,82 +666,68 @@ export function FoodLoggingCard({
         ) : null}
 
         {selectedFood ? (
-          <div className="space-y-3 rounded-[22px] bg-surface-subtle px-4 py-3">
+          <div className="space-y-2.5 rounded-[20px] bg-surface-subtle px-3 py-3 sm:px-4">
             <div className="grid gap-1">
               <p className="text-sm font-semibold text-text-strong">
-                Selected: {selectedFood.displayName}
+                {selectedFood.displayName}
               </p>
-              <p className="text-xs leading-5 text-text-secondary">
-                {formatMacroLine(selectedFood.nutrientSummary)}
+              <p className="text-xs leading-4 text-text-secondary">
+                {preview ?? "Enter an amount to preview this food."}
               </p>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-text-primary">Amount</span>
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
-                  <input
-                    type="number"
-                    min="0"
-                    step={selectedUnitKey === "grams" ? "1" : "0.25"}
-                    value={amount}
-                    onChange={(event) => {
-                      setAmount(event.target.value);
-                      setActionMessage(null);
-                      setErrorMessage(null);
-                    }}
-                    className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
-                  />
-                  <select
-                    value={selectedUnitKey}
-                    disabled={isLoadingServingUnits}
-                    onChange={(event) => {
-                      const nextUnitKey = event.target.value;
-                      setSelectedUnitKey(nextUnitKey);
-                      setAmount(nextUnitKey === "grams" ? "50" : "1");
-                      setActionMessage(null);
-                      setErrorMessage(null);
-                    }}
-                    className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus disabled:opacity-70"
-                  >
-                    <option value="grams">grams</option>
-                    {selectedFood.foodType === "personal" &&
-                    selectedFood.servingGrams ? (
-                      <option value="personal-serving">
-                        {selectedFood.servingName || "serving"}
-                      </option>
-                    ) : null}
-                    {servingUnits.map((unit) => (
-                      <option
-                        key={unit.serving_unit_id}
-                        value={String(unit.serving_unit_id)}
-                      >
-                        {unit.display_label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <span className="block text-xs leading-5 text-text-secondary">
-                  {isLoadingServingUnits
-                    ? "Loading serving units..."
-                    : resolvedGramsIsValid
-                      ? `≈ ${formatCompactNumber(resolvedGrams)}g`
-                      : resolvedGrams > 5_000
-                        ? "Resolved amount must be 5,000g or less."
-                        : "Enter an amount to resolve grams."}
-                </span>
+            <div className="grid grid-cols-[minmax(4.5rem,0.75fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-2">
+              <label className="min-w-0 space-y-1">
+                <span className="text-xs font-semibold text-text-primary">Amount</span>
+                <input
+                  type="number"
+                  min="0"
+                  step={selectedUnitKey === "grams" ? "1" : "0.25"}
+                  value={amount}
+                  onChange={(event) => {
+                    setAmount(event.target.value);
+                    setErrorMessage(null);
+                  }}
+                  className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
+                />
               </label>
 
-              <label className="space-y-2">
-                <span className="text-sm font-semibold text-text-primary">Meal</span>
+              <label className="min-w-0 space-y-1">
+                <span className="text-xs font-semibold text-text-primary">Unit</span>
+                <select
+                  value={selectedUnitKey}
+                  disabled={isLoadingServingUnits}
+                  onChange={(event) => {
+                    const nextUnitKey = event.target.value;
+                    setSelectedUnitKey(nextUnitKey);
+                    setAmount(nextUnitKey === "grams" ? "50" : "1");
+                    setErrorMessage(null);
+                  }}
+                  className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-2 py-2 text-sm text-text-primary outline-none transition focus:border-focus disabled:opacity-70"
+                >
+                  <option value="grams">grams</option>
+                  {selectedFood.foodType === "personal" && selectedFood.servingGrams ? (
+                    <option value="personal-serving">
+                      {selectedFood.servingName || "serving"}
+                    </option>
+                  ) : null}
+                  {servingUnits.map((unit) => (
+                    <option key={unit.serving_unit_id} value={String(unit.serving_unit_id)}>
+                      {unit.display_label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="min-w-0 space-y-1">
+                <span className="text-xs font-semibold text-text-primary">Meal</span>
                 <select
                   value={mealType}
                   onChange={(event) => {
                     setMealType(event.target.value);
-                    setActionMessage(null);
                     setErrorMessage(null);
                   }}
-                  className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
+                  className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-2 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
                 >
                   {MEAL_OPTIONS.map((option) => (
                     <option key={option.value || "any"} value={option.value}>
@@ -764,17 +738,15 @@ export function FoodLoggingCard({
               </label>
             </div>
 
-            <div className="rounded-2xl bg-surface px-4 py-2.5">
-              <p className="text-sm font-semibold text-text-primary">
-                Preview: {preview ?? "Enter an amount to preview this food."}
-              </p>
-            </div>
-
-            {actionMessage ? (
-              <p className="rounded-2xl bg-surface-highlighted px-4 py-2.5 text-sm text-positive-foreground-strong">
-                {actionMessage}
-              </p>
-            ) : null}
+            <p className="text-xs leading-4 text-text-secondary">
+              {isLoadingServingUnits
+                ? "Loading serving units..."
+                : resolvedGramsIsValid
+                  ? `≈ ${formatCompactNumber(resolvedGrams)}g`
+                  : resolvedGrams > 5_000
+                    ? "Resolved amount must be 5,000g or less."
+                    : "Enter an amount to resolve grams."}
+            </p>
             {errorMessage ? (
               <p className="rounded-2xl bg-danger-surface px-4 py-2.5 text-sm text-danger-foreground">
                 {errorMessage}
