@@ -353,6 +353,44 @@ export interface WorkoutProgressionHistoryResponse {
   exercise_histories: WorkoutExerciseHistorySummary[];
 }
 
+export type WorkoutProgressionDecisionCode =
+  | "progress_reps"
+  | "increase_load"
+  | "hold"
+  | "ease_back"
+  | "insufficient_data";
+
+export interface WorkoutProgressionDecisionRequestExercise {
+  exercise_name: string;
+  catalog_exercise_id: number | null;
+  sets: number;
+  reps_min: number;
+  reps_max: number;
+  rir_min: number;
+  rir_max: number;
+}
+
+export interface WorkoutProgressionDecision {
+  exercise_name: string;
+  catalog_exercise_id: number | null;
+  decision: WorkoutProgressionDecisionCode;
+  headline: string;
+  target_guidance: string;
+  why_this_recommendation: string;
+  reason_codes: string[];
+  evidence_session_count: number;
+  confidence: "Limited" | "Low" | "Moderate" | "High";
+  reference_weight: number | null;
+  recovery_brake_applied: boolean;
+}
+
+export interface WorkoutProgressionDecisionResponse {
+  success: boolean;
+  user_id: number;
+  target_date: string;
+  progression_decisions: WorkoutProgressionDecision[];
+}
+
 export interface TodayWorkoutExerciseItem {
   exercise_id: string | null;
   name: string;

@@ -5,7 +5,10 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
-import { isHistoricalRequestedDate } from "@/lib/dateFormatting";
+import {
+  getBrowserLocalDateString,
+  isHistoricalRequestedDate,
+} from "@/lib/dateFormatting";
 import {
   applyWorkoutSubstitution,
   completeWorkout,
@@ -13,6 +16,7 @@ import {
   fetchWorkoutCurrent,
   fetchWorkoutPlannedVsActual,
   fetchWorkoutPreview,
+  fetchWorkoutProgressionDecisions,
   fetchWorkoutProgressionHistory,
   fetchWorkoutSubstitutionCandidates,
   logWorkoutActualSet,
@@ -32,6 +36,8 @@ import {
   WorkoutPlannedVsActualSummary,
   WorkoutPreviewExercise,
   WorkoutPreviewResponse,
+  WorkoutProgressionDecision,
+  WorkoutProgressionDecisionRequestExercise,
   WorkoutSizePreference,
   WorkoutSubstitutionCandidate,
 } from "@/types/todayWorkout";
@@ -554,6 +560,52 @@ function mapProgressionHistories(
   );
 }
 
+function progressionDecisionKey(
+  catalogExerciseId: number | null,
+  exerciseName: string,
+): string {
+  return catalogExerciseId !== null
+    ? `catalog:${catalogExerciseId}`
+    : `name:${normalizeExerciseHistoryKey(exerciseName)}`;
+}
+
+function mapProgressionDecisions(
+  decisions: WorkoutProgressionDecision[],
+): Record<string, WorkoutProgressionDecision> {
+  return decisions.reduce<Record<string, WorkoutProgressionDecision>>(
+    (mapped, decision) => {
+      mapped[
+        progressionDecisionKey(
+          decision.catalog_exercise_id,
+          decision.exercise_name,
+        )
+      ] = decision;
+      mapped[`name:${normalizeExerciseHistoryKey(decision.exercise_name)}`] =
+        decision;
+      return mapped;
+    },
+    {},
+  );
+}
+
+function progressionRequestExercise(
+  exercise: WorkoutPreviewExercise | PlannedWorkoutExerciseSummary,
+  activeSubstitution?: WorkoutActiveSubstitutionSummary,
+): WorkoutProgressionDecisionRequestExercise {
+  return {
+    exercise_name:
+      activeSubstitution?.replacement_exercise_name ?? exercise.name,
+    catalog_exercise_id:
+      activeSubstitution?.replacement_catalog_exercise_id ??
+      exercise.catalog_exercise_id,
+    sets: exercise.sets,
+    reps_min: exercise.reps_min,
+    reps_max: exercise.reps_max,
+    rir_min: exercise.rir_min,
+    rir_max: exercise.rir_max,
+  };
+}
+
 function PreviousPerformanceLine({
   history,
 }: {
@@ -594,6 +646,36 @@ function PreviousPerformanceLine({
       {history.logging_quality !== "complete" ? (
         <p className="font-medium text-caution-foreground">{history.message}</p>
       ) : null}
+    </div>
+  );
+}
+
+function NextTargetBlock({
+  decision,
+}: {
+  decision: WorkoutProgressionDecision | undefined;
+}) {
+  if (!decision) {
+    return null;
+  }
+
+  return (
+    <div className="rounded-lg bg-surface-highlighted px-3 py-2 text-xs text-text-body ring-1 ring-border">
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
+        Next target
+      </p>
+      <p className="mt-1 font-semibold text-text-primary">
+        {decision.headline}
+      </p>
+      <p className="mt-0.5 leading-5">{decision.target_guidance}</p>
+      <details className="mt-1.5">
+        <summary className="cursor-pointer font-semibold text-text-secondary">
+          Why?
+        </summary>
+        <p className="mt-1 leading-5 text-text-secondary">
+          {decision.why_this_recommendation}
+        </p>
+      </details>
     </div>
   );
 }
@@ -814,6 +896,8 @@ export function WorkoutPreviewExperience({
     useState<WorkoutPlannedVsActualSummary | null>(null);
   const [progressionHistoryByExerciseName, setProgressionHistoryByExerciseName] =
     useState<Record<string, WorkoutExerciseHistorySummary>>({});
+  const [progressionDecisionByExerciseKey, setProgressionDecisionByExerciseKey] =
+    useState<Record<string, WorkoutProgressionDecision>>({});
   const [formStateByExerciseId, setFormStateByExerciseId] = useState<
     Record<number, ActualSetFormState>
   >({});
@@ -915,6 +999,28 @@ export function WorkoutPreviewExperience({
     return mapProgressionHistories(result.data.exercise_histories);
   }, [userId]);
 
+  const loadProgressionDecisionsForExercises = useCallback(
+    async function (
+      exercises: WorkoutProgressionDecisionRequestExercise[],
+    ): Promise<Record<string, WorkoutProgressionDecision>> {
+      if (!exercises.length) {
+        return {};
+      }
+
+      const result = await fetchWorkoutProgressionDecisions(
+        userId,
+        requestedDate ?? getBrowserLocalDateString(),
+        exercises,
+      );
+      if (result.error || !result.data) {
+        return {};
+      }
+
+      return mapProgressionDecisions(result.data.progression_decisions);
+    },
+    [requestedDate, userId],
+  );
+
   useEffect(() => {
     if (isHistoricalReadOnly === null) {
       return;
@@ -965,6 +1071,7 @@ export function WorkoutPreviewExperience({
                 [],
             ),
           );
+          setProgressionDecisionByExerciseKey({});
           if (currentExecution) {
             await loadPlannedVsActualSummary(
               currentExecution.workout_plan_instance.id,
@@ -1009,6 +1116,22 @@ export function WorkoutPreviewExperience({
               currentExecution.planned_exercises.map((exercise) => exercise.name),
             ),
           );
+          const substitutionsByExerciseId = new Map(
+            currentExecution.active_substitutions.map((substitution) => [
+              substitution.planned_workout_exercise_id,
+              substitution,
+            ]),
+          );
+          setProgressionDecisionByExerciseKey(
+            await loadProgressionDecisionsForExercises(
+              currentExecution.planned_exercises.map((exercise) =>
+                progressionRequestExercise(
+                  exercise,
+                  substitutionsByExerciseId.get(exercise.id),
+                ),
+              ),
+            ),
+          );
           await loadPlannedVsActualSummary(
             currentExecution.workout_plan_instance.id,
             currentExecution.execution_session.status,
@@ -1028,6 +1151,7 @@ export function WorkoutPreviewExperience({
           setActiveSubstitutions([]);
           setPlannedVsActualSummary(null);
           setProgressionHistoryByExerciseName({});
+          setProgressionDecisionByExerciseKey({});
           setErrorMessage(currentResult.error?.message ?? null);
           return;
         }
@@ -1055,6 +1179,7 @@ export function WorkoutPreviewExperience({
           setActiveSubstitutions([]);
           setPlannedVsActualSummary(null);
           setProgressionHistoryByExerciseName({});
+          setProgressionDecisionByExerciseKey({});
           setErrorMessage(
             previewResult.error.message ??
               currentResult.error?.message ??
@@ -1076,6 +1201,7 @@ export function WorkoutPreviewExperience({
           setActiveSubstitutions([]);
           setPlannedVsActualSummary(null);
           setProgressionHistoryByExerciseName({});
+          setProgressionDecisionByExerciseKey({});
           setErrorMessage(
             "The backend returned a workout preview, but it was missing the fields needed to render.",
           );
@@ -1100,6 +1226,13 @@ export function WorkoutPreviewExperience({
             ),
           ),
         );
+        setProgressionDecisionByExerciseKey(
+          await loadProgressionDecisionsForExercises(
+            previewResult.data.approved_workout_plan.exercises.map((exercise) =>
+              progressionRequestExercise(exercise),
+            ),
+          ),
+        );
         setFormStateByExerciseId({});
         setNoteInputExpandedByExerciseId({});
       } finally {
@@ -1117,6 +1250,7 @@ export function WorkoutPreviewExperience({
   }, [
     isHistoricalReadOnly,
     loadProgressionHistoryForNames,
+    loadProgressionDecisionsForExercises,
     previewVariationIndex,
     requestedDate,
     userId,
@@ -1138,6 +1272,7 @@ export function WorkoutPreviewExperience({
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
     setProgressionHistoryByExerciseName({});
+    setProgressionDecisionByExerciseKey({});
     setIsCompletionReviewOpen(false);
     setActionMessage(null);
     setErrorMessage(null);
@@ -1157,6 +1292,7 @@ export function WorkoutPreviewExperience({
     setActiveSubstitutions([]);
     setPlannedVsActualSummary(null);
     setProgressionHistoryByExerciseName({});
+    setProgressionDecisionByExerciseKey({});
     setIsCompletionReviewOpen(false);
     setActionMessage(null);
     setErrorMessage(null);
@@ -1300,6 +1436,13 @@ export function WorkoutPreviewExperience({
       ...current,
       ...replacementHistory,
     }));
+    const replacementDecisions = await loadProgressionDecisionsForExercises([
+      progressionRequestExercise(exercise, activeSubstitution),
+    ]);
+    setProgressionDecisionByExerciseKey((current) => ({
+      ...current,
+      ...replacementDecisions,
+    }));
     setActionMessage(
       `Using ${activeSubstitution.replacement_exercise_name} instead of ${exercise.name}.`,
     );
@@ -1342,6 +1485,13 @@ export function WorkoutPreviewExperience({
       setProgressionHistoryByExerciseName(
         await loadProgressionHistoryForNames(
           result.data?.planned_exercises.map((exercise) => exercise.name) ?? [],
+        ),
+      );
+      setProgressionDecisionByExerciseKey(
+        await loadProgressionDecisionsForExercises(
+          (result.data?.planned_exercises ?? []).map((exercise) =>
+            progressionRequestExercise(exercise),
+          ),
         ),
       );
       setFormStateByExerciseId({});
@@ -1393,6 +1543,13 @@ export function WorkoutPreviewExperience({
         await loadProgressionHistoryForNames(
           (result.data?.planned_exercises ?? plannedExercises).map(
             (exercise) => exercise.name,
+          ),
+        ),
+      );
+      setProgressionDecisionByExerciseKey(
+        await loadProgressionDecisionsForExercises(
+          (result.data?.planned_exercises ?? plannedExercises).map((exercise) =>
+            progressionRequestExercise(exercise),
           ),
         ),
       );
@@ -1628,6 +1785,7 @@ export function WorkoutPreviewExperience({
       setExecutionSession(result.data?.execution_session ?? executionSession);
       setPlannedVsActualSummary(result.data?.planned_vs_actual_summary ?? null);
       setViewMode("completed");
+      setProgressionDecisionByExerciseKey({});
       setDailyState((current) =>
         current
           ? { ...current, state: "completed_today", user_safe_message: null }
@@ -2120,6 +2278,16 @@ export function WorkoutPreviewExperience({
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(exercise.name)
                   ];
+                const progressionDecision =
+                  progressionDecisionByExerciseKey[
+                    progressionDecisionKey(
+                      displayedCatalogExerciseId,
+                      displayExerciseName,
+                    )
+                  ] ??
+                  progressionDecisionByExerciseKey[
+                    `name:${normalizeExerciseHistoryKey(displayExerciseName)}`
+                  ];
                 const instructionKey = `persisted-${exercise.id}-${
                   displayedCatalogExerciseId ?? "legacy"
                 }`;
@@ -2273,6 +2441,9 @@ export function WorkoutPreviewExperience({
                         <div className={canLogWorkout ? "hidden md:block" : ""}>
                           <PreviousPerformanceLine history={history} />
                         </div>
+                        {isHistoricalReadOnly === false && !isCompletedState ? (
+                          <NextTargetBlock decision={progressionDecision} />
+                        ) : null}
                       </div>
                     </div>
 
@@ -2635,6 +2806,16 @@ export function WorkoutPreviewExperience({
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(exercise.name)
                   ];
+                const progressionDecision =
+                  progressionDecisionByExerciseKey[
+                    progressionDecisionKey(
+                      exercise.catalog_exercise_id,
+                      exercise.name,
+                    )
+                  ] ??
+                  progressionDecisionByExerciseKey[
+                    `name:${normalizeExerciseHistoryKey(exercise.name)}`
+                  ];
                 const instructionKey = `preview-${workoutSizePreference}-${previewVariationIndex}-${index}-${
                   exercise.catalog_exercise_id ?? "legacy"
                 }`;
@@ -2698,6 +2879,9 @@ export function WorkoutPreviewExperience({
                           ))}
                         </div>
                         <PreviousPerformanceLine history={history} />
+                        {isHistoricalReadOnly === false ? (
+                          <NextTargetBlock decision={progressionDecision} />
+                        ) : null}
                       </div>
                     </div>
                   </article>

@@ -51,12 +51,14 @@ class WorkoutExerciseHistorySummary:
 
 
 @dataclass(frozen=True)
-class _ExerciseSession:
+class ExerciseProgressionSession:
     workout_plan_instance_id: int
     workout_execution_session_id: int
     performed_at: str | None
     planned_exercise_id: int
     planned_set_count: int
+    effective_exercise_name: str
+    effective_catalog_exercise_id: int | None
     actual_rows: list[dict[str, Any]]
 
 
@@ -92,7 +94,7 @@ def build_exercise_history_summary(
     if not exercise_name:
         return _empty_summary("Unknown exercise")
 
-    sessions = _load_matching_completed_sessions(
+    sessions = load_completed_exercise_progression_sessions(
         user_id=user_id,
         exercise_name=exercise_name,
         lookback_days=lookback_days,
@@ -119,15 +121,23 @@ def build_exercise_history_summary(
     )
 
 
-def _load_matching_completed_sessions(
+def load_completed_exercise_progression_sessions(
     *,
     user_id: int,
     exercise_name: str,
+    catalog_exercise_id: int | None = None,
     lookback_days: int,
     limit: int,
-) -> list[_ExerciseSession]:
+) -> list[ExerciseProgressionSession]:
+    """Load ordered, substitution-aware completed-session evidence.
+
+    This is an internal service boundary shared by the read-only history summary
+    and the advisory progression engine. Public history response shapes remain
+    unchanged.
+    """
+
     normalized_target = _normalize_name(exercise_name)
-    if not normalized_target:
+    if not normalized_target and catalog_exercise_id is None:
         return []
 
     conn = get_connection()
@@ -138,6 +148,10 @@ def _load_matching_completed_sessions(
 
     cutoff = (date.today() - timedelta(days=max(1, int(lookback_days)))).isoformat()
     wpi_columns = _column_names(cursor, "workout_plan_instances")
+    pwe_columns = _column_names(cursor, "planned_workout_exercises")
+    planned_catalog_expr = (
+        "pwe.catalog_exercise_id" if "catalog_exercise_id" in pwe_columns else "NULL"
+    )
     plan_completed_at = "wpi.completed_at" if "completed_at" in wpi_columns else "NULL"
     performed_at_expr = f"COALESCE(wes.completed_at, {plan_completed_at}, wpi.selected_at, wpi.created_at)"
     rows = cursor.execute(
@@ -147,7 +161,8 @@ def _load_matching_completed_sessions(
                {performed_at_expr} AS performed_at,
                pwe.id AS planned_exercise_id,
                pwe.name AS planned_exercise_name,
-               pwe.sets AS planned_set_count
+               pwe.sets AS planned_set_count,
+               {planned_catalog_expr} AS planned_catalog_exercise_id
         FROM workout_plan_instances AS wpi
         JOIN workout_execution_sessions AS wes
           ON wes.workout_plan_instance_id = wpi.id
@@ -162,16 +177,65 @@ def _load_matching_completed_sessions(
         (user_id, cutoff),
     ).fetchall()
 
-    matches: list[_ExerciseSession] = []
+    substitution_table_exists = _table_exists(
+        cursor, "workout_plan_exercise_substitutions"
+    )
+    matches: list[ExerciseProgressionSession] = []
     for row in rows:
         planned_name = str(row["planned_exercise_name"] or "")
-        if _normalize_name(planned_name) != normalized_target:
+        replacement_name: str | None = None
+        replacement_catalog_exercise_id: int | None = None
+        if substitution_table_exists:
+            substitution = cursor.execute(
+                """
+                SELECT replacement_exercise_name,
+                       replacement_catalog_exercise_id
+                FROM workout_plan_exercise_substitutions
+                WHERE workout_plan_instance_id = ?
+                  AND planned_workout_exercise_id = ?
+                  AND status = 'active'
+                ORDER BY updated_at DESC,
+                         id DESC
+                LIMIT 1
+                """,
+                (
+                    int(row["workout_plan_instance_id"]),
+                    int(row["planned_exercise_id"]),
+                ),
+            ).fetchone()
+            if substitution is not None:
+                replacement_name = (
+                    str(substitution["replacement_exercise_name"] or "").strip() or None
+                )
+                replacement_catalog_exercise_id = _nullable_int(
+                    substitution["replacement_catalog_exercise_id"]
+                )
+
+        effective_name = replacement_name or planned_name
+        effective_catalog_exercise_id = (
+            replacement_catalog_exercise_id
+            if replacement_name is not None
+            else _nullable_int(row["planned_catalog_exercise_id"])
+        )
+        if (
+            catalog_exercise_id is not None
+            and effective_catalog_exercise_id is not None
+        ):
+            identity_matches = effective_catalog_exercise_id == int(catalog_exercise_id)
+        else:
+            identity_matches = _normalize_name(effective_name) == normalized_target
+        if not identity_matches:
             continue
+
         actual_rows = cursor.execute(
             """
             SELECT id,
                    exercise_name,
                    set_number,
+                   planned_reps_min,
+                   planned_reps_max,
+                   planned_rir_min,
+                   planned_rir_max,
                    actual_reps,
                    actual_weight,
                    actual_rir,
@@ -183,6 +247,8 @@ def _load_matching_completed_sessions(
             WHERE workout_execution_session_id = ?
               AND (
                 planned_workout_exercise_id = ?
+                OR substitution_for_planned_exercise_id = ?
+                OR LOWER(TRIM(exercise_name)) = LOWER(TRIM(?))
                 OR LOWER(TRIM(exercise_name)) = LOWER(TRIM(?))
               )
             ORDER BY set_number ASC, id ASC
@@ -190,16 +256,20 @@ def _load_matching_completed_sessions(
             (
                 int(row["workout_execution_session_id"]),
                 int(row["planned_exercise_id"]),
+                int(row["planned_exercise_id"]),
                 planned_name,
+                effective_name,
             ),
         ).fetchall()
         matches.append(
-            _ExerciseSession(
+            ExerciseProgressionSession(
                 workout_plan_instance_id=int(row["workout_plan_instance_id"]),
                 workout_execution_session_id=int(row["workout_execution_session_id"]),
                 performed_at=_date_part(row["performed_at"]),
                 planned_exercise_id=int(row["planned_exercise_id"]),
                 planned_set_count=_safe_int(row["planned_set_count"]),
+                effective_exercise_name=effective_name,
+                effective_catalog_exercise_id=effective_catalog_exercise_id,
                 actual_rows=[dict(actual) for actual in actual_rows],
             )
         )
@@ -211,7 +281,7 @@ def _load_matching_completed_sessions(
 
 
 def _summarize_recent_session(
-    session: _ExerciseSession,
+    session: ExerciseProgressionSession,
 ) -> WorkoutExerciseRecentSession:
     completed_rows = _completed_rows(session.actual_rows)
     return WorkoutExerciseRecentSession(
@@ -224,7 +294,9 @@ def _summarize_recent_session(
     )
 
 
-def _best_set(sessions: list[_ExerciseSession]) -> WorkoutExerciseBestSet | None:
+def _best_set(
+    sessions: list[ExerciseProgressionSession],
+) -> WorkoutExerciseBestSet | None:
     completed = [
         (session, row)
         for session in sessions
@@ -309,7 +381,7 @@ def _rir_summary(rows: list[dict[str, Any]]) -> str | None:
     return f"avg RIR {_format_number(round(mean(rirs), 1))}"
 
 
-def _logging_quality(sessions: list[_ExerciseSession]) -> str:
+def _logging_quality(sessions: list[ExerciseProgressionSession]) -> str:
     planned = sum(session.planned_set_count for session in sessions)
     rows = [row for session in sessions for row in session.actual_rows]
     completed = _completed_rows(rows)
@@ -384,6 +456,16 @@ def _required_tables_exist(cursor: Any) -> bool:
         """
     ).fetchall()
     return set(SOURCE_TABLES).issubset({str(row["name"]) for row in rows})
+
+
+def _table_exists(cursor: Any, table_name: str) -> bool:
+    return (
+        cursor.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+            (table_name,),
+        ).fetchone()
+        is not None
+    )
 
 
 def _column_names(cursor: Any, table_name: str) -> set[str]:

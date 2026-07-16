@@ -1,7 +1,8 @@
 from dataclasses import asdict
+from datetime import date
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from services.exercise_substitution_service import (
     apply_substitution,
@@ -10,6 +11,9 @@ from services.exercise_substitution_service import (
 from services.post_workout_review_service import (
     build_configured_post_workout_review_summary_with_metadata,
     build_post_workout_review_context,
+)
+from services.recovery_intelligence_v2_service import (
+    build_recovery_intelligence_v2,
 )
 from services.user_state_service import build_user_health_state
 from services.workout_daily_state_service import (
@@ -39,6 +43,10 @@ from services.workout_plan_service import (
     build_configured_workout_explanation_with_metadata,
     build_workout_context,
     render_approved_workout_plan,
+)
+from services.workout_progression_decision_service import (
+    CurrentExercisePrescription,
+    build_workout_progression_decisions,
 )
 from services.workout_progression_history_service import (
     DEFAULT_HISTORY_LIMIT,
@@ -90,6 +98,21 @@ class WorkoutProgressionHistoryPayload(BaseModel):
     limit: int = DEFAULT_HISTORY_LIMIT
 
 
+class WorkoutProgressionDecisionExercisePayload(BaseModel):
+    exercise_name: str = Field(min_length=1)
+    catalog_exercise_id: int | None = None
+    sets: int = Field(ge=1)
+    reps_min: int = Field(ge=0)
+    reps_max: int = Field(ge=0)
+    rir_min: int = Field(ge=0)
+    rir_max: int = Field(ge=0)
+
+
+class WorkoutProgressionDecisionPayload(BaseModel):
+    target_date: date
+    exercises: list[WorkoutProgressionDecisionExercisePayload] = Field(min_length=1)
+
+
 @router.get("/workout-plans/current/{user_id}")
 def current_workout_plan_state(user_id: int, target_date: str | None = None):
     daily_state = resolve_workout_daily_state(user_id, target_date=target_date)
@@ -138,6 +161,38 @@ def workout_progression_history(
         "user_id": user_id,
         "lookback_days": payload.lookback_days,
         "exercise_histories": [asdict(history) for history in histories],
+    }
+
+
+@router.post("/workout-plans/{user_id}/progression-decisions")
+def workout_progression_decisions(
+    user_id: int,
+    payload: WorkoutProgressionDecisionPayload,
+):
+    target_date = payload.target_date.isoformat()
+    recovery = build_recovery_intelligence_v2(user_id, target_date)
+    decisions = build_workout_progression_decisions(
+        user_id=user_id,
+        current_exercises=[
+            CurrentExercisePrescription(
+                exercise_name=exercise.exercise_name.strip(),
+                catalog_exercise_id=exercise.catalog_exercise_id,
+                sets=exercise.sets,
+                reps_min=exercise.reps_min,
+                reps_max=exercise.reps_max,
+                rir_min=exercise.rir_min,
+                rir_max=exercise.rir_max,
+            )
+            for exercise in payload.exercises
+        ],
+        recovery=recovery,
+    )
+
+    return {
+        "success": True,
+        "user_id": user_id,
+        "target_date": target_date,
+        "progression_decisions": [asdict(decision) for decision in decisions],
     }
 
 
