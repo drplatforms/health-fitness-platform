@@ -34,10 +34,10 @@ export default async function NewPersonalFoodPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-4 text-sm font-semibold">
             <Link
-              href={`/?${contextParams.toString()}`}
+              href={`/food?${contextParams.toString()}`}
               className="hidden text-accent-text hover:text-accent-text-hover md:inline"
             >
-              Back to Today
+              Back to Food
             </Link>
             <Link
               href={`/personal-foods?${contextParams.toString()}`}

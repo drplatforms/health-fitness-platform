@@ -380,6 +380,16 @@ function completionStatusForExercise(
   return `${remainingSets} set${remainingSets === 1 ? "" : "s"} remaining`;
 }
 
+function completionStatusToneClass(summary: ExerciseActualsSummary): string {
+  if (summary.plannedSets > 0 && summary.loggedSets >= summary.plannedSets) {
+    return "bg-positive-surface text-positive-foreground-strong";
+  }
+  if (summary.loggedSets === 0) {
+    return "bg-danger-surface text-danger-foreground";
+  }
+  return "bg-caution-surface text-caution-foreground";
+}
+
 function repRangeStatusForExercise(
   exercise: PlannedWorkoutExerciseSummary,
   loggedSets: WorkoutActualSetSummary[],
@@ -502,7 +512,9 @@ function ExerciseActualsSummaryPanel({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
-              <span className="rounded-full bg-positive-surface px-2 py-1 text-xs font-semibold text-positive-foreground-strong">
+              <span
+                className={`rounded-full px-2 py-1 text-xs font-semibold ${completionStatusToneClass(summary)}`}
+              >
                 {summary.completionStatus}
               </span>
               {summary.loggedSets > 0 ? (
@@ -617,35 +629,40 @@ function PreviousPerformanceLine({
 
   if (!history.has_history) {
     return (
-      <div className="rounded-lg bg-surface px-3 py-2 text-xs font-medium text-text-secondary ring-1 ring-border">
+      <div className="py-2 text-xs font-medium text-text-secondary">
         {history.message}
       </div>
     );
   }
 
   return (
-    <div className="space-y-1 rounded-lg bg-surface px-3 py-2 text-xs text-text-body ring-1 ring-border">
+    <div className="space-y-1 py-2 text-xs text-text-body">
       {history.last_session_summary ? (
         <p>
           <span className="font-semibold text-text-primary">Last time:</span>{" "}
           {history.last_session_summary}
         </p>
       ) : null}
-      {history.recent_best_set ? (
-        <p>
-          <span className="font-semibold text-text-primary">Recent best:</span>{" "}
-          {history.recent_best_set.summary}
-        </p>
-      ) : null}
-      <p>
-        <span className="font-semibold text-text-primary">History:</span>{" "}
-        {history.completed_session_count} completed{" "}
-        {history.completed_session_count === 1 ? "session" : "sessions"} in last{" "}
-        {HISTORY_LOOKBACK_DAYS} days
-      </p>
-      {history.logging_quality !== "complete" ? (
-        <p className="font-medium text-caution-foreground">{history.message}</p>
-      ) : null}
+      <details>
+        <summary className="cursor-pointer font-semibold text-text-secondary">
+          History details
+        </summary>
+        <div className="mt-1 space-y-1 text-text-secondary">
+          {history.recent_best_set ? (
+            <p>Recent best: {history.recent_best_set.summary}</p>
+          ) : null}
+          <p>
+            {history.completed_session_count} completed{" "}
+            {history.completed_session_count === 1 ? "session" : "sessions"} in
+            the last {HISTORY_LOOKBACK_DAYS} days
+          </p>
+          {history.logging_quality !== "complete" ? (
+            <p className="font-medium text-caution-foreground">
+              {history.message}
+            </p>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
@@ -660,7 +677,7 @@ function NextTargetBlock({
   }
 
   return (
-    <div className="rounded-lg bg-surface-highlighted px-3 py-2 text-xs text-text-body ring-1 ring-border">
+    <div className="py-2 text-xs text-text-body">
       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
         Next target
       </p>
@@ -1852,7 +1869,7 @@ export function WorkoutPreviewExperience({
   const hasCompletionReviewMissingSets =
     plannedVsActualSummary !== null && completionReviewMissingSets > 0;
   return (
-    <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       {canLogWorkout ? (
         <div className="min-w-0 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border md:hidden">
           <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.08em]">
@@ -1891,14 +1908,57 @@ export function WorkoutPreviewExperience({
         </div>
       ) : null}
 
+      {!canLogWorkout ? (
+        <section className="min-w-0 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border md:hidden">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-text-strong">
+                {statusSummaryLine(
+                  approvedPlan,
+                  preview,
+                  viewMode,
+                  summaryStatus,
+                  plannedVsActualSummary,
+                )}
+              </p>
+              {topMetrics.length ? (
+                <p className="mt-0.5 truncate text-xs text-text-secondary">
+                  {topMetrics.slice(0, 2).join(" · ")}
+                </p>
+              ) : null}
+            </div>
+            <StatusPill
+              label={statusLabel.replaceAll("_", " ")}
+              tone={statusTone}
+            />
+          </div>
+          {isHistoricalReadOnly ? (
+            <p className="mt-2 text-xs font-semibold text-text-secondary">
+              Historical workout · Read only
+            </p>
+          ) : null}
+          {isLoadingPreview ? (
+            <p className="mt-2 text-xs font-medium text-neutral-foreground">
+              Loading workout preview...
+            </p>
+          ) : null}
+          {actionMessage ? (
+            <p className="mt-2 text-xs font-medium text-positive-foreground-strong">
+              {actionMessage}
+            </p>
+          ) : null}
+          {errorMessage ? (
+            <p className="mt-2 text-xs font-medium text-danger-foreground">
+              {errorMessage}
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
       <TodayCard
         title="Session Status"
         accent="highlight"
-        className={
-          canLogWorkout
-            ? "hidden min-w-0 md:block lg:col-span-2 lg:row-start-1"
-            : "min-w-0 lg:col-span-2 lg:row-start-1"
-        }
+        className="hidden min-w-0 md:block lg:col-span-2 lg:row-start-1"
       >
         <div className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -2020,12 +2080,12 @@ export function WorkoutPreviewExperience({
           !isPersistedState &&
           !isCompletedState ? (
             <div
-              className={`rounded-2xl bg-surface-subtle px-4 py-4 ${
+              className={`rounded-xl bg-surface-subtle px-3 py-3 md:rounded-2xl md:px-4 md:py-4 ${
                 expandedInstructionKey !== null ? "md:hidden" : ""
               }`}
             >
               <div className="space-y-3">
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
                   {sizeOptions.map((option) => {
                     const isActive = option.value === workoutSizePreference;
                     return (
@@ -2033,7 +2093,7 @@ export function WorkoutPreviewExperience({
                         key={option.value}
                         type="button"
                         onClick={() => handleSizeChange(option.value)}
-                        className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                        className={`rounded-xl px-2 py-2 text-sm font-semibold transition sm:rounded-full sm:px-4 ${
                           isActive
                             ? "bg-action-primary text-action-primary-foreground"
                             : "bg-surface text-text-body ring-1 ring-border hover:bg-surface-highlighted"
@@ -2044,12 +2104,12 @@ export function WorkoutPreviewExperience({
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
                   <button
                     type="button"
                     onClick={handleTryDifferentVersion}
                     disabled={isLoadingPreview || isSubmitting}
-                    className="rounded-2xl bg-surface px-4 py-3 text-sm font-semibold text-text-primary ring-1 ring-border transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl bg-surface px-3 py-2.5 text-sm font-semibold text-text-primary ring-1 ring-border transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     Try different version
                   </button>
@@ -2057,7 +2117,7 @@ export function WorkoutPreviewExperience({
                     type="button"
                     onClick={() => void handleSelectWorkout()}
                     disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
-                    className="rounded-2xl bg-action-primary px-4 py-3 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                    className="rounded-xl bg-action-primary px-3 py-2.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-4 sm:py-3"
                   >
                     Select this workout
                   </button>
@@ -2311,7 +2371,7 @@ export function WorkoutPreviewExperience({
                   <article
                     key={exercise.id}
                     data-expanded={isInstructionExpanded}
-                    className={`rounded-[22px] border border-border bg-surface-subtle/80 p-3 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 md:rounded-[24px] md:p-4 ${
+                    className={`border-t border-border-subtle bg-transparent py-3 first:border-t-0 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 md:rounded-[24px] md:border md:border-border md:bg-surface-subtle/80 md:p-4 ${
                       canLogWorkout && effectiveFocusedExerciseId !== exercise.id
                         ? "hidden md:block"
                         : ""
@@ -2438,12 +2498,12 @@ export function WorkoutPreviewExperience({
                             </span>
                           </div>
                         ) : null}
-                        <div className={canLogWorkout ? "hidden md:block" : ""}>
+                        <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
                           <PreviousPerformanceLine history={history} />
+                          {isHistoricalReadOnly === false && !isCompletedState ? (
+                            <NextTargetBlock decision={progressionDecision} />
+                          ) : null}
                         </div>
-                        {isHistoricalReadOnly === false && !isCompletedState ? (
-                          <NextTargetBlock decision={progressionDecision} />
-                        ) : null}
                       </div>
                     </div>
 
@@ -2671,7 +2731,7 @@ export function WorkoutPreviewExperience({
                           ) : null}
                         </div>
                       ) : canLogWorkout ? (
-                        <div className="mt-3 rounded-xl bg-surface px-3 py-3 ring-1 ring-border md:mt-4">
+                        <div className="mt-3 border-t border-border-subtle pt-3 md:mt-4 md:rounded-xl md:bg-surface md:px-3 md:py-3 md:ring-1 md:ring-border">
                         <div className="hidden flex-col gap-2 md:flex md:flex-row md:items-center md:justify-between">
                           <div>
                             <p className="text-sm font-semibold text-text-strong">
@@ -2826,7 +2886,7 @@ export function WorkoutPreviewExperience({
                   <article
                     key={`${exercise.name}-${index + 1}`}
                     data-expanded={isInstructionExpanded}
-                    className={`rounded-[24px] border border-border bg-surface-subtle/80 p-4 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 ${
+                    className={`border-t border-border-subtle bg-transparent py-3 first:border-t-0 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 md:rounded-[24px] md:border md:border-border md:bg-surface-subtle/80 md:p-4 ${
                       isInstructionExpanded
                         ? "md:col-span-full md:border-workout-card-active-border md:[background:var(--theme-workout-card-active-surface)] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
                         : expandedInstructionKey !== null
@@ -2878,10 +2938,12 @@ export function WorkoutPreviewExperience({
                             </span>
                           ))}
                         </div>
-                        <PreviousPerformanceLine history={history} />
-                        {isHistoricalReadOnly === false ? (
-                          <NextTargetBlock decision={progressionDecision} />
-                        ) : null}
+                        <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
+                          <PreviousPerformanceLine history={history} />
+                          {isHistoricalReadOnly === false ? (
+                            <NextTargetBlock decision={progressionDecision} />
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   </article>

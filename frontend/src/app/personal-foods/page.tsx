@@ -34,10 +34,10 @@ export default async function PersonalFoodsPage({
       <div className="mx-auto w-full max-w-3xl space-y-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:space-y-4 md:pb-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Link
-            href={`/?${todayParams.toString()}`}
+            href={`/food?${todayParams.toString()}`}
             className="hidden text-sm font-semibold text-accent-text hover:text-accent-text-hover md:inline"
           >
-            Back to Today
+            Back to Food
           </Link>
           <ThemePreferenceControl />
         </div>
