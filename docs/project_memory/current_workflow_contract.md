@@ -70,3 +70,30 @@ New Architecture chats should be onboarded using:
 `docs/project_memory/architecture_chat_bootstrap_template.md`
 
 The template defines the canonical Architecture-chat bootstrap and milestone lifecycle. Projectmem may accelerate onboarding but remains supplemental to the authority hierarchy defined there.
+
+## Canonical Architecture closeout command ceremony
+
+Architecture milestone closeout must follow:
+
+`docs/project_memory/architecture_milestone_closeout_command_template.md`
+
+by default.
+
+The command template defines the exact sequence for:
+
+- feature-branch acceptance smoke;
+- Architecture acceptance;
+- acceptance-state project-memory updates;
+- project-memory validation;
+- exact-file staging and staged-set verification;
+- feature commit and feature-branch push;
+- `--no-ff` merge;
+- merged-main automated validation;
+- required merged-main production smoke;
+- final main push;
+- external snapshot;
+- final pasteback.
+
+Architecture may deviate only when a milestone-specific technical reason requires it.
+
+Routine giant diff pastebacks and one-command-at-a-time supervision are not standard closeout gates.

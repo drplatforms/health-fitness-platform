@@ -76,3 +76,27 @@ $env:PYTHONUTF8 = "1"
 ```
 
 The temporary export may accompany the latest repository snapshot, but it remains supplemental. The snapshot and canonical project memory remain authoritative. Delete the export after onboarding when it is no longer needed.
+
+## Mandatory Codex orientation gate
+
+For Codex milestone work, Projectmem-first orientation is mandatory when MCP tools are available.
+
+Before broad repository or canonical project-memory inspection, Codex must use:
+
+1. `get_instructions`
+2. `get_summary`
+3. `get_project_map`
+4. focused `get_context` for the active milestone
+
+Projectmem should guide which canonical files are read directly next.
+
+Projectmem remains supplemental and never overrides explicit user instructions, active Architecture authority, `AGENTS.md`, canonical project memory, or repository truth.
+
+Every Codex completion report must state:
+
+- whether Projectmem MCP was available;
+- which Projectmem tools were used;
+- which canonical project-memory files were read directly;
+- whether a broad repository scan was performed.
+
+If MCP is unavailable or fails, Codex must explicitly report the fallback instead of silently reverting to broad rereading.
