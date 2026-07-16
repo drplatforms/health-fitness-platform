@@ -14,6 +14,8 @@ import {
   WorkoutCompleteResponse,
   WorkoutCurrentResponse,
   WorkoutPlannedVsActualResponse,
+  WorkoutProgressionDecisionRequestExercise,
+  WorkoutProgressionDecisionResponse,
   WorkoutProgressionHistoryResponse,
   TodayWorkoutResponse,
   WorkoutPreviewResponse,
@@ -56,6 +58,11 @@ export interface WorkoutCurrentApiResult {
 
 export interface WorkoutProgressionHistoryApiResult {
   data: WorkoutProgressionHistoryResponse | null;
+  error: DailyDriverApiError | null;
+}
+
+export interface WorkoutProgressionDecisionApiResult {
+  data: WorkoutProgressionDecisionResponse | null;
   error: DailyDriverApiError | null;
 }
 
@@ -784,6 +791,65 @@ export async function fetchWorkoutProgressionHistory(
         heading: "Backend unavailable",
         message:
           "Start the FastAPI server, then refresh this page to load previous performance.",
+      },
+    };
+  }
+}
+
+export async function fetchWorkoutProgressionDecisions(
+  userId: number,
+  targetDate: string,
+  exercises: WorkoutProgressionDecisionRequestExercise[],
+): Promise<WorkoutProgressionDecisionApiResult> {
+  if (!exercises.length) {
+    return { data: null, error: null };
+  }
+
+  const endpoint = "/api/workout-progression-decisions";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: userId,
+        target_date: targetDate,
+        exercises,
+      }),
+    });
+
+    if (!response.ok) {
+      const routePayload = (await response.json().catch(() => null)) as
+        | RouteErrorPayload
+        | null;
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load next targets",
+          message:
+            routePayload?.detail ??
+            routePayload?.message ??
+            "The backend could not return progression guidance.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutProgressionDecisionResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Backend unavailable",
+        message:
+          "Start the FastAPI server, then refresh this page to load next targets.",
       },
     };
   }

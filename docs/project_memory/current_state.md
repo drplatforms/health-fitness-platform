@@ -1,3 +1,33 @@
+# Current State - Adaptive Progression Engine v1
+
+Canonical implementation baseline: main at edd32f8.
+
+Feature branch: feature/adaptive-progression-engine-v1.
+
+Status: ADAPTIVE_PROGRESSION_ENGINE_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Deterministic advisory progression decisions resolve each actionable current exercise to progress_reps, increase_load, hold, ease_back, or insufficient_data.
+- Load progression requires two consecutive qualifying top-range sessions and never invents an exact next weight.
+- Conservative ease-back requires two consecutive meaningful-underperformance sessions; one difficult session produces hold.
+- Recovery Intelligence v2 acts only as a strong brake on upward progression when readiness is recovery_limited or fatigue support is limiting.
+- Progression evidence uses historical planned rep/RIR truth, rejects incomplete latest evidence, and is substitution-aware for the exercise actually performed.
+- The active Next.js workout shows compact Next Target guidance without mutating approved plans, logged-set defaults, or historical read-only workouts.
+- Required feature-branch validation and acceptance smoke passed.
+- No unauthorized scope expansion was introduced.
+
+QA enablement note:
+
+- Future workout, recovery, and nutrition milestones that depend on richer scenario coverage should consider expanding deterministic QA seed data and user fixtures before acceptance testing.
+
+Roadmap status:
+
+Adaptive Progression Engine v1 is accepted.
+The next recommended milestone is Barcode Scanning v1.
+Barcode Scanning v1 remains pending Architecture grounding and scoping and is not yet implementation-authorized.
+
+---
 # Daily Date Rollover Correctness v1 — Architecture Accepted
 
 - Baseline: `d44a5e3`

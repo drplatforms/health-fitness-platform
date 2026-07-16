@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Daily Date Rollover Correctness v1",
-    "current_recommended_milestone": "Exercise Explanations v1",
+    "current_authorized_milestone": "Adaptive Progression Engine v1",
+    "current_recommended_milestone": "Barcode Scanning v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "DAILY_DATE_ROLLOVER_CORRECTNESS_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should exercise instructions be grounded, stored, and presented without adding unnecessary complexity to the daily workout flow?",
+    "implementation_status": "ADAPTIVE_PROGRESSION_ENGINE_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should Barcode Scanning v1 turn a scanned UPC or EAN into a fast, trustworthy canonical food logging flow with safe unknown-barcode behavior?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Exercise Explanations v1",
+    "recommended_next_milestone_after_acceptance": "Barcode Scanning v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/daily-date-rollover-correctness-v1",
+    "source_feature_branch": "feature/adaptive-progression-engine-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "d44a5e3"
+    "source_main_commit": "edd32f8"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1935,5 +1935,30 @@
     "historical_food_behavior_unchanged": true,
     "backend_changes": false,
     "schema_changes": false
+  },
+  "adaptive_progression_engine_v1": {
+    "baseline_commit": "edd32f8",
+    "feature_branch": "feature/adaptive-progression-engine-v1",
+    "status": "ADAPTIVE_PROGRESSION_ENGINE_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Deterministic advisory per-exercise progression decisions using completed workout history, substitution-aware exercise identity, and a conservative Recovery v2 progression brake.",
+    "ui_change": true,
+    "backend_change": true,
+    "api_change": true,
+    "database_change": false,
+    "schema_change": false,
+    "dependency_change": false,
+    "feature_branch_smoke_passed": true,
+    "mobile_behavior_validated": true,
+    "desktop_behavior_validated": true,
+    "advisory_only": true,
+    "two_session_load_progression": true,
+    "conservative_ease_back": true,
+    "recovery_v2_progression_brake": true,
+    "substitution_aware_progression": true,
+    "historical_read_only_suppression": true,
+    "qa_seed_data_follow_up_recommended": true,
+    "qa_seed_data_follow_up": "Expand deterministic seeded QA users and scenario data when future workout, recovery, or nutrition milestones need broader acceptance coverage.",
+    "next_recommended_milestone": "Barcode Scanning v1",
+    "next_milestone_implementation_authorized": false
   }
 }
