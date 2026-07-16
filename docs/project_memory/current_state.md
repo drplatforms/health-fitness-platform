@@ -1,3 +1,54 @@
+# Current State - Barcode Scanning v1
+
+Canonical implementation baseline before merge: main at d5bbbe4.
+
+Feature branch: feature/barcode-scanning-v1.
+
+Status: BARCODE_SCANNING_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Packaged foods can be resolved by UPC, EAN, or GTIN through a local-first barcode pipeline.
+- Local linked canonical foods resolve immediately without remote provider lookup.
+- Complete local raw-source records can be surfaced as confirmation candidates.
+- Remote lookup uses USDA FoodData Central Branded Foods first with exact normalized GTIN matching.
+- Open Food Facts is used as the external fallback when USDA has no usable exact match.
+- External products require one explicit user confirmation before barcode-safe canonical materialization.
+- Imported branded foods reuse the existing canonical serving and nutrition logging infrastructure.
+- Same-name products with different barcode identities are protected from unsafe name-based merging or nutrient overwrite.
+- Repeated scans of an already materialized barcode resolve locally.
+- Live mobile barcode scanning was validated over trusted HTTPS using Nord Meshnet plus Caddy.
+- Photo and manual barcode entry remain fallback paths.
+- No schema migration or barcode-specific persistence table was introduced.
+- Required feature-branch validation and real-device user smoke passed.
+
+Runtime enablement:
+
+- Private remote mobile access is available through Nord Meshnet.
+- Caddy provides trusted private HTTPS for the Meshnet hostname and enables secure-context browser APIs such as live camera access.
+- Caddy runtime configuration and private CA material remain outside the repository.
+- FDC_API_KEY remains a private runtime secret and must never be committed.
+
+Mobile daily-driver backlog:
+
+- Mobile primary navigation should represent distinct Today, Food, Workout, and Recovery workspaces rather than one long cross-section page.
+- Food should be isolated from workout content so food logging, logged entries, barcode scanning, and My Foods have dedicated working space.
+- Today should remain its own overview surface and should remove redundant Today and USER labels and duplicate username display.
+- Workout mobile UI should reduce nested-card depth and substantially compress or remove oversized Session Status/header surfaces.
+- Workout header substitution summary should be removed; substitution belongs at the exercise level.
+- Workout execution status colors should reserve green for completed work, use amber/yellow for remaining work, and use a distinct subdued not-started state.
+- Recent History and Next Target need a more compact presentation as exercise intelligence grows.
+- Recent Foods horizontal overflow and empty Logged Today states should receive a later mobile compaction pass.
+- These findings are future product work and were not blockers for Barcode Scanning v1 acceptance.
+
+Roadmap status:
+
+Barcode Scanning v1 is accepted.
+Meal Builder v1 remains the previously planned next major product milestone.
+Mobile Daily-Driver Navigation & Compaction v1 is now a high-priority candidate milestone and should be considered before the next implementation authorization.
+No next milestone is implementation-authorized yet.
+
+---
 # Current State - Adaptive Progression Engine v1
 
 Canonical implementation baseline: main at edd32f8.

@@ -84,6 +84,7 @@
   --theme-positive-foreground: light-dark(#065f46, #a7f3d0);
   --theme-positive-foreground-strong: light-dark(#064e3b, #d1fae5);
   --theme-caution-surface: light-dark(#fef3c7, #78350f);
+  --theme-modal-backdrop: rgba(0, 0, 0, 0.72);
   --theme-caution-foreground: light-dark(#78350f, #fef3c7);
   --theme-warning-surface: light-dark(#ffe4e6, rgb(136 19 55 / 0.55));
   --theme-warning-foreground: light-dark(#9f1239, #fecdd3);
@@ -148,6 +149,7 @@
   --color-positive-foreground: var(--theme-positive-foreground);
   --color-positive-foreground-strong: var(--theme-positive-foreground-strong);
   --color-caution-surface: var(--theme-caution-surface);
+  --color-modal-backdrop: var(--theme-modal-backdrop);
   --color-caution-foreground: var(--theme-caution-foreground);
   --color-warning-surface: var(--theme-warning-surface);
   --color-warning-foreground: var(--theme-warning-foreground);

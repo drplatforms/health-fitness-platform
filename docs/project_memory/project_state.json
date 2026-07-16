@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Adaptive Progression Engine v1",
-    "current_recommended_milestone": "Barcode Scanning v1",
+    "current_authorized_milestone": "Barcode Scanning v1",
+    "current_recommended_milestone": "Meal Builder v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "ADAPTIVE_PROGRESSION_ENGINE_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should Barcode Scanning v1 turn a scanned UPC or EAN into a fast, trustworthy canonical food logging flow with safe unknown-barcode behavior?",
+    "implementation_status": "BARCODE_SCANNING_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "Should the next authorized milestone remain Meal Builder v1 or should Mobile Daily-Driver Navigation & Compaction v1 move ahead of it based on current real-device usability findings?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Barcode Scanning v1",
+    "recommended_next_milestone_after_acceptance": "Meal Builder v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/adaptive-progression-engine-v1",
+    "source_feature_branch": "feature/barcode-scanning-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "edd32f8"
+    "source_main_commit": "d5bbbe4"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1960,5 +1960,49 @@
     "qa_seed_data_follow_up": "Expand deterministic seeded QA users and scenario data when future workout, recovery, or nutrition milestones need broader acceptance coverage.",
     "next_recommended_milestone": "Barcode Scanning v1",
     "next_milestone_implementation_authorized": false
+  },
+  "barcode_scanning_v1": {
+    "baseline_commit": "d5bbbe4",
+    "feature_branch": "feature/barcode-scanning-v1",
+    "status": "BARCODE_SCANNING_V1_ARCHITECTURE_ACCEPTED",
+    "local_first_resolution": true,
+    "usda_branded_exact_gtin_lookup": true,
+    "open_food_facts_fallback": true,
+    "explicit_confirmation_before_materialization": true,
+    "barcode_safe_canonical_identity": true,
+    "repeat_scan_local_fast_path": true,
+    "live_mobile_camera_validated": true,
+    "photo_fallback": true,
+    "manual_entry_fallback": true,
+    "backend_change": true,
+    "frontend_change": true,
+    "external_provider_integration": true,
+    "dependency_change": true,
+    "database_change": false,
+    "schema_change": false,
+    "feature_branch_smoke_passed": true,
+    "real_device_mobile_smoke_passed": true,
+    "private_remote_access_validated": true,
+    "trusted_https_validated": true,
+    "runtime_notes": [
+      "Nord Meshnet provides private remote device connectivity.",
+      "Caddy provides trusted private HTTPS outside the repository.",
+      "FDC_API_KEY is a private runtime secret.",
+      "OPEN_FOOD_FACTS_USER_AGENT is runtime configuration."
+    ]
+  },
+  "mobile_daily_driver_navigation_compaction_backlog": {
+    "status": "HIGH_PRIORITY_BACKLOG",
+    "candidate_milestone": "Mobile Daily-Driver Navigation & Compaction v1",
+    "implementation_authorized": false,
+    "principles": [
+      "Today, Food, Workout, and Recovery should behave as distinct mobile workspaces.",
+      "Food should not bleed into Workout content.",
+      "Workout mobile headers and status surfaces require major compaction.",
+      "Nested workout card hierarchy should be visually flattened.",
+      "Green should represent completed work rather than remaining work.",
+      "Recent History and Next Target require compact presentation.",
+      "Today header should remove redundant labels and duplicate user display."
+    ]
   }
 }

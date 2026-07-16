@@ -10,6 +10,10 @@ import {
   CanonicalFoodServingUnitsResponse,
   RecentCanonicalFoodsResponse,
 } from "@/types/canonicalFood";
+import type {
+  BarcodeApiFormat,
+  BarcodeResolveResponse,
+} from "@/lib/barcodeFood";
 
 async function readErrorMessage(response: Response, fallbackMessage: string) {
   const payload = (await response.json().catch(() => null)) as
@@ -51,6 +55,45 @@ export async function searchCanonicalFoods(
   }
 
   return (await response.json()) as CanonicalFoodSearchResponse;
+}
+
+export async function resolveFoodBarcode(
+  barcode: string,
+  barcodeFormat?: BarcodeApiFormat | null,
+): Promise<BarcodeResolveResponse> {
+  const response = await fetch("/api/foods-barcode-resolve", {
+    method: "POST",
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ barcode, barcode_format: barcodeFormat || null }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to look up this barcode right now."),
+    );
+  }
+  return (await response.json()) as BarcodeResolveResponse;
+}
+
+export async function materializeFoodBarcode(
+  rawFoodSourceRecordId: number,
+  normalizedGtin: string,
+): Promise<BarcodeResolveResponse> {
+  const response = await fetch("/api/foods-barcode-materialize", {
+    method: "POST",
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      raw_food_source_record_id: rawFoodSourceRecordId,
+      normalized_gtin: normalizedGtin,
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to save this barcode product."),
+    );
+  }
+  return (await response.json()) as BarcodeResolveResponse;
 }
 
 export async function logCanonicalFood(

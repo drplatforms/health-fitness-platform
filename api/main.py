@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from api.routes.ai_nutrition_explanation import (
     router as ai_nutrition_explanation_router,
 )
+from api.routes.barcode_foods import router as barcode_food_router
 from api.routes.daily_coach import router as daily_coach_router
 from api.routes.daily_driver import router as daily_driver_router
 from api.routes.equipment_profiles import router as equipment_profile_router
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(daily_driver_router)
+app.include_router(barcode_food_router)
 app.include_router(workout_router)
 app.include_router(daily_coach_router)
 app.include_router(equipment_profile_router)
