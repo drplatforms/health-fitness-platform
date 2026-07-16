@@ -1,3 +1,36 @@
+# Current State - Dark Mode + Theme Preference v1
+
+Canonical implementation baseline: main at 306b6ea.
+
+Feature branch: feature/dark-mode-theme-preference-v1.
+
+Status: DARK_MODE_THEME_PREFERENCE_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Added user-visible System, Light, and Dark theme preferences.
+- Theme preference is persisted browser-locally using fitness_ai_theme_preference_v1.
+- Explicit Light and Dark use a root data-theme override; System delegates to browser/OS color preference.
+- Added synchronous pre-paint theme bootstrap to avoid an obvious light-theme flash for persisted explicit preferences.
+- Theme switching updates immediately without navigation or remounting product state.
+- Added a reusable compact ThemePreferenceControl across all persistent user-facing routes.
+- Added complete dark semantic values for the centralized theme contract.
+- Completed the remaining residual semantic color migration across frontend surfaces.
+- Repository-wide direct palette audit is clean outside centralized palette definitions and intentional shadows.
+- Theme switching preserves in-progress Today food logging state, unsaved Recovery state, and unsaved workout-set input state.
+- Added an in-memory preference fallback so live theme selection remains correct when browser storage is unavailable.
+- Production browser smoke passed across desktop and approximately 390px mobile Today, Workout, and Personal Foods flows.
+- No relevant browser console warnings, hydration warnings, or horizontal overflow were observed.
+- No dependency, backend, API, database schema, or provider architecture change was added.
+
+Theme initiative status:
+
+The semantic theme foundation, daily-surface migration, workout-surface migration, and user-visible Dark Mode + Theme Preference feature are accepted.
+The theme initiative is complete for the current roadmap phase.
+The next recommended product milestone is Mobile UX Foundation v1.
+That milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Theme Workout Surface Migration v1
 
 Canonical implementation baseline: main at 2439fb6.

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
 import { getDefaultUserId, resolveTodayQuery } from "@/lib/dailyDriverApi";
@@ -51,6 +52,7 @@ export default async function WorkoutPage({
             </div>
 
             <div className="flex flex-wrap gap-2 lg:justify-end">
+              <ThemePreferenceControl />
               <div className="rounded-full bg-surface/85 px-3 py-2 text-sm font-semibold text-text-primary shadow-[0_14px_28px_-24px_rgba(15,23,42,0.45)]">
                 {userLabel}
               </div>

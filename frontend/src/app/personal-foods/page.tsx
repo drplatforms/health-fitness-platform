@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PersonalFoodsList } from "@/components/PersonalFoodsList";
+import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -28,15 +29,18 @@ export default async function PersonalFoodsPage({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950">
+    <main className="min-h-screen bg-canvas px-4 py-6 text-text-strong">
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        <Link
-          href={`/?${todayParams.toString()}`}
-          className="text-sm font-semibold text-emerald-800 hover:text-emerald-950"
-        >
-          Back to Today
-        </Link>
-        <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={`/?${todayParams.toString()}`}
+            className="text-sm font-semibold text-accent-text hover:text-accent-text-hover"
+          >
+            Back to Today
+          </Link>
+          <ThemePreferenceControl />
+        </div>
+        <section className="rounded-[28px] bg-surface px-5 py-5 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:px-6">
           <PersonalFoodsList userId={userId} targetDate={targetDate} />
         </section>
       </div>

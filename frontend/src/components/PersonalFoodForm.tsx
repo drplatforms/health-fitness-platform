@@ -189,7 +189,7 @@ export function PersonalFoodForm({
 
   if (isLoading) {
     return (
-      <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+      <p className="rounded-2xl bg-neutral-surface px-4 py-3 text-sm text-neutral-foreground">
         Loading food...
       </p>
     );
@@ -199,27 +199,27 @@ export function PersonalFoodForm({
     <div className="space-y-5">
       <div className="space-y-3">
         <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-slate-900">Food name</span>
+          <span className="text-sm font-semibold text-text-primary">Food name</span>
           <input
             value={displayName}
             onChange={(event) => setDisplayName(event.target.value)}
             required
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+            className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-focus"
           />
         </label>
         <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-slate-900">Brand (optional)</span>
+          <span className="text-sm font-semibold text-text-primary">Brand (optional)</span>
           <input
             value={brandName}
             onChange={(event) => setBrandName(event.target.value)}
-            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+            className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-focus"
           />
         </label>
       </div>
 
       <fieldset className="space-y-2">
-        <legend className="text-sm font-semibold text-slate-900">Nutrition basis</legend>
-        <div className="inline-flex rounded-2xl bg-slate-100 p-1">
+        <legend className="text-sm font-semibold text-text-primary">Nutrition basis</legend>
+        <div className="inline-flex rounded-2xl bg-surface-muted p-1">
           {(
             [
               ["nutrition_label", "Nutrition label"],
@@ -243,8 +243,8 @@ export function PersonalFoodForm({
               }}
               className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
                 inputBasis === value
-                  ? "bg-white text-emerald-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
+                  ? "bg-surface text-positive-foreground-strong shadow-sm"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {label}
@@ -256,18 +256,18 @@ export function PersonalFoodForm({
       {inputBasis === "nutrition_label" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="text-sm font-semibold text-text-primary">
               Serving name (optional)
             </span>
             <input
               value={servingName}
               onChange={(event) => setServingName(event.target.value)}
               placeholder="1 cup"
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+              className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-focus"
             />
           </label>
           <label className="space-y-1.5">
-            <span className="text-sm font-semibold text-slate-900">
+            <span className="text-sm font-semibold text-text-primary">
               Serving weight in grams
             </span>
             <input
@@ -276,14 +276,14 @@ export function PersonalFoodForm({
               step="any"
               value={servingGrams}
               onChange={(event) => setServingGrams(event.target.value)}
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+              className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-focus"
             />
           </label>
         </div>
       ) : null}
 
       <div className="space-y-2">
-        <p className="text-sm font-semibold text-slate-900">
+        <p className="text-sm font-semibold text-text-primary">
           {inputBasis === "nutrition_label"
             ? "Nutrition per serving"
             : "Nutrition per 100g"}
@@ -291,7 +291,7 @@ export function PersonalFoodForm({
         <div className="grid gap-3 sm:grid-cols-2">
           {nutrientFields.map((field) => (
             <label key={field.key} className="space-y-1.5">
-              <span className="text-sm text-slate-700">{field.label}</span>
+              <span className="text-sm text-text-body">{field.label}</span>
               <input
                 type="number"
                 min="0"
@@ -303,31 +303,31 @@ export function PersonalFoodForm({
                     [field.key]: event.target.value,
                   }))
                 }
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-emerald-500"
+                className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none focus:border-focus"
               />
             </label>
           ))}
         </div>
-        <p className="text-xs leading-5 text-slate-600">
+        <p className="text-xs leading-5 text-text-secondary">
           Leave anything you do not know blank.
         </p>
         {basisMessage ? (
-          <p className="text-xs leading-5 text-slate-600">{basisMessage}</p>
+          <p className="text-xs leading-5 text-text-secondary">{basisMessage}</p>
         ) : null}
       </div>
 
       {mode === "edit" ? (
-        <p className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-700">
+        <p className="rounded-2xl bg-neutral-surface px-4 py-3 text-sm text-neutral-foreground">
           Changes apply to future logs. Existing logs stay unchanged.
         </p>
       ) : null}
       {error ? (
-        <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-900">
+        <p className="rounded-2xl bg-danger-surface px-4 py-3 text-sm text-danger-foreground">
           {error}
         </p>
       ) : null}
       {success ? (
-        <p className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+        <p className="rounded-2xl bg-positive-surface px-4 py-3 text-sm text-positive-foreground-strong">
           {success}
         </p>
       ) : null}
@@ -336,7 +336,7 @@ export function PersonalFoodForm({
         type="button"
         onClick={() => void submit()}
         disabled={isSaving}
-        className="inline-flex w-full items-center justify-center rounded-2xl bg-emerald-900 px-4 py-2.5 text-sm font-semibold text-emerald-50 transition hover:bg-emerald-800 disabled:opacity-60 sm:w-auto"
+        className="inline-flex w-full items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:opacity-60 sm:w-auto"
       >
         {isSaving ? "Saving..." : mode === "create" ? "Add food" : "Save changes"}
       </button>

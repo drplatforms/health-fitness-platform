@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Theme Workout Surface Migration v1",
-    "current_recommended_milestone": "Dark Mode + Theme Preference v1",
+    "current_authorized_milestone": "Dark Mode + Theme Preference v1",
+    "current_recommended_milestone": "Mobile UX Foundation v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "THEME_WORKOUT_SURFACE_MIGRATION_V1_ARCHITECTURE_ACCEPTED",
+    "implementation_status": "DARK_MODE_THEME_PREFERENCE_V1_ARCHITECTURE_ACCEPTED",
     "primary_question": "Does the Today food workspace provide a clear, accessible overlapping Log Food and My Foods deck with click, keyboard, and header-only swipe switching while preserving both child surfaces and their in-progress state?",
     "qa_class": "FRONTEND_PRODUCTION_BROWSER_SMOKE",
-    "recommended_next_milestone_after_acceptance": "Dark Mode + Theme Preference v1",
+    "recommended_next_milestone_after_acceptance": "Mobile UX Foundation v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/theme-workout-surface-migration-v1",
+    "source_feature_branch": "feature/dark-mode-theme-preference-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "2439fb6"
+    "source_main_commit": "306b6ea"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1752,6 +1752,34 @@
     "desktop_browser_smoke_passed": true,
     "mobile_browser_smoke_passed": true,
     "next_theme_milestone": "Dark Mode + Theme Preference v1",
+    "next_milestone_implementation_authorized": false
+  },
+  "dark_mode_theme_preference_v1": {
+    "baseline_commit": "306b6ea",
+    "feature_branch": "feature/dark-mode-theme-preference-v1",
+    "status": "DARK_MODE_THEME_PREFERENCE_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Add complete System, Light, and Dark theme preference behavior with persistence, first-paint protection, dark semantic values, and final residual theme cleanup.",
+    "ui_change": true,
+    "system_preference_added": true,
+    "light_preference_added": true,
+    "dark_preference_added": true,
+    "browser_local_persistence_added": true,
+    "first_paint_bootstrap_added": true,
+    "root_theme_attribute_contract": "data-theme",
+    "storage_key": "fitness_ai_theme_preference_v1",
+    "theme_switch_preserves_product_state": true,
+    "residual_theme_cleanup_complete": true,
+    "direct_palette_audit_clean": true,
+    "storage_unavailable_live_fallback_supported": true,
+    "dependency_change": false,
+    "provider_framework_added": false,
+    "backend_change": false,
+    "api_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "desktop_browser_smoke_passed": true,
+    "mobile_browser_smoke_passed": true,
+    "next_recommended_milestone": "Mobile UX Foundation v1",
     "next_milestone_implementation_authorized": false
   }
 }

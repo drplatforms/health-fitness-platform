@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { PersonalFoodForm } from "@/components/PersonalFoodForm";
+import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -27,20 +28,26 @@ export default async function NewPersonalFoodPage({
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950">
+    <main className="min-h-screen bg-canvas px-4 py-6 text-text-strong">
       <div className="mx-auto w-full max-w-2xl space-y-4">
-        <div className="flex flex-wrap gap-4 text-sm font-semibold">
-          <Link href={`/?${contextParams.toString()}`} className="text-emerald-800">
-            Back to Today
-          </Link>
-          <Link
-            href={`/personal-foods?${contextParams.toString()}`}
-            className="text-slate-600"
-          >
-            My Foods
-          </Link>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-4 text-sm font-semibold">
+            <Link
+              href={`/?${contextParams.toString()}`}
+              className="text-accent-text hover:text-accent-text-hover"
+            >
+              Back to Today
+            </Link>
+            <Link
+              href={`/personal-foods?${contextParams.toString()}`}
+              className="text-text-secondary hover:text-text-primary"
+            >
+              My Foods
+            </Link>
+          </div>
+          <ThemePreferenceControl />
         </div>
-        <section className="rounded-[28px] bg-white px-5 py-5 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:px-6">
+        <section className="rounded-[28px] bg-surface px-5 py-5 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:px-6">
           <h1 className="mb-5 text-2xl font-semibold tracking-tight">Add food</h1>
           <PersonalFoodForm
             mode="create"
