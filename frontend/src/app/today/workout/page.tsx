@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience";
@@ -37,6 +38,7 @@ export default async function WorkoutPage({
 
   return (
     <main className="min-h-screen [background:var(--theme-workout-canvas-background)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
+      <LiveDayRolloverBoundary requestedDate={todayQuery.date} />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-4 md:pb-8 lg:gap-6 lg:px-2">
         <section className="rounded-2xl [background:var(--theme-workout-header-surface)] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] md:px-5 md:py-4 lg:px-6 lg:py-5">
           <div className="space-y-1.5 md:space-y-3">
@@ -72,6 +74,7 @@ export default async function WorkoutPage({
         </section>
 
         <WorkoutPreviewExperience
+          key={todayQuery.date ?? "live"}
           userId={userId}
           requestedDate={todayQuery.date}
         />

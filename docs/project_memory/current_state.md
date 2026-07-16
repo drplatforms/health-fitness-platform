@@ -1,3 +1,37 @@
+# Daily Date Rollover Correctness v1 — Architecture Accepted
+
+- Baseline: `d44a5e3`
+- Branch: `feature/daily-date-rollover-correctness-v1`
+- Status: `DAILY_DATE_ROLLOVER_CORRECTNESS_V1_ARCHITECTURE_ACCEPTED`
+
+Accepted behavior:
+
+- Date-less Today and Workout routes remain live and do not acquire an explicit `date=` through normal navigation.
+- Explicitly dated routes remain pinned to the requested date.
+- Live Today and Workout surfaces follow the browser-local calendar day.
+- Live surfaces detect a local-day change and reload while preserving the unpinned live URL.
+- Rollover is rechecked after browser focus and visibility return.
+- Explicit historical workouts remain visible but are read-only.
+- Historical unfinished workouts cannot be resumed or mutated after their calendar day has passed.
+- Historical workout mutation, preview-generation, size, variation, set logging/edit/delete, substitution, and completion controls are suppressed.
+- Historical dates with no persisted workout show a read-only empty state and do not generate a workout preview.
+- An explicit date equal to the browser-local current day remains interactive.
+- Historical food viewing remains unchanged.
+- Existing backend workout daily-state behavior was preserved.
+- No backend, API, schema, persistence, provider, workout-generation, progression, substitution, recovery, or nutrition-policy changes were required.
+- Feature-branch production smoke passed on canonical ports `8000/3100`.
+- Live and explicitly dated navigation behavior passed.
+- Historical unfinished, completed, and empty workout states passed.
+- Browser-local rollover simulation passed.
+- Mobile approximately `390x844`, mobile approximately `360px`, desktop, Light, and Dark acceptance surfaces passed.
+- No relevant console, hydration, warning, horizontal-overflow, or runtime regressions were observed.
+- Automated validation used an isolated temporary database and the canonical `fitness_ai.db` remained unchanged.
+
+Next recommended product milestone:
+
+- `Exercise Explanations v1`
+- Status: `NOT_IMPLEMENTATION_AUTHORIZED`
+- Owner: Architecture
 # Current State - Smart Exercise Substitutions v1
 
 Canonical implementation baseline: main at f810424.

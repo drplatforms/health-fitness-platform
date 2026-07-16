@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
+import { isHistoricalRequestedDate } from "@/lib/dateFormatting";
 import {
   applyWorkoutSubstitution,
   completeWorkout,
@@ -84,6 +85,10 @@ interface ExerciseActualsSummary {
 type WorkoutViewMode = "preview" | "persisted" | "completed";
 
 const HISTORY_LOOKBACK_DAYS = 90;
+
+function subscribeToHydration() {
+  return () => undefined;
+}
 
 function detailLabel(label: string, value: string | number | null): string | null {
   if (value === null || value === "") {
@@ -829,6 +834,16 @@ export function WorkoutPreviewExperience({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isHydrated = useSyncExternalStore(
+    subscribeToHydration,
+    () => true,
+    () => false,
+  );
+  const isHistoricalReadOnly = requestedDate
+    ? isHydrated
+      ? isHistoricalRequestedDate(requestedDate)
+      : null
+    : false;
 
   const approvedPlan = persistedPlan ?? preview?.approved_workout_plan ?? null;
   const isPersistedState = viewMode === "persisted";
@@ -842,7 +857,9 @@ export function WorkoutPreviewExperience({
   const topMetrics = [
     approvedPlan ? formatExerciseCountLabel(approvedPlan.exercises.length) : null,
     approvedPlan ? `${approvedPlan.duration_minutes} min` : null,
-    !isPersistedState && !isCompletedState ? `Version ${previewVariationIndex + 1}` : null,
+    isHistoricalReadOnly === false && !isPersistedState && !isCompletedState
+      ? `Version ${previewVariationIndex + 1}`
+      : null,
   ].filter((value): value is string => Boolean(value));
 
   const activeSubstitutionByExerciseId = new Map(
@@ -899,6 +916,10 @@ export function WorkoutPreviewExperience({
   }, [userId]);
 
   useEffect(() => {
+    if (isHistoricalReadOnly === null) {
+      return;
+    }
+
     let cancelled = false;
 
     async function loadWorkoutState() {
@@ -995,6 +1016,22 @@ export function WorkoutPreviewExperience({
           return;
         }
 
+        if (isHistoricalReadOnly) {
+          setPreview(null);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setPlannedExercises([]);
+          setActualSets([]);
+          setFocusedExerciseId(null);
+          setActiveSubstitutions([]);
+          setPlannedVsActualSummary(null);
+          setProgressionHistoryByExerciseName({});
+          setErrorMessage(currentResult.error?.message ?? null);
+          return;
+        }
+
         const previewResult = await fetchWorkoutPreview({
           userId,
           workoutSizePreference,
@@ -1078,6 +1115,7 @@ export function WorkoutPreviewExperience({
       cancelled = true;
     };
   }, [
+    isHistoricalReadOnly,
     loadProgressionHistoryForNames,
     previewVariationIndex,
     requestedDate,
@@ -1604,11 +1642,13 @@ export function WorkoutPreviewExperience({
   }
 
   const canStartWorkout =
+    isHistoricalReadOnly === false &&
     selectedPlan !== null &&
     executionSession !== null &&
     selectedPlan.status === "selected" &&
     executionSession.status === "selected";
   const canLogWorkout =
+    isHistoricalReadOnly === false &&
     selectedPlan !== null &&
     executionSession !== null &&
     (selectedPlan.status === "started" ||
@@ -1616,6 +1656,7 @@ export function WorkoutPreviewExperience({
       executionSession.status === "started" ||
       executionSession.status === "in_progress");
   const canCompleteWorkout =
+    isHistoricalReadOnly === false &&
     selectedPlan !== null &&
     executionSession !== null &&
     (selectedPlan.status === "in_progress" ||
@@ -1724,6 +1765,11 @@ export function WorkoutPreviewExperience({
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {isHistoricalReadOnly ? (
+              <span className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-text-body ring-1 ring-border">
+                Historical workout · Read only
+              </span>
+            ) : null}
             {topMetrics.map((item) => (
               <span
                 key={item}
@@ -1812,7 +1858,9 @@ export function WorkoutPreviewExperience({
         className="min-w-0 lg:col-span-2"
       >
         <div className="space-y-4">
-          {!isPersistedState && !isCompletedState ? (
+          {isHistoricalReadOnly === false &&
+          !isPersistedState &&
+          !isCompletedState ? (
             <div
               className={`rounded-2xl bg-surface-subtle px-4 py-4 ${
                 expandedInstructionKey !== null ? "md:hidden" : ""
@@ -2081,6 +2129,7 @@ export function WorkoutPreviewExperience({
                   (actualSet) => actualSet.id === editingActualSetId,
                 );
                 const canOfferSubstitution =
+                  isHistoricalReadOnly === false &&
                   isPersistedState &&
                   selectedPlan !== null &&
                   ["selected", "started", "in_progress"].includes(
@@ -2286,7 +2335,7 @@ export function WorkoutPreviewExperience({
                             <div
                               key={actualSet.id}
                               className={`rounded-lg bg-surface/90 px-3 py-2 ring-1 ring-border ${
-                                isEditing ? "" : "hidden md:block"
+                                isEditing || !canLogWorkout ? "" : "hidden md:block"
                               }`}
                             >
                               {isEditing ? (
@@ -2657,7 +2706,9 @@ export function WorkoutPreviewExperience({
             </div>
           ) : (
             <p className="text-sm leading-6 text-text-body">
-              No exercise details are available for this workout yet.
+              {isHistoricalReadOnly
+                ? "No workout was recorded for this date."
+                : "No exercise details are available for this workout yet."}
             </p>
           )}
         </div>
