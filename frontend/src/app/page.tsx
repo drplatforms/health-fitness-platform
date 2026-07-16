@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
+import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
@@ -287,6 +288,7 @@ export default async function Home({
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
+      <LiveDayRolloverBoundary requestedDate={todayQuery.date} />
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-4 md:pb-8 lg:gap-6 lg:px-2">
         <section className="rounded-2xl bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-5 sm:py-4 lg:px-6 lg:py-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
@@ -435,7 +437,7 @@ export default async function Home({
       </div>
       <MobilePrimaryNav
         userId={currentUserId}
-        date={data?.target_date ?? todayQuery.date}
+        date={todayQuery.date}
       />
     </main>
   );

@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Smart Exercise Substitutions v1",
-    "current_recommended_milestone": "Daily Date Rollover Correctness v1",
+    "current_authorized_milestone": "Daily Date Rollover Correctness v1",
+    "current_recommended_milestone": "Exercise Explanations v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "SMART_EXERCISE_SUBSTITUTIONS_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "Do date-scoped Today food and workout surfaces start clean when the calendar day changes while preserving historical records?",
+    "implementation_status": "DAILY_DATE_ROLLOVER_CORRECTNESS_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should exercise instructions be grounded, stored, and presented without adding unnecessary complexity to the daily workout flow?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Daily Date Rollover Correctness v1",
+    "recommended_next_milestone_after_acceptance": "Exercise Explanations v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/smart-exercise-substitutions-v1",
+    "source_feature_branch": "feature/daily-date-rollover-correctness-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "f810424"
+    "source_main_commit": "d44a5e3"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1916,5 +1916,24 @@
     "known_follow_up": "Daily date rollover incorrectly preserves previous-day food and workout state on current-day surfaces.",
     "next_recommended_milestone": "Daily Date Rollover Correctness v1",
     "next_milestone_implementation_authorized": false
+  },
+  "daily_date_rollover_correctness_v1": {
+    "status": "DAILY_DATE_ROLLOVER_CORRECTNESS_V1_ARCHITECTURE_ACCEPTED",
+    "baseline_main_commit": "d44a5e3",
+    "source_feature_branch": "feature/daily-date-rollover-correctness-v1",
+    "source_feature_commit": "uncommitted accepted implementation",
+    "architecture_accepted": true,
+    "user_feature_branch_production_smoke": true,
+    "live_routes_remain_unpinned": true,
+    "explicit_dates_remain_pinned": true,
+    "browser_local_day_rollover": true,
+    "focus_visibility_rollover_recheck": true,
+    "historical_workouts_read_only": true,
+    "historical_unfinished_workouts_non_resumable": true,
+    "historical_empty_dates_do_not_generate_workouts": true,
+    "explicit_current_date_remains_interactive": true,
+    "historical_food_behavior_unchanged": true,
+    "backend_changes": false,
+    "schema_changes": false
   }
 }
