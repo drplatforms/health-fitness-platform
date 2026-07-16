@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
@@ -35,18 +36,18 @@ export default async function WorkoutPage({
   const displayDate = formatLongReadableDate(todayQuery.date);
 
   return (
-    <main className="min-h-screen [background:var(--theme-workout-canvas-background)] px-4 py-6 text-text-strong">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pb-8 lg:gap-6 lg:px-2">
-        <section className="rounded-[28px] [background:var(--theme-workout-header-surface)] px-5 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] lg:px-6 lg:py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen [background:var(--theme-workout-canvas-background)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-4 md:pb-8 lg:gap-6 lg:px-2">
+        <section className="rounded-2xl [background:var(--theme-workout-header-surface)] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-5 sm:py-4 lg:px-6 lg:py-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
             <div className="max-w-3xl space-y-2">
               <Link
                 href={todayHref}
-                className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent-text"
+                className="hidden text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-accent-text md:inline"
               >
                 Back to Today
               </Link>
-              <h1 className="text-3xl font-semibold tracking-tight text-text-strong lg:text-[2.5rem]">
+              <h1 className="text-2xl font-semibold tracking-tight text-text-strong sm:text-3xl lg:text-[2.5rem]">
                 Today&apos;s Workout
               </h1>
             </div>
@@ -68,6 +69,7 @@ export default async function WorkoutPage({
           requestedDate={todayQuery.date}
         />
       </div>
+      <MobilePrimaryNav userId={userId} date={todayQuery.date} />
     </main>
   );
 }

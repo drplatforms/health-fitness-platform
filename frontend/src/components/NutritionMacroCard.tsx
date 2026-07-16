@@ -40,39 +40,39 @@ export function NutritionMacroCard({
   return (
     <TodayCard title="Nutrition" className={className}>
       <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div className="rounded-2xl bg-surface-subtle px-4 py-3">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:gap-3">
+          <div className="rounded-xl bg-surface-subtle px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
             <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
               Calories
             </p>
-            <p className="mt-2 font-semibold text-text-primary">
+            <p className="mt-1.5 font-semibold text-text-primary sm:mt-2">
               {formatNumber(nutrition.calories_logged)} /{" "}
               {formatNumber(nutrition.calorie_target)}
             </p>
           </div>
-          <div className="rounded-2xl bg-surface-subtle px-4 py-3">
+          <div className="rounded-xl bg-surface-subtle px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
             <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
               Protein
             </p>
-            <p className="mt-2 font-semibold text-text-primary">
+            <p className="mt-1.5 font-semibold text-text-primary sm:mt-2">
               {formatNumber(nutrition.protein_logged_g, "g")} /{" "}
               {formatNumber(nutrition.protein_target_g, "g")}
             </p>
           </div>
-          <div className="rounded-2xl bg-surface-subtle px-4 py-3">
+          <div className="rounded-xl bg-surface-subtle px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
             <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
               Carbs
             </p>
-            <p className="mt-2 font-semibold text-text-primary">
+            <p className="mt-1.5 font-semibold text-text-primary sm:mt-2">
               {formatNumber(nutrition.carbs_logged_g, "g")} /{" "}
               {formatNumber(nutrition.carbohydrate_target_g, "g")}
             </p>
           </div>
-          <div className="rounded-2xl bg-surface-subtle px-4 py-3">
+          <div className="rounded-xl bg-surface-subtle px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-3">
             <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
               Fat
             </p>
-            <p className="mt-2 font-semibold text-text-primary">
+            <p className="mt-1.5 font-semibold text-text-primary sm:mt-2">
               {formatNumber(nutrition.fat_logged_g, "g")} /{" "}
               {formatNumber(nutrition.fat_target_g, "g")}
             </p>

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
+import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -285,25 +286,25 @@ export default async function Home({
         : null;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-4 py-6 text-text-strong">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 pb-8 lg:gap-6 lg:px-2">
-        <section className="rounded-[28px] bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-5 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] lg:px-6 lg:py-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-4 md:pb-8 lg:gap-6 lg:px-2">
+        <section className="rounded-2xl bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-5 sm:py-4 lg:px-6 lg:py-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
             <div className="max-w-2xl space-y-1">
-              <p className="text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm">
+              <p className="hidden text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm sm:block">
                 Today
               </p>
-              <h1 className="text-2xl font-semibold tracking-tight text-text-strong lg:text-[2rem]">
+              <h1 className="text-xl font-semibold tracking-tight text-text-strong sm:text-2xl lg:text-[2rem]">
                 {displayDate}
               </h1>
             </div>
 
             <div className="flex flex-col gap-2 lg:items-end">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
+              <p className="hidden text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted sm:block">
                 User
               </p>
-              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                <p className="text-sm font-semibold text-text-primary">
+              <div className="flex items-center gap-2 lg:justify-end">
+                <p className="hidden text-sm font-semibold text-text-primary lg:block">
                   {currentUserLabel}
                 </p>
                 <UserSwitcher
@@ -342,11 +343,13 @@ export default async function Home({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
-              <FoodWorkspaceDeck
-                key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
-                userId={todayQuery.userId ?? data.user_id}
-                targetDate={data.target_date}
-              />
+              <div id="food-workspace" className="scroll-mt-3 sm:scroll-mt-6">
+                <FoodWorkspaceDeck
+                  key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
+                  userId={todayQuery.userId ?? data.user_id}
+                  targetDate={data.target_date}
+                />
+              </div>
               <div className="grid gap-3 xl:grid-cols-2">
                 <LoggedFoodsList
                   key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
@@ -411,11 +414,13 @@ export default async function Home({
             </div>
 
             <div className="space-y-4">
-              <RecoveryCheckInCard
-                userId={todayQuery.userId ?? data.user_id}
-                targetDate={data.target_date}
-                readiness={data.readiness}
-              />
+              <div id="recovery" className="scroll-mt-3 sm:scroll-mt-6">
+                <RecoveryCheckInCard
+                  userId={todayQuery.userId ?? data.user_id}
+                  targetDate={data.target_date}
+                  readiness={data.readiness}
+                />
+              </div>
 
               {data.coach_note.enabled && data.coach_note.text ? (
                 <TodayCard title="Coach Note" accent="warm">
@@ -428,6 +433,10 @@ export default async function Home({
           </div>
         ) : null}
       </div>
+      <MobilePrimaryNav
+        userId={currentUserId}
+        date={data?.target_date ?? todayQuery.date}
+      />
     </main>
   );
 }
