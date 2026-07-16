@@ -1,3 +1,46 @@
+# Current State - Active Workout Mobile UX v1
+
+Canonical implementation baseline: main at beeb2da.
+
+Feature branch: feature/active-workout-mobile-ux-v1.
+
+Status: ACTIVE_WORKOUT_MOBILE_UX_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Added mobile-only focused exercise execution keyed by planned exercise ID.
+- Active mobile workouts initialize focus on the first incomplete exercise, or the final exercise when all exercises are complete.
+- Exercise focus remains stable after set logging and advances only through explicit user action.
+- Added a compact mobile exercise navigator with previous, next, direct exercise selection, completion state, and overall set progress.
+- Mobile active execution shows one focused exercise at a time while non-focused exercise cards remain mounted and preserve unsaved form and instruction state.
+- Added compact three-column Reps, Weight, and RIR mobile entry and edit layouts.
+- Added prominent mobile Save Set placement after the entry fields.
+- Preserved previous-performance context, inline exercise instructions, logged-set edit/delete behavior, and existing set defaults.
+- Added explicit completed-exercise state and user-driven Next Exercise navigation.
+- Compacted active mobile workout progress while preserving the full Execution Summary on desktop.
+- Existing completion-review behavior remains accessible during active mobile execution.
+- Desktop retains the full exercise grid and accepted instruction-focused behavior.
+- Workout lifecycle, APIs, persistence, substitutions, history, and backend behavior were not changed.
+- Production browser smoke passed at approximately 390x844, 360px narrow mobile, and desktop widths in Light and Dark themes.
+- Unsaved set-entry values were verified to survive exercise switching and instruction expansion.
+- Canonical database SHA-256 remained unchanged during validation.
+- No dependency, backend, API, database, or schema change was added.
+
+Known follow-up UX:
+
+- After successfully logging food, the completed food remains selected in Food Logging even though macros and Logged Today update correctly; successful logging should reset the completed food-selection transaction while likely preserving Meal selection.
+- Food and Recovery bottom-navigation highlighting does not track anchored Today sections.
+- Recent Foods needs a denser presentation so it does not push Logged Today below an entire mobile viewport.
+- My Foods needs a denser scalable catalog presentation for both mobile and desktop.
+
+Mobile roadmap status:
+
+Active Workout Mobile UX v1 is accepted.
+The next recommended milestone is Mobile Food Logging and Recovery UX.
+That milestone should include the known food-selection reset bug and the mobile food-density improvements where appropriate.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Mobile UX Foundation v1
 
 Canonical implementation baseline: main at ac5b731.
