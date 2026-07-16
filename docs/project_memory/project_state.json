@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Barcode Scanning v1",
+    "current_authorized_milestone": "Mobile Daily-Driver Navigation & Compaction v1",
     "current_recommended_milestone": "Meal Builder v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "BARCODE_SCANNING_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "Should the next authorized milestone remain Meal Builder v1 or should Mobile Daily-Driver Navigation & Compaction v1 move ahead of it based on current real-device usability findings?",
+    "implementation_status": "MOBILE_DAILY_DRIVER_NAVIGATION_AND_COMPACTION_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should Meal Builder v1 reduce repetitive daily food logging while reusing canonical foods, serving units, and existing nutrition logging truth?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
     "recommended_next_milestone_after_acceptance": "Meal Builder v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/barcode-scanning-v1",
+    "source_feature_branch": "feature/mobile-daily-driver-navigation-compaction-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "d5bbbe4"
+    "source_main_commit": "e56bd61"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -2004,5 +2004,33 @@
       "Recent History and Next Target require compact presentation.",
       "Today header should remove redundant labels and duplicate user display."
     ]
+  },
+  "mobile_daily_driver_navigation_compaction_v1": {
+    "baseline_commit": "e56bd61",
+    "feature_branch": "feature/mobile-daily-driver-navigation-compaction-v1",
+    "status": "MOBILE_DAILY_DRIVER_NAVIGATION_AND_COMPACTION_V1_ARCHITECTURE_ACCEPTED",
+    "mobile_workspace_isolation": true,
+    "route_based_primary_navigation": true,
+    "live_unpinned_date_behavior_preserved": true,
+    "explicit_date_propagation_preserved": true,
+    "today_mobile_overview": true,
+    "dedicated_food_workspace": true,
+    "dedicated_recovery_workspace": true,
+    "workout_header_compaction": true,
+    "flattened_workout_visual_hierarchy": true,
+    "compact_progression_context": true,
+    "semantic_exercise_actual_status_colors": true,
+    "barcode_camera_regression_passed": true,
+    "recovery_persistence_regression_passed": true,
+    "desktop_regression_passed": true,
+    "frontend_change": true,
+    "backend_change": false,
+    "api_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "feature_branch_smoke_passed": true,
+    "real_device_mobile_smoke_passed": true,
+    "next_product_milestone": "Meal Builder v1",
+    "next_product_milestone_authorized": false
   }
 }

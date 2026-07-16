@@ -1,3 +1,48 @@
+# Current State - Mobile Daily-Driver Navigation & Compaction v1
+
+Canonical implementation baseline before merge: main at e56bd61.
+
+Feature branch: feature/mobile-daily-driver-navigation-compaction-v1.
+
+Status: MOBILE_DAILY_DRIVER_NAVIGATION_AND_COMPACTION_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Mobile Today, Food, Workout, and Recovery now behave as distinct primary workspaces.
+- Mobile bottom navigation uses real pathname-based routing instead of hash-anchor scrolling.
+- Live unpinned navigation remains unpinned while supported explicit-date navigation preserves the selected date.
+- Mobile Today is an overview rather than a container for every full daily workflow.
+- Mobile Today removes redundant Today and USER labels and avoids duplicating the selected username outside the user selector.
+- Food now has a dedicated workspace with nutrition, search, barcode scanning, recent foods, logged foods, and My Foods access without Workout content bleeding below it.
+- Recovery now has a dedicated workspace and preserves Recovery Check-In persistence and existing recovery intelligence behavior.
+- Mobile Workout status and preview controls are substantially more compact, reducing time and scrolling before the first exercise.
+- Exercise-level substitutions remain available while redundant header-level substitution summary content is removed.
+- Exercise Actuals status semantics now reserve green for completed work, amber for remaining work, and a distinct subdued state for not-started work.
+- Mobile workout visual hierarchy is flatter and Previous Performance plus Next Target are presented more compactly.
+- Barcode scanning remains functional from the dedicated Food route, including trusted-HTTPS live camera access.
+- Desktop behavior remains functional and retains the richer combined Today experience where appropriate.
+- Required feature-branch automated validation, isolated production smoke, and real-device acceptance smoke passed.
+- No backend, API, schema, or database behavior changes were introduced.
+
+Product direction:
+
+- The mobile bottom navigation now represents true primary workspaces and should remain the foundation for future daily-driver UX.
+- Future mobile features should be added to the appropriate dedicated workspace rather than extending one long cross-workflow Today page.
+- Continued UI refinement is expected, but this milestone is accepted as a major improvement to the daily mobile experience.
+
+Near-term follow-up:
+
+- Refresh the GitHub repository README and public project presentation so they accurately reflect the current working system.
+- Continue updating the LinkedIn project description as active-project visibility rather than presenting the application as a finished portfolio product.
+- Richer deterministic QA seed data remains a recommended enablement improvement before future milestones requiring broad workout, recovery, or nutrition scenario coverage.
+
+Roadmap status:
+
+Mobile Daily-Driver Navigation & Compaction v1 is accepted.
+Meal Builder v1 remains the next recommended major product milestone.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Barcode Scanning v1
 
 Canonical implementation baseline before merge: main at d5bbbe4.

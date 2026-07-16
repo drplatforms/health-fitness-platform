@@ -36,6 +36,7 @@ import {
 interface FoodLoggingCardProps {
   userId: number;
   targetDate: string;
+  navigationDate?: string;
   className?: string;
   variant?: "card" | "embedded";
 }
@@ -157,6 +158,7 @@ function recentFoodToLoggingResult(food: RecentCanonicalFood): LoggingFoodResult
 export function FoodLoggingCard({
   userId,
   targetDate,
+  navigationDate,
   className,
   variant = "card",
 }: FoodLoggingCardProps) {
@@ -542,7 +544,7 @@ export function FoodLoggingCard({
           <Link
             href={`/personal-foods?${new URLSearchParams({
               user_id: String(userId),
-              date: targetDate,
+              ...(navigationDate ? { date: navigationDate } : {}),
             }).toString()}`}
             className="text-sm font-semibold !text-accent-text transition hover:!text-accent-text-hover"
           >
@@ -553,7 +555,7 @@ export function FoodLoggingCard({
         {recentFoods.length > 0 ? (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-text-primary">Recent foods</p>
-            <div className="flex snap-x snap-proximity flex-nowrap gap-2 overflow-x-auto pb-1">
+            <div className="flex snap-x snap-proximity scroll-px-1 flex-nowrap gap-2 overflow-x-auto px-0.5 pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {recentFoods.map((food) => (
                 <button
                   key={food.canonical_food_id}

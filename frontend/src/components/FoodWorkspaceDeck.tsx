@@ -10,6 +10,7 @@ import styles from "./FoodWorkspaceDeck.module.css";
 interface FoodWorkspaceDeckProps {
   userId: number;
   targetDate: string;
+  requestedDate?: string;
 }
 
 type FoodWorkspacePanel = "log" | "personal";
@@ -26,6 +27,7 @@ const SWIPE_THRESHOLD_PX = 48;
 export function FoodWorkspaceDeck({
   userId,
   targetDate,
+  requestedDate,
 }: FoodWorkspaceDeckProps) {
   const [activePanel, setActivePanel] = useState<FoodWorkspacePanel>("log");
   const id = useId();
@@ -191,6 +193,7 @@ export function FoodWorkspaceDeck({
           <FoodLoggingCard
             userId={userId}
             targetDate={targetDate}
+            navigationDate={requestedDate}
             variant="embedded"
           />
         </div>
@@ -203,7 +206,7 @@ export function FoodWorkspaceDeck({
         >
           <PersonalFoodsList
             userId={userId}
-            targetDate={targetDate}
+            targetDate={requestedDate}
             variant="embedded"
           />
         </div>

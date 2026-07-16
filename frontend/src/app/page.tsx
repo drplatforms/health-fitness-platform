@@ -16,6 +16,7 @@ import {
   getDefaultUserId,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
+import { buildDailyWorkspaceHref } from "@/lib/dailyNavigation";
 import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
 import {
@@ -23,7 +24,6 @@ import {
   fetchTodayWorkout,
   fetchWorkoutCurrentFromBackend,
 } from "@/lib/todayWorkoutApi";
-import { getSwitchableUserLabel } from "@/lib/userSwitcher";
 import { DailyDriverWorkoutStatus } from "@/types/dailyDriver";
 import {
   TodayWorkoutResponse,
@@ -244,7 +244,16 @@ export default async function Home({
   ]);
   const workoutHref = buildTodayWorkoutHref(todayQuery);
   const currentUserId = todayQuery.userId ?? data?.user_id ?? getDefaultUserId();
-  const currentUserLabel = getSwitchableUserLabel(currentUserId);
+  const foodHref = buildDailyWorkspaceHref(
+    "food",
+    currentUserId,
+    todayQuery.date,
+  );
+  const recoveryHref = buildDailyWorkspaceHref(
+    "recovery",
+    currentUserId,
+    todayQuery.date,
+  );
   const displayDate = formatLongReadableDate(data?.target_date ?? todayQuery.date);
   const workoutMeta = data
     ? buildWorkoutMeta(
@@ -293,7 +302,7 @@ export default async function Home({
         <section className="rounded-2xl bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-5 sm:py-4 lg:px-6 lg:py-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
             <div className="max-w-2xl space-y-1">
-              <p className="hidden text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm sm:block">
+              <p className="hidden text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm md:block">
                 Today
               </p>
               <h1 className="text-xl font-semibold tracking-tight text-text-strong sm:text-2xl lg:text-[2rem]">
@@ -302,13 +311,10 @@ export default async function Home({
             </div>
 
             <div className="flex flex-col gap-2 lg:items-end">
-              <p className="hidden text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted sm:block">
+              <p className="hidden text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted md:block">
                 User
               </p>
               <div className="flex items-center gap-2 lg:justify-end">
-                <p className="hidden text-sm font-semibold text-text-primary lg:block">
-                  {currentUserLabel}
-                </p>
                 <UserSwitcher
                   currentUserId={currentUserId}
                   showLabel={false}
@@ -345,11 +351,22 @@ export default async function Home({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="min-w-0 space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
-              <div id="food-workspace" className="scroll-mt-3 sm:scroll-mt-6">
+              <Link
+                href={foodHref}
+                className="flex min-h-11 items-center justify-between rounded-2xl bg-surface px-4 py-2.5 text-sm font-semibold !text-accent-text shadow-[0_18px_38px_-32px_rgba(15,23,42,0.5)] md:hidden"
+              >
+                Open Food workspace
+                <span aria-hidden="true">→</span>
+              </Link>
+              <div
+                id="food-workspace"
+                className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
+              >
                 <FoodWorkspaceDeck
                   key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
                   userId={todayQuery.userId ?? data.user_id}
                   targetDate={data.target_date}
+                  requestedDate={todayQuery.date}
                 />
               </div>
               <div className="grid gap-3 xl:grid-cols-2">
@@ -359,6 +376,7 @@ export default async function Home({
                   initialError={loggedFoodsError}
                   userId={todayQuery.userId ?? data.user_id}
                   targetDate={data.target_date}
+                  className="hidden md:block"
                 />
                 <TodayCard title="Today's Workout">
                   <div className="space-y-3">
@@ -416,13 +434,38 @@ export default async function Home({
             </div>
 
             <div className="min-w-0 space-y-4">
-              <div id="recovery" className="scroll-mt-3 sm:scroll-mt-6">
+              <div
+                id="recovery"
+                className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
+              >
                 <RecoveryCheckInCard
                   userId={todayQuery.userId ?? data.user_id}
                   targetDate={data.target_date}
                   readiness={data.readiness}
                 />
               </div>
+
+              <TodayCard title="Recovery" className="md:hidden">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="font-semibold text-text-primary">
+                      Readiness {data.readiness.score ?? "--"}
+                    </p>
+                    <span className="text-sm font-semibold capitalize text-text-secondary">
+                      {data.readiness.status.replace("_", " ")}
+                    </span>
+                  </div>
+                  <p className="text-sm text-text-body">
+                    {data.readiness.headline}
+                  </p>
+                  <Link
+                    href={recoveryHref}
+                    className="inline-flex min-h-11 items-center font-semibold !text-accent-text"
+                  >
+                    Open Recovery workspace
+                  </Link>
+                </div>
+              </TodayCard>
 
               {data.coach_note.enabled && data.coach_note.text ? (
                 <TodayCard title="Coach Note" accent="warm">
