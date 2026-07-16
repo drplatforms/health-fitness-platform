@@ -69,6 +69,7 @@ dist/
 
 # Local files
 local_settings.py
+.projectmem/
 
 handoffs/
 # Local provider diagnostics / QA runs
