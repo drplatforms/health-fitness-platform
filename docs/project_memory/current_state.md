@@ -1,3 +1,17 @@
+# Current State - Projectmem Workflow Integration v1
+
+Status: PROJECTMEM_WORKFLOW_INTEGRATION_V1_ARCHITECTURE_ACCEPTED
+
+- Projectmem 0.2.0 is integrated as a supplemental local context accelerator.
+- Canonical Architecture handoffs, AGENTS.md, docs/project_memory, and repository truth remain authoritative.
+- .projectmem remains local and Git-ignored.
+- Projectmem Git hooks and background watcher remain disabled.
+- Codex MCP integration is configured and validated.
+- Fresh-session onboarding probe passed in approximately 2m10s without a broad repository scan.
+- The probe correctly recovered workflow authority, ownership, environment, database safety, UI acceptance rules, mobile product direction, and the next product milestone.
+- Next product milestone: Smart Exercise Substitutions.
+
+---
 # Current State - Active Workout Mobile UX v1
 
 Canonical implementation baseline: main at beeb2da.

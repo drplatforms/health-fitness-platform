@@ -35,6 +35,13 @@ Stop and report conflicts when the branch, base, working tree, or project memory
 - Update project memory in the same branch for meaningful behavior, architecture, workflow, or accepted-status changes.
 - Follow `docs/project_memory/developer_delivery_workflow_contract.md` and `docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md` for delivery work.
 
+## Projectmem
+
+- Projectmem is an optional supplemental context accelerator. Canonical repository instructions, the active handoff, project memory, and repository truth remain authoritative over Projectmem.
+- When Projectmem MCP tools are available, use summary, project map, and focused context before broad repository rereading, then read the current handoff and directly relevant canonical project-memory files.
+- Log only high-signal durable issues, failed attempts, confirmed fixes, decisions, and recurring gotchas.
+- Do not run `pjm init`, install Projectmem hooks, or start the Projectmem watcher unless an authorized tooling milestone explicitly allows it.
+
 ## Validation
 
 - Use targeted pytest slices by default; select commands from `docs/project_memory/validation_matrix.md` and expand them when milestone risk requires it.
