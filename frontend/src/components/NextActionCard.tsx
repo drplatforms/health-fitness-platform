@@ -15,29 +15,29 @@ export function NextActionCard({
 }: NextActionCardProps) {
   return (
     <section
-      className={`rounded-[32px] border border-emerald-300 bg-[linear-gradient(160deg,rgba(236,253,245,0.96),rgba(209,250,229,0.92))] p-6 shadow-[0_24px_50px_-30px_rgba(5,150,105,0.65)] ${className}`}
+      className={`rounded-[32px] border border-border-accent [background:var(--theme-next-action-surface)] p-6 shadow-[0_24px_50px_-30px_rgba(5,150,105,0.65)] ${className}`}
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-emerald-700">
+          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-accent-text">
             Next Action
           </p>
-          <h2 className="text-2xl font-semibold tracking-tight text-emerald-950 md:text-[2rem]">
+          <h2 className="text-2xl font-semibold tracking-tight text-positive-foreground-strong md:text-[2rem]">
             {action.label}
           </h2>
-          <p className="max-w-2xl text-sm leading-6 text-emerald-900/85 md:text-base">
+          <p className="max-w-2xl text-sm leading-6 text-positive-foreground md:text-base">
             {action.context}
           </p>
         </div>
         {href ? (
           <Link
             href={href}
-            className="inline-flex rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 transition hover:bg-emerald-900 md:max-w-sm"
+            className="inline-flex rounded-2xl bg-action-primary px-4 py-3 text-center text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover md:max-w-sm"
           >
             Open workout details
           </Link>
         ) : (
-          <div className="rounded-2xl bg-emerald-950 px-4 py-3 text-center text-sm font-semibold text-emerald-50 md:max-w-sm">
+          <div className="rounded-2xl bg-action-primary px-4 py-3 text-center text-sm font-semibold text-action-primary-foreground md:max-w-sm">
             Start here.
           </div>
         )}

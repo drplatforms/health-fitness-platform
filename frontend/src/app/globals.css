@@ -1,82 +1,116 @@
 @import "tailwindcss";
 
 :root {
-  --theme-canvas: #f8fafc;
-  --theme-canvas-start: #fffdf7;
-  --theme-canvas-glow: rgba(251, 191, 36, 0.16);
-  --theme-surface: #ffffff;
-  --theme-surface-subtle: #f8fafc;
-  --theme-surface-muted: #f1f5f9;
-  --theme-surface-warm: rgb(255 251 235 / 0.7);
-  --theme-surface-highlighted: rgb(236 253 245 / 0.9);
-  --theme-surface-interactive-hover: #e2e8f0;
-  --theme-header-surface-start: rgb(255 255 255 / 0.96);
-  --theme-header-surface-end: rgb(255 247 237 / 0.96);
+  color-scheme: light dark;
+
+  --theme-canvas: light-dark(#f8fafc, #0b1220);
+  --theme-canvas-start: light-dark(#fffdf7, #111827);
+  --theme-canvas-glow: light-dark(
+    rgb(251 191 36 / 0.16),
+    rgb(52 211 153 / 0.16)
+  );
+  --theme-surface: light-dark(#ffffff, #111827);
+  --theme-surface-subtle: light-dark(#f8fafc, #0f172a);
+  --theme-surface-muted: light-dark(#f1f5f9, #1e293b);
+  --theme-surface-warm: light-dark(
+    rgb(255 251 235 / 0.7),
+    rgb(120 53 15 / 0.26)
+  );
+  --theme-surface-highlighted: light-dark(
+    rgb(236 253 245 / 0.9),
+    rgb(6 78 59 / 0.62)
+  );
+  --theme-surface-interactive-hover: light-dark(#e2e8f0, #334155);
+  --theme-header-surface-start: light-dark(
+    rgb(255 255 255 / 0.96),
+    rgb(15 23 42 / 0.96)
+  );
+  --theme-header-surface-end: light-dark(
+    rgb(255 247 237 / 0.96),
+    rgb(6 78 59 / 0.55)
+  );
   --theme-workout-canvas-background: radial-gradient(
       circle at top,
-      rgb(16 185 129 / 0.18),
+      light-dark(rgb(16 185 129 / 0.18), rgb(52 211 153 / 0.18)),
       transparent 32%
     ),
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    linear-gradient(
+      180deg,
+      light-dark(#f8fafc, #0f172a) 0%,
+      light-dark(#f1f5f9, #020617) 100%
+    );
   --theme-workout-header-surface: linear-gradient(
     160deg,
-    rgb(255 255 255 / 0.98),
-    rgb(236 253 245 / 0.94)
+    light-dark(rgb(255 255 255 / 0.98), rgb(15 23 42 / 0.98)),
+    light-dark(rgb(236 253 245 / 0.94), rgb(6 78 59 / 0.68))
   );
   --theme-workout-card-active-surface: linear-gradient(
     145deg,
-    rgb(255 255 255 / 0.98),
-    rgb(236 253 245 / 0.72)
+    light-dark(rgb(255 255 255 / 0.98), rgb(15 23 42 / 0.98)),
+    light-dark(rgb(236 253 245 / 0.72), rgb(6 78 59 / 0.55))
   );
-  --theme-workout-card-active-border: #a7f3d0;
+  --theme-next-action-surface: linear-gradient(
+    160deg,
+    light-dark(rgb(236 253 245 / 0.96), rgb(6 78 59 / 0.86)),
+    light-dark(rgb(209 250 229 / 0.92), rgb(2 44 34 / 0.92))
+  );
+  --theme-workout-card-active-border: light-dark(#a7f3d0, #34d399);
 
-  --theme-text-strong: #020617;
-  --theme-text-primary: #0f172a;
-  --theme-text-body: #334155;
-  --theme-text-secondary: #475569;
-  --theme-text-muted: #64748b;
-  --theme-text-inverse: #ffffff;
-  --theme-text-warm: #b45309;
+  --theme-text-strong: light-dark(#020617, #f8fafc);
+  --theme-text-primary: light-dark(#0f172a, #f1f5f9);
+  --theme-text-body: light-dark(#334155, #cbd5e1);
+  --theme-text-secondary: light-dark(#475569, #94a3b8);
+  --theme-text-muted: light-dark(#64748b, #7f8ea3);
+  --theme-text-inverse: light-dark(#ffffff, #0f172a);
+  --theme-text-warm: light-dark(#b45309, #fbbf24);
 
-  --theme-border: #e2e8f0;
-  --theme-border-subtle: #e2e8f0;
-  --theme-border-accent: #6ee7b7;
-  --theme-border-interactive-strong: #047857;
-  --theme-border-warm: #fde68a;
+  --theme-border: light-dark(#e2e8f0, #334155);
+  --theme-border-subtle: light-dark(#e2e8f0, #1e293b);
+  --theme-border-accent: light-dark(#6ee7b7, #10b981);
+  --theme-border-interactive-strong: light-dark(#047857, #34d399);
+  --theme-border-warm: light-dark(#fde68a, #b45309);
 
-  --theme-action-primary: #064e3b;
-  --theme-action-primary-hover: #065f46;
+  --theme-action-primary: light-dark(#064e3b, #047857);
+  --theme-action-primary-hover: light-dark(#065f46, #059669);
   --theme-action-primary-foreground: #ecfdf5;
-  --theme-accent-text: #065f46;
-  --theme-accent-text-hover: #022c22;
-  --theme-focus: #10b981;
-  --theme-focus-subtle: #34d399;
+  --theme-accent-text: light-dark(#065f46, #6ee7b7);
+  --theme-accent-text-hover: light-dark(#022c22, #a7f3d0);
+  --theme-focus: light-dark(#10b981, #34d399);
+  --theme-focus-subtle: light-dark(#34d399, #10b981);
 
-  --theme-neutral-surface: #f1f5f9;
-  --theme-neutral-foreground: #334155;
-  --theme-positive-surface: #d1fae5;
-  --theme-positive-foreground: #065f46;
-  --theme-positive-foreground-strong: #064e3b;
-  --theme-caution-surface: #fef3c7;
-  --theme-caution-foreground: #78350f;
-  --theme-warning-surface: #ffe4e6;
-  --theme-warning-foreground: #9f1239;
-  --theme-danger-surface: #fff1f2;
-  --theme-danger-foreground: #881337;
-  --theme-danger-action: #be123c;
-  --theme-danger-action-hover: #881337;
-  --theme-caution-action: #d97706;
-  --theme-caution-action-hover: #f59e0b;
+  --theme-neutral-surface: light-dark(#f1f5f9, #1e293b);
+  --theme-neutral-foreground: light-dark(#334155, #cbd5e1);
+  --theme-positive-surface: light-dark(#d1fae5, rgb(6 78 59 / 0.8));
+  --theme-positive-foreground: light-dark(#065f46, #a7f3d0);
+  --theme-positive-foreground-strong: light-dark(#064e3b, #d1fae5);
+  --theme-caution-surface: light-dark(#fef3c7, #78350f);
+  --theme-caution-foreground: light-dark(#78350f, #fef3c7);
+  --theme-warning-surface: light-dark(#ffe4e6, rgb(136 19 55 / 0.55));
+  --theme-warning-foreground: light-dark(#9f1239, #fecdd3);
+  --theme-danger-surface: light-dark(#fff1f2, #4c0519);
+  --theme-danger-foreground: light-dark(#881337, #ffe4e6);
+  --theme-danger-action: light-dark(#be123c, #e11d48);
+  --theme-danger-action-hover: light-dark(#881337, #f43f5e);
+  --theme-caution-action: light-dark(#d97706, #f59e0b);
+  --theme-caution-action-hover: light-dark(#f59e0b, #fbbf24);
 
-  --theme-control-selected-surface: #020617;
-  --theme-control-selected-surface-hover: #1e293b;
-  --theme-control-positive-accent: #047857;
-  --theme-control-caution-accent: #d97706;
-  --theme-completed-indicator: #047857;
-  --theme-incomplete-indicator: #cbd5e1;
+  --theme-control-selected-surface: light-dark(#020617, #e2e8f0);
+  --theme-control-selected-surface-hover: light-dark(#1e293b, #f8fafc);
+  --theme-control-positive-accent: light-dark(#047857, #34d399);
+  --theme-control-caution-accent: light-dark(#d97706, #f59e0b);
+  --theme-completed-indicator: light-dark(#047857, #34d399);
+  --theme-incomplete-indicator: light-dark(#cbd5e1, #64748b);
 
   --background: var(--theme-canvas);
   --foreground: var(--theme-text-primary);
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
 }
 
 @theme inline {

@@ -5,6 +5,7 @@ import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
+import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { TodayCard } from "@/components/TodayCard";
 import { UserSwitcher } from "@/components/UserSwitcher";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
@@ -301,7 +302,7 @@ export default async function Home({
               <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
                 User
               </p>
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center lg:justify-end">
+              <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                 <p className="text-sm font-semibold text-text-primary">
                   {currentUserLabel}
                 </p>
@@ -310,6 +311,7 @@ export default async function Home({
                   showLabel={false}
                   selectClassName="bg-surface/90 py-2.5"
                 />
+                <ThemePreferenceControl />
               </div>
             </div>
           </div>
