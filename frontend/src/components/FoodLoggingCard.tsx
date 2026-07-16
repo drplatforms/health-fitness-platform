@@ -10,7 +10,9 @@ import {
 } from "react";
 import Link from "next/link";
 
+import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
 import { TodayCard } from "@/components/TodayCard";
+import type { BarcodeCanonicalFood } from "@/lib/barcodeFood";
 import {
   fetchCanonicalFoodServingUnits,
   fetchRecentCanonicalFoods,
@@ -162,6 +164,7 @@ export function FoodLoggingCard({
   const [results, setResults] = useState<LoggingFoodResult[]>([]);
   const [recentFoods, setRecentFoods] = useState<RecentCanonicalFood[]>([]);
   const [selectedFood, setSelectedFood] = useState<LoggingFoodResult | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const pendingRecentContextRef = useRef<PendingRecentContext | null>(null);
   const [selectedSearchQuery, setSelectedSearchQuery] = useState("");
   const [amount, setAmount] = useState("50");
@@ -172,6 +175,7 @@ export function FoodLoggingCard({
   const [isLoadingRecentFoods, setIsLoadingRecentFoods] = useState(true);
   const [isLoadingServingUnits, setIsLoadingServingUnits] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
@@ -396,6 +400,20 @@ export function FoodLoggingCard({
     setErrorMessage(null);
   }
 
+  function handleBarcodeFoodSelected(food: BarcodeCanonicalFood) {
+    pendingRecentContextRef.current = null;
+    setServingUnits([]);
+    setSelectedUnitKey("grams");
+    setAmount(String(food.default_grams ?? 100));
+    setIsLoadingServingUnits(true);
+    setSelectedFood(canonicalFoodToLoggingResult(food));
+    setSelectedSearchQuery(food.display_name);
+    setQuery(food.display_name);
+    setResults([]);
+    setSearchMessage(null);
+    setErrorMessage(null);
+  }
+
   const amountValue = Number.parseFloat(amount);
   const amountIsValid = Number.isFinite(amountValue) && amountValue > 0;
   const selectedServingUnit = useMemo(
@@ -565,33 +583,43 @@ export function FoodLoggingCard({
           <label className="text-sm font-semibold text-text-primary" htmlFor="food-search">
             Search foods
           </label>
-          <input
-            id="food-search"
-            type="search"
-            value={query}
-            onChange={(event) => {
-              const nextQuery = event.target.value;
-              const trimmedQuery = nextQuery.trim();
+          <div className="flex items-center gap-2">
+            <input
+              ref={searchInputRef}
+              id="food-search"
+              type="search"
+              value={query}
+              onChange={(event) => {
+                const nextQuery = event.target.value;
+                const trimmedQuery = nextQuery.trim();
 
-              setQuery(nextQuery);
-              setIsSearching(false);
-              setErrorMessage(null);
+                setQuery(nextQuery);
+                setIsSearching(false);
+                setErrorMessage(null);
 
-              if (trimmedQuery.length < 2) {
-                setResults([]);
-                setSearchMessage(
-                  trimmedQuery.length === 0
-                    ? null
-                    : "Type at least 2 characters to search foods.",
-                );
-                return;
-              }
+                if (trimmedQuery.length < 2) {
+                  setResults([]);
+                  setSearchMessage(
+                    trimmedQuery.length === 0
+                      ? null
+                      : "Type at least 2 characters to search foods.",
+                  );
+                  return;
+                }
 
-              setSearchMessage(null);
-            }}
-            placeholder="Search food..."
-            className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
-          />
+                setSearchMessage(null);
+              }}
+              placeholder="Search food..."
+              className="min-w-0 flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
+            />
+            <button
+              type="button"
+              onClick={() => setIsBarcodeScannerOpen(true)}
+              className="min-h-11 shrink-0 rounded-2xl border border-border-accent bg-surface px-4 py-2.5 text-sm font-semibold text-accent-text transition hover:bg-surface-highlighted"
+            >
+              Scan
+            </button>
+          </div>
         </div>
 
         {isSearching ? (
@@ -762,6 +790,18 @@ export function FoodLoggingCard({
               {isSaving ? "Logging food..." : "Log food"}
             </button>
           </div>
+        ) : null}
+        {isBarcodeScannerOpen ? (
+          <BarcodeScannerDialog
+            open
+            userId={userId}
+            targetDate={targetDate}
+            onClose={() => setIsBarcodeScannerOpen(false)}
+            onFoodSelected={handleBarcodeFoodSelected}
+            onSearchFoods={() => {
+              window.requestAnimationFrame(() => searchInputRef.current?.focus());
+            }}
+          />
         ) : null}
     </div>
   );
