@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Active Workout Mobile UX v1",
-    "current_recommended_milestone": "Mobile Food Logging and Recovery UX",
+    "current_authorized_milestone": "Mobile Food Logging + Recovery UX v1",
+    "current_recommended_milestone": "Projectmem Workflow Integration",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "ACTIVE_WORKOUT_MOBILE_UX_V1_ARCHITECTURE_ACCEPTED",
+    "implementation_status": "MOBILE_FOOD_LOGGING_RECOVERY_UX_V1_ARCHITECTURE_ACCEPTED",
     "primary_question": "Does the Today food workspace provide a clear, accessible overlapping Log Food and My Foods deck with click, keyboard, and header-only swipe switching while preserving both child surfaces and their in-progress state?",
     "qa_class": "FRONTEND_PRODUCTION_BROWSER_SMOKE",
-    "recommended_next_milestone_after_acceptance": "Mobile Food Logging and Recovery UX",
+    "recommended_next_milestone_after_acceptance": "Projectmem Workflow Integration, then Smart Exercise Substitutions",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/active-workout-mobile-ux-v1",
+    "source_feature_branch": "feature/mobile-food-recovery-ux-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "beeb2da"
+    "source_main_commit": "9a4a6e2"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -1845,5 +1845,32 @@
     "user_manual_smoke_passed": true,
     "next_recommended_milestone": "Mobile Food Logging and Recovery UX",
     "next_milestone_implementation_authorized": false
+  },
+  "mobile_food_logging_recovery_ux_v1": {
+    "baseline_commit": "9a4a6e2",
+    "feature_branch": "feature/mobile-food-recovery-ux-v1",
+    "status": "MOBILE_FOOD_LOGGING_RECOVERY_UX_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Deliver a single execution-first mobile food logging and recovery UX pass without expanding into new product frameworks.",
+    "successful_food_log_transaction_reset": true,
+    "meal_selection_preserved": true,
+    "recent_foods_compacted": true,
+    "food_search_compacted": true,
+    "logged_today_compacted": true,
+    "personal_foods_catalog_compacted": true,
+    "food_recovery_hash_navigation_fixed": true,
+    "recovery_mobile_density_improved": true,
+    "desktop_detail_preserved": true,
+    "long_press_framework_added": false,
+    "context_menu_framework_added": false,
+    "bottom_sheet_framework_added": false,
+    "dependency_change": false,
+    "backend_change": false,
+    "api_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "mobile_browser_smoke_passed": true,
+    "desktop_browser_smoke_passed": true,
+    "next_tooling_step": "Projectmem Workflow Integration",
+    "next_product_milestone": "Smart Exercise Substitutions"
   }
 }

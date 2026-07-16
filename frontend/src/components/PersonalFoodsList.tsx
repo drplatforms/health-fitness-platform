@@ -154,36 +154,36 @@ export function PersonalFoodsList({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           {variant === "standalone" ? (
             <h1 className="text-2xl font-semibold tracking-tight text-text-strong">
               My Foods
             </h1>
           ) : null}
-          <p
-            className={`${variant === "standalone" ? "mt-1 " : ""}text-sm text-text-secondary`}
-          >
-            Foods you can find in the normal food search.
-          </p>
+          {variant === "standalone" ? (
+            <p className="mt-1 text-sm text-text-secondary">
+              Foods you can find in the normal food search.
+            </p>
+          ) : null}
         </div>
         <Link
           href={withContext("/personal-foods/new", userId, targetDate)}
-          className="inline-flex items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover"
+          className="inline-flex shrink-0 items-center justify-center rounded-xl bg-action-primary px-3 py-2 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover sm:px-4 sm:py-2.5"
         >
           Add food
         </Link>
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
         <input
           type="search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder={showArchived ? "Search archived foods..." : "Search my foods..."}
           aria-label="Search personal foods"
-          className="min-w-0 flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-strong outline-none transition focus:border-focus"
+          className="min-w-0 rounded-xl border border-border bg-surface px-3 py-2.5 text-sm text-text-strong outline-none transition focus:border-focus"
         />
         <button
           type="button"
@@ -191,7 +191,7 @@ export function PersonalFoodsList({
             setShowArchived((current) => !current);
             setConfirmingArchiveId(null);
           }}
-          className="rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text-body transition hover:border-border-accent"
+          className="rounded-xl border border-border bg-surface px-3 py-2.5 text-sm font-semibold text-text-body transition hover:border-border-accent"
         >
           {showArchived ? "Show active" : "Archived"}
         </button>
@@ -218,19 +218,19 @@ export function PersonalFoodsList({
       ) : null}
 
       {!isLoading && foods.length > 0 ? (
-        <div className="divide-y divide-border-subtle rounded-2xl border border-border bg-surface">
+        <div className={`${variant === "embedded" ? "max-h-[18rem] overflow-y-auto " : ""}divide-y divide-border-subtle rounded-2xl border border-border bg-surface`}>
           {foods.map((food) => (
             <div
               key={food.id}
-              className="grid gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2 sm:px-4"
             >
               <div className="min-w-0">
                 <p className="font-semibold text-text-strong">{food.display_name}</p>
                 {food.brand_name ? (
-                  <p className="text-sm text-text-secondary">{food.brand_name}</p>
+                  <p className="truncate text-xs text-text-secondary">{food.brand_name}</p>
                 ) : null}
                 {!showArchived ? (
-                  <p className="mt-1 text-xs leading-5 text-text-secondary">
+                  <p className="mt-0.5 text-xs leading-4 text-text-secondary">
                     {food.current_revision.serving_grams !== null
                       ? `${food.current_revision.serving_name || "serving"} · ${formatNumber(food.current_revision.serving_grams)}g · `
                       : ""}
@@ -238,7 +238,7 @@ export function PersonalFoodsList({
                   </p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap gap-3 text-sm font-semibold">
+              <div className="flex flex-wrap justify-end gap-2 text-xs font-semibold sm:text-sm">
                 {showArchived ? (
                   <button
                     type="button"

@@ -455,7 +455,7 @@ export function LoggedFoodsList({
         ) : null}
 
         {entries.length > 0 ? (
-          <div className="max-h-[26rem] space-y-3 overflow-y-auto rounded-2xl bg-surface-subtle px-3 py-3">
+          <div className="max-h-[18rem] space-y-2 overflow-y-auto rounded-2xl bg-surface-subtle px-2 py-2 sm:max-h-[26rem] sm:px-3 sm:py-3">
             {mealGroups.map((group) => (
               <section key={group.mealType} className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2 px-1">
@@ -471,7 +471,7 @@ export function LoggedFoodsList({
                   {group.entries.map((entry) => (
                     <div
                       key={entry.entry_id}
-                      className="px-3 py-2.5 text-sm"
+                      className="px-3 py-2 text-sm"
                     >
                       {editingEntryId === entry.entry_id ? (
                         <div className="space-y-2">
@@ -626,14 +626,14 @@ export function LoggedFoodsList({
                           </p>
                         </div>
                       ) : (
-                        <div className="grid gap-1 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:items-baseline">
+                        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-baseline gap-x-2 gap-y-0.5">
                           <span className="font-semibold text-text-strong">
                             {entry.food_name}
                           </span>
-                          <span className="text-text-secondary sm:text-right">
+                          <span className="text-right text-text-secondary">
                             {formatLoggedAmount(entry)}
                           </span>
-                          <div className="flex gap-2 text-xs font-semibold sm:justify-end">
+                          <div className="flex gap-2 text-xs font-semibold">
                             <button
                               type="button"
                               onClick={() => startEditing(entry)}
@@ -667,7 +667,7 @@ export function LoggedFoodsList({
                               </button>
                             ) : null}
                           </div>
-                          <span className="text-xs font-medium text-text-secondary sm:col-span-3">
+                          <span className="hidden text-xs font-medium text-text-secondary sm:col-span-3 sm:block">
                             {formatMacroLine(entry)}
                           </span>
                         </div>

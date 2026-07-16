@@ -254,8 +254,17 @@ export function RecoveryCheckInCard({
 
   return (
     <TodayCard title="Recovery Check-In" className="lg:col-start-2 lg:row-start-1">
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-[auto_1fr] sm:items-start">
+      <div className="space-y-3 sm:space-y-4">
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-subtle px-3 py-2 sm:hidden">
+          <p className="font-semibold text-text-strong">
+            Readiness {readiness.score ?? "--"}
+          </p>
+          <StatusPill
+            label={readiness.status.replace("_", " ")}
+            tone={readinessToneMap[readiness.status]}
+          />
+        </div>
+        <div className="hidden gap-3 sm:grid sm:grid-cols-[auto_1fr] sm:items-start">
           <div className="rounded-2xl bg-surface-subtle px-4 py-3">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Readiness
@@ -276,9 +285,9 @@ export function RecoveryCheckInCard({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-text-primary">Body Weight</span>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <label className="min-w-0 space-y-1.5 sm:space-y-2">
+            <span className="text-xs font-semibold text-text-primary sm:text-sm">Body Weight</span>
             <input
               type="number"
               min="0"
@@ -290,13 +299,13 @@ export function RecoveryCheckInCard({
                   bodyWeight: event.target.value,
                 }))
               }
-              className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text-primary outline-none transition focus:border-focus"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus sm:rounded-2xl sm:px-4 sm:py-3"
               placeholder="Optional"
             />
           </label>
 
-          <label className="space-y-2">
-            <span className="text-sm font-semibold text-text-primary">Sleep</span>
+          <label className="min-w-0 space-y-1.5 sm:space-y-2">
+            <span className="text-xs font-semibold text-text-primary sm:text-sm">Sleep</span>
             <input
               type="number"
               min="0"
@@ -309,15 +318,15 @@ export function RecoveryCheckInCard({
                   sleepHours: event.target.value,
                 }))
               }
-              className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text-primary outline-none transition focus:border-focus"
+              className="min-h-11 w-full min-w-0 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus sm:rounded-2xl sm:px-4 sm:py-3"
               placeholder="Hours slept"
             />
           </label>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1.5 sm:space-y-2">
           <span className="text-sm font-semibold text-text-primary">Stress / fatigue</span>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Stress / fatigue">
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Stress / fatigue">
             {stressOptions.map((option) => {
               const isActive = formState.stressLevel === option.value;
               return (
@@ -340,7 +349,7 @@ export function RecoveryCheckInCard({
                   />
                   <span
                     aria-pressed={isActive}
-                    className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold transition ${
+                    className={`flex min-h-10 items-center justify-center rounded-full px-2 py-2 text-sm font-semibold transition ${
                       isActive
                         ? "bg-control-selected-surface text-text-inverse"
                         : "bg-surface-subtle text-text-body ring-1 ring-border hover:bg-surface-muted"
@@ -354,8 +363,8 @@ export function RecoveryCheckInCard({
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-2 rounded-2xl bg-surface-subtle px-4 py-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <label className="space-y-1.5 rounded-xl bg-surface-subtle px-3 py-2 sm:space-y-2 sm:rounded-2xl sm:px-4 sm:py-3">
             <span className="flex items-center justify-between text-sm font-semibold text-text-primary">
               Energy
               <span className="text-text-muted">{formState.energyLevel}/10</span>
@@ -372,7 +381,7 @@ export function RecoveryCheckInCard({
             />
           </label>
 
-          <label className="space-y-2 rounded-2xl bg-surface-subtle px-4 py-3">
+          <label className="space-y-1.5 rounded-xl bg-surface-subtle px-3 py-2 sm:space-y-2 sm:rounded-2xl sm:px-4 sm:py-3">
             <span className="flex items-center justify-between text-sm font-semibold text-text-primary">
               Soreness
               <span className="text-text-muted">{formState.sorenessLevel}/10</span>
@@ -390,7 +399,7 @@ export function RecoveryCheckInCard({
           </label>
         </div>
 
-        <label className="space-y-2">
+        <label className="space-y-1.5 sm:space-y-2">
           <span className="text-sm font-semibold text-text-primary">
             Anything hurt or restricted?
           </span>
@@ -403,12 +412,30 @@ export function RecoveryCheckInCard({
               }))
             }
             rows={2}
-            className="w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-text-primary outline-none transition focus:border-focus"
+            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus sm:rounded-2xl sm:px-4 sm:py-3"
             placeholder="Optional"
           />
         </label>
 
-        <label className="space-y-2">
+        <details className="rounded-xl border border-border px-3 py-2 sm:hidden">
+          <summary className="cursor-pointer text-sm font-semibold text-text-primary">
+            General notes
+          </summary>
+          <textarea
+            value={formState.generalNotes}
+            onChange={(event) =>
+              updateFormState((current) => ({
+                ...current,
+                generalNotes: event.target.value,
+              }))
+            }
+            rows={2}
+            className="mt-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
+            placeholder="Optional"
+          />
+        </details>
+
+        <label className="hidden space-y-2 sm:block">
           <span className="text-sm font-semibold text-text-primary">Notes</span>
           <textarea
             value={formState.generalNotes}
@@ -430,7 +457,7 @@ export function RecoveryCheckInCard({
           </p>
         ) : null}
         {actionMessage ? (
-          <p className="rounded-2xl bg-surface-highlighted px-4 py-3 text-sm text-positive-foreground-strong">
+          <p className="text-xs font-semibold text-positive-foreground-strong">
             {actionMessage}
           </p>
         ) : null}
@@ -444,7 +471,7 @@ export function RecoveryCheckInCard({
           type="button"
           onClick={() => void handleSave()}
           disabled={isLoading || isSaving}
-          className="inline-flex rounded-2xl bg-action-primary px-4 py-3 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex w-full items-center justify-center rounded-xl bg-action-primary px-4 py-3 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-2xl"
         >
           {isSaving ? "Saving..." : "Save check-in"}
         </button>

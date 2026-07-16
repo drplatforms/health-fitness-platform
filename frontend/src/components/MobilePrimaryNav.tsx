@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 interface MobilePrimaryNavProps {
   userId: number;
@@ -24,11 +25,28 @@ function buildHref(
 
 export function MobilePrimaryNav({ userId, date }: MobilePrimaryNavProps) {
   const pathname = usePathname();
+  const [hash, setHash] = useState("");
+
+  useEffect(() => {
+    const updateHash = () => setHash(window.location.hash);
+    updateHash();
+    window.addEventListener("hashchange", updateHash);
+    window.addEventListener("popstate", updateHash);
+    return () => {
+      window.removeEventListener("hashchange", updateHash);
+      window.removeEventListener("popstate", updateHash);
+    };
+  }, [pathname]);
+
   const activeDestination = pathname.startsWith("/personal-foods")
     ? "food"
     : pathname === "/today/workout"
       ? "workout"
-      : "today";
+      : hash === "#food-workspace"
+        ? "food"
+        : hash === "#recovery"
+          ? "recovery"
+          : "today";
   const items = [
     {
       key: "today",
@@ -65,6 +83,24 @@ export function MobilePrimaryNav({ userId, date }: MobilePrimaryNavProps) {
             <Link
               key={item.key}
               href={item.href}
+              onClick={(event) => {
+                if (pathname !== "/" || item.key === "workout") {
+                  return;
+                }
+
+                event.preventDefault();
+                const nextUrl = new URL(item.href, window.location.href);
+                window.history.pushState(null, "", nextUrl);
+                setHash(nextUrl.hash);
+
+                if (nextUrl.hash) {
+                  document
+                    .getElementById(nextUrl.hash.slice(1))
+                    ?.scrollIntoView({ block: "start" });
+                } else {
+                  window.scrollTo({ top: 0 });
+                }
+              }}
               aria-current={isActive ? "page" : undefined}
               className={`relative flex min-h-11 items-center justify-center rounded-xl px-1 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
                 isActive
