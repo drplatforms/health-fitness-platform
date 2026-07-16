@@ -24,9 +24,9 @@ export function TodayCard({
 }: TodayCardProps) {
   return (
     <section
-      className={`rounded-[28px] border p-5 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.45)] ${ACCENT_CLASS_MAP[accent]} ${className}`}
+      className={`rounded-2xl border p-4 shadow-[0_20px_40px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:p-5 ${ACCENT_CLASS_MAP[accent]} ${className}`}
     >
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <div className="space-y-1">
           {eyebrow ? (
             <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-text-muted">

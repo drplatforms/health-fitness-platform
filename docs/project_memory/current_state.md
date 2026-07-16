@@ -1,3 +1,34 @@
+# Current State - Mobile UX Foundation v1
+
+Canonical implementation baseline: main at ac5b731.
+
+Feature branch: feature/mobile-ux-foundation-v1.
+
+Status: MOBILE_UX_FOUNDATION_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Added a reusable fixed, safe-area-aware mobile primary navigation for Today, Food, Workout, and Recovery.
+- Mobile navigation preserves user_id and date context across routes and anchored Today sections.
+- Added stable Food workspace and Recovery section anchors on Today.
+- Compacted the Today mobile header, shared Today cards, Nutrition summary, user control, and theme control.
+- Added a compact narrow-screen Food workspace selector while preserving tap, swipe, and keyboard behavior.
+- Compacted mobile route shells for Workout and Personal Foods.
+- Desktop layouts and accepted Light, Dark, and System theme behavior are intentionally preserved.
+- Active workout execution, Food Logging workflow internals, Recovery workflow internals, and Personal Food form internals were not redesigned.
+- Production browser smoke passed at approximately 390x844, 360px narrow mobile, and desktop widths.
+- No relevant console errors, warnings, hydration issues, horizontal overflow, or bottom-navigation content obstruction were observed.
+- Canonical database SHA-256 remained unchanged during validation.
+- No dependency, backend, API, database, or schema change was added.
+
+Mobile roadmap status:
+
+Mobile UX Foundation v1 is accepted.
+The next recommended milestone is Active Workout Mobile UX.
+Mobile Food Logging and Recovery UX remains the following dedicated workflow milestone.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Dark Mode + Theme Preference v1
 
 Canonical implementation baseline: main at 306b6ea.

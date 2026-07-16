@@ -45,7 +45,7 @@ export function UserSwitcher({
         value={String(currentUserId)}
         onChange={(event) => handleChange(event.target.value)}
         disabled={isPending}
-        className={`min-w-[180px] rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium text-text-primary outline-none transition focus:border-focus disabled:cursor-not-allowed disabled:opacity-70 ${selectClassName}`}
+        className={`min-w-[140px] rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-medium text-text-primary outline-none transition focus:border-focus disabled:cursor-not-allowed disabled:opacity-70 sm:min-w-[180px] sm:px-4 ${selectClassName}`}
       >
         {SWITCHABLE_USERS.map((user) => (
           <option key={user.id} value={user.id}>

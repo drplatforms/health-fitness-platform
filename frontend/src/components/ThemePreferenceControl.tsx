@@ -33,9 +33,9 @@ export function ThemePreferenceControl({
 
   return (
     <label
-      className={`inline-flex items-center gap-2 rounded-full border border-border bg-surface/90 px-3 py-2 text-xs font-semibold text-text-secondary shadow-sm ${className}`}
+      className={`inline-flex items-center gap-2 rounded-full border border-border bg-surface/90 px-2.5 py-2 text-xs font-semibold text-text-secondary shadow-sm sm:px-3 ${className}`}
     >
-      <span>Theme</span>
+      <span className="hidden sm:inline">Theme</span>
       <select
         aria-label="Theme preference"
         value={preference}
