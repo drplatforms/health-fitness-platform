@@ -62,3 +62,11 @@ Backend facts, calculations, constraints, validation, persistence, and fallback 
 ## Repo-owned command layer
 
 The canonical helpers live in `scripts/fitness_commands.ps1`; `local_developer_command_menu.md` defines their semantics. A PowerShell profile should only load the repo-owned script. The repository installer must back up existing profile content and may simplify the whole profile only through its explicit opt-in switch.
+
+## Architecture chat bootstrap
+
+New Architecture chats should be onboarded using:
+
+`docs/project_memory/architecture_chat_bootstrap_template.md`
+
+The template defines the canonical Architecture-chat bootstrap and milestone lifecycle. Projectmem may accelerate onboarding but remains supplemental to the authority hierarchy defined there.
