@@ -186,6 +186,43 @@ export interface WorkoutActiveSubstitutionSummary {
   updated_at: string | null;
 }
 
+export type WorkoutSubstitutionMatchTier =
+  | "best_match"
+  | "also_compatible";
+
+export interface WorkoutSubstitutionCandidate {
+  catalog_exercise_id: number;
+  name: string;
+  movement_pattern: string;
+  required_equipment: string[];
+  primary_muscle_groups: string[];
+  exercise_type: string;
+  difficulty: string;
+  compatibility_reason_codes: string[];
+  rank: number;
+  match_tier: WorkoutSubstitutionMatchTier;
+  why_this_fits: string;
+  ranking_reason_codes: string[];
+}
+
+export interface WorkoutSubstitutionCandidatesResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  planned_workout_exercise_id: number;
+  substitution_candidates: WorkoutSubstitutionCandidate[];
+}
+
+export interface WorkoutSubstitutionApplyResponse {
+  success: boolean;
+  workout_plan_instance_id: number;
+  planned_workout_exercise_id: number;
+  planned_workout_exercise: PlannedWorkoutExerciseSummary;
+  active_substitution: WorkoutActiveSubstitutionSummary;
+  previous_active_substitution_replaced: boolean;
+  selected_candidate: WorkoutSubstitutionCandidate;
+  workout_plan_instance: WorkoutPlanInstanceSummary;
+}
+
 export interface WorkoutPlannedVsActualSummary {
   workout_plan_instance_id: number;
   workout_execution_session_id: number | null;

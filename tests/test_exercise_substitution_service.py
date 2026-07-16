@@ -5,6 +5,10 @@ from fastapi.testclient import TestClient
 import database
 import services.exercise_substitution_service as exercise_substitution_service
 from api.main import app
+from models.exercise_catalog_models import (
+    ExerciseCatalogEntry,
+    ExerciseSubstitutionCandidate,
+)
 from scripts.seed_qa_scenarios import seed_qa_scenarios
 from services.equipment_profile_service import save_equipment_profile
 from services.exercise_catalog_service import (
@@ -44,6 +48,194 @@ USER_HOME_GYM_EQUIPMENT = [
     "resistance_band",
     "treadmill",
 ]
+
+
+def _ranking_candidate(
+    catalog_exercise_id: int,
+    name: str,
+    movement_reason: str = "same_movement_pattern",
+    primary_muscle_groups: list[str] | None = None,
+    exercise_type: str = "strength",
+) -> ExerciseSubstitutionCandidate:
+    return ExerciseSubstitutionCandidate(
+        catalog_exercise_id=catalog_exercise_id,
+        name=name,
+        movement_pattern=(
+            "horizontal_pull"
+            if movement_reason == "same_movement_pattern"
+            else "vertical_pull"
+        ),
+        required_equipment=["dumbbell"],
+        primary_muscle_groups=primary_muscle_groups or [],
+        exercise_type=exercise_type,
+        compatibility_reason_codes=[
+            "catalog_backed_substitution_candidate",
+            movement_reason,
+            "equipment_compatible_with_current_profile",
+        ],
+    )
+
+
+def _planned_ranking_entry() -> ExerciseCatalogEntry:
+    return ExerciseCatalogEntry(
+        id=1,
+        name="Barbell Row",
+        exercise_type="strength",
+        movement_pattern="horizontal_pull",
+        primary_muscle_groups=["back", "biceps"],
+        equipment_required=["barbell"],
+    )
+
+
+def test_candidate_ranking_preserves_membership_and_prioritizes_movement_tier():
+    candidates = [
+        _ranking_candidate(3, "Family Row", "compatible_movement_family"),
+        _ranking_candidate(2, "Exact Row"),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+    )
+
+    assert {candidate.catalog_exercise_id for candidate in ranked} == {2, 3}
+    assert [candidate.catalog_exercise_id for candidate in ranked] == [2, 3]
+    assert [candidate.rank for candidate in ranked] == [1, 2]
+    assert [candidate.match_tier for candidate in ranked] == [
+        "best_match",
+        "also_compatible",
+    ]
+
+
+def test_candidate_ranking_prefers_stronger_target_muscle_overlap():
+    candidates = [
+        _ranking_candidate(2, "Partial Row", primary_muscle_groups=["back"]),
+        _ranking_candidate(
+            3,
+            "Full Row",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+    )
+
+    assert [candidate.name for candidate in ranked] == ["Full Row", "Partial Row"]
+
+
+def test_candidate_ranking_prefers_matching_exercise_type_after_muscle_overlap():
+    candidates = [
+        _ranking_candidate(
+            2,
+            "Conditioning Row",
+            primary_muscle_groups=["back"],
+            exercise_type="conditioning",
+        ),
+        _ranking_candidate(
+            3,
+            "Strength Row",
+            primary_muscle_groups=["back"],
+        ),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+    )
+
+    assert [candidate.name for candidate in ranked] == [
+        "Strength Row",
+        "Conditioning Row",
+    ]
+
+
+def test_candidate_ranking_prefers_less_repeated_then_less_recent_exposure():
+    candidates = [
+        _ranking_candidate(2, "Repeated Row"),
+        _ranking_candidate(3, "Recent Row"),
+        _ranking_candidate(4, "Older Row"),
+        _ranking_candidate(5, "Unseen Row"),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        ["Recent Row", "Repeated Row", "Older Row", "Repeated Row"],
+    )
+
+    assert [candidate.name for candidate in ranked] == [
+        "Unseen Row",
+        "Older Row",
+        "Recent Row",
+        "Repeated Row",
+    ]
+
+
+def test_candidate_ranking_uses_normalized_name_then_catalog_id_tiebreak():
+    candidates = [
+        _ranking_candidate(4, "Zulu Row"),
+        _ranking_candidate(3, "Alpha Row"),
+        _ranking_candidate(2, "Alpha Row"),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+    )
+
+    assert [candidate.catalog_exercise_id for candidate in ranked] == [2, 3, 4]
+
+
+def test_candidate_ranking_metadata_is_bounded_and_user_safe():
+    ranked = exercise_substitution_service._rank_candidates(
+        [
+            _ranking_candidate(
+                2,
+                "Dumbbell Row",
+                primary_muscle_groups=["back", "biceps"],
+            )
+        ],
+        _planned_ranking_entry(),
+        ["Barbell Row"],
+    )
+    candidate = ranked[0]
+
+    assert candidate.rank == 1
+    assert candidate.match_tier == "best_match"
+    assert 0 < len(candidate.why_this_fits) <= 220
+    assert set(candidate.ranking_reason_codes) <= {
+        "same_movement_pattern",
+        "compatible_movement_family",
+        "target_muscle_overlap",
+        "exercise_type_preserved",
+        "less_recent_exercise_exposure",
+        "stable_deterministic_tiebreak",
+    }
+    assert not {
+        "injury",
+        "safer",
+        "overtraining",
+        "improve gains",
+    } & set(candidate.why_this_fits.lower().split())
+
+
+def test_compatible_movement_families_remain_conservative():
+    assert exercise_substitution_service.COMPATIBLE_MOVEMENT_FAMILIES == {
+        "squat": {"lunge"},
+        "lunge": {"squat"},
+        "core_anti_extension": {"core_anti_rotation"},
+        "core_anti_rotation": {"core_anti_extension"},
+        "arms_biceps": set(),
+        "arms_triceps": set(),
+        "conditioning": {"carry"},
+        "carry": {"conditioning"},
+    }
 
 
 def _seed_test_db(tmp_path, monkeypatch):
@@ -433,6 +625,12 @@ def test_substitution_candidates_endpoint_returns_bounded_metadata(
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
+    assert set(payload) == {
+        "success",
+        "workout_plan_instance_id",
+        "planned_workout_exercise_id",
+        "substitution_candidates",
+    }
     assert payload["substitution_candidates"]
 
     candidate = payload["substitution_candidates"][0]
@@ -445,6 +643,10 @@ def test_substitution_candidates_endpoint_returns_bounded_metadata(
         "exercise_type",
         "difficulty",
         "compatibility_reason_codes",
+        "rank",
+        "match_tier",
+        "why_this_fits",
+        "ranking_reason_codes",
     }
     assert "actual_sets" not in candidate
     assert "notes" not in candidate
@@ -861,6 +1063,16 @@ def test_apply_substitution_endpoint_returns_active_record(tmp_path, monkeypatch
     assert response.status_code == 200
     payload = response.json()
     assert payload["success"] is True
+    assert set(payload) == {
+        "success",
+        "workout_plan_instance_id",
+        "planned_workout_exercise_id",
+        "planned_workout_exercise",
+        "active_substitution",
+        "previous_active_substitution_replaced",
+        "selected_candidate",
+        "workout_plan_instance",
+    }
     assert payload["workout_plan_instance_id"] == selected["workout_plan_instance"].id
     assert payload["planned_workout_exercise_id"] == planned_exercise.id
     assert payload["active_substitution"]["status"] == "active"

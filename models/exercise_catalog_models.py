@@ -33,3 +33,7 @@ class ExerciseSubstitutionCandidate:
     exercise_type: str = "strength"
     difficulty: str = "intermediate"
     compatibility_reason_codes: list[str] = field(default_factory=list)
+    rank: int = 0
+    match_tier: str = "also_compatible"
+    why_this_fits: str = ""
+    ranking_reason_codes: list[str] = field(default_factory=list)

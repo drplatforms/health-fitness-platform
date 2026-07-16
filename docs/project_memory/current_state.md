@@ -1,3 +1,47 @@
+# Current State - Smart Exercise Substitutions v1
+
+Canonical implementation baseline: main at f810424.
+
+Feature branch: feature/smart-exercise-substitutions-v1.
+
+Status: SMART_EXERCISE_SUBSTITUTIONS_V1_ARCHITECTURE_ACCEPTED
+
+Implementation scope:
+
+- Upgraded the existing substitution candidate flow from a flat compatible list to deterministic ranked substitutions.
+- Existing substitution eligibility remains conservative and unchanged; ranking operates only within candidates already valid by movement-pattern compatibility and current equipment compatibility.
+- No new compatible movement-family mappings were introduced.
+- Ranking considers movement-match quality, planned-muscle overlap, exercise-type preservation, recent exercise exposure, and a stable deterministic tie-break.
+- Candidate responses identify one Best Match followed by Also Compatible options with deterministic user-facing explanations.
+- Added the smallest practical Next.js request, review, and apply workflow inside the daily-driver workout experience.
+- Substitution review remains inline and does not navigate away from or remount the active workout.
+- Unsaved set-entry state, exercise focus, planned prescriptions, logged sets, and existing workout execution state are preserved through substitution review and application.
+- Applied substitutions continue using the existing backend-owned substitution overlay rather than mutating the immutable ApprovedWorkoutPlan snapshot or original planned workout exercise rows.
+- Replacement catalog identity drives the displayed replacement exercise and exercise instructions while preserving original planned-exercise attribution.
+- The v1 UI suppresses selecting a new substitution after completed sets exist for that planned exercise, avoiding mixed original/replacement execution editing in this milestone.
+- Existing set logging, editing, deletion, exercise navigation, completion review, substitution persistence, refresh behavior, and workout history behavior remain intact.
+- Production browser smoke passed on the canonical application surfaces across mobile, narrow mobile, desktop, Light, and Dark themes.
+- Required substitution keyboard interaction passed during production smoke.
+- No relevant console, hydration, or horizontal-overflow regression was identified.
+- Canonical fitness_ai.db remained unchanged during automated validation and production smoke.
+- No schema, dependency, provider, recommendation, progression, or workout-generation behavior change was added.
+
+Known follow-up:
+
+- Daily date rollover is not correctly clearing date-scoped Today data when the calendar day changes.
+- Previous-day Logged Today food entries can remain visible on the following day.
+- A previous-day workout can remain presented as Today's Workout.
+- A previous-day in-progress workout can remain surfaced as the current day's active workout.
+- This is a separate daily date-scoping correctness issue and is not part of Smart Exercise Substitutions v1.
+
+Roadmap status:
+
+Smart Exercise Substitutions v1 is accepted.
+The next recommended milestone is Daily Date Rollover Correctness v1.
+That milestone should restore clean date-scoped daily state for food and workouts while preserving historical records.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Projectmem Workflow Integration v1
 
 Status: PROJECTMEM_WORKFLOW_INTEGRATION_V1_ARCHITECTURE_ACCEPTED

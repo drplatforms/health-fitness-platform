@@ -70,6 +70,23 @@ def _recent_planned_exercise_names(user_id: int, limit: int = 40) -> list[str]:
     return [str(row["name"]) for row in rows if row["name"]]
 
 
+def get_recent_exercise_exposures(user_id: int) -> list[str]:
+    """Return the existing newest-first exercise exposure signal.
+
+    Selected workout-plan history intentionally retains repeat exposures while
+    manual workout history contributes unique names that are not already in the
+    planned history. Keeping this aggregation here gives workout selection and
+    substitution ranking one shared definition of recent exercise exposure.
+    """
+
+    recent_planned_exercises = _recent_planned_exercise_names(user_id)
+    manual_recent_exercises = _recent_exercise_names(user_id)
+    planned_exercise_set = set(recent_planned_exercises)
+    return recent_planned_exercises + [
+        name for name in manual_recent_exercises if name not in planned_exercise_set
+    ]
+
+
 def build_workout_constraints(health_state: UserHealthState) -> WorkoutConstraints:
     """Build exercise-selection boundaries for workout plan previews.
 
@@ -78,12 +95,7 @@ def build_workout_constraints(health_state: UserHealthState) -> WorkoutConstrain
     """
 
     equipment_profile = get_effective_equipment_profile(health_state.user_id)
-    recent_planned_exercises = _recent_planned_exercise_names(health_state.user_id)
-    manual_recent_exercises = _recent_exercise_names(health_state.user_id)
-    planned_exercise_set = set(recent_planned_exercises)
-    recent_exercises = recent_planned_exercises + [
-        name for name in manual_recent_exercises if name not in planned_exercise_set
-    ]
+    recent_exercises = get_recent_exercise_exposures(health_state.user_id)
     reason_codes = list(equipment_profile.reason_codes)
 
     if recent_exercises:

@@ -6,12 +6,14 @@ import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionD
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
 import {
+  applyWorkoutSubstitution,
   completeWorkout,
   deleteWorkoutActualSet,
   fetchWorkoutCurrent,
   fetchWorkoutPlannedVsActual,
   fetchWorkoutPreview,
   fetchWorkoutProgressionHistory,
+  fetchWorkoutSubstitutionCandidates,
   logWorkoutActualSet,
   selectWorkoutPreview,
   startWorkoutPlan,
@@ -30,6 +32,7 @@ import {
   WorkoutPreviewExercise,
   WorkoutPreviewResponse,
   WorkoutSizePreference,
+  WorkoutSubstitutionCandidate,
 } from "@/types/todayWorkout";
 
 const workoutToneMap: Record<
@@ -590,6 +593,146 @@ function PreviousPerformanceLine({
   );
 }
 
+function SubstitutionCandidateOption({
+  candidate,
+  applyingCandidateId,
+  onApply,
+}: {
+  candidate: WorkoutSubstitutionCandidate;
+  applyingCandidateId: number | null;
+  onApply: (candidate: WorkoutSubstitutionCandidate) => void;
+}) {
+  const isApplying = applyingCandidateId === candidate.catalog_exercise_id;
+
+  return (
+    <div className="rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-text-strong">
+            {candidate.name}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-text-secondary">
+            {candidate.why_this_fits}
+          </p>
+          {candidate.required_equipment.length ? (
+            <p className="mt-1 text-xs font-medium text-text-muted">
+              Equipment: {candidate.required_equipment.join(", ")}
+            </p>
+          ) : null}
+        </div>
+        <button
+          type="button"
+          onClick={() => onApply(candidate)}
+          disabled={applyingCandidateId !== null}
+          aria-label={`Use this exercise: ${candidate.name}`}
+          className="min-h-11 shrink-0 rounded-xl bg-action-primary px-3 py-2 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isApplying ? "Applying…" : "Use this exercise"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function WorkoutSubstitutionPanel({
+  exercise,
+  candidates,
+  isLoading,
+  loadError,
+  applyError,
+  applyingCandidateId,
+  onApply,
+  onClose,
+}: {
+  exercise: PlannedWorkoutExerciseSummary;
+  candidates: WorkoutSubstitutionCandidate[];
+  isLoading: boolean;
+  loadError: boolean;
+  applyError: boolean;
+  applyingCandidateId: number | null;
+  onApply: (candidate: WorkoutSubstitutionCandidate) => void;
+  onClose: () => void;
+}) {
+  const bestMatch = candidates.find(
+    (candidate) => candidate.match_tier === "best_match",
+  );
+  const alsoCompatible = candidates.filter(
+    (candidate) => candidate.match_tier === "also_compatible",
+  );
+
+  return (
+    <section
+      id={`workout-substitutions-${exercise.id}`}
+      aria-label={`Substitution options for ${exercise.name}`}
+      className="mt-3 min-w-0 rounded-2xl bg-surface-subtle p-3 ring-1 ring-border"
+    >
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-text-strong">
+          Swap exercise
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={`Close substitution options for ${exercise.name}`}
+          className="min-h-11 rounded-lg px-3 py-2 text-sm font-semibold text-text-muted transition hover:bg-surface hover:text-text-primary"
+        >
+          Close
+        </button>
+      </div>
+
+      {isLoading ? (
+        <p className="py-3 text-sm font-medium text-text-secondary">
+          Finding compatible options…
+        </p>
+      ) : loadError ? (
+        <p className="py-3 text-sm font-medium text-danger-action">
+          Unable to load substitutions right now.
+        </p>
+      ) : candidates.length === 0 ? (
+        <p className="py-3 text-sm font-medium text-text-secondary">
+          No compatible substitutions are available for your current equipment.
+        </p>
+      ) : (
+        <div className="max-h-80 space-y-4 overflow-y-auto overflow-x-hidden pr-1">
+          {bestMatch ? (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-positive-foreground">
+                Best Match
+              </p>
+              <SubstitutionCandidateOption
+                candidate={bestMatch}
+                applyingCandidateId={applyingCandidateId}
+                onApply={onApply}
+              />
+            </div>
+          ) : null}
+          {alsoCompatible.length ? (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                Also Compatible
+              </p>
+              {alsoCompatible.map((candidate) => (
+                <SubstitutionCandidateOption
+                  key={candidate.catalog_exercise_id}
+                  candidate={candidate}
+                  applyingCandidateId={applyingCandidateId}
+                  onApply={onApply}
+                />
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {applyError ? (
+        <p className="mt-3 text-sm font-medium text-danger-action">
+          Unable to apply that substitution.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function statusSummaryLine(
   approvedPlan: ApprovedWorkoutPlanPreview | null,
   preview: WorkoutPreviewResponse | null,
@@ -651,6 +794,17 @@ export function WorkoutPreviewExperience({
   const [activeSubstitutions, setActiveSubstitutions] = useState<
     WorkoutActiveSubstitutionSummary[]
   >([]);
+  const [substitutionPanelExerciseId, setSubstitutionPanelExerciseId] = useState<
+    number | null
+  >(null);
+  const [substitutionCandidates, setSubstitutionCandidates] = useState<
+    WorkoutSubstitutionCandidate[]
+  >([]);
+  const [isLoadingSubstitutions, setIsLoadingSubstitutions] = useState(false);
+  const [substitutionLoadError, setSubstitutionLoadError] = useState(false);
+  const [substitutionApplyError, setSubstitutionApplyError] = useState(false);
+  const [applyingSubstitutionCandidateId, setApplyingSubstitutionCandidateId] =
+    useState<number | null>(null);
   const [plannedVsActualSummary, setPlannedVsActualSummary] =
     useState<WorkoutPlannedVsActualSummary | null>(null);
   const [progressionHistoryByExerciseName, setProgressionHistoryByExerciseName] =
@@ -752,6 +906,11 @@ export function WorkoutPreviewExperience({
       setErrorMessage(null);
       setActionMessage(null);
       setIsCompletionReviewOpen(false);
+      setSubstitutionPanelExerciseId(null);
+      setSubstitutionCandidates([]);
+      setSubstitutionLoadError(false);
+      setSubstitutionApplyError(false);
+      setApplyingSubstitutionCandidateId(null);
 
       try {
         const currentResult = await fetchWorkoutCurrent({
@@ -1023,6 +1182,91 @@ export function WorkoutPreviewExperience({
       delete next[actualSetId];
       return next;
     });
+  }
+
+  function closeSubstitutionPanel() {
+    setSubstitutionPanelExerciseId(null);
+    setSubstitutionCandidates([]);
+    setIsLoadingSubstitutions(false);
+    setSubstitutionLoadError(false);
+    setSubstitutionApplyError(false);
+  }
+
+  async function handleToggleSubstitutionPanel(
+    exercise: PlannedWorkoutExerciseSummary,
+  ) {
+    if (substitutionPanelExerciseId === exercise.id) {
+      closeSubstitutionPanel();
+      return;
+    }
+    if (selectedPlan === null) {
+      return;
+    }
+
+    setSubstitutionPanelExerciseId(exercise.id);
+    setSubstitutionCandidates([]);
+    setSubstitutionLoadError(false);
+    setSubstitutionApplyError(false);
+    setIsLoadingSubstitutions(true);
+
+    const result = await fetchWorkoutSubstitutionCandidates(
+      selectedPlan.id,
+      exercise.id,
+    );
+
+    if (result.error || !result.data) {
+      setSubstitutionLoadError(true);
+      setIsLoadingSubstitutions(false);
+      return;
+    }
+
+    setSubstitutionCandidates(result.data.substitution_candidates);
+    setIsLoadingSubstitutions(false);
+  }
+
+  async function handleApplySubstitution(
+    exercise: PlannedWorkoutExerciseSummary,
+    candidate: WorkoutSubstitutionCandidate,
+  ) {
+    if (selectedPlan === null) {
+      return;
+    }
+
+    setApplyingSubstitutionCandidateId(candidate.catalog_exercise_id);
+    setSubstitutionApplyError(false);
+    const result = await applyWorkoutSubstitution(
+      selectedPlan.id,
+      exercise.id,
+      candidate.catalog_exercise_id,
+    );
+
+    if (result.error || !result.data?.active_substitution) {
+      setSubstitutionApplyError(true);
+      setApplyingSubstitutionCandidateId(null);
+      return;
+    }
+
+    const activeSubstitution = result.data.active_substitution;
+    setActiveSubstitutions((current) => [
+      ...current.filter(
+        (substitution) =>
+          substitution.planned_workout_exercise_id !== exercise.id,
+      ),
+      activeSubstitution,
+    ]);
+    setSelectedPlan(result.data.workout_plan_instance ?? selectedPlan);
+    const replacementHistory = await loadProgressionHistoryForNames([
+      activeSubstitution.replacement_exercise_name,
+    ]);
+    setProgressionHistoryByExerciseName((current) => ({
+      ...current,
+      ...replacementHistory,
+    }));
+    setActionMessage(
+      `Using ${activeSubstitution.replacement_exercise_name} instead of ${exercise.name}.`,
+    );
+    setApplyingSubstitutionCandidateId(null);
+    closeSubstitutionPanel();
   }
 
   async function handleSelectWorkout() {
@@ -1836,6 +2080,15 @@ export function WorkoutPreviewExperience({
                 const isEditingExerciseSet = exerciseActualSets.some(
                   (actualSet) => actualSet.id === editingActualSetId,
                 );
+                const canOfferSubstitution =
+                  isPersistedState &&
+                  selectedPlan !== null &&
+                  ["selected", "started", "in_progress"].includes(
+                    selectedPlan.status,
+                  ) &&
+                  completedLoggedSetCount === 0;
+                const isSubstitutionPanelOpen =
+                  substitutionPanelExerciseId === exercise.id;
 
                 return (
                   <article
@@ -1858,6 +2111,20 @@ export function WorkoutPreviewExperience({
                         <h2 className="min-w-0 text-lg font-semibold uppercase tracking-[0.04em] text-text-strong md:text-xl md:normal-case md:tracking-normal">
                           {displayExerciseName}
                         </h2>
+                        {canOfferSubstitution ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleToggleSubstitutionPanel(exercise)
+                            }
+                            disabled={applyingSubstitutionCandidateId !== null}
+                            aria-expanded={isSubstitutionPanelOpen}
+                            aria-controls={`workout-substitutions-${exercise.id}`}
+                            className="min-h-11 rounded-xl bg-surface px-3 py-2 text-sm font-semibold text-accent-text ring-1 ring-border transition hover:bg-surface-interactive-hover disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            Swap exercise
+                          </button>
+                        ) : null}
                         <ExerciseInstructionDisclosure
                           key={displayedCatalogExerciseId ?? "legacy"}
                           catalogExerciseId={displayedCatalogExerciseId}
@@ -1874,6 +2141,25 @@ export function WorkoutPreviewExperience({
                           }
                         />
                       </div>
+                      {activeSubstitution ? (
+                        <p className="text-xs font-semibold text-positive-foreground">
+                          Substituted for {exercise.name}
+                        </p>
+                      ) : null}
+                      {canOfferSubstitution && isSubstitutionPanelOpen ? (
+                        <WorkoutSubstitutionPanel
+                          exercise={exercise}
+                          candidates={substitutionCandidates}
+                          isLoading={isLoadingSubstitutions}
+                          loadError={substitutionLoadError}
+                          applyError={substitutionApplyError}
+                          applyingCandidateId={applyingSubstitutionCandidateId}
+                          onApply={(candidate) =>
+                            void handleApplySubstitution(exercise, candidate)
+                          }
+                          onClose={closeSubstitutionPanel}
+                        />
+                      ) : null}
                       <div
                         className={`space-y-2 ${
                           isInstructionExpanded ? "md:hidden" : ""

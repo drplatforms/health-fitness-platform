@@ -20,6 +20,8 @@ import {
   WorkoutSelectPreviewResponse,
   WorkoutSizePreference,
   WorkoutStartResponse,
+  WorkoutSubstitutionApplyResponse,
+  WorkoutSubstitutionCandidatesResponse,
 } from "@/types/todayWorkout";
 
 interface RouteErrorPayload {
@@ -380,6 +382,97 @@ export async function startWorkoutPlan(
         heading: "Backend unavailable",
         message:
           "Start the FastAPI server, then try starting the selected workout again.",
+      },
+    };
+  }
+}
+
+export async function fetchWorkoutSubstitutionCandidates(
+  planInstanceId: number,
+  plannedExerciseId: number,
+): Promise<WorkoutActionApiResult<WorkoutSubstitutionCandidatesResponse>> {
+  const params = new URLSearchParams({
+    plan_instance_id: String(planInstanceId),
+    planned_exercise_id: String(plannedExerciseId),
+  });
+  const endpoint = `/api/workout-substitution-candidates?${params.toString()}`;
+
+  try {
+    const response = await fetch(endpoint, {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          heading: "Unable to load substitutions",
+          message: "Unable to load substitutions right now.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutSubstitutionCandidatesResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Unable to load substitutions",
+        message: "Unable to load substitutions right now.",
+      },
+    };
+  }
+}
+
+export async function applyWorkoutSubstitution(
+  planInstanceId: number,
+  plannedExerciseId: number,
+  replacementCatalogExerciseId: number,
+): Promise<WorkoutActionApiResult<WorkoutSubstitutionApplyResponse>> {
+  const endpoint = "/api/workout-substitute";
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        plan_instance_id: planInstanceId,
+        planned_exercise_id: plannedExerciseId,
+        replacement_catalog_exercise_id: replacementCatalogExerciseId,
+      }),
+    });
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          heading: "Unable to apply substitution",
+          message: "Unable to apply that substitution.",
+          statusCode: response.status,
+        },
+      };
+    }
+
+    return {
+      data: (await response.json()) as WorkoutSubstitutionApplyResponse,
+      error: null,
+    };
+  } catch {
+    return {
+      data: null,
+      error: {
+        heading: "Unable to apply substitution",
+        message: "Unable to apply that substitution.",
       },
     };
   }

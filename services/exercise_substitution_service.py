@@ -13,6 +13,7 @@ from services.exercise_catalog_service import (
     find_catalog_entry_by_name,
     get_exercise_catalog,
 )
+from services.workout_constraint_service import get_recent_exercise_exposures
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
     WorkoutPlanNotFoundError,
@@ -117,6 +118,134 @@ def _candidate_from_catalog_entry(
     )
 
 
+def _normalized_values(values: list[str]) -> set[str]:
+    return {_normalize_token(value) for value in values if value.strip()}
+
+
+def _history_rank(
+    candidate_name: str,
+    recent_exercises: list[str],
+) -> tuple[int, int]:
+    normalized_candidate = _normalize_display_name(candidate_name)
+    exposure_positions = [
+        index
+        for index, exercise_name in enumerate(recent_exercises)
+        if _normalize_display_name(exercise_name) == normalized_candidate
+    ]
+    if not exposure_positions:
+        return (0, -(len(recent_exercises) + 1))
+
+    return (len(exposure_positions), -exposure_positions[0])
+
+
+def _ranking_reason_codes(
+    candidate: ExerciseSubstitutionCandidate,
+    planned_catalog_entry: ExerciseCatalogEntry,
+    recent_exercises: list[str],
+) -> list[str]:
+    planned_muscles = _normalized_values(planned_catalog_entry.primary_muscle_groups)
+    candidate_muscles = _normalized_values(candidate.primary_muscle_groups)
+    reason_codes = [
+        "same_movement_pattern"
+        if "same_movement_pattern" in candidate.compatibility_reason_codes
+        else "compatible_movement_family"
+    ]
+
+    if planned_muscles & candidate_muscles:
+        reason_codes.append("target_muscle_overlap")
+    if _normalize_token(candidate.exercise_type) == _normalize_token(
+        planned_catalog_entry.exercise_type
+    ):
+        reason_codes.append("exercise_type_preserved")
+    if _history_rank(candidate.name, recent_exercises)[0] == 0:
+        reason_codes.append("less_recent_exercise_exposure")
+
+    reason_codes.append("stable_deterministic_tiebreak")
+    return reason_codes
+
+
+def _why_this_fits(
+    candidate: ExerciseSubstitutionCandidate,
+    planned_catalog_entry: ExerciseCatalogEntry,
+    recent_exercises: list[str],
+) -> str:
+    reasons = [
+        "Same movement pattern"
+        if "same_movement_pattern" in candidate.compatibility_reason_codes
+        else "Compatible movement pattern"
+    ]
+    planned_muscles = _normalized_values(planned_catalog_entry.primary_muscle_groups)
+    candidate_muscles = _normalized_values(candidate.primary_muscle_groups)
+    overlap = planned_muscles & candidate_muscles
+
+    if planned_muscles and overlap == planned_muscles:
+        reasons.append("same target-muscle focus")
+    elif overlap:
+        reasons.append("similar target-muscle focus")
+    if _normalize_token(candidate.exercise_type) == _normalize_token(
+        planned_catalog_entry.exercise_type
+    ):
+        reasons.append("preserves the exercise type")
+    reasons.append("compatible with your current equipment")
+    if recent_exercises and _history_rank(candidate.name, recent_exercises)[0] == 0:
+        reasons.append("less recent in your workout history")
+
+    return ", ".join(reasons) + "."
+
+
+def _rank_candidates(
+    candidates: list[ExerciseSubstitutionCandidate],
+    planned_catalog_entry: ExerciseCatalogEntry,
+    recent_exercises: list[str],
+) -> list[ExerciseSubstitutionCandidate]:
+    planned_muscles = _normalized_values(planned_catalog_entry.primary_muscle_groups)
+
+    def ranking_key(candidate: ExerciseSubstitutionCandidate) -> tuple:
+        candidate_muscles = _normalized_values(candidate.primary_muscle_groups)
+        overlap_count = len(planned_muscles & candidate_muscles)
+        coverage_ratio = (
+            overlap_count / len(planned_muscles) if planned_muscles else 0.0
+        )
+        movement_rank = (
+            0 if "same_movement_pattern" in candidate.compatibility_reason_codes else 1
+        )
+        exercise_type_rank = int(
+            _normalize_token(candidate.exercise_type)
+            != _normalize_token(planned_catalog_entry.exercise_type)
+        )
+        exposure_count, recency_rank = _history_rank(
+            candidate.name,
+            recent_exercises,
+        )
+        return (
+            movement_rank,
+            -coverage_ratio,
+            -overlap_count,
+            exercise_type_rank,
+            exposure_count,
+            recency_rank,
+            _normalize_display_name(candidate.name),
+            candidate.catalog_exercise_id,
+        )
+
+    ranked_candidates = sorted(candidates, key=ranking_key)
+    for index, candidate in enumerate(ranked_candidates, start=1):
+        candidate.rank = index
+        candidate.match_tier = "best_match" if index == 1 else "also_compatible"
+        candidate.why_this_fits = _why_this_fits(
+            candidate,
+            planned_catalog_entry,
+            recent_exercises,
+        )
+        candidate.ranking_reason_codes = _ranking_reason_codes(
+            candidate,
+            planned_catalog_entry,
+            recent_exercises,
+        )
+
+    return ranked_candidates
+
+
 def get_substitution_candidates(
     plan_instance_id: int,
     planned_exercise_id: int,
@@ -163,8 +292,7 @@ def get_substitution_candidates(
     equipment_profile = get_effective_equipment_profile(plan_instance.user_id)
     planned_name = _normalize_display_name(planned_catalog_entry.name)
 
-    exact_matches: list[ExerciseSubstitutionCandidate] = []
-    family_matches: list[ExerciseSubstitutionCandidate] = []
+    eligible_candidates: list[ExerciseSubstitutionCandidate] = []
 
     for entry in catalog:
         if _normalize_display_name(entry.name) == planned_name:
@@ -186,13 +314,13 @@ def get_substitution_candidates(
             "equipment_compatible_with_current_profile",
         ]
 
-        candidate = _candidate_from_catalog_entry(entry, reason_codes)
-        if movement_reason == "same_movement_pattern":
-            exact_matches.append(candidate)
-        else:
-            family_matches.append(candidate)
+        eligible_candidates.append(_candidate_from_catalog_entry(entry, reason_codes))
 
-    return exact_matches + family_matches
+    return _rank_candidates(
+        eligible_candidates,
+        planned_catalog_entry,
+        get_recent_exercise_exposures(plan_instance.user_id),
+    )
 
 
 def apply_substitution(
