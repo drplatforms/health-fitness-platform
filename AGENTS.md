@@ -55,3 +55,29 @@ Stop and report conflicts when the branch, base, working tree, or project memory
 ## Completion Report
 
 Report the exact touched files, test commands and counts, lint/build results, browser-smoke coverage, database safety, temporary-artifact cleanup, `git diff --check`, current branch/status, staged/committed state, and any unresolved concern.
+
+## Mandatory Projectmem-first orientation
+
+When Projectmem MCP is available, Codex must use Projectmem before broad repository or project-memory inspection.
+
+Required initial sequence:
+
+1. `get_instructions`
+2. `get_summary`
+3. `get_project_map`
+4. focused `get_context` for the active milestone
+
+After that, read only the active handoff and the minimum directly relevant canonical project-memory, implementation, and test files.
+
+Do not manually reread the broad `docs/project_memory` corpus by default.
+
+If Projectmem is unavailable or fails, report that immediately and fall back to targeted canonical reads.
+
+Every Codex completion report must include:
+
+```text
+Projectmem orientation report:
+- MCP available: yes/no
+- Projectmem tools used:
+- Direct canonical project-memory files read:
+- Broad repository scan performed: yes/no

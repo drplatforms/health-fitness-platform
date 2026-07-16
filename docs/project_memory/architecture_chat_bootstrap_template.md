@@ -227,3 +227,21 @@ The new Architecture chat inherits authority only after grounding itself against
 - Preserve deterministic application truth.
 - Projectmem accelerates orientation but is never authoritative.
 - Repository and project-memory truth must remain sufficient even if all local Projectmem state is lost.
+
+## Canonical executable closeout ceremony
+
+For milestone acceptance and Git closeout, follow:
+
+`docs/project_memory/architecture_milestone_closeout_command_template.md`
+
+as the canonical executable command ceremony.
+
+The bootstrap document defines authority and lifecycle ownership.
+
+The closeout-command template defines the exact operational sequence:
+
+feature-branch smoke → Architecture acceptance → acceptance-state project memory → validation → exact-file staging → commit → feature push → `--no-ff` merge → merged-main validation → merged-main smoke when required → main push → external snapshot → final pasteback.
+
+Do not invent a different routine closeout flow without a milestone-specific technical reason.
+
+New Architecture chats must read both documents before managing their first milestone closeout.
