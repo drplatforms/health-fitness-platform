@@ -297,6 +297,7 @@ def build_workout_context(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    weekly_training_context: dict[str, Any] | None = None,
 ) -> WorkoutContext:
     coaching_decision = build_coaching_decision(health_state)
     training_constraints = build_training_constraints(health_state, coaching_decision)
@@ -337,6 +338,36 @@ def build_workout_context(
         exercise_count_reason=resolved_count.clamp_reason,
         exercise_count_user_reason=resolved_count.user_safe_reason,
         preview_variation_index=normalized_preview_variation_index,
+        weekly_plan_day_id=(
+            int(weekly_training_context["weekly_plan_day_id"])
+            if weekly_training_context
+            and weekly_training_context.get("weekly_plan_day_id") is not None
+            else None
+        ),
+        weekly_session_directive=(
+            dict(weekly_training_context["session_directive"])
+            if weekly_training_context
+            and weekly_training_context.get("session_directive")
+            else None
+        ),
+        weekly_session_type=(
+            str(weekly_training_context["session_type"])
+            if weekly_training_context and weekly_training_context.get("session_type")
+            else None
+        ),
+        weekly_session_title=(
+            str(weekly_training_context["session_title"])
+            if weekly_training_context and weekly_training_context.get("session_title")
+            else None
+        ),
+        weekly_session_focus=(
+            str(weekly_training_context["session_focus"])
+            if weekly_training_context and weekly_training_context.get("session_focus")
+            else None
+        ),
+        weekly_session_override=bool(
+            weekly_training_context and weekly_training_context.get("is_override")
+        ),
     )
 
 
@@ -515,6 +546,14 @@ def workout_context_to_llm_json(context: WorkoutContext) -> dict[str, Any]:
             "min": 3,
             "target": context.final_target_exercise_count,
             "max": MAX_WORKOUT_EXERCISE_COUNT,
+        },
+        "weekly_training_context": {
+            "weekly_plan_day_id": context.weekly_plan_day_id,
+            "session_type": context.weekly_session_type,
+            "session_title": context.weekly_session_title,
+            "session_focus": context.weekly_session_focus,
+            "session_directive": context.weekly_session_directive,
+            "is_override": context.weekly_session_override,
         },
         "duration_minutes": {"min": 30, "target": 45, "max": 60},
         "available_equipment": list(context.workout_constraints.available_equipment),
@@ -1073,6 +1112,117 @@ def _exercise_from_options(
         rir_max,
         notes,
         equipment_required,
+    )
+
+
+_WEEKLY_ACCESSORY_SLOT_FAMILIES = {
+    "accessory",
+    "arms",
+    "arms_biceps",
+    "arms_triceps",
+    "carry",
+    "conditioning_finish",
+    "core",
+    "shoulder_upper_back",
+}
+
+
+def _weekly_directed_exercise(
+    context: WorkoutContext,
+    slot_family: str,
+    slot_index: int,
+    existing_names: set[str],
+    existing_rotation_groups: set[str],
+) -> CandidateWorkoutExercise | None:
+    options = build_catalog_slot_options(context, [], slot_family)
+    available_options = [
+        option
+        for option in options
+        if _option_is_available_and_new(
+            context,
+            option,
+            existing_names,
+            existing_rotation_groups,
+        )
+    ]
+    if not available_options:
+        return None
+
+    constraints = context.training_constraints
+    rir_min = constraints.recommended_rir_min or 2
+    rir_max = constraints.recommended_rir_max or 4
+    is_accessory = slot_family in _WEEKLY_ACCESSORY_SLOT_FAMILIES
+    sets = 2 if is_accessory else 3
+    reps_min = 8 if is_accessory else 6
+    reps_max = 15 if is_accessory else 10
+    name, equipment_required = _select_exercise(
+        context.workout_constraints,
+        available_options,
+        user_id=context.user_id,
+        slot_key=f"weekly:{context.weekly_session_type}:{slot_index}:{slot_family}",
+        preview_variation_index=context.preview_variation_index,
+    )
+    exercise = _exercise(
+        name,
+        sets,
+        reps_min,
+        reps_max,
+        rir_min,
+        rir_max,
+        (
+            "Keep the work controlled and supportive of the session."
+            if is_accessory
+            else "Use repeatable technique and stay inside today's RIR target."
+        ),
+        equipment_required,
+    )
+    normalized_name = _normalize_exercise_name(exercise.name)
+    existing_names.add(normalized_name)
+    existing_rotation_groups.add(_exercise_rotation_group(normalized_name))
+    return exercise
+
+
+def _generate_weekly_directed_candidate_workout_plan(
+    context: WorkoutContext,
+) -> CandidateWorkoutPlan:
+    directive = context.weekly_session_directive or {}
+    ordered_slots = [str(value) for value in directive.get("ordered_slot_families", [])]
+    extension_slots = [
+        str(value) for value in directive.get("optional_extension_slot_families", [])
+    ]
+    slot_families = ordered_slots + extension_slots
+    exercises: list[CandidateWorkoutExercise] = []
+    existing_names: set[str] = set()
+    existing_rotation_groups: set[str] = set()
+    for slot_index, slot_family in enumerate(slot_families):
+        if len(exercises) >= context.final_target_exercise_count:
+            break
+        exercise = _weekly_directed_exercise(
+            context,
+            slot_family,
+            slot_index,
+            existing_names,
+            existing_rotation_groups,
+        )
+        if exercise is not None:
+            exercises.append(exercise)
+
+    return CandidateWorkoutPlan(
+        title=context.weekly_session_title or "Scheduled Strength Session",
+        session_focus=(
+            context.weekly_session_focus
+            or "Follow the scheduled weekly movement structure."
+        ),
+        duration_minutes=45,
+        exercises=exercises,
+        warmup="Use 5-10 minutes of easy movement and progressive ramp-up sets.",
+        cooldown="Log performance and recovery markers after the session.",
+        progression_guidance=context.training_constraints.progression_guidance,
+        rationale=(
+            "This session preserves the scheduled weekly structure while applying "
+            "today's equipment, recovery, movement, and exercise-rotation constraints."
+        ),
+        confidence=context.confidence,
     )
 
 
@@ -1779,6 +1929,11 @@ def _finalize_candidate_workout_plan(
 
 
 def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkoutPlan:
+    if context.weekly_session_directive and not context.weekly_session_override:
+        return _finalize_candidate_workout_plan(
+            context,
+            _generate_weekly_directed_candidate_workout_plan(context),
+        )
     return _finalize_candidate_workout_plan(
         context,
         _generate_base_candidate_workout_plan(context),

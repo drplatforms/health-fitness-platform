@@ -70,6 +70,8 @@ export interface WorkoutPreviewRequestOptions
   extends DailyDriverRequestOptions {
   workoutSizePreference?: WorkoutSizePreference;
   previewVariationIndex?: number;
+  targetDate?: string;
+  trainAnyway?: boolean;
 }
 
 export function buildTodayWorkoutHref(
@@ -143,9 +145,17 @@ export async function fetchWorkoutPreview(
   const userId = options.userId ?? getDefaultUserId();
   const params = new URLSearchParams({
     user_id: String(userId),
-    workout_size_preference: options.workoutSizePreference ?? "standard",
     preview_variation_index: String(options.previewVariationIndex ?? 0),
   });
+  if (options.workoutSizePreference) {
+    params.set("workout_size_preference", options.workoutSizePreference);
+  }
+  if (options.targetDate) {
+    params.set("target_date", options.targetDate);
+  }
+  if (options.trainAnyway) {
+    params.set("train_anyway", "true");
+  }
   const endpoint = `/api/workout-preview?${params.toString()}`;
 
   try {

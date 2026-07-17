@@ -7,6 +7,7 @@ import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience"
 import { formatLongReadableDate } from "@/lib/dateFormatting";
 import { getDefaultUserId, resolveTodayQuery } from "@/lib/dailyDriverApi";
 import { getSwitchableUserLabel } from "@/lib/userSwitcher";
+import { buildWeeklyWorkoutHref } from "@/lib/weeklyTrainingPlanApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -53,6 +54,21 @@ export default async function WorkoutPage({
                 <h1 className="truncate text-xl font-semibold tracking-tight text-text-strong md:text-3xl lg:text-[2.5rem]">
                 Today&apos;s Workout
                 </h1>
+                <nav aria-label="Workout view" className="flex w-fit rounded-xl bg-surface/75 p-1 text-sm font-semibold">
+                  <Link
+                    href={`/today/workout?user_id=${userId}${todayQuery.date ? `&date=${todayQuery.date}` : ""}`}
+                    aria-current="page"
+                    className="rounded-lg bg-action-primary px-3 py-1.5 text-action-primary-foreground"
+                  >
+                    Today
+                  </Link>
+                  <Link
+                    href={buildWeeklyWorkoutHref(userId, todayQuery.date)}
+                    className="rounded-lg px-3 py-1.5 text-text-body hover:bg-surface-muted"
+                  >
+                    Week
+                  </Link>
+                </nav>
               </div>
 
               <ThemePreferenceControl />

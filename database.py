@@ -574,6 +574,46 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # Weekly Training Plans
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_training_plans (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        week_start_date TEXT NOT NULL,
+        week_end_date TEXT NOT NULL,
+        target_session_count INTEGER NOT NULL,
+        default_workout_size_preference TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, week_start_date),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS weekly_training_plan_days (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        weekly_training_plan_id INTEGER NOT NULL,
+        training_date TEXT NOT NULL,
+        day_index INTEGER NOT NULL,
+        day_type TEXT NOT NULL,
+        session_sequence_index INTEGER,
+        session_type TEXT,
+        session_title TEXT,
+        session_focus TEXT,
+        session_directive_json TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(weekly_training_plan_id, training_date),
+        UNIQUE(weekly_training_plan_id, day_index),
+        FOREIGN KEY (weekly_training_plan_id) REFERENCES weekly_training_plans(id)
+    )
+    """)
+
+    # -----------------------------
     # Planned Workout Exercises
     # -----------------------------
 

@@ -41,5 +41,6 @@ test("maps nested personal-food routes to the Food destination", () => {
   assert.equal(activeDailyWorkspace("/personal-foods/new"), "food");
   assert.equal(activeDailyWorkspace("/personal-foods/42"), "food");
   assert.equal(activeDailyWorkspace("/today/workout"), "workout");
+  assert.equal(activeDailyWorkspace("/workout/week"), "workout");
   assert.equal(activeDailyWorkspace("/recovery"), "recovery");
 });
