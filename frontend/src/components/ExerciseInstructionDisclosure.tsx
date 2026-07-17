@@ -4,13 +4,26 @@ import { useId, useState } from "react";
 
 import styles from "@/components/ExerciseInstructionDisclosure.module.css";
 import { fetchExerciseInstruction } from "@/lib/exerciseInstructionApi";
-import { ExerciseInstructionResponse } from "@/types/exerciseInstruction";
+import {
+  exerciseInstructionAffordance,
+  saveWorkoutExerciseProfile,
+} from "@/lib/workoutExerciseProfileApi";
+import type { ExerciseInstructionResponse } from "@/types/exerciseInstruction";
+import type {
+  WorkoutExerciseFamiliarity,
+  WorkoutExercisePreference,
+  WorkoutExerciseProfile,
+} from "@/types/workoutExerciseProfile";
 
 interface ExerciseInstructionDisclosureProps {
   catalogExerciseId: number | null;
   exerciseName: string;
   isExpanded: boolean;
+  userId: number;
+  profile: WorkoutExerciseProfile | null | undefined;
+  canEditProfile: boolean;
   onExpandedChange: (isExpanded: boolean) => void;
+  onProfileChanged: (profile: WorkoutExerciseProfile | null) => void;
 }
 
 interface InstructionSectionProps {
@@ -39,7 +52,11 @@ export function ExerciseInstructionDisclosure({
   catalogExerciseId,
   exerciseName,
   isExpanded,
+  userId,
+  profile,
+  canEditProfile,
   onExpandedChange,
+  onProfileChanged,
 }: ExerciseInstructionDisclosureProps) {
   const disclosureId = useId();
   const mobilePanelId = `${disclosureId}-mobile`;
@@ -48,6 +65,10 @@ export function ExerciseInstructionDisclosure({
   const [instructionResponse, setInstructionResponse] =
     useState<ExerciseInstructionResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileErrorMessage, setProfileErrorMessage] = useState<string | null>(
+    null,
+  );
 
   if (catalogExerciseId === null) {
     return null;
@@ -77,6 +98,104 @@ export function ExerciseInstructionDisclosure({
     instructionResponse?.instruction.catalog_exercise_id === catalogExerciseId
       ? instructionResponse.instruction
       : null;
+  const instructionAffordance = exerciseInstructionAffordance(
+    profile?.familiarity_state,
+  );
+
+  const handleProfileChange = async (
+    dimension: "familiarity" | "preference",
+    rawValue: string,
+  ) => {
+    const familiarityState =
+      dimension === "familiarity"
+        ? (rawValue || null) as WorkoutExerciseFamiliarity | null
+        : (profile?.familiarity_state ?? null);
+    const preferenceState =
+      dimension === "preference"
+        ? (rawValue || null) as WorkoutExercisePreference | null
+        : (profile?.preference_state ?? null);
+
+    setIsSavingProfile(true);
+    setProfileErrorMessage(null);
+    const result = await saveWorkoutExerciseProfile(
+      userId,
+      catalogExerciseId,
+      familiarityState,
+      preferenceState,
+    );
+    setIsSavingProfile(false);
+    if (result.error || result.data === null) {
+      setProfileErrorMessage(
+        result.error?.message ?? "Unable to save this exercise profile.",
+      );
+      return;
+    }
+    onProfileChanged(result.data.profile);
+  };
+
+  const renderProfileControls = () => {
+    if (!canEditProfile || profile === undefined) {
+      return null;
+    }
+    return (
+      <section className="space-y-2 rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
+        <div>
+          <h3 className="text-sm font-semibold text-text-primary">
+            Your exercise profile
+          </h3>
+          <p className="mt-0.5 text-xs leading-5 text-text-muted">
+            Familiarity changes this instruction shortcut. Preference gently
+            influences future valid exercise options.
+          </p>
+        </div>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className="space-y-1 text-xs font-semibold text-text-body">
+            <span>Familiarity</span>
+            <select
+              aria-label={`${exerciseName} familiarity`}
+              value={profile?.familiarity_state ?? ""}
+              disabled={isSavingProfile}
+              onChange={(event) =>
+                void handleProfileChange("familiarity", event.target.value)
+              }
+              className="min-h-11 w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle disabled:opacity-60"
+            >
+              <option value="">Clear</option>
+              <option value="unfamiliar">Unfamiliar</option>
+              <option value="learning">Learning</option>
+              <option value="familiar">Familiar</option>
+            </select>
+          </label>
+          <label className="space-y-1 text-xs font-semibold text-text-body">
+            <span>Preference</span>
+            <select
+              aria-label={`${exerciseName} preference`}
+              value={profile?.preference_state ?? ""}
+              disabled={isSavingProfile}
+              onChange={(event) =>
+                void handleProfileChange("preference", event.target.value)
+              }
+              className="min-h-11 w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-sm text-text-strong outline-none focus:border-focus-subtle disabled:opacity-60"
+            >
+              <option value="favorite">Favorite</option>
+              <option value="">Neutral</option>
+              <option value="disliked">Disliked</option>
+            </select>
+          </label>
+        </div>
+        {isSavingProfile ? (
+          <p className="text-xs text-text-muted" role="status">
+            Saving profile…
+          </p>
+        ) : null}
+        {profileErrorMessage ? (
+          <p className="text-xs font-medium text-danger-action" role="status">
+            {profileErrorMessage}
+          </p>
+        ) : null}
+      </section>
+    );
+  };
 
   const renderInstructionContent = (isDesktop: boolean) => {
     if (isLoading) {
@@ -108,6 +227,7 @@ export function ExerciseInstructionDisclosure({
 
     return (
       <div className={isDesktop ? "space-y-6" : "space-y-3"}>
+        {renderProfileControls()}
         <p
           className={
             isDesktop
@@ -149,9 +269,11 @@ export function ExerciseInstructionDisclosure({
         onClick={handleToggle}
         className="shrink-0 rounded-full px-2 py-1 text-sm font-semibold text-accent-text transition hover:bg-surface-highlighted hover:text-accent-text-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
-        <span className="md:hidden">{isExpanded ? "Hide" : "How To"}</span>
+        <span className="md:hidden">
+          {isExpanded ? "Hide" : instructionAffordance}
+        </span>
         <span className="hidden md:inline">
-          {isExpanded ? "Back to workout" : "How To"}
+          {isExpanded ? "Back to workout" : instructionAffordance}
         </span>
       </button>
 

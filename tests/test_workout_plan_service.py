@@ -310,6 +310,84 @@ def test_scored_selection_penalizes_recent_exact_exercises(tmp_path, monkeypatch
     assert equipment_required == ["dumbbell"]
 
 
+def test_explicit_preference_influences_only_valid_option_ranking(
+    tmp_path, monkeypatch
+):
+    _seeded_health_states(tmp_path, monkeypatch)
+    romanian_deadlift = find_catalog_entry_by_name("Romanian Deadlift")
+    goblet_squat = find_catalog_entry_by_name("Goblet Squat")
+    assert romanian_deadlift is not None and romanian_deadlift.id is not None
+    assert goblet_squat is not None and goblet_squat.id is not None
+    workout_constraints = WorkoutConstraints(
+        available_equipment=["barbell", "dumbbell", "plates", "rack"],
+        confidence="High",
+        reason_codes=["test_explicit_preference"],
+    )
+    options = [
+        ("Romanian Deadlift", ["barbell"]),
+        ("Goblet Squat", ["dumbbell"]),
+    ]
+
+    no_profile = _select_exercise(workout_constraints, options)
+    preferred = _select_exercise(
+        workout_constraints,
+        options,
+        exercise_preference_by_catalog_id={
+            romanian_deadlift.id: "disliked",
+            goblet_squat.id: "favorite",
+        },
+    )
+
+    assert no_profile == ("Romanian Deadlift", ["barbell", "plates"])
+    assert preferred == ("Goblet Squat", ["dumbbell"])
+
+
+def test_favorite_cannot_override_recent_repeat_safeguard(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    romanian_deadlift = find_catalog_entry_by_name("Romanian Deadlift")
+    assert romanian_deadlift is not None and romanian_deadlift.id is not None
+    workout_constraints = WorkoutConstraints(
+        available_equipment=["barbell", "dumbbell"],
+        recent_exercises=["Romanian Deadlift"],
+        confidence="High",
+        reason_codes=["test_explicit_preference_rotation_guard"],
+    )
+
+    selected = _select_exercise(
+        workout_constraints,
+        [
+            ("Romanian Deadlift", ["barbell"]),
+            ("Goblet Squat", ["dumbbell"]),
+        ],
+        exercise_preference_by_catalog_id={romanian_deadlift.id: "favorite"},
+    )
+
+    assert selected == ("Goblet Squat", ["dumbbell"])
+
+
+def test_favorite_cannot_override_hard_equipment_eligibility(tmp_path, monkeypatch):
+    _seeded_health_states(tmp_path, monkeypatch)
+    machine_row = find_catalog_entry_by_name("Machine Row")
+    assert machine_row is not None and machine_row.id is not None
+    workout_constraints = WorkoutConstraints(
+        available_equipment=["dumbbell"],
+        unavailable_equipment=["machine"],
+        confidence="High",
+        reason_codes=["test_explicit_preference_eligibility_guard"],
+    )
+
+    selected = _select_exercise(
+        workout_constraints,
+        [
+            ("Machine Row", ["machine"]),
+            ("Dumbbell Row", ["dumbbell"]),
+        ],
+        exercise_preference_by_catalog_id={machine_row.id: "favorite"},
+    )
+
+    assert selected == ("Dumbbell Row", ["dumbbell"])
+
+
 def test_scored_selection_uses_deterministic_top_k_rotation_by_user(
     tmp_path, monkeypatch
 ):

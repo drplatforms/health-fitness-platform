@@ -154,6 +154,92 @@ def test_candidate_ranking_prefers_matching_exercise_type_after_muscle_overlap()
     ]
 
 
+def test_candidate_ranking_uses_preference_after_semantic_compatibility():
+    candidates = [
+        _ranking_candidate(
+            2,
+            "Neutral Row",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+        _ranking_candidate(
+            3,
+            "Favorite Row",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+        _ranking_candidate(
+            4,
+            "Disliked Row",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+        {3: "favorite", 4: "disliked"},
+    )
+
+    assert [candidate.catalog_exercise_id for candidate in ranked] == [3, 2, 4]
+    assert "explicit_favorite_preference" in ranked[0].ranking_reason_codes
+    assert "matches an exercise you favor" in ranked[0].why_this_fits.lower()
+    assert "explicit_disliked_preference" in ranked[2].ranking_reason_codes
+
+
+def test_favorite_cannot_outrank_materially_better_movement_match():
+    candidates = [
+        _ranking_candidate(
+            2,
+            "Exact Row",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+        _ranking_candidate(
+            3,
+            "Favorite Family Row",
+            movement_reason="compatible_movement_family",
+            primary_muscle_groups=["back", "biceps"],
+        ),
+    ]
+
+    ranked = exercise_substitution_service._rank_candidates(
+        candidates,
+        _planned_ranking_entry(),
+        [],
+        {3: "favorite"},
+    )
+
+    assert [candidate.catalog_exercise_id for candidate in ranked] == [2, 3]
+
+
+def test_preference_ranking_does_not_change_candidate_universe():
+    candidates_without_profile = [
+        _ranking_candidate(2, "Neutral Row"),
+        _ranking_candidate(3, "Favorite Row"),
+        _ranking_candidate(4, "Disliked Row"),
+    ]
+    candidates_with_profile = [
+        _ranking_candidate(2, "Neutral Row"),
+        _ranking_candidate(3, "Favorite Row"),
+        _ranking_candidate(4, "Disliked Row"),
+    ]
+
+    baseline = exercise_substitution_service._rank_candidates(
+        candidates_without_profile,
+        _planned_ranking_entry(),
+        [],
+    )
+    personalized = exercise_substitution_service._rank_candidates(
+        candidates_with_profile,
+        _planned_ranking_entry(),
+        [],
+        {3: "favorite", 4: "disliked"},
+    )
+
+    assert {candidate.catalog_exercise_id for candidate in baseline} == {
+        candidate.catalog_exercise_id for candidate in personalized
+    }
+
+
 def test_candidate_ranking_prefers_less_repeated_then_less_recent_exposure():
     candidates = [
         _ranking_candidate(2, "Repeated Row"),
@@ -214,6 +300,8 @@ def test_candidate_ranking_metadata_is_bounded_and_user_safe():
         "compatible_movement_family",
         "target_muscle_overlap",
         "exercise_type_preserved",
+        "explicit_favorite_preference",
+        "explicit_disliked_preference",
         "less_recent_exercise_exposure",
         "stable_deterministic_tiebreak",
     }

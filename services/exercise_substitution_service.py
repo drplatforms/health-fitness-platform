@@ -14,6 +14,9 @@ from services.exercise_catalog_service import (
     get_exercise_catalog,
 )
 from services.workout_constraint_service import get_recent_exercise_exposures
+from services.workout_exercise_profile_service import (
+    get_workout_exercise_preference_map,
+)
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
     WorkoutPlanNotFoundError,
@@ -142,6 +145,7 @@ def _ranking_reason_codes(
     candidate: ExerciseSubstitutionCandidate,
     planned_catalog_entry: ExerciseCatalogEntry,
     recent_exercises: list[str],
+    exercise_preference_by_catalog_id: dict[int, str],
 ) -> list[str]:
     planned_muscles = _normalized_values(planned_catalog_entry.primary_muscle_groups)
     candidate_muscles = _normalized_values(candidate.primary_muscle_groups)
@@ -157,6 +161,13 @@ def _ranking_reason_codes(
         planned_catalog_entry.exercise_type
     ):
         reason_codes.append("exercise_type_preserved")
+    preference_state = exercise_preference_by_catalog_id.get(
+        candidate.catalog_exercise_id
+    )
+    if preference_state == "favorite":
+        reason_codes.append("explicit_favorite_preference")
+    elif preference_state == "disliked":
+        reason_codes.append("explicit_disliked_preference")
     if _history_rank(candidate.name, recent_exercises)[0] == 0:
         reason_codes.append("less_recent_exercise_exposure")
 
@@ -168,6 +179,7 @@ def _why_this_fits(
     candidate: ExerciseSubstitutionCandidate,
     planned_catalog_entry: ExerciseCatalogEntry,
     recent_exercises: list[str],
+    exercise_preference_by_catalog_id: dict[int, str],
 ) -> str:
     reasons = [
         "Same movement pattern"
@@ -186,6 +198,11 @@ def _why_this_fits(
         planned_catalog_entry.exercise_type
     ):
         reasons.append("preserves the exercise type")
+    if (
+        exercise_preference_by_catalog_id.get(candidate.catalog_exercise_id)
+        == "favorite"
+    ):
+        reasons.append("matches an exercise you favor")
     reasons.append("compatible with your current equipment")
     if recent_exercises and _history_rank(candidate.name, recent_exercises)[0] == 0:
         reasons.append("less recent in your workout history")
@@ -197,8 +214,10 @@ def _rank_candidates(
     candidates: list[ExerciseSubstitutionCandidate],
     planned_catalog_entry: ExerciseCatalogEntry,
     recent_exercises: list[str],
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> list[ExerciseSubstitutionCandidate]:
     planned_muscles = _normalized_values(planned_catalog_entry.primary_muscle_groups)
+    preference_by_catalog_id = exercise_preference_by_catalog_id or {}
 
     def ranking_key(candidate: ExerciseSubstitutionCandidate) -> tuple:
         candidate_muscles = _normalized_values(candidate.primary_muscle_groups)
@@ -213,6 +232,10 @@ def _rank_candidates(
             _normalize_token(candidate.exercise_type)
             != _normalize_token(planned_catalog_entry.exercise_type)
         )
+        preference_rank = {
+            "favorite": 0,
+            "disliked": 2,
+        }.get(preference_by_catalog_id.get(candidate.catalog_exercise_id), 1)
         exposure_count, recency_rank = _history_rank(
             candidate.name,
             recent_exercises,
@@ -222,6 +245,7 @@ def _rank_candidates(
             -coverage_ratio,
             -overlap_count,
             exercise_type_rank,
+            preference_rank,
             exposure_count,
             recency_rank,
             _normalize_display_name(candidate.name),
@@ -236,11 +260,13 @@ def _rank_candidates(
             candidate,
             planned_catalog_entry,
             recent_exercises,
+            preference_by_catalog_id,
         )
         candidate.ranking_reason_codes = _ranking_reason_codes(
             candidate,
             planned_catalog_entry,
             recent_exercises,
+            preference_by_catalog_id,
         )
 
     return ranked_candidates
@@ -320,6 +346,7 @@ def get_substitution_candidates(
         eligible_candidates,
         planned_catalog_entry,
         get_recent_exercise_exposures(plan_instance.user_id),
+        get_workout_exercise_preference_map(plan_instance.user_id),
     )
 
 

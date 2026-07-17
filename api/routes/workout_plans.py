@@ -1,5 +1,6 @@
 from dataclasses import asdict
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -49,6 +50,15 @@ from services.workout_exercise_memory_service import (
     delete_workout_exercise_memory,
     resolve_workout_exercise_memories,
     save_workout_exercise_memory,
+)
+from services.workout_exercise_profile_service import (
+    MAX_WORKOUT_EXERCISE_PROFILE_BATCH_SIZE,
+    WorkoutExerciseProfileNotFoundError,
+    WorkoutExerciseProfileValidationError,
+    delete_workout_exercise_profile,
+    get_workout_exercise_preference_map,
+    resolve_workout_exercise_profiles,
+    save_workout_exercise_profile,
 )
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
@@ -151,6 +161,19 @@ class WorkoutExerciseMemorySavePayload(WorkoutExerciseMemoryIdentityPayload):
     )
 
 
+class WorkoutExerciseProfileResolvePayload(BaseModel):
+    catalog_exercise_ids: list[int] = Field(
+        min_length=1,
+        max_length=MAX_WORKOUT_EXERCISE_PROFILE_BATCH_SIZE,
+    )
+
+
+class WorkoutExerciseProfileSavePayload(BaseModel):
+    catalog_exercise_id: int = Field(ge=1)
+    familiarity_state: Literal["unfamiliar", "learning", "familiar"] | None = None
+    preference_state: Literal["favorite", "disliked"] | None = None
+
+
 class WorkoutProgressionDecisionExercisePayload(BaseModel):
     exercise_name: str = Field(min_length=1)
     catalog_exercise_id: int | None = None
@@ -197,6 +220,14 @@ def _raise_workout_exercise_memory_http_error(exc: Exception) -> None:
     if isinstance(exc, WorkoutExerciseMemoryConflictError):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if isinstance(exc, WorkoutExerciseMemoryValidationError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise exc
+
+
+def _raise_workout_exercise_profile_http_error(exc: Exception) -> None:
+    if isinstance(exc, WorkoutExerciseProfileNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, WorkoutExerciseProfileValidationError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     raise exc
 
@@ -405,6 +436,69 @@ def workout_exercise_memory_delete(user_id: int, memory_id: int):
     }
 
 
+@router.post("/workout-plans/{user_id}/exercise-profiles/resolve")
+def workout_exercise_profile_resolve(
+    user_id: int,
+    payload: WorkoutExerciseProfileResolvePayload,
+):
+    try:
+        resolutions = resolve_workout_exercise_profiles(
+            user_id,
+            payload.catalog_exercise_ids,
+        )
+    except (
+        WorkoutExerciseProfileNotFoundError,
+        WorkoutExerciseProfileValidationError,
+    ) as exc:
+        _raise_workout_exercise_profile_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "resolved_exercises": [asdict(resolution) for resolution in resolutions],
+    }
+
+
+@router.put("/workout-plans/{user_id}/exercise-profiles")
+def workout_exercise_profile_save(
+    user_id: int,
+    payload: WorkoutExerciseProfileSavePayload,
+):
+    try:
+        profile = save_workout_exercise_profile(
+            user_id,
+            catalog_exercise_id=payload.catalog_exercise_id,
+            familiarity_state=payload.familiarity_state,
+            preference_state=payload.preference_state,
+        )
+    except (
+        WorkoutExerciseProfileNotFoundError,
+        WorkoutExerciseProfileValidationError,
+    ) as exc:
+        _raise_workout_exercise_profile_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "profile": asdict(profile) if profile is not None else None,
+    }
+
+
+@router.delete("/workout-plans/{user_id}/exercise-profiles/{catalog_exercise_id}")
+def workout_exercise_profile_delete(user_id: int, catalog_exercise_id: int):
+    try:
+        deleted = delete_workout_exercise_profile(user_id, catalog_exercise_id)
+    except (
+        WorkoutExerciseProfileNotFoundError,
+        WorkoutExerciseProfileValidationError,
+    ) as exc:
+        _raise_workout_exercise_profile_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "catalog_exercise_id": catalog_exercise_id,
+        "deleted": deleted,
+    }
+
+
 @router.post("/workout-plans/{user_id}/progression-decisions")
 def workout_progression_decisions(
     user_id: int,
@@ -554,12 +648,14 @@ def workout_plan_preview(
         weekly_size = weekly_training_context.get("default_workout_size_preference")
         effective_size = "full" if weekly_size == "extended" else weekly_size
     health_state = build_user_health_state(user_id)
+    exercise_preference_by_catalog_id = get_workout_exercise_preference_map(user_id)
     context = build_workout_context(
         health_state,
         workout_size_preference=effective_size,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
         weekly_training_context=weekly_training_context,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     approved_plan = build_approved_workout_plan_for_context(context)
 
@@ -600,17 +696,20 @@ def workout_plan_preview_debug(
     preview_variation_index: int = 0,
 ):
     health_state = build_user_health_state(user_id)
+    exercise_preference_by_catalog_id = get_workout_exercise_preference_map(user_id)
     context = build_workout_context(
         health_state,
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     result = build_configured_approved_workout_plan_with_metadata(
         health_state,
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     approved_plan = result.approved_workout_plan
 
@@ -638,8 +737,15 @@ def workout_plan_preview_debug(
 @router.get("/workout-plans/preview/{user_id}/explanation")
 def workout_plan_explanation(user_id: int):
     health_state = build_user_health_state(user_id)
-    context = build_workout_context(health_state)
-    approved_plan = build_approved_workout_plan(health_state)
+    exercise_preference_by_catalog_id = get_workout_exercise_preference_map(user_id)
+    context = build_workout_context(
+        health_state,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
+    )
+    approved_plan = build_approved_workout_plan(
+        health_state,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
+    )
     explanation_result = build_configured_workout_explanation_with_metadata(
         approved_plan,
         context,
@@ -659,8 +765,15 @@ def workout_plan_explanation(user_id: int):
 @router.get("/workout-plans/preview/{user_id}/explanation/debug")
 def workout_plan_explanation_debug(user_id: int):
     health_state = build_user_health_state(user_id)
-    context = build_workout_context(health_state)
-    approved_plan = build_approved_workout_plan(health_state)
+    exercise_preference_by_catalog_id = get_workout_exercise_preference_map(user_id)
+    context = build_workout_context(
+        health_state,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
+    )
+    approved_plan = build_approved_workout_plan(
+        health_state,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
+    )
     explanation_result = build_configured_workout_explanation_with_metadata(
         approved_plan,
         context,

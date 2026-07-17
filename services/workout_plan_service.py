@@ -298,6 +298,7 @@ def build_workout_context(
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
     weekly_training_context: dict[str, Any] | None = None,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> WorkoutContext:
     coaching_decision = build_coaching_decision(health_state)
     training_constraints = build_training_constraints(health_state, coaching_decision)
@@ -368,6 +369,7 @@ def build_workout_context(
         weekly_session_override=bool(
             weekly_training_context and weekly_training_context.get("is_override")
         ),
+        exercise_preference_by_catalog_id=dict(exercise_preference_by_catalog_id or {}),
     )
 
 
@@ -824,6 +826,7 @@ def _option_score(
     recent_pattern_counts: dict[str, int],
     recent_modality_counts: dict[str, int],
     most_recent_plan_names: set[str],
+    exercise_preference_by_catalog_id: dict[int, str],
 ) -> int:
     catalog_entry = find_catalog_entry_by_name(name)
     catalog_name, normalized_equipment = _catalog_equipment_for_option(
@@ -848,6 +851,11 @@ def _option_score(
         if recent_pattern_count:
             score -= min(recent_pattern_count, 4) * 85
         score += _difficulty_score(catalog_entry.difficulty, workout_constraints)
+        preference_state = exercise_preference_by_catalog_id.get(catalog_entry.id)
+        if preference_state == "favorite":
+            score += 120
+        elif preference_state == "disliked":
+            score -= 120
 
     equipment = set(normalized_equipment)
     modality = _equipment_modality(normalized_equipment)
@@ -1005,6 +1013,7 @@ def _select_exercise(
     user_id: int | None = None,
     slot_key: str | None = None,
     preview_variation_index: int = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> tuple[str, list[str]]:
     allowed_options: list[tuple[int, str, list[str]]] = []
     recent_name_counts = _recent_exercise_counts(workout_constraints)
@@ -1033,6 +1042,7 @@ def _select_exercise(
                         recent_pattern_counts,
                         recent_modality_counts,
                         most_recent_plan_names,
+                        exercise_preference_by_catalog_id or {},
                     ),
                     catalog_name,
                     catalog_equipment_required,
@@ -1102,6 +1112,7 @@ def _exercise_from_options(
         user_id=context.user_id,
         slot_key=_selection_slot_key(options),
         preview_variation_index=context.preview_variation_index,
+        exercise_preference_by_catalog_id=(context.exercise_preference_by_catalog_id),
     )
     return _exercise(
         name,
@@ -1161,6 +1172,7 @@ def _weekly_directed_exercise(
         user_id=context.user_id,
         slot_key=f"weekly:{context.weekly_session_type}:{slot_index}:{slot_family}",
         preview_variation_index=context.preview_variation_index,
+        exercise_preference_by_catalog_id=(context.exercise_preference_by_catalog_id),
     )
     exercise = _exercise(
         name,
@@ -1861,6 +1873,7 @@ def _next_additional_exercise(
             f"{_selection_slot_key(available_options)}|additional_slot_{slot_index}"
         ),
         preview_variation_index=context.preview_variation_index,
+        exercise_preference_by_catalog_id=(context.exercise_preference_by_catalog_id),
     )
     exercise = _exercise(
         name,
@@ -3377,12 +3390,14 @@ def build_crewai_approved_workout_plan_with_metadata(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> ApprovedWorkoutPlanResult:
     context = build_workout_context(
         health_state,
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     return approve_workout_candidate_provider_or_fallback_with_metadata(
         generate_crewai_candidate_workout_plan_json,
@@ -3397,12 +3412,14 @@ def build_crewai_approved_workout_plan(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> ApprovedWorkoutPlan:
     return build_crewai_approved_workout_plan_with_metadata(
         health_state,
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     ).approved_workout_plan
 
 
@@ -3419,6 +3436,7 @@ def build_configured_approved_workout_plan_with_metadata(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> ApprovedWorkoutPlanResult:
     """Build an ApprovedWorkoutPlan and runtime metadata for debug inspection."""
 
@@ -3427,6 +3445,7 @@ def build_configured_approved_workout_plan_with_metadata(
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     provider = _configured_workout_candidate_provider()
 
@@ -3477,6 +3496,7 @@ def build_configured_approved_workout_plan(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> ApprovedWorkoutPlan:
     """Build an ApprovedWorkoutPlan through the configured provider.
 
@@ -3489,6 +3509,7 @@ def build_configured_approved_workout_plan(
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     ).approved_workout_plan
 
 
@@ -3504,12 +3525,14 @@ def build_approved_workout_plan(
     workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int | None = 0,
+    exercise_preference_by_catalog_id: dict[int, str] | None = None,
 ) -> ApprovedWorkoutPlan:
     context = build_workout_context(
         health_state,
         workout_size_preference=workout_size_preference,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
     return build_approved_workout_plan_for_context(context)
 
