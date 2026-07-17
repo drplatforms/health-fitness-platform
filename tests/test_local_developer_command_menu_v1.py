@@ -50,6 +50,7 @@ def test_primary_command_contract_is_complete(commands: str) -> None:
         "ffront",
         "ffrontbuild",
         "fvalidatefront",
+        "fcleannext",
         "fkillfront",
         "fnext",
         "fnextfg",
@@ -120,6 +121,24 @@ def test_production_frontend_commands_have_distinct_semantics(commands: str) -> 
     assert "npm run build" in build and "ffront" in build
     assert "npm run lint" in validate and "npm run build" in validate
     assert "Start-Process" not in validate and "ffront" not in validate
+
+
+def test_fcleannext_only_clears_the_stopped_next_cache(commands: str) -> None:
+    clean_next = function_body(commands, "fcleannext")
+    assert commands.count("function fcleannext") == 1
+    assert 'Join-Path $script:FitnessFrontendDir ".next"' in clean_next
+    assert "FitnessFrontendPort" in clean_next
+    assert "FitnessNextDevPort" in clean_next
+    assert clean_next.count("Get-NetTCPConnection") == 2
+    assert (
+        "Stop the relevant frontend process first with fkillfront or fkillnext"
+        in clean_next
+    )
+    assert "Remove-Item -LiteralPath $nextCache -Recurse -Force" in clean_next
+    assert "Remove-Item" not in clean_next.replace(
+        "Remove-Item -LiteralPath $nextCache -Recurse -Force", ""
+    )
+    assert "Stop-Process" not in clean_next
 
 
 def test_next_development_server_is_explicitly_optional(commands: str) -> None:
@@ -322,6 +341,9 @@ def test_current_docs_match_command_semantics() -> None:
         assert "Streamlit is legacy/developer-only" in text
     assert "Linux sync is optional" in workflow
     assert "-ReplaceProfileWithThinLoader" in menu
+    assert "fcleannext" in menu
+    assert "frontend/.next" in menu
+    assert "3000" in menu and "3100" in menu
 
 
 def test_project_state_current_pointers_match_active_milestone() -> None:
@@ -329,10 +351,10 @@ def test_project_state_current_pointers_match_active_milestone() -> None:
     assert state["project"]["name"] == "Health & Fitness Platform"
     assert state["project"]["repo"] == "health-fitness-platform"
     assert state["project"]["platform_repo"] == "health-fitness-platform"
-    assert state["current_baseline"]["latest_accepted_commit"] == "c8349e0"
+    assert state["current_baseline"]["latest_accepted_commit"] == "6227f50"
     assert (
         state["active_roadmap"]["current_authorized_milestone"]
-        == "Project Memory + Developer Workflow Canonicalization v1"
+        == "Nutrition Gap Actions UX & Variety v1.1"
     )
     assert (
         state["requested_backend_status"]
@@ -344,7 +366,7 @@ def test_project_state_current_pointers_match_active_milestone() -> None:
     )
     assert (
         state["status"]["active_project_memory_status"]
-        == "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS"
+        == "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED"
     )
     assert (
         "fresh Architecture chat"

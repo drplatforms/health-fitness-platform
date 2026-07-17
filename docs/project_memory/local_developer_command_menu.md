@@ -29,6 +29,7 @@ The installer supports `-ProfilePath` for safe temporary-file validation. Automa
 | `ffront` | Start an existing production Next.js build on port `3100`; fail clearly when `.next` is absent. |
 | `ffrontbuild` | Stop only repo-scoped production frontend processes, build, and start production Next.js. |
 | `fvalidatefront` | Run frontend lint and production build without starting a server. |
+| `fcleannext` | Clear only `frontend/.next`; it refuses while Next.js is listening on port `3000` or `3100`. |
 | `fstart` / `app` | Start FastAPI and the existing production frontend build. `app` never invokes Linux or Streamlit. |
 | `frestart` | Stop repo-scoped product processes and restart the primary runtime without rebuilding. |
 | `fnext` / `fnextfg` | Optional background/foreground Next.js development server on port `3000`. |
@@ -37,6 +38,15 @@ The installer supports `-ProfilePath` for safe temporary-file validation. Automa
 | `wstatus` / `wstop` | Inspect or stop only verified repository-owned runtime listeners/process trees. |
 
 `fapi`, `ffront`, `fnext`, and `fnextfg` refuse to create a duplicate when their expected port is already occupied. Stop helpers inspect the listener PID and parent chain, require both repository-path and expected-command evidence, and refuse to kill an unverified process. `wapp` remains a compatibility alias for `fstart` and emits a migration warning. Streamlit is legacy/developer-only. Streamlit is not started by any primary command.
+
+For a clean production frontend rebuild, stop the relevant frontend processes before clearing the build cache:
+
+```powershell
+fkillfront
+fkillnext   # only if dev mode is running
+fcleannext
+ffrontbuild
+```
 
 ## Git and delivery helpers
 
