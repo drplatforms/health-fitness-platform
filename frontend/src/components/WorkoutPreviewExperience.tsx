@@ -629,16 +629,8 @@ function PreviousPerformanceLine({
 }: {
   history: WorkoutExerciseHistorySummary | undefined;
 }) {
-  if (!history) {
+  if (!history?.has_history) {
     return null;
-  }
-
-  if (!history.has_history) {
-    return (
-      <div className="py-2 text-xs font-medium text-text-secondary">
-        {history.message}
-      </div>
-    );
   }
 
   return (
@@ -678,7 +670,7 @@ function NextTargetBlock({
 }: {
   decision: WorkoutProgressionDecision | undefined;
 }) {
-  if (!decision) {
+  if (!decision || decision.decision === "insufficient_data") {
     return null;
   }
 
@@ -2446,6 +2438,13 @@ export function WorkoutPreviewExperience({
                   progressionDecisionByExerciseKey[
                     `name:${normalizeExerciseHistoryKey(displayExerciseName)}`
                   ];
+                const shouldShowPreviousPerformance =
+                  history?.has_history === true;
+                const shouldShowNextTarget =
+                  isHistoricalReadOnly === false &&
+                  !isCompletedState &&
+                  progressionDecision !== undefined &&
+                  progressionDecision.decision !== "insufficient_data";
                 const instructionKey = `persisted-${exercise.id}-${
                   displayedCatalogExerciseId ?? "legacy"
                 }`;
@@ -2596,12 +2595,17 @@ export function WorkoutPreviewExperience({
                             </span>
                           </div>
                         ) : null}
-                        <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
-                          <PreviousPerformanceLine history={history} />
-                          {isHistoricalReadOnly === false && !isCompletedState ? (
-                            <NextTargetBlock decision={progressionDecision} />
-                          ) : null}
-                        </div>
+                        {shouldShowPreviousPerformance ||
+                        shouldShowNextTarget ? (
+                          <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
+                            {shouldShowPreviousPerformance ? (
+                              <PreviousPerformanceLine history={history} />
+                            ) : null}
+                            {shouldShowNextTarget ? (
+                              <NextTargetBlock decision={progressionDecision} />
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
 
@@ -2974,6 +2978,12 @@ export function WorkoutPreviewExperience({
                   progressionDecisionByExerciseKey[
                     `name:${normalizeExerciseHistoryKey(exercise.name)}`
                   ];
+                const shouldShowPreviousPerformance =
+                  history?.has_history === true;
+                const shouldShowNextTarget =
+                  isHistoricalReadOnly === false &&
+                  progressionDecision !== undefined &&
+                  progressionDecision.decision !== "insufficient_data";
                 const instructionKey = `preview-${workoutSizePreference}-${previewVariationIndex}-${index}-${
                   exercise.catalog_exercise_id ?? "legacy"
                 }`;
@@ -3036,12 +3046,17 @@ export function WorkoutPreviewExperience({
                             </span>
                           ))}
                         </div>
-                        <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
-                          <PreviousPerformanceLine history={history} />
-                          {isHistoricalReadOnly === false ? (
-                            <NextTargetBlock decision={progressionDecision} />
-                          ) : null}
-                        </div>
+                        {shouldShowPreviousPerformance ||
+                        shouldShowNextTarget ? (
+                          <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
+                            {shouldShowPreviousPerformance ? (
+                              <PreviousPerformanceLine history={history} />
+                            ) : null}
+                            {shouldShowNextTarget ? (
+                              <NextTargetBlock decision={progressionDecision} />
+                            ) : null}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </article>

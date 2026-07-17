@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { TodayCard } from "@/components/TodayCard";
 import { logCanonicalFood } from "@/lib/canonicalFoodApi";
@@ -27,17 +27,24 @@ export function NutritionGapActionsCard({
   targetDate: string;
   suggestions: NutritionFoodSuggestion[];
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [loggingFoodId, setLoggingFoodId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"success" | "error" | null>(
     null,
   );
+  const isLoggingRef = useRef(false);
 
   if (suggestions.length === 0) {
     return null;
   }
 
   async function handleLogSuggestion(suggestion: NutritionFoodSuggestion) {
+    if (isLoggingRef.current) {
+      return;
+    }
+
+    isLoggingRef.current = true;
     setLoggingFoodId(suggestion.canonical_food_id);
     setMessage(null);
     setMessageTone(null);
@@ -60,22 +67,26 @@ export function NutritionGapActionsCard({
       );
       setMessageTone("error");
     } finally {
+      isLoggingRef.current = false;
       setLoggingFoodId(null);
     }
   }
 
+  const visibleSuggestions = isExpanded ? suggestions : suggestions.slice(0, 1);
+  const additionalSuggestionCount = suggestions.length - 1;
+
   return (
     <TodayCard title="Close the gap">
-      <div className="space-y-2.5">
-        {suggestions.map((suggestion) => {
+      <div className="space-y-2">
+        {visibleSuggestions.map((suggestion) => {
           const isLogging = loggingFoodId === suggestion.canonical_food_id;
 
           return (
             <div
               key={suggestion.canonical_food_id}
-              className="flex flex-col gap-2 rounded-2xl bg-surface-subtle px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+              className="flex items-center justify-between gap-3 rounded-xl bg-surface-subtle px-3 py-2"
             >
-              <div className="min-w-0 space-y-1">
+              <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <p className="text-sm font-semibold text-text-strong">
                     {suggestion.display_name}
@@ -84,21 +95,30 @@ export function NutritionGapActionsCard({
                     {MACRO_LABELS[suggestion.macro_gap_addressed]}
                   </span>
                 </div>
-                <p className="text-xs leading-5 text-text-body">
-                  {suggestion.suggestion_summary}
-                </p>
               </div>
               <button
                 type="button"
                 onClick={() => void handleLogSuggestion(suggestion)}
                 disabled={loggingFoodId !== null}
-                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl bg-action-primary px-3 py-2 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-action-primary px-3 py-1.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isLogging ? "Logging..." : `Log ${formatGrams(suggestion.suggested_grams)}g`}
               </button>
             </div>
           );
         })}
+        {additionalSuggestionCount > 0 ? (
+          <button
+            type="button"
+            aria-expanded={isExpanded}
+            onClick={() => setIsExpanded((expanded) => !expanded)}
+            className="inline-flex min-h-10 items-center rounded-lg px-2 text-sm font-semibold text-accent-text transition hover:bg-surface-subtle"
+          >
+            {isExpanded
+              ? "Show less"
+              : `More options (${additionalSuggestionCount})`}
+          </button>
+        ) : null}
         {message && messageTone ? (
           <p
             aria-live="polite"

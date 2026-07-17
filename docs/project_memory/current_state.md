@@ -1,3 +1,40 @@
+# Current State - Nutrition Gap Actions UX & Variety v1.1
+
+Canonical implementation baseline before merge: main at 36d5608.
+
+Feature branch: feature/nutrition-gap-actions-ux-variety-v1-1.
+
+Status: NUTRITION_GAP_ACTIONS_UX_VARIETY_V1_1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- The nutrition food-suggestion endpoint supports a bounded optional limit from 1 through 8 while preserving the public default of 3.
+- The Food workspace explicitly requests eight backend-approved options.
+- Final suggestion selection is deterministic and diversified across actionable macro roles instead of allowing one role to consume every visible slot.
+- Canonical foods are deduplicated across roles and single-macro gaps can expose multiple distinct alternatives.
+- Log Food, Meals, and My Foods remain ahead of the optional Close the gap recommendation surface.
+- Close the gap shows one compact suggestion by default and exposes additional backend-ordered options on demand.
+- Exact approved gram quantities continue to log through the existing canonical food logging path.
+- Empty or failed optional suggestion states do not block or clutter the Food workflow.
+- Workout Previous Performance content is hidden when no meaningful history exists.
+- Next Target is hidden when the progression decision is insufficient_data, and empty placeholder intelligence containers are not rendered.
+- Meaningful workout history and actionable progression intelligence remain visible when available.
+- Mobile and desktop production behavior were validated and accepted.
+- The remaining opportunity to further tighten Close the gap visual density is non-blocking and should be driven by real daily-use friction.
+
+Operational note:
+
+- Current database.py behavior does not honor DB_PATH for runtime database isolation. Production smoke must use the proven physical disposable-copy workflow rather than relying on that environment variable until explicit override support exists.
+- The accidental QA food entry created during smoke was surgically removed and SQLite quick_check passed.
+
+Roadmap status:
+
+Nutrition Gap Actions UX & Variety v1.1 is accepted.
+The previously planned Exercise History & Progress Analytics milestone remains the next recommended product milestone.
+Its existing handoff must be refreshed against the new canonical main before implementation.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Nutrition Gap Actions UI v1
 
 Canonical implementation baseline before merge: main at 8c945c7.

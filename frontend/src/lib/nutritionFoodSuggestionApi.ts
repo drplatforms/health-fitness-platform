@@ -13,7 +13,7 @@ export async function fetchNutritionFoodSuggestionsFromBackend({
   userId: number;
   date: string;
 }): Promise<NutritionFoodSuggestionsApiResult> {
-  const params = new URLSearchParams({ date });
+  const params = new URLSearchParams({ date, limit: "8" });
   const endpoint = `${getApiBaseUrl()}/nutrition/${userId}/food-suggestions?${params.toString()}`;
 
   try {

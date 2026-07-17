@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import database
-from models.nutrition_food_suggestion_models import NutritionMacroGap
+from models.nutrition_food_suggestion_models import (
+    CanonicalFoodSuggestionCandidate,
+    NutritionMacroGap,
+)
 from models.nutrition_target_models import NutritionTargets
 from models.nutrition_target_vs_actual_models import TARGET_STATUS_UNAVAILABLE
 from services.food_normalization_service import (
@@ -101,6 +104,28 @@ def _candidate_for_food(candidates, display_name: str, macro_name: str):
         for candidate in candidates
         if candidate.display_name == display_name
         and candidate.macro_gap_addressed == macro_name
+    )
+
+
+def _ranked_candidate(
+    canonical_food_id: int,
+    macro_gap_addressed: str,
+    *,
+    score: float,
+    serving_grams: float = 100,
+) -> CanonicalFoodSuggestionCandidate:
+    return CanonicalFoodSuggestionCandidate(
+        canonical_food_id=canonical_food_id,
+        display_name=f"Food {canonical_food_id}",
+        food_type="cooked",
+        serving_grams=serving_grams,
+        calories=100,
+        protein_g=10,
+        carbohydrate_g=10,
+        fat_g=5,
+        macro_gap_addressed=macro_gap_addressed,
+        score=score,
+        confidence="Moderate",
     )
 
 
@@ -339,10 +364,11 @@ def test_approved_carbohydrate_gap_produces_canonical_suggestions(
     assert approved.suggestions
     assert "carbohydrate_gap_available" in approved.reason_codes
     assert "carbohydrate_suggestion_available" in approved.reason_codes
-    assert all(
-        suggestion.macro_gap_addressed == "carbohydrate_g"
-        for suggestion in approved.suggestions
-    )
+    assert approved.suggestions[0].macro_gap_addressed == "carbohydrate_g"
+    assert {suggestion.macro_gap_addressed for suggestion in approved.suggestions} <= {
+        "carbohydrate_g",
+        "calories",
+    }
 
 
 def test_carbohydrate_suggestions_reference_canonical_food_and_nutrients(
@@ -1095,6 +1121,67 @@ def test_ranking_is_deterministic(tmp_path, monkeypatch):
 
     assert [candidate.canonical_food_id for candidate in first] == [
         candidate.canonical_food_id for candidate in second
+    ]
+
+
+def test_ranking_diversifies_macro_roles_before_second_role_choices():
+    candidates = [
+        _ranked_candidate(1, "protein_g", score=100),
+        _ranked_candidate(2, "protein_g", score=90),
+        _ranked_candidate(3, "carbohydrate_g", score=100),
+        _ranked_candidate(4, "carbohydrate_g", score=90),
+        _ranked_candidate(5, "calories", score=100),
+        _ranked_candidate(6, "fat_g", score=100),
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=6)
+
+    assert [candidate.macro_gap_addressed for candidate in ranked] == [
+        "protein_g",
+        "carbohydrate_g",
+        "calories",
+        "fat_g",
+        "protein_g",
+        "carbohydrate_g",
+    ]
+
+
+def test_ranking_skips_missing_macro_buckets_cleanly():
+    candidates = [
+        _ranked_candidate(1, "protein_g", score=100),
+        _ranked_candidate(2, "protein_g", score=90),
+        _ranked_candidate(3, "fat_g", score=100),
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=3)
+
+    assert [candidate.canonical_food_id for candidate in ranked] == [1, 3, 2]
+
+
+def test_ranking_returns_multiple_distinct_single_macro_alternatives():
+    candidates = [
+        _ranked_candidate(candidate_id, "protein_g", score=100 - candidate_id)
+        for candidate_id in range(1, 10)
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=8)
+
+    assert [candidate.canonical_food_id for candidate in ranked] == list(range(1, 9))
+
+
+def test_ranking_deduplicates_canonical_foods_across_macro_roles():
+    candidates = [
+        _ranked_candidate(1, "protein_g", score=100),
+        _ranked_candidate(1, "carbohydrate_g", score=100),
+        _ranked_candidate(2, "carbohydrate_g", score=90),
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=3)
+
+    assert [candidate.canonical_food_id for candidate in ranked] == [1, 2]
+    assert [candidate.macro_gap_addressed for candidate in ranked] == [
+        "protein_g",
+        "carbohydrate_g",
     ]
 
 
