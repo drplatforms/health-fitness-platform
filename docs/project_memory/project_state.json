@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Weekly Training Planner v1",
-    "current_recommended_milestone": "Roadmap Reassessment",
+    "current_authorized_milestone": "Catalog-Driven Nutrition Food Suggestions v1",
+    "current_recommended_milestone": "Nutrition Gap Actions UI v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "WEEKLY_TRAINING_PLANNER_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "Given the now-completed daily-driver core, which product capability should be prioritized next for the greatest real-world value?",
+    "implementation_status": "CATALOG_DRIVEN_NUTRITION_FOOD_SUGGESTIONS_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should approved deterministic nutrition gap suggestions be surfaced in the Food workspace as useful low-friction actions without overwhelming the daily logging experience?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Roadmap Reassessment",
+    "recommended_next_milestone_after_acceptance": "Nutrition Gap Actions UI v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/weekly-training-planner-v1",
+    "source_feature_branch": "feature/catalog-driven-nutrition-food-suggestions-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "7685843"
+    "source_main_commit": "65eaaa2"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -2099,5 +2099,31 @@
     "canonical_db_safety_incident": "Full-suite validation initialized the two intended empty weekly planner tables in canonical fitness_ai.db. No rollback was attempted because no pre-run copy existed.",
     "next_step": "Onboard a fresh Architecture chat and reassess the broader roadmap.",
     "next_product_milestone_authorized": false
+  },
+  "catalog_driven_nutrition_food_suggestions_v1": {
+    "baseline_commit": "65eaaa2",
+    "feature_branch": "feature/catalog-driven-nutrition-food-suggestions-v1",
+    "status": "CATALOG_DRIVEN_NUTRITION_FOOD_SUGGESTIONS_V1_ARCHITECTURE_ACCEPTED",
+    "scope": "Expand deterministic nutrition food suggestions from curated-name-only eligibility to conservative catalog-driven canonical-food eligibility while preserving existing target authority and public contracts.",
+    "catalog_driven_candidate_eligibility": true,
+    "curated_serving_overrides_preserved": true,
+    "curated_preference_ranks_preserved": true,
+    "conservative_fallback_serving_rules": true,
+    "impractical_serving_rejection": true,
+    "raw_animal_foods_excluded": true,
+    "raw_produce_eligibility_preserved": true,
+    "deterministic_ranking_preserved": true,
+    "target_and_gap_authority_preserved": true,
+    "public_api_contract_unchanged": true,
+    "ui_change": false,
+    "backend_change": true,
+    "api_change": false,
+    "database_change": false,
+    "schema_change": false,
+    "dependency_change": false,
+    "targeted_validation_passed": true,
+    "feature_branch_runtime_smoke_required": false,
+    "next_recommended_milestone": "Nutrition Gap Actions UI v1",
+    "next_milestone_implementation_authorized": false
   }
 }

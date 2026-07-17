@@ -95,6 +95,29 @@ def _canonical_id_for_query(query: str) -> int:
     return int(results[0].canonical_food.id)
 
 
+def _candidate_for_food(candidates, display_name: str, macro_name: str):
+    return next(
+        candidate
+        for candidate in candidates
+        if candidate.display_name == display_name
+        and candidate.macro_gap_addressed == macro_name
+    )
+
+
+def _protein_gap_macro_gaps(gap_value: float = 40) -> list[NutritionMacroGap]:
+    return [
+        _macro_gap(
+            "protein_g",
+            target_status="below_target",
+            gap_value=gap_value,
+            reason_codes=["protein_gap_available"],
+        ),
+        _macro_gap("calories", target_status="near_target", gap_value=None),
+        _macro_gap("carbohydrate_g", target_status="near_target", gap_value=None),
+        _macro_gap("fat_g", target_status="near_target", gap_value=None),
+    ]
+
+
 def _protein_gap_summary(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
     chicken_id = _canonical_id_for_query("chicken breast")
@@ -801,6 +824,242 @@ def test_foods_with_incomplete_nutrients_are_excluded(tmp_path, monkeypatch):
     assert all(
         candidate.canonical_food_id != incomplete_food.id for candidate in candidates
     )
+
+
+def test_non_curated_catalog_protein_food_can_become_a_candidate(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    chicken_thigh = _candidate_for_food(
+        candidates,
+        "Chicken Thigh, Cooked, Skinless",
+        "protein_g",
+    )
+    assert 75 <= chicken_thigh.serving_grams <= 250
+    assert "catalog_fallback_serving_bounds" in chicken_thigh.reason_codes
+
+
+def test_non_curated_catalog_carbohydrate_food_can_become_a_candidate(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+    macro_gaps[2] = _macro_gap(
+        "carbohydrate_g",
+        target_status="below_target",
+        gap_value=40,
+        reason_codes=["carbohydrate_gap_available"],
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+
+    quinoa = _candidate_for_food(candidates, "Quinoa, Cooked", "carbohydrate_g")
+    assert 75 <= quinoa.serving_grams <= 300
+    assert "catalog_fallback_serving_bounds" in quinoa.reason_codes
+
+
+def test_non_curated_catalog_calorie_support_food_can_become_a_candidate(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _calorie_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    granola = _candidate_for_food(candidates, "Granola", "calories")
+    assert 50 <= granola.serving_grams <= 250
+    assert "catalog_fallback_serving_bounds" in granola.reason_codes
+
+
+def test_non_curated_catalog_fat_support_food_can_become_a_candidate(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _fat_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    coconut_oil = _candidate_for_food(candidates, "Coconut Oil", "fat_g")
+    assert 5 <= coconut_oil.serving_grams <= 40
+    assert "catalog_fallback_serving_bounds" in coconut_oil.reason_codes
+
+
+def test_curated_protein_food_retains_bounds_and_preference_advantage(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    chicken_breast = _candidate_for_food(
+        candidates,
+        "Chicken Breast, Cooked, Skinless",
+        "protein_g",
+    )
+    chicken_thigh = _candidate_for_food(
+        candidates,
+        "Chicken Thigh, Cooked, Skinless",
+        "protein_g",
+    )
+    assert 100 <= chicken_breast.serving_grams <= 200
+    assert "catalog_fallback_serving_bounds" not in chicken_breast.reason_codes
+    assert chicken_breast.score > chicken_thigh.score
+
+
+def test_raw_animal_food_is_excluded_from_a_role_it_would_otherwise_qualify_for(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    candidate_names = {candidate.display_name for candidate in candidates}
+    assert "Chicken Thigh, Raw, Skinless" not in candidate_names
+    assert "Chicken Thigh, Cooked, Skinless" in candidate_names
+
+
+def test_raw_produce_remains_eligible_for_an_appropriate_macro_role(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+    macro_gaps[2] = _macro_gap(
+        "carbohydrate_g",
+        target_status="below_target",
+        gap_value=40,
+        reason_codes=["carbohydrate_gap_available"],
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+
+    candidate_names = {candidate.display_name for candidate in candidates}
+    assert "Plantain, Raw" in candidate_names
+
+
+def test_nonzero_but_unsuitable_macro_sources_are_not_candidates(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    protein_candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+    carbohydrate_macro_gaps = _carbohydrate_gap_macro_gaps()
+    carbohydrate_macro_gaps[2] = _macro_gap(
+        "carbohydrate_g",
+        target_status="below_target",
+        gap_value=40,
+        reason_codes=["carbohydrate_gap_available"],
+    )
+    carbohydrate_candidates = get_canonical_food_suggestion_candidates(
+        carbohydrate_macro_gaps,
+        logging_incomplete=False,
+    )
+
+    assert not any(
+        candidate.display_name == "Broccoli, Cooked"
+        and candidate.macro_gap_addressed == "protein_g"
+        for candidate in protein_candidates
+    )
+    assert not any(
+        candidate.display_name == "Honey"
+        and candidate.macro_gap_addressed == "carbohydrate_g"
+        for candidate in carbohydrate_candidates
+    )
+
+
+def test_non_curated_food_requiring_impractical_protein_serving_is_rejected(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+
+    assert not any(
+        candidate.display_name == "Edamame"
+        and candidate.macro_gap_addressed == "protein_g"
+        for candidate in candidates
+    )
+
+
+def test_ketchup_is_not_a_catalog_carbohydrate_action_for_representative_gap(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _carbohydrate_gap_macro_gaps()
+    macro_gaps[2] = _macro_gap(
+        "carbohydrate_g",
+        target_status="below_target",
+        gap_value=40,
+        reason_codes=["carbohydrate_gap_available"],
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+
+    assert not any(
+        candidate.display_name == "Ketchup"
+        and candidate.macro_gap_addressed == "carbohydrate_g"
+        for candidate in candidates
+    )
+    assert any(
+        candidate.display_name == "Quinoa, Cooked"
+        and candidate.macro_gap_addressed == "carbohydrate_g"
+        for candidate in candidates
+    )
+
+
+def test_impractical_chia_and_protein_bar_servings_are_not_default_calorie_actions(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _calorie_gap_macro_gaps()
+    macro_gaps[1] = _macro_gap(
+        "calories",
+        target_status="below_target",
+        gap_value=500,
+        reason_codes=["calorie_gap_available"],
+    )
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+
+    approved = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=macro_gaps,
+        candidates=candidates,
+        summary_confidence="Moderate",
+    )
+
+    approved_names = {suggestion.display_name for suggestion in approved.suggestions}
+    assert "Chia Seeds" not in approved_names
+    assert "Protein Bar, Generic" not in approved_names
+    assert any(candidate.display_name == "Granola" for candidate in candidates)
 
 
 def test_blocked_calorie_carb_fat_targets_do_not_generate_hard_suggestions(

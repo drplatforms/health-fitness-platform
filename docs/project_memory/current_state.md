@@ -1,3 +1,36 @@
+# Current State - Catalog-Driven Nutrition Food Suggestions v1
+
+Canonical implementation baseline before merge: main at 65eaaa2.
+
+Feature branch: feature/catalog-driven-nutrition-food-suggestions-v1.
+
+Status: CATALOG_DRIVEN_NUTRITION_FOOD_SUGGESTIONS_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Active canonical foods are no longer excluded from deterministic nutrition food suggestions solely because they are absent from the original curated suggestion-name pools.
+- Existing curated foods retain authoritative serving bounds and preference-ranking behavior.
+- Non-curated canonical foods may participate through conservative deterministic macro-role eligibility, serving feasibility, and practicality rules.
+- Catalog-derived candidates with incomplete required nutrient data remain excluded rather than treating missing nutrients as zero.
+- Impractical catalog-derived servings are rejected instead of being presented merely because the nutrient math can close a gap.
+- Condiment, sauce, and sweetener forms are excluded as standalone catalog-derived fallback actions.
+- Seed-like foods and generic bars use conservative fallback serving caps while explicit curated overrides remain authoritative.
+- Raw or uncooked animal foods are excluded from user-facing gap suggestions while valid raw produce remains eligible for appropriate macro roles.
+- Existing approved target and macro-gap authority remains unchanged; the suggestion engine consumes approved gaps and does not invent nutrition targets.
+- Existing calorie, carbohydrate, fat, and above-target conflict protections remain intact.
+- Deterministic ranking and the existing public food-suggestion API contract remain unchanged.
+- Useful non-curated canonical foods now participate across protein, carbohydrate, calorie-support, and fat-support suggestion roles.
+- Required targeted service, API, target-vs-actual, lint, formatting, project-memory, and diff validation passed.
+- Manual feature-branch runtime smoke was not required for this backend-only milestone under the accepted Architecture workflow.
+- No database, schema, dependency, frontend, AI-provider, USDA-import, or live catalog-promotion scope was introduced.
+
+Roadmap status:
+
+Catalog-Driven Nutrition Food Suggestions v1 is accepted.
+Nutrition Gap Actions UI v1 is the next recommended product milestone.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Current State - Weekly Training Planner v1
 
 Canonical implementation baseline before merge: main at 7685843.
