@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Mobile Daily-Driver Navigation & Compaction v1",
-    "current_recommended_milestone": "Meal Builder v1",
+    "current_authorized_milestone": "Meal Builder v1",
+    "current_recommended_milestone": "GitHub README and Project Presentation Refresh",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "MOBILE_DAILY_DRIVER_NAVIGATION_AND_COMPACTION_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should Meal Builder v1 reduce repetitive daily food logging while reusing canonical foods, serving units, and existing nutrition logging truth?",
+    "implementation_status": "MEAL_BUILDER_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "How should the public repository presentation accurately explain the platform's current architecture and capabilities without presenting it as a finished portfolio product?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Meal Builder v1",
+    "recommended_next_milestone_after_acceptance": "GitHub README and Project Presentation Refresh",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/mobile-daily-driver-navigation-compaction-v1",
+    "source_feature_branch": "feature/meal-builder-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "e56bd61"
+    "source_main_commit": "5fa99e4"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -2031,6 +2031,33 @@
     "feature_branch_smoke_passed": true,
     "real_device_mobile_smoke_passed": true,
     "next_product_milestone": "Meal Builder v1",
+    "next_product_milestone_authorized": false
+  },
+  "meal_builder_v1": {
+    "baseline_commit": "5fa99e4",
+    "feature_branch": "feature/meal-builder-v1",
+    "status": "MEAL_BUILDER_V1_ARCHITECTURE_ACCEPTED",
+    "user_owned_saved_meals": true,
+    "canonical_and_personal_food_items": true,
+    "stable_resolved_grams": true,
+    "serving_provenance_supported": true,
+    "current_nutrition_truth_for_future_logs": true,
+    "historical_food_entry_immutability_preserved": true,
+    "transactional_whole_meal_logging": true,
+    "individual_food_entries_created": true,
+    "archive_restore_supported": true,
+    "meal_editing_and_reordering_supported": true,
+    "backend_change": true,
+    "frontend_change": true,
+    "api_change": true,
+    "database_change": true,
+    "schema_change": true,
+    "destructive_schema_change": false,
+    "feature_branch_smoke_passed": true,
+    "mobile_smoke_passed": true,
+    "desktop_smoke_passed": true,
+    "immediate_follow_up": "GitHub README and project presentation refresh",
+    "next_product_milestone": "Weekly Training Planner v1",
     "next_product_milestone_authorized": false
   }
 }

@@ -115,11 +115,16 @@ def _legacy_nutrient_name(nutrient_name: str) -> str:
 def _get_or_create_legacy_food_id(food_name: str) -> int:
     conn = get_connection()
     cursor = conn.cursor()
+    food_id = _get_or_create_legacy_food_id_with_cursor(cursor, food_name)
+    conn.commit()
+    conn.close()
+    return food_id
+
+
+def _get_or_create_legacy_food_id_with_cursor(cursor, food_name: str) -> int:
     cursor.execute("INSERT OR IGNORE INTO foods (name) VALUES (?)", (food_name,))
     cursor.execute("SELECT id FROM foods WHERE name = ?", (food_name,))
     row = cursor.fetchone()
-    conn.commit()
-    conn.close()
     return int(row["id"])
 
 
@@ -160,6 +165,20 @@ def _sync_legacy_food_nutrients(
 ) -> None:
     conn = get_connection()
     cursor = conn.cursor()
+    _sync_legacy_food_nutrients_with_cursor(
+        cursor,
+        legacy_food_id,
+        canonical_nutrients,
+    )
+    conn.commit()
+    conn.close()
+
+
+def _sync_legacy_food_nutrients_with_cursor(
+    cursor,
+    legacy_food_id: int,
+    canonical_nutrients: list[CanonicalFoodNutrient],
+) -> None:
     cursor.execute("DELETE FROM food_nutrients WHERE food_id = ?", (legacy_food_id,))
 
     for nutrient in canonical_nutrients:
@@ -175,9 +194,6 @@ def _sync_legacy_food_nutrients(
             """,
             (legacy_food_id, nutrient_id, nutrient.amount_per_100g),
         )
-
-    conn.commit()
-    conn.close()
 
 
 def _nutrient_summary_for_logged_grams(

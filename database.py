@@ -318,6 +318,79 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # Saved Meal Templates
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS saved_meals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        display_name TEXT NOT NULL,
+        normalized_name TEXT NOT NULL,
+        default_meal_type TEXT CHECK (
+            default_meal_type IS NULL
+            OR default_meal_type IN ('breakfast', 'lunch', 'dinner', 'snack', 'other')
+        ),
+        active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(user_id, normalized_name),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS saved_meal_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        saved_meal_id INTEGER NOT NULL,
+        item_order INTEGER NOT NULL CHECK (item_order >= 0),
+        food_type TEXT NOT NULL CHECK (food_type IN ('canonical', 'personal')),
+        canonical_food_id INTEGER,
+        personal_food_id INTEGER,
+        resolved_grams REAL NOT NULL CHECK (
+            resolved_grams > 0 AND resolved_grams <= 5000
+        ),
+        canonical_serving_unit_id INTEGER,
+        serving_quantity REAL CHECK (
+            serving_quantity IS NULL OR serving_quantity > 0
+        ),
+        serving_display_snapshot TEXT,
+        amount_source TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(saved_meal_id, item_order),
+        CHECK (
+            (food_type = 'canonical'
+                AND canonical_food_id IS NOT NULL
+                AND personal_food_id IS NULL)
+            OR
+            (food_type = 'personal'
+                AND canonical_food_id IS NULL
+                AND personal_food_id IS NOT NULL)
+        ),
+        CHECK (
+            canonical_serving_unit_id IS NULL
+            OR food_type = 'canonical'
+        ),
+        FOREIGN KEY (saved_meal_id) REFERENCES saved_meals(id) ON DELETE CASCADE,
+        FOREIGN KEY (canonical_food_id) REFERENCES canonical_foods(id),
+        FOREIGN KEY (personal_food_id) REFERENCES personal_foods(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_saved_meals_user_active_name
+    ON saved_meals(user_id, active, normalized_name, id)
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_saved_meal_items_meal_order
+    ON saved_meal_items(saved_meal_id, item_order, id)
+    """)
+
+    # -----------------------------
     # Seed Users
     # -----------------------------
 
