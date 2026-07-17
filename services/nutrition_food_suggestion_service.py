@@ -21,7 +21,11 @@ from models.nutrition_target_vs_actual_models import (
     NutritionTargetComparison,
     TargetVsActualNutritionSummary,
 )
-from services.food_normalization_service import ensure_starter_canonical_foods_seeded
+from services.food_normalization_service import (
+    RAW_MEAT_SEARCH_TERMS,
+    ensure_starter_canonical_foods_seeded,
+    normalize_food_name,
+)
 from services.nutrition_target_vs_actual_service import (
     build_target_vs_actual_nutrition_summary,
 )
@@ -127,6 +131,56 @@ _FAT_SUPPORT_SUGGESTION_NAMES = {
     "Whole Egg": (50, 100, 11),
     "Butter": (5, 15, 12),
 }
+
+_CATALOG_FALLBACK_SERVING_BOUNDS = {
+    "protein_g": (75, 250),
+    "carbohydrate_g": (75, 300),
+    "calories": (50, 250),
+    "fat_g": (5, 40),
+}
+_CATALOG_FALLBACK_PREFERENCE_RANK = 100
+_MINIMUM_PROTEIN_PER_100G = 10.0
+_MINIMUM_PROTEIN_CALORIE_PERCENT = 8.0
+_MINIMUM_CARBOHYDRATE_PER_100G = 15.0
+_MINIMUM_CARBOHYDRATE_COMPANION_MACROS_PER_100G = 1.0
+_MINIMUM_CALORIES_PER_100G = 80.0
+_MINIMUM_FAT_PER_100G = 8.0
+_MINIMUM_FAT_CALORIE_PERCENT = 2.0
+_CONCENTRATED_SWEETENER_TERMS = {"honey", "maple", "syrup", "sugar"}
+_NON_STANDALONE_FALLBACK_TERMS = {
+    "dressing",
+    "honey",
+    "ketchup",
+    "mayonnaise",
+    "mustard",
+    "salsa",
+    "sauce",
+    "syrup",
+}
+_SMALL_PORTION_FALLBACK_TERMS = {
+    "flaxseed",
+    "pecans",
+    "pistachios",
+    "seeds",
+    "tahini",
+}
+_SMALL_PORTION_FALLBACK_MAX_GRAMS = 40.0
+_BAR_FALLBACK_MAX_GRAMS = 75.0
+_RAW_FISH_AND_SEAFOOD_TERMS = {
+    "catfish",
+    "cod",
+    "crab",
+    "haddock",
+    "halibut",
+    "mahi",
+    "pollock",
+    "sardines",
+    "scallops",
+    "shrimp",
+    "tilapia",
+    "trout",
+}
+_RAW_ANIMAL_FOOD_TERMS = set(RAW_MEAT_SEARCH_TERMS) | _RAW_FISH_AND_SEAFOOD_TERMS
 
 _MACRO_PRIORITY = {
     "protein_g": 0,
@@ -373,7 +427,90 @@ def _serving_bounds_for_food(
     if display_name in source:
         min_grams, max_grams, preference_rank = source[display_name]
         return float(min_grams), float(max_grams), int(preference_rank)
-    return None
+    fallback_bounds = _CATALOG_FALLBACK_SERVING_BOUNDS.get(macro_gap_addressed)
+    if fallback_bounds is None:
+        return None
+    min_grams, max_grams = fallback_bounds
+    normalized_terms = set(normalize_food_name(display_name).split())
+    if normalized_terms & _SMALL_PORTION_FALLBACK_TERMS:
+        max_grams = min(max_grams, _SMALL_PORTION_FALLBACK_MAX_GRAMS)
+    elif "bar" in normalized_terms:
+        max_grams = min(max_grams, _BAR_FALLBACK_MAX_GRAMS)
+    min_grams = min(min_grams, max_grams)
+    return float(min_grams), float(max_grams), _CATALOG_FALLBACK_PREFERENCE_RANK
+
+
+def _has_curated_serving_bounds(
+    display_name: str,
+    macro_gap_addressed: str,
+) -> bool:
+    sources = {
+        "protein_g": _PROTEIN_SUGGESTION_NAMES,
+        "carbohydrate_g": _CARBOHYDRATE_SUGGESTION_NAMES,
+        "calories": _CALORIE_SUPPORT_SUGGESTION_NAMES,
+        "fat_g": _FAT_SUPPORT_SUGGESTION_NAMES,
+    }
+    return display_name in sources.get(macro_gap_addressed, {})
+
+
+def _is_raw_animal_food(*, display_name: str, food_type: str) -> bool:
+    if food_type != "raw":
+        return False
+    normalized_terms = set(normalize_food_name(display_name).split())
+    return bool(normalized_terms & _RAW_ANIMAL_FOOD_TERMS)
+
+
+def _is_catalog_food_suitable_for_macro(
+    *,
+    display_name: str,
+    food_type: str,
+    nutrients: dict[str, float],
+    macro_gap_addressed: str,
+    curated: bool,
+) -> bool:
+    if _is_raw_animal_food(display_name=display_name, food_type=food_type):
+        return False
+    if curated:
+        return True
+
+    normalized_terms = set(normalize_food_name(display_name).split())
+    if normalized_terms & _NON_STANDALONE_FALLBACK_TERMS:
+        return False
+
+    calories = max(nutrients["calories"], 1.0)
+    if macro_gap_addressed == "protein_g":
+        return (
+            nutrients["protein_g"] >= _MINIMUM_PROTEIN_PER_100G
+            and nutrients["protein_g"] / calories * 100.0
+            >= _MINIMUM_PROTEIN_CALORIE_PERCENT
+        )
+    if macro_gap_addressed == "carbohydrate_g":
+        return (
+            nutrients["carbohydrate_g"] >= _MINIMUM_CARBOHYDRATE_PER_100G
+            and (
+                nutrients["protein_g"] + nutrients["fat_g"]
+                >= _MINIMUM_CARBOHYDRATE_COMPANION_MACROS_PER_100G
+            )
+            and not normalized_terms & _CONCENTRATED_SWEETENER_TERMS
+        )
+    if macro_gap_addressed == "calories":
+        return nutrients["calories"] >= _MINIMUM_CALORIES_PER_100G
+    if macro_gap_addressed == "fat_g":
+        return (
+            nutrients["fat_g"] >= _MINIMUM_FAT_PER_100G
+            and nutrients["fat_g"] / calories * 100.0 >= _MINIMUM_FAT_CALORIE_PERCENT
+        )
+    return False
+
+
+def _fallback_serving_is_impractical(
+    *,
+    curated: bool,
+    was_bounded: bool,
+    serving_grams: float,
+    max_grams: float,
+) -> bool:
+    return not curated and was_bounded and serving_grams >= max_grams
 
 
 def _serving_grams_for_gap(
@@ -732,13 +869,20 @@ def _protein_suggestion_candidates(
 
     candidates: list[CanonicalFoodSuggestionCandidate] = []
     for food in _canonical_food_nutrient_maps():
+        curated = _has_curated_serving_bounds(food["display_name"], "protein_g")
         bounds = _serving_bounds_for_food(food["display_name"], "protein_g")
         if bounds is None:
             continue
         nutrients = food["nutrients"]
         if not _required_macro_nutrients_available(nutrients):
             continue
-        if nutrients["protein_g"] <= 0:
+        if not _is_catalog_food_suitable_for_macro(
+            display_name=food["display_name"],
+            food_type=food["food_type"],
+            nutrients=nutrients,
+            macro_gap_addressed="protein_g",
+            curated=curated,
+        ):
             continue
 
         min_grams, max_grams, preference_rank = bounds
@@ -748,6 +892,13 @@ def _protein_suggestion_candidates(
             min_grams=min_grams,
             max_grams=max_grams,
         )
+        if _fallback_serving_is_impractical(
+            curated=curated,
+            was_bounded=was_bounded,
+            serving_grams=serving_grams,
+            max_grams=max_grams,
+        ):
+            continue
         reason_codes = [
             "canonical_food_catalog_available",
             "canonical_food_nutrients_available",
@@ -757,6 +908,8 @@ def _protein_suggestion_candidates(
         limitations: list[str] = []
         if was_bounded:
             reason_codes.append("serving_limited_by_practical_bounds")
+        if not curated:
+            reason_codes.append("catalog_fallback_serving_bounds")
         if logging_incomplete:
             limitations.append(
                 "Suggestions are limited because logging appears incomplete."
@@ -808,15 +961,22 @@ def _carbohydrate_suggestion_candidates(
     )
     candidates: list[CanonicalFoodSuggestionCandidate] = []
     for food in _canonical_food_nutrient_maps():
+        curated = _has_curated_serving_bounds(food["display_name"], "carbohydrate_g")
         bounds = _serving_bounds_for_food(food["display_name"], "carbohydrate_g")
         if bounds is None:
             continue
         nutrients = food["nutrients"]
         if not _required_macro_nutrients_available(nutrients):
             continue
-        if nutrients["carbohydrate_g"] <= 0:
+        if not _is_catalog_food_suitable_for_macro(
+            display_name=food["display_name"],
+            food_type=food["food_type"],
+            nutrients=nutrients,
+            macro_gap_addressed="carbohydrate_g",
+            curated=curated,
+        ):
             continue
-        if nutrients.get("fat_g", 0.0) > 18.0:
+        if not curated and nutrients["fat_g"] > 18.0:
             continue
 
         min_grams, max_grams, preference_rank = bounds
@@ -826,6 +986,13 @@ def _carbohydrate_suggestion_candidates(
             min_grams=min_grams,
             max_grams=max_grams,
         )
+        if _fallback_serving_is_impractical(
+            curated=curated,
+            was_bounded=was_bounded,
+            serving_grams=serving_grams,
+            max_grams=max_grams,
+        ):
+            continue
         serving_calories = _nutrient_at_serving(nutrients, "calories", serving_grams)
         if calorie_room is not None and serving_calories is not None:
             if serving_calories > max(calorie_room * 1.25, calorie_room + 150.0):
@@ -840,6 +1007,8 @@ def _carbohydrate_suggestion_candidates(
         limitations: list[str] = []
         if was_bounded:
             reason_codes.append("serving_limited_by_practical_bounds")
+        if not curated:
+            reason_codes.append("catalog_fallback_serving_bounds")
 
         candidates.append(
             CanonicalFoodSuggestionCandidate(
@@ -890,13 +1059,20 @@ def _calorie_support_suggestion_candidates(
     fat_above_target = _displayable_gap_status(macro_gaps, "fat_g", TARGET_STATUS_ABOVE)
 
     for food in _canonical_food_nutrient_maps():
+        curated = _has_curated_serving_bounds(food["display_name"], "calories")
         bounds = _serving_bounds_for_food(food["display_name"], "calories")
         if bounds is None:
             continue
         nutrients = food["nutrients"]
         if not _required_macro_nutrients_available(nutrients):
             continue
-        if nutrients["calories"] <= 0:
+        if not _is_catalog_food_suitable_for_macro(
+            display_name=food["display_name"],
+            food_type=food["food_type"],
+            nutrients=nutrients,
+            macro_gap_addressed="calories",
+            curated=curated,
+        ):
             continue
 
         min_grams, max_grams, preference_rank = bounds
@@ -906,6 +1082,13 @@ def _calorie_support_suggestion_candidates(
             min_grams=min_grams,
             max_grams=max_grams,
         )
+        if _fallback_serving_is_impractical(
+            curated=curated,
+            was_bounded=was_bounded,
+            serving_grams=serving_grams,
+            max_grams=max_grams,
+        ):
+            continue
         if _calorie_support_conflicts_with_above_macros(
             macro_gaps=macro_gaps,
             nutrients=nutrients,
@@ -922,6 +1105,8 @@ def _calorie_support_suggestion_candidates(
         limitations: list[str] = []
         if was_bounded:
             reason_codes.append("serving_limited_by_practical_bounds")
+        if not curated:
+            reason_codes.append("catalog_fallback_serving_bounds")
         if protein_above_target or carbohydrate_above_target or fat_above_target:
             reason_codes.append("macro_conflict_checked")
 
@@ -980,13 +1165,20 @@ def _fat_support_suggestion_candidates(
     )
 
     for food in _canonical_food_nutrient_maps():
+        curated = _has_curated_serving_bounds(food["display_name"], "fat_g")
         bounds = _serving_bounds_for_food(food["display_name"], "fat_g")
         if bounds is None:
             continue
         nutrients = food["nutrients"]
         if not _required_macro_nutrients_available(nutrients):
             continue
-        if nutrients["fat_g"] <= 0:
+        if not _is_catalog_food_suitable_for_macro(
+            display_name=food["display_name"],
+            food_type=food["food_type"],
+            nutrients=nutrients,
+            macro_gap_addressed="fat_g",
+            curated=curated,
+        ):
             continue
 
         min_grams, max_grams, preference_rank = bounds
@@ -996,6 +1188,13 @@ def _fat_support_suggestion_candidates(
             min_grams=min_grams,
             max_grams=max_grams,
         )
+        if _fallback_serving_is_impractical(
+            curated=curated,
+            was_bounded=was_bounded,
+            serving_grams=serving_grams,
+            max_grams=max_grams,
+        ):
+            continue
         if _fat_support_conflicts_with_above_macros(
             macro_gaps=macro_gaps,
             nutrients=nutrients,
@@ -1012,6 +1211,8 @@ def _fat_support_suggestion_candidates(
         limitations: list[str] = []
         if was_bounded:
             reason_codes.append("serving_limited_by_practical_bounds")
+        if not curated:
+            reason_codes.append("catalog_fallback_serving_bounds")
         if protein_above_target or carbohydrate_above_target:
             reason_codes.append("macro_conflict_checked")
 
