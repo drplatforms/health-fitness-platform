@@ -1277,16 +1277,63 @@ def rank_food_suggestion_candidates(
     *,
     limit: int = 3,
 ) -> list[CanonicalFoodSuggestionCandidate]:
-    return sorted(
-        candidates,
-        key=lambda candidate: (
-            _MACRO_PRIORITY.get(candidate.macro_gap_addressed, 99),
-            -candidate.score,
-            candidate.serving_grams,
-            candidate.display_name,
-            candidate.canonical_food_id,
-        ),
-    )[: max(0, int(limit))]
+    """Select a deterministic, diverse pool from approved candidates.
+
+    Candidates retain their existing deterministic ranking within a macro role.
+    Selection then takes one distinct food from each actionable role per round,
+    following the established macro priority order.
+    """
+
+    requested_limit = max(0, int(limit))
+    if requested_limit == 0:
+        return []
+
+    macro_order = sorted(_MACRO_PRIORITY, key=_MACRO_PRIORITY.get)
+    candidates_by_macro = {
+        macro_name: sorted(
+            (
+                candidate
+                for candidate in candidates
+                if candidate.macro_gap_addressed == macro_name
+            ),
+            key=lambda candidate: (
+                -candidate.score,
+                candidate.serving_grams,
+                candidate.display_name,
+                candidate.canonical_food_id,
+            ),
+        )
+        for macro_name in macro_order
+    }
+    next_candidate_index = {macro_name: 0 for macro_name in macro_order}
+    selected_food_ids: set[int] = set()
+    selected_candidates: list[CanonicalFoodSuggestionCandidate] = []
+
+    while len(selected_candidates) < requested_limit:
+        selected_in_round = False
+        for macro_name in macro_order:
+            bucket = candidates_by_macro[macro_name]
+            candidate_index = next_candidate_index[macro_name]
+
+            while candidate_index < len(bucket):
+                candidate = bucket[candidate_index]
+                candidate_index += 1
+                if candidate.canonical_food_id in selected_food_ids:
+                    continue
+
+                selected_candidates.append(candidate)
+                selected_food_ids.add(candidate.canonical_food_id)
+                selected_in_round = True
+                break
+
+            next_candidate_index[macro_name] = candidate_index
+            if len(selected_candidates) == requested_limit:
+                break
+
+        if not selected_in_round:
+            break
+
+    return selected_candidates
 
 
 def _summary_for_candidate(candidate: CanonicalFoodSuggestionCandidate) -> str:

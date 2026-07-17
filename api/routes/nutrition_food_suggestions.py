@@ -18,6 +18,7 @@ router = APIRouter()
 def nutrition_food_suggestions_endpoint(
     user_id: int,
     suggestion_date: str | None = Query(default=None, alias="date"),
+    limit: int = Query(default=3, ge=1, le=8),
 ):
     """Return public-safe deterministic canonical food suggestions."""
 
@@ -28,6 +29,7 @@ def nutrition_food_suggestions_endpoint(
         approved_suggestions = build_approved_nutrition_food_suggestions(
             user_id,
             resolved_date,
+            limit=limit,
         )
     except ValueError as exc:
         message = str(exc)

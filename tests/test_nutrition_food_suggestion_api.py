@@ -104,7 +104,7 @@ def _patch_user_and_service(monkeypatch, approved: ApprovedNutritionFoodSuggesti
     monkeypatch.setattr(
         food_suggestion_route,
         "build_approved_nutrition_food_suggestions",
-        lambda user_id, suggestion_date: approved,
+        lambda user_id, suggestion_date, *, limit=3: approved,
     )
 
 
@@ -200,8 +200,8 @@ def test_food_suggestions_endpoint_returns_no_protein_suggestions_when_blocked(
     assert "target_not_approved" in payload["reason_codes"]
 
 
-def test_food_suggestions_endpoint_defaults_to_today(monkeypatch):
-    captured: dict[str, str] = {}
+def test_food_suggestions_endpoint_defaults_to_today_and_limit_three(monkeypatch):
+    captured: dict[str, str | int] = {}
 
     monkeypatch.setattr(
         food_suggestion_route,
@@ -210,9 +210,10 @@ def test_food_suggestions_endpoint_defaults_to_today(monkeypatch):
     )
 
     def fake_build(
-        user_id: int, suggestion_date: str
+        user_id: int, suggestion_date: str, *, limit: int
     ) -> ApprovedNutritionFoodSuggestions:
         captured["date"] = suggestion_date
+        captured["limit"] = limit
         return _approved_suggestion_response(suggestion_date=suggestion_date)
 
     monkeypatch.setattr(
@@ -226,11 +227,12 @@ def test_food_suggestions_endpoint_defaults_to_today(monkeypatch):
 
     assert response.status_code == 200
     assert captured["date"] == date_cls.today().isoformat()
+    assert captured["limit"] == 3
     assert response.json()["suggestion_date"] == date_cls.today().isoformat()
 
 
-def test_food_suggestions_endpoint_supports_explicit_date(monkeypatch):
-    captured: dict[str, str] = {}
+def test_food_suggestions_endpoint_supports_explicit_date_and_limit(monkeypatch):
+    captured: dict[str, str | int] = {}
 
     monkeypatch.setattr(
         food_suggestion_route,
@@ -239,9 +241,10 @@ def test_food_suggestions_endpoint_supports_explicit_date(monkeypatch):
     )
 
     def fake_build(
-        user_id: int, suggestion_date: str
+        user_id: int, suggestion_date: str, *, limit: int
     ) -> ApprovedNutritionFoodSuggestions:
         captured["date"] = suggestion_date
+        captured["limit"] = limit
         return _approved_suggestion_response(suggestion_date=suggestion_date)
 
     monkeypatch.setattr(
@@ -251,11 +254,22 @@ def test_food_suggestions_endpoint_supports_explicit_date(monkeypatch):
     )
 
     client = TestClient(app)
-    response = client.get("/nutrition/1/food-suggestions?date=2026-06-01")
+    response = client.get("/nutrition/1/food-suggestions?date=2026-06-01&limit=8")
 
     assert response.status_code == 200
     assert captured["date"] == "2026-06-01"
+    assert captured["limit"] == 8
     assert response.json()["suggestion_date"] == "2026-06-01"
+
+
+def test_food_suggestions_endpoint_enforces_limit_bounds(monkeypatch):
+    approved = _approved_suggestion_response()
+    _patch_user_and_service(monkeypatch, approved)
+
+    client = TestClient(app)
+
+    assert client.get("/nutrition/1/food-suggestions?limit=0").status_code == 422
+    assert client.get("/nutrition/1/food-suggestions?limit=9").status_code == 422
 
 
 def test_food_suggestions_endpoint_rejects_invalid_date(monkeypatch):
@@ -352,7 +366,7 @@ def test_food_suggestions_endpoint_returns_safe_400_for_service_validation_failu
     monkeypatch.setattr(
         food_suggestion_route,
         "build_approved_nutrition_food_suggestions",
-        lambda user_id, suggestion_date: (_ for _ in ()).throw(
+        lambda user_id, suggestion_date, *, limit=3: (_ for _ in ()).throw(
             ValueError("internal validator details")
         ),
     )
