@@ -1,3 +1,44 @@
+# Current State - Nutrition Gap Actions UI v1
+
+Canonical implementation baseline before merge: main at 8c945c7.
+
+Feature branch: feature/nutrition-gap-actions-ui-v1.
+
+Status: NUTRITION_GAP_ACTIONS_UI_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- The Food workspace now surfaces backend-approved deterministic nutrition gap actions between the nutrition summary and the existing Food workspace.
+- The optional gap-action surface renders only when approved suggestions exist and does not create placeholder clutter when no actions are available.
+- Suggestion order, canonical food identity, and recommended gram amounts remain backend-authoritative.
+- Users can directly log an approved suggestion using the exact canonical food ID and exact backend-approved gram amount.
+- Direct logging reuses the existing canonical-food logging path rather than introducing a parallel endpoint or nutrition state model.
+- Successful quick logging participates in the existing canonical-food logged event flow, refreshing Logged Foods, nutrition state, and server-rendered suggestions.
+- Suggestions recalculate from backend truth after logging rather than being manually adjusted in frontend state.
+- Suggestion retrieval failure does not block or replace the normal Food workflow.
+- Historical date selection is preserved for suggestion retrieval and quick logging.
+- User switching does not retain suggestion state across users.
+- Internal reason codes, limitations, provider metadata, and backend implementation details remain hidden from the normal user interface.
+- Mobile and desktop production layouts were validated without horizontal overflow.
+- Light and Dark theme behavior was validated.
+- The full approved-suggestion quick-log flow was validated in production mode using controlled disposable smoke data.
+- The canonical fitness_ai.db was restored unchanged after feature-branch smoke.
+- Required automated backend, frontend, build, lint, project-memory, source-review, and production-smoke gates passed.
+
+Architecture boundaries preserved:
+
+- No canonical catalog expansion was introduced.
+- No nutrition target, target-vs-actual, or suggestion-ranking behavior was changed.
+- No AI, CrewAI, Ollama, RAG, meal generation, meal planning, pantry, or personalization scope was added.
+- No new logging endpoint or parallel frontend nutrition state model was introduced.
+
+Roadmap status:
+
+Nutrition Gap Actions UI v1 is accepted.
+Exercise History and Progress Analytics is the next recommended product milestone.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Catalog-Driven Nutrition Food Suggestions v1
 
 Canonical implementation baseline before merge: main at 65eaaa2.

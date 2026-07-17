@@ -4,6 +4,7 @@ import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { NutritionGapActionsCard } from "@/components/NutritionGapActionsCard";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
@@ -18,6 +19,7 @@ import {
 import { buildDailyWorkspaceHref } from "@/lib/dailyNavigation";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
+import { fetchNutritionFoodSuggestionsFromBackend } from "@/lib/nutritionFoodSuggestionApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -35,7 +37,11 @@ export async function DailyWorkspacePage({
   const displayDate = formatLongReadableDate(data?.target_date ?? todayQuery.date);
   const todayHref = buildDailyWorkspaceHref("today", userId, todayQuery.date);
 
-  const [canonicalLoggedFoodsResult, personalLoggedFoodsResult] =
+  const [
+    canonicalLoggedFoodsResult,
+    personalLoggedFoodsResult,
+    nutritionFoodSuggestionsResult,
+  ] =
     workspace === "food" && data
       ? await Promise.all([
           fetchCanonicalFoodLogsFromBackend({
@@ -46,8 +52,13 @@ export async function DailyWorkspacePage({
             userId,
             date: data.target_date,
           }),
+          fetchNutritionFoodSuggestionsFromBackend({
+            userId,
+            date: data.target_date,
+          }),
         ])
       : [
+          { data: null, error: null },
           { data: null, error: null },
           { data: null, error: null },
         ];
@@ -114,6 +125,14 @@ export async function DailyWorkspacePage({
         {data && workspace === "food" ? (
           <div className="space-y-3 sm:space-y-4">
             <NutritionMacroCard nutrition={data.nutrition} />
+            {nutritionFoodSuggestionsResult.data?.suggestions.length ? (
+              <NutritionGapActionsCard
+                key={`nutrition-gap-actions:${userId}:${data.target_date}`}
+                userId={userId}
+                targetDate={data.target_date}
+                suggestions={nutritionFoodSuggestionsResult.data.suggestions}
+              />
+            ) : null}
             <FoodWorkspaceDeck
               key={`${userId}:${data.target_date}`}
               userId={userId}
