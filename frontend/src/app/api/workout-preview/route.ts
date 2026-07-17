@@ -5,9 +5,11 @@ import { getApiBaseUrl } from "@/lib/dailyDriverApi";
 export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get("user_id");
   const workoutSizePreference =
-    request.nextUrl.searchParams.get("workout_size_preference") ?? "standard";
+    request.nextUrl.searchParams.get("workout_size_preference");
   const previewVariationIndex =
     request.nextUrl.searchParams.get("preview_variation_index") ?? "0";
+  const targetDate = request.nextUrl.searchParams.get("target_date");
+  const trainAnyway = request.nextUrl.searchParams.get("train_anyway");
 
   if (!userId) {
     return NextResponse.json(
@@ -17,9 +19,17 @@ export async function GET(request: NextRequest) {
   }
 
   const params = new URLSearchParams({
-    workout_size_preference: workoutSizePreference,
     preview_variation_index: previewVariationIndex,
   });
+  if (workoutSizePreference) {
+    params.set("workout_size_preference", workoutSizePreference);
+  }
+  if (targetDate) {
+    params.set("target_date", targetDate);
+  }
+  if (trainAnyway === "true") {
+    params.set("train_anyway", "true");
+  }
   const endpoint = `${getApiBaseUrl()}/workout-plans/preview/${userId}?${params.toString()}`;
 
   try {

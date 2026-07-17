@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
@@ -24,6 +25,7 @@ import {
   startWorkoutPlan,
   updateWorkoutActualSet,
 } from "@/lib/todayWorkoutApi";
+import { buildWeeklyWorkoutHref } from "@/lib/weeklyTrainingPlanApi";
 import {
   ApprovedWorkoutPlanPreview,
   PlannedWorkoutExerciseSummary,
@@ -40,6 +42,7 @@ import {
   WorkoutProgressionDecisionRequestExercise,
   WorkoutSizePreference,
   WorkoutSubstitutionCandidate,
+  WeeklyTrainingContext,
 } from "@/types/todayWorkout";
 
 const workoutToneMap: Record<
@@ -126,7 +129,10 @@ function formatPercentage(value: number): string {
 
 function isPreviewPayload(
   payload: WorkoutPreviewResponse | null,
-): payload is WorkoutPreviewResponse {
+): payload is WorkoutPreviewResponse & {
+  approved_workout_plan: ApprovedWorkoutPlanPreview;
+  workout_exercise_count: NonNullable<WorkoutPreviewResponse["workout_exercise_count"]>;
+} {
   if (payload === null) {
     return false;
   }
@@ -882,7 +888,11 @@ export function WorkoutPreviewExperience({
   const [workoutSizePreference, setWorkoutSizePreference] =
     useState<WorkoutSizePreference>("standard");
   const [previewVariationIndex, setPreviewVariationIndex] = useState(0);
+  const [sizePreferenceInitialized, setSizePreferenceInitialized] = useState(false);
+  const [trainAnywayOverride, setTrainAnywayOverride] = useState(false);
   const [preview, setPreview] = useState<WorkoutPreviewResponse | null>(null);
+  const [weeklyTrainingContext, setWeeklyTrainingContext] =
+    useState<WeeklyTrainingContext | null>(null);
   const [persistedPlan, setPersistedPlan] =
     useState<ApprovedWorkoutPlanPreview | null>(null);
   const [viewMode, setViewMode] = useState<WorkoutViewMode>("preview");
@@ -1059,7 +1069,7 @@ export function WorkoutPreviewExperience({
       try {
         const currentResult = await fetchWorkoutCurrent({
           userId,
-          date: requestedDate,
+          date: requestedDate ?? getBrowserLocalDateString(),
         });
 
         if (cancelled) {
@@ -1068,6 +1078,19 @@ export function WorkoutPreviewExperience({
 
         const currentData = currentResult.data;
         setDailyState(currentData?.workout_daily_state ?? null);
+        setWeeklyTrainingContext(currentData?.weekly_training_context ?? null);
+
+        if (!sizePreferenceInitialized) {
+          const weeklyDefault =
+            currentData?.weekly_training_context
+              .default_workout_size_preference;
+          const initialSize = weeklyDefault === "extended" ? "full" : weeklyDefault;
+          setSizePreferenceInitialized(true);
+          if (initialSize && initialSize !== workoutSizePreference) {
+            setWorkoutSizePreference(initialSize);
+            return;
+          }
+        }
 
         if (currentData?.workout_daily_state.state === "completed_today") {
           const currentExecution = currentData.current_execution_state;
@@ -1177,6 +1200,8 @@ export function WorkoutPreviewExperience({
           userId,
           workoutSizePreference,
           previewVariationIndex,
+          targetDate: requestedDate ?? getBrowserLocalDateString(),
+          trainAnyway: trainAnywayOverride,
         });
 
         if (cancelled) {
@@ -1202,6 +1227,23 @@ export function WorkoutPreviewExperience({
               currentResult.error?.message ??
               "Workout preview is not available right now.",
           );
+          return;
+        }
+
+        if (previewResult.data?.rest_day) {
+          setPreview(previewResult.data);
+          setWeeklyTrainingContext(previewResult.data.weekly_training_context);
+          setViewMode("preview");
+          setPersistedPlan(null);
+          setSelectedPlan(null);
+          setExecutionSession(null);
+          setPlannedExercises([]);
+          setActualSets([]);
+          setFocusedExerciseId(null);
+          setActiveSubstitutions([]);
+          setPlannedVsActualSummary(null);
+          setProgressionHistoryByExerciseName({});
+          setProgressionDecisionByExerciseKey({});
           return;
         }
 
@@ -1236,6 +1278,7 @@ export function WorkoutPreviewExperience({
         setActiveSubstitutions([]);
         setPlannedVsActualSummary(null);
         setPreview(previewResult.data);
+        setWeeklyTrainingContext(previewResult.data.weekly_training_context);
         setProgressionHistoryByExerciseName(
           await loadProgressionHistoryForNames(
             previewResult.data.approved_workout_plan.exercises.map(
@@ -1270,6 +1313,8 @@ export function WorkoutPreviewExperience({
     loadProgressionDecisionsForExercises,
     previewVariationIndex,
     requestedDate,
+    sizePreferenceInitialized,
+    trainAnywayOverride,
     userId,
     workoutSizePreference,
   ]);
@@ -1277,6 +1322,7 @@ export function WorkoutPreviewExperience({
   function handleSizeChange(nextValue: WorkoutSizePreference) {
     setExpandedInstructionKey(null);
     setWorkoutSizePreference(nextValue);
+    setSizePreferenceInitialized(true);
     setPreviewVariationIndex(0);
     setViewMode("preview");
     setDailyState(null);
@@ -1312,6 +1358,14 @@ export function WorkoutPreviewExperience({
     setProgressionDecisionByExerciseKey({});
     setIsCompletionReviewOpen(false);
     setActionMessage(null);
+    setErrorMessage(null);
+  }
+
+  function handleTrainAnyway() {
+    setTrainAnywayOverride(true);
+    setPreviewVariationIndex(0);
+    setPreview(null);
+    setActionMessage("Building an optional workout without changing the weekly plan.");
     setErrorMessage(null);
   }
 
@@ -1868,8 +1922,52 @@ export function WorkoutPreviewExperience({
     : 0;
   const hasCompletionReviewMissingSets =
     plannedVsActualSummary !== null && completionReviewMissingSets > 0;
+  const targetDate = requestedDate ?? (isHydrated ? getBrowserLocalDateString() : "");
+
+  if (
+    preview?.rest_day &&
+    weeklyTrainingContext?.day_type === "rest" &&
+    !trainAnywayOverride &&
+    !isPersistedState &&
+    !isCompletedState
+  ) {
+    return (
+      <section className="rounded-2xl bg-surface px-4 py-4 ring-1 ring-border">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
+          This week
+        </p>
+        <h2 className="mt-1 text-xl font-semibold text-text-strong">Rest day</h2>
+        <p className="mt-1 text-sm text-text-body">
+          No training session is scheduled today.
+        </p>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={handleTrainAnyway}
+            className="rounded-xl bg-action-primary px-4 py-2.5 text-sm font-semibold text-action-primary-foreground hover:bg-action-primary-hover"
+          >
+            Train anyway
+          </button>
+          <Link
+            href={buildWeeklyWorkoutHref(userId, targetDate)}
+            className="rounded-xl bg-surface-muted px-4 py-2.5 text-center text-sm font-semibold text-text-body hover:bg-surface-interactive-hover"
+          >
+            View week
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
+      {weeklyTrainingContext?.has_weekly_plan &&
+      (weeklyTrainingContext.session_title || weeklyTrainingContext.is_override) ? (
+        <div className="min-w-0 rounded-xl bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-body ring-1 ring-border lg:col-span-2">
+          This week · {weeklyTrainingContext.session_title ?? "Rest day"}
+          {weeklyTrainingContext.is_override ? " · Training anyway" : ""}
+        </div>
+      ) : null}
       {canLogWorkout ? (
         <div className="min-w-0 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border md:hidden">
           <div className="flex items-center justify-between gap-2 text-xs font-semibold uppercase tracking-[0.08em]">

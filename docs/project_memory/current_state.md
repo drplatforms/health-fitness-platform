@@ -1,3 +1,51 @@
+# Current State - Weekly Training Planner v1
+
+Canonical implementation baseline before merge: main at 7685843.
+
+Feature branch: feature/weekly-training-planner-v1.
+
+Status: WEEKLY_TRAINING_PLANNER_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Users can create persistent Monday-through-Sunday weekly training plans with 1-6 scheduled training days.
+- Weekly plans persist session structure and explicit rest days without freezing future detailed workout prescriptions.
+- Exact daily workouts remain generated day-of using current recovery, constraints, equipment, exercise rotation, and existing deterministic workout generation.
+- Supported deterministic split sequencing includes Full Body, Upper/Lower, and six-day Upper/Lower variants based on selected training frequency.
+- Future untouched weekly schedule dates may be edited while past, selected, in-progress, and completed dates remain protected.
+- Missed scheduled sessions are not automatically rescheduled.
+- Rest days suppress the normal workout preview unless the user explicitly chooses Train Anyway.
+- Preview variation preserves the scheduled session identity while allowing valid exercise rotation.
+- Quick, Standard, and Extended workout sizing remain available.
+- Existing persisted workouts retain precedence over weekly-plan context.
+- Adaptive Progression, Previous Performance, Recovery Intelligence, and Smart Exercise Substitutions remain integrated with weekly-directed workouts.
+- Mobile and desktop weekly planning UX, Today/Week navigation, responsive layouts, and Light/Dark themes passed production smoke.
+- Required feature-branch automated validation and user acceptance smoke passed.
+
+Known workflow safety incident:
+
+- A full pytest run unexpectedly initialized the two intended weekly-training-plan tables in canonical fitness_ai.db.
+- Both new tables were confirmed empty and existing user/workout data remained present.
+- No destructive rollback was attempted without a known-good pre-run database copy.
+- Future automated validation must continue using isolated database copies.
+
+Known follow-up backlog:
+
+- Hide Recent History when no meaningful historical evidence exists.
+- Hide Next Target when progression status is insufficient_data rather than rendering generic placeholder guidance.
+- Apply conditional workout intelligence display consistently on mobile and desktop.
+- Replacement exercise equipment badges may retain original equipment metadata.
+- Starting a workout may clear the visible substitution overlay.
+- Richer longitudinal QA seed data remains recommended for workout, recovery, and nutrition scenarios.
+
+Roadmap status:
+
+Weekly Training Planner v1 is accepted.
+A fresh Architecture chat should be onboarded from the post-merge canonical snapshot.
+The broader roadmap should be deliberately reassessed in that new Architecture chat before authorizing the next major milestone.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - GitHub README and Project Presentation Refresh
 
 Canonical baseline before refresh: main at df5abc8.

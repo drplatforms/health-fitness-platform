@@ -12,6 +12,27 @@ export type TodayWorkoutSource =
 
 export type WorkoutSizePreference = "quick" | "standard" | "full";
 
+export interface WeeklyTrainingContext {
+  has_weekly_plan: boolean;
+  weekly_plan_id: number | null;
+  weekly_plan_day_id: number | null;
+  day_type: "training" | "rest" | null;
+  session_type: string | null;
+  session_title: string | null;
+  session_focus: string | null;
+  session_directive: {
+    session_type: string;
+    session_title: string;
+    session_focus: string;
+    ordered_slot_families: string[];
+    optional_extension_slot_families: string[];
+    sequence_index: number;
+  } | null;
+  default_workout_size_preference: "quick" | "standard" | "extended" | null;
+  derived_status: string | null;
+  is_override: boolean;
+}
+
 export interface WorkoutPreviewExercise {
   catalog_exercise_id: number | null;
   name: string;
@@ -46,8 +67,11 @@ export interface ApprovedWorkoutPlanPreview {
 export interface WorkoutPreviewResponse {
   success: boolean;
   user_id: number;
-  scenario: string;
-  confidence: string;
+  target_date: string | null;
+  rest_day: boolean;
+  weekly_training_context: WeeklyTrainingContext;
+  scenario?: string;
+  confidence?: string;
   workout_exercise_count: {
     requested_size: WorkoutSizePreference;
     requested_count: number;
@@ -55,9 +79,9 @@ export interface WorkoutPreviewResponse {
     final_target_count: number;
     reason: string;
     user_safe_reason: string;
-  };
-  approved_workout_plan: ApprovedWorkoutPlanPreview;
-  rendered_workout_plan: string;
+  } | null;
+  approved_workout_plan: ApprovedWorkoutPlanPreview | null;
+  rendered_workout_plan: string | null;
 }
 
 export interface PlannedWorkoutExerciseSummary {
@@ -265,6 +289,7 @@ export interface WorkoutCurrentResponse {
   user_id: number;
   workout_daily_state: WorkoutDailyStateSummary;
   current_execution_state: WorkoutCurrentExecutionState | null;
+  weekly_training_context: WeeklyTrainingContext;
 }
 
 export interface WorkoutActualSetCreatePayload {

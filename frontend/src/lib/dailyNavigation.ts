@@ -17,7 +17,7 @@ export function activeDailyWorkspace(
   if (pathname === "/food" || pathname.startsWith("/personal-foods")) {
     return "food";
   }
-  if (pathname === "/today/workout") {
+  if (pathname === "/today/workout" || pathname.startsWith("/workout/week")) {
     return "workout";
   }
   if (pathname === "/recovery") {

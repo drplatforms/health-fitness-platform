@@ -16,6 +16,16 @@ from services.recovery_intelligence_v2_service import (
     build_recovery_intelligence_v2,
 )
 from services.user_state_service import build_user_health_state
+from services.weekly_training_plan_service import (
+    WeeklyTrainingPlanConflictError,
+    WeeklyTrainingPlanNotFoundError,
+    WeeklyTrainingPlanProtectedDateError,
+    WeeklyTrainingPlanValidationError,
+    create_weekly_training_plan,
+    get_weekly_training_plan,
+    resolve_weekly_training_context,
+    update_weekly_training_plan,
+)
 from services.workout_daily_state_service import (
     get_current_day_execution_state,
     resolve_workout_daily_state,
@@ -113,10 +123,123 @@ class WorkoutProgressionDecisionPayload(BaseModel):
     exercises: list[WorkoutProgressionDecisionExercisePayload] = Field(min_length=1)
 
 
+class WeeklyTrainingPlanCreatePayload(BaseModel):
+    week_start_date: date
+    training_weekdays: list[int]
+    default_workout_size_preference: str = "standard"
+    current_date: date | None = None
+
+
+class WeeklyTrainingPlanUpdatePayload(BaseModel):
+    training_weekdays: list[int]
+    default_workout_size_preference: str
+    current_date: date
+
+
+def _raise_weekly_training_plan_http_error(exc: Exception) -> None:
+    if isinstance(exc, WeeklyTrainingPlanNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, WeeklyTrainingPlanConflictError):
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if isinstance(exc, WeeklyTrainingPlanProtectedDateError):
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if isinstance(exc, WeeklyTrainingPlanValidationError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise exc
+
+
+@router.get("/weekly-training-plans/{user_id}")
+def weekly_training_plan(
+    user_id: int,
+    week_start_date: str,
+    current_date: str | None = None,
+):
+    try:
+        plan = get_weekly_training_plan(
+            user_id,
+            week_start_date,
+            current_date=current_date,
+        )
+    except WeeklyTrainingPlanValidationError as exc:
+        _raise_weekly_training_plan_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "week_start_date": week_start_date,
+        "plan": asdict(plan) if plan else None,
+    }
+
+
+@router.post("/weekly-training-plans/{user_id}")
+def create_weekly_training_plan_route(
+    user_id: int,
+    payload: WeeklyTrainingPlanCreatePayload,
+):
+    try:
+        plan = create_weekly_training_plan(
+            user_id,
+            payload.week_start_date,
+            payload.training_weekdays,
+            payload.default_workout_size_preference,
+            current_date=payload.current_date,
+        )
+    except (
+        WeeklyTrainingPlanConflictError,
+        WeeklyTrainingPlanNotFoundError,
+        WeeklyTrainingPlanValidationError,
+    ) as exc:
+        _raise_weekly_training_plan_http_error(exc)
+    return {"success": True, "user_id": user_id, "plan": asdict(plan)}
+
+
+@router.patch("/weekly-training-plans/{user_id}/{weekly_plan_id}")
+def update_weekly_training_plan_route(
+    user_id: int,
+    weekly_plan_id: int,
+    payload: WeeklyTrainingPlanUpdatePayload,
+):
+    try:
+        plan = update_weekly_training_plan(
+            user_id,
+            weekly_plan_id,
+            payload.training_weekdays,
+            payload.default_workout_size_preference,
+            current_date=payload.current_date,
+        )
+    except (
+        WeeklyTrainingPlanNotFoundError,
+        WeeklyTrainingPlanProtectedDateError,
+        WeeklyTrainingPlanValidationError,
+    ) as exc:
+        _raise_weekly_training_plan_http_error(exc)
+    return {"success": True, "user_id": user_id, "plan": asdict(plan)}
+
+
 @router.get("/workout-plans/current/{user_id}")
 def current_workout_plan_state(user_id: int, target_date: str | None = None):
     daily_state = resolve_workout_daily_state(user_id, target_date=target_date)
     execution_state = get_current_day_execution_state(user_id, target_date=target_date)
+    weekly_training_context = (
+        resolve_weekly_training_context(
+            user_id,
+            target_date,
+            current_date=target_date,
+        )
+        if target_date
+        else {
+            "has_weekly_plan": False,
+            "weekly_plan_id": None,
+            "weekly_plan_day_id": None,
+            "day_type": None,
+            "session_type": None,
+            "session_title": None,
+            "session_focus": None,
+            "session_directive": None,
+            "default_workout_size_preference": None,
+            "derived_status": None,
+            "is_override": False,
+        }
+    )
 
     current_execution_state = None
     if execution_state is not None:
@@ -136,12 +259,15 @@ def current_workout_plan_state(user_id: int, target_date: str | None = None):
             "approved_workout_plan": asdict(execution_state["approved_workout_plan"]),
         }
 
-    return {
+    response = {
         "success": True,
         "user_id": user_id,
         "workout_daily_state": asdict(daily_state),
         "current_execution_state": current_execution_state,
     }
+    if target_date:
+        response["weekly_training_context"] = weekly_training_context
+    return response
 
 
 @router.post("/workout-plans/{user_id}/progression-history")
@@ -229,20 +355,64 @@ def workout_plan_history(user_id: int):
 @router.get("/workout-plans/preview/{user_id}")
 def workout_plan_preview(
     user_id: int,
-    workout_size_preference: str = "standard",
+    workout_size_preference: str | None = None,
     requested_target_count: int | None = None,
     preview_variation_index: int = 0,
+    target_date: str | None = None,
+    train_anyway: bool = False,
 ):
+    weekly_training_context = (
+        resolve_weekly_training_context(
+            user_id,
+            target_date,
+            current_date=target_date,
+            is_override=train_anyway,
+        )
+        if target_date
+        else {
+            "has_weekly_plan": False,
+            "weekly_plan_id": None,
+            "weekly_plan_day_id": None,
+            "day_type": None,
+            "session_type": None,
+            "session_title": None,
+            "session_focus": None,
+            "session_directive": None,
+            "default_workout_size_preference": None,
+            "derived_status": None,
+            "is_override": train_anyway,
+        }
+    )
+    if (
+        weekly_training_context["has_weekly_plan"]
+        and weekly_training_context["day_type"] == "rest"
+        and not train_anyway
+    ):
+        return {
+            "success": True,
+            "user_id": user_id,
+            "target_date": target_date,
+            "rest_day": True,
+            "weekly_training_context": weekly_training_context,
+            "approved_workout_plan": None,
+            "rendered_workout_plan": None,
+            "workout_exercise_count": None,
+        }
+    effective_size = workout_size_preference
+    if effective_size is None:
+        weekly_size = weekly_training_context.get("default_workout_size_preference")
+        effective_size = "full" if weekly_size == "extended" else weekly_size
     health_state = build_user_health_state(user_id)
     context = build_workout_context(
         health_state,
-        workout_size_preference=workout_size_preference,
+        workout_size_preference=effective_size,
         requested_target_count=requested_target_count,
         preview_variation_index=preview_variation_index,
+        weekly_training_context=weekly_training_context,
     )
     approved_plan = build_approved_workout_plan_for_context(context)
 
-    return {
+    response = {
         "success": True,
         "user_id": user_id,
         "scenario": approved_plan.scenario,
@@ -260,6 +430,15 @@ def workout_plan_preview(
         "approved_workout_plan": asdict(approved_plan),
         "rendered_workout_plan": render_approved_workout_plan(approved_plan),
     }
+    if target_date:
+        response.update(
+            {
+                "target_date": target_date,
+                "rest_day": False,
+                "weekly_training_context": weekly_training_context,
+            }
+        )
+    return response
 
 
 @router.get("/workout-plans/preview/{user_id}/debug")

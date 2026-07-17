@@ -9,13 +9,21 @@ from services.exercise_catalog_service import get_exercise_catalog
 
 CATALOG_SLOT_FAMILY_PATTERNS: dict[str, set[str]] = {
     "lower_primary": {"squat", "lunge", "hinge"},
+    "squat": {"squat"},
+    "lunge": {"lunge"},
     "squat_lunge": {"squat", "lunge"},
     "hinge": {"hinge"},
     "push_primary": {"horizontal_push", "vertical_push"},
+    "horizontal_push": {"horizontal_push"},
+    "vertical_push": {"vertical_push"},
     "pull_primary": {"horizontal_pull", "vertical_pull"},
+    "horizontal_pull": {"horizontal_pull"},
+    "vertical_pull": {"vertical_pull"},
     "core": {"core_anti_extension", "core_anti_rotation"},
     "carry": {"carry"},
     "arms": {"arms_biceps", "arms_triceps"},
+    "arms_biceps": {"arms_biceps"},
+    "arms_triceps": {"arms_triceps"},
     "accessory": {
         "arms_biceps",
         "arms_triceps",

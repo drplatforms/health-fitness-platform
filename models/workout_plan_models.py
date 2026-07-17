@@ -23,6 +23,12 @@ class WorkoutContext:
     exercise_count_reason: str = "standard_session"
     exercise_count_user_reason: str = "Built as a standard 5-exercise session."
     preview_variation_index: int = 0
+    weekly_plan_day_id: int | None = None
+    weekly_session_directive: dict | None = None
+    weekly_session_type: str | None = None
+    weekly_session_title: str | None = None
+    weekly_session_focus: str | None = None
+    weekly_session_override: bool = False
 
 
 @dataclass
