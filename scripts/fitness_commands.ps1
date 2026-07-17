@@ -127,6 +127,7 @@ Primary Windows runtime
   ffront           Start the existing production Next.js build on http://127.0.0.1:3100
   ffrontbuild      Rebuild, then start the production Next.js frontend
   fvalidatefront   Run frontend lint and production build without starting it
+  fcleannext       Clear the Next.js .next cache after frontend processes are stopped
   fstart / app     Start FastAPI and the existing production frontend build
   frestart         Stop scoped product processes, then start them again
   fnext / fnextfg  Optional Next.js development server on port 3000
@@ -205,6 +206,24 @@ function fvalidatefront {
         npm run build
         if ($LASTEXITCODE -ne 0) { throw "Frontend production build failed." }
     } finally { Pop-Location }
+}
+
+function fcleannext {
+    Assert-FitnessRepo
+    $productionListener = Get-NetTCPConnection -LocalPort $script:FitnessFrontendPort -State Listen -ErrorAction SilentlyContinue
+    $developmentListener = Get-NetTCPConnection -LocalPort $script:FitnessNextDevPort -State Listen -ErrorAction SilentlyContinue
+    if ($productionListener -or $developmentListener) {
+        throw "Refusing to clear frontend/.next while Next.js is listening on port $script:FitnessFrontendPort or $script:FitnessNextDevPort. Stop the relevant frontend process first with fkillfront or fkillnext."
+    }
+
+    $nextCache = Join-Path $script:FitnessFrontendDir ".next"
+    if (-not (Test-Path -LiteralPath $nextCache)) {
+        Write-Host "Next.js .next cache is already absent."
+        return
+    }
+
+    Remove-Item -LiteralPath $nextCache -Recurse -Force
+    Write-Host "Cleared Next.js .next cache."
 }
 
 function fkillfront {
