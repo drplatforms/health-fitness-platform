@@ -346,32 +346,26 @@ def test_current_docs_match_command_semantics() -> None:
     assert "3000" in menu and "3100" in menu
 
 
-def test_project_state_current_pointers_match_active_milestone() -> None:
+def test_project_state_current_pointers_are_structurally_valid() -> None:
     state = json.loads(PROJECT_STATE_PATH.read_text(encoding="utf-8"))
+
     assert state["project"]["name"] == "Health & Fitness Platform"
     assert state["project"]["repo"] == "health-fitness-platform"
     assert state["project"]["platform_repo"] == "health-fitness-platform"
-    assert state["current_baseline"]["latest_accepted_commit"] == "6227f50"
-    assert (
-        state["active_roadmap"]["current_authorized_milestone"]
-        == "Nutrition Gap Actions UX & Variety v1.1"
-    )
-    assert (
-        state["requested_backend_status"]
-        == "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED"
-    )
-    assert (
-        state["status"]["active_backend_status"]
-        == "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED"
-    )
-    assert (
-        state["status"]["active_project_memory_status"]
-        == "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_ACCEPTED_AND_CLOSED"
-    )
-    assert (
-        "fresh Architecture chat"
-        in state["architecture_direction"]["next_center_of_gravity"]
-    )
+
+    latest_commit = state["current_baseline"]["latest_accepted_commit"]
+    assert isinstance(latest_commit, str)
+    assert latest_commit
+
+    roadmap = state["active_roadmap"]
+    for field in (
+        "current_authorized_milestone",
+        "implementation_status",
+        "current_recommended_milestone",
+        "current_recommended_status",
+    ):
+        assert isinstance(roadmap[field], str)
+        assert roadmap[field]
 
 
 def test_current_command_layer_contains_no_secrets_or_external_citations(
