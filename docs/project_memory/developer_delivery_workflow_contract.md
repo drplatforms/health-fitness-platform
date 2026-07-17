@@ -18,6 +18,34 @@
 - Inspect browser console state and mobile width when UI smoke is required.
 - Always inspect `git diff --check`, final status, full unstaged diff, untracked files, staged files, database safety, and temporary artifacts.
 
+## Codex handoff efficiency
+
+Codex handoffs are delta specifications, not project encyclopedias.
+
+Stable project context already owned by AGENTS.md, Projectmem, canonical project memory, workflow contracts, and repository truth should be referenced rather than duplicated into every milestone handoff.
+
+Normal sizing guidance:
+
+- small milestones: roughly 100-250 lines;
+- normal product milestones: target 200-400 lines;
+- 500 lines is a soft ceiling and requires an explicit milestone-specific reason to exceed.
+
+A normal handoff should contain only:
+
+1. canonical base and milestone authorization;
+2. goal;
+3. milestone-specific architecture decisions;
+4. required behavior and critical invariants;
+5. explicit non-goals;
+6. likely integration surfaces;
+7. risk-based validation requirements;
+8. completion-report and stop-state requirements.
+
+Orientation should normally name only 3-6 directly relevant canonical files. Codex should follow repository dependencies as implementation requires rather than receiving a broad mandatory reading list.
+
+Validation requirements should be risk-based and category-level. Do not enumerate every conceivable test when existing contracts, repository patterns, and validation matrices already define the stable baseline.
+
+Larger context windows, model allowances, or supplemental usage credits are not justification for duplicated context. Handoffs should minimize unnecessary token consumption, orientation overhead, and conflicting repeated instructions while preserving critical milestone-specific boundaries.
 ## Git closeout boundary
 
 Codex does not stage, commit, push, merge, or snapshot unless the user explicitly authorizes the applicable action. Architecture reviews the actual diff and evidence before acceptance. Staging is explicit; helper commands must never hide it.

@@ -1,3 +1,43 @@
+# Current State - Workout Session Memory v1
+
+Canonical implementation baseline before merge: main at c9c6d22.
+
+Feature branch: feature/workout-session-memory-v1.
+
+Status: WORKOUT_SESSION_MEMORY_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Users can save, edit, and explicitly delete a concise exercise-scoped memory for future sessions.
+- Memories are strictly user-owned and remain separate from logged-set Notes, completed workout history, progression evidence, and recommendation logic.
+- Catalog-backed exercise identity is authoritative, with conservative normalized-name fallback only where identity remains unambiguous.
+- Same-catalog aliases preserve one stable memory identity, while ambiguous same-name catalog identities are never guessed.
+- Active substitutions resolve and edit memory for the replacement exercise actually being performed.
+- Memory state remains isolated across users, exercises, dates, workout views, preview variations, and substitutions.
+- Current mutable memory is suppressed on historical workout surfaces rather than being misrepresented as historical truth.
+- Memory create, edit, delete, refresh persistence, responsive layout, and compact resting-state UX passed feature-branch user production smoke.
+- Existing Reps, Weight, RIR, set Notes, workout execution, substitutions, progression, and Exercise History behavior remain preserved.
+
+Architecture boundaries preserved:
+
+- No AI memory, inference, automatic note extraction, preference learning, recommendation authority, or progression authority was introduced.
+- No memory history, tagging system, dedicated management page, or broad workout UI redesign was added.
+- Memory remains explicit user-owned state rather than inferred training evidence.
+- Automated validation used isolated databases and production smoke used a disposable physical database copy.
+
+Workflow improvement accepted:
+
+- Codex handoffs are delta specifications, not project encyclopedias.
+- Stable project context must be reused from AGENTS.md, Projectmem, canonical project memory, and repository truth rather than duplicated into every handoff.
+- Normal product-milestone handoffs target 200-400 lines, with 500 lines as a soft ceiling requiring explicit justification to exceed.
+
+Roadmap status:
+
+Workout Session Memory v1 is accepted.
+No subsequent product milestone is implementation-authorized yet.
+The next Architecture step is selection of the next remaining workout-lane milestone.
+
+---
 # Current State - Exercise History & Progress Analytics v1
 
 Canonical implementation baseline before merge: main at 80f7209.

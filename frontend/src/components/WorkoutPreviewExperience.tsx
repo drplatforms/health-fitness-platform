@@ -1,11 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
+import { WorkoutExerciseMemory } from "@/components/WorkoutExerciseMemory";
 import {
   getBrowserLocalDateString,
   isHistoricalRequestedDate,
@@ -27,6 +34,11 @@ import {
 } from "@/lib/todayWorkoutApi";
 import { buildWeeklyWorkoutHref } from "@/lib/weeklyTrainingPlanApi";
 import {
+  fetchWorkoutExerciseMemories,
+  mapWorkoutExerciseMemoryResolutions,
+  workoutExerciseMemoryIdentityKey,
+} from "@/lib/workoutExerciseMemoryApi";
+import {
   ApprovedWorkoutPlanPreview,
   PlannedWorkoutExerciseSummary,
   WorkoutActiveSubstitutionSummary,
@@ -44,6 +56,10 @@ import {
   WorkoutSubstitutionCandidate,
   WeeklyTrainingContext,
 } from "@/types/todayWorkout";
+import {
+  WorkoutExerciseMemory as WorkoutExerciseMemoryValue,
+  WorkoutExerciseMemoryIdentity,
+} from "@/types/workoutExerciseMemory";
 
 const workoutToneMap: Record<
   string,
@@ -76,6 +92,11 @@ interface ActualSetFormState {
   actualWeight: string;
   actualRir: string;
   notes: string;
+}
+
+interface ExerciseMemoryState {
+  scopeKey: string;
+  byIdentityKey: Record<string, WorkoutExerciseMemoryValue | null>;
 }
 
 interface ExerciseActualsSummary {
@@ -624,6 +645,19 @@ function progressionRequestExercise(
   };
 }
 
+function exerciseMemoryIdentity(
+  exercise: WorkoutPreviewExercise | PlannedWorkoutExerciseSummary,
+  activeSubstitution?: WorkoutActiveSubstitutionSummary,
+): WorkoutExerciseMemoryIdentity {
+  return {
+    catalog_exercise_id:
+      activeSubstitution?.replacement_catalog_exercise_id ??
+      exercise.catalog_exercise_id,
+    exercise_name:
+      activeSubstitution?.replacement_exercise_name ?? exercise.name,
+  };
+}
+
 function PreviousPerformanceLine({
   history,
 }: {
@@ -917,6 +951,8 @@ export function WorkoutPreviewExperience({
     useState<Record<string, WorkoutExerciseHistorySummary>>({});
   const [progressionDecisionByExerciseKey, setProgressionDecisionByExerciseKey] =
     useState<Record<string, WorkoutProgressionDecision>>({});
+  const [exerciseMemoryState, setExerciseMemoryState] =
+    useState<ExerciseMemoryState>({ scopeKey: "", byIdentityKey: {} });
   const [formStateByExerciseId, setFormStateByExerciseId] = useState<
     Record<number, ActualSetFormState>
   >({});
@@ -971,6 +1007,36 @@ export function WorkoutPreviewExperience({
       substitution,
     ]),
   );
+  const visibleExerciseMemoryIdentities = useMemo(() => {
+    if (isHistoricalReadOnly !== false) {
+      return [];
+    }
+    if (plannedExercises.length) {
+      const substitutionsByExerciseId = new Map(
+        activeSubstitutions.map((substitution) => [
+          substitution.planned_workout_exercise_id,
+          substitution,
+        ]),
+      );
+      return plannedExercises.map((exercise) =>
+        exerciseMemoryIdentity(
+          exercise,
+          substitutionsByExerciseId.get(exercise.id),
+        ),
+      );
+    }
+    return (approvedPlan?.exercises ?? []).map((exercise) =>
+      exerciseMemoryIdentity(exercise),
+    );
+  }, [activeSubstitutions, approvedPlan, isHistoricalReadOnly, plannedExercises]);
+  const exerciseMemoryIdentitySignature = visibleExerciseMemoryIdentities
+    .map((identity) => workoutExerciseMemoryIdentityKey(identity))
+    .join("|");
+  const exerciseMemoryScopeKey = `${userId}:${requestedDate ?? "live"}:${viewMode}:${previewVariationIndex}:${exerciseMemoryIdentitySignature}`;
+  const exerciseMemoryByIdentityKey =
+    exerciseMemoryState.scopeKey === exerciseMemoryScopeKey
+      ? exerciseMemoryState.byIdentityKey
+      : {};
   const exerciseActualsSummaries = buildExerciseActualsSummaries(
     plannedExercises,
     actualSets,
@@ -1039,6 +1105,55 @@ export function WorkoutPreviewExperience({
     },
     [requestedDate, userId],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!visibleExerciseMemoryIdentities.length) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadExerciseMemories() {
+      const result = await fetchWorkoutExerciseMemories(
+        userId,
+        visibleExerciseMemoryIdentities,
+      );
+      if (cancelled || result.error || !result.data) {
+        return;
+      }
+      setExerciseMemoryState({
+        scopeKey: exerciseMemoryScopeKey,
+        byIdentityKey: mapWorkoutExerciseMemoryResolutions(
+          result.data.resolved_exercises,
+        ),
+      });
+    }
+
+    void loadExerciseMemories();
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseMemoryScopeKey, userId, visibleExerciseMemoryIdentities]);
+
+  function updateExerciseMemoryState(
+    identity: WorkoutExerciseMemoryIdentity,
+    memory: WorkoutExerciseMemoryValue | null,
+  ) {
+    const identityKey = workoutExerciseMemoryIdentityKey(identity);
+    setExerciseMemoryState((current) =>
+      current.scopeKey === exerciseMemoryScopeKey
+        ? {
+            ...current,
+            byIdentityKey: {
+              ...current.byIdentityKey,
+              [identityKey]: memory,
+            },
+          }
+        : current,
+    );
+  }
 
   useEffect(() => {
     if (isHistoricalReadOnly === null) {
@@ -1600,7 +1715,6 @@ export function WorkoutPreviewExperience({
       setPlannedExercises(nextPlannedExercises);
       setActualSets([]);
       setFocusedExerciseId(initialFocusedExerciseId(nextPlannedExercises, []));
-      setActiveSubstitutions([]);
       setPlannedVsActualSummary(null);
       setProgressionHistoryByExerciseName(
         await loadProgressionHistoryForNames(
@@ -2405,6 +2519,12 @@ export function WorkoutPreviewExperience({
                 const displayedCatalogExerciseId =
                   activeSubstitution?.replacement_catalog_exercise_id ??
                   exercise.catalog_exercise_id;
+                const memoryIdentity = exerciseMemoryIdentity(
+                  exercise,
+                  activeSubstitution,
+                );
+                const memoryIdentityKey =
+                  workoutExerciseMemoryIdentityKey(memoryIdentity);
                 const exerciseActualSets = loggedSetsForExercise(
                   actualSets,
                   exercise.id,
@@ -2539,6 +2659,19 @@ export function WorkoutPreviewExperience({
                           isInstructionExpanded ? "md:hidden" : ""
                         }`}
                       >
+                        <WorkoutExerciseMemory
+                          key={`${exerciseMemoryScopeKey}:${memoryIdentityKey}:${exerciseMemoryByIdentityKey[memoryIdentityKey]?.memory_id ?? "empty"}`}
+                          userId={userId}
+                          identity={memoryIdentity}
+                          memory={exerciseMemoryByIdentityKey[memoryIdentityKey]}
+                          canEdit={isHistoricalReadOnly === false}
+                          onSaved={(memory) =>
+                            updateExerciseMemoryState(memoryIdentity, memory)
+                          }
+                          onDeleted={() =>
+                            updateExerciseMemoryState(memoryIdentity, null)
+                          }
+                        />
                         {canLogWorkout ? (
                           <p className="text-sm font-medium text-text-body md:hidden">
                             {exercise.sets} sets <span aria-hidden="true">•</span>{" "}
@@ -2964,6 +3097,9 @@ export function WorkoutPreviewExperience({
           ) : approvedPlan?.exercises.length ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
               {approvedPlan.exercises.map((exercise, index) => {
+                const memoryIdentity = exerciseMemoryIdentity(exercise);
+                const memoryIdentityKey =
+                  workoutExerciseMemoryIdentityKey(memoryIdentity);
                 const history =
                   progressionHistoryByExerciseName[
                     normalizeExerciseHistoryKey(exercise.name)
@@ -3028,6 +3164,19 @@ export function WorkoutPreviewExperience({
                           isInstructionExpanded ? "md:hidden" : ""
                         }`}
                       >
+                        <WorkoutExerciseMemory
+                          key={`${exerciseMemoryScopeKey}:${memoryIdentityKey}:${exerciseMemoryByIdentityKey[memoryIdentityKey]?.memory_id ?? "empty"}`}
+                          userId={userId}
+                          identity={memoryIdentity}
+                          memory={exerciseMemoryByIdentityKey[memoryIdentityKey]}
+                          canEdit={isHistoricalReadOnly === false}
+                          onSaved={(memory) =>
+                            updateExerciseMemoryState(memoryIdentity, memory)
+                          }
+                          onDeleted={() =>
+                            updateExerciseMemoryState(memoryIdentity, null)
+                          }
+                        />
                         <div className="flex flex-wrap gap-2">
                           {exerciseMeta(exercise).map((item) => (
                             <span

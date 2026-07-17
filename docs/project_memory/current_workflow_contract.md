@@ -55,6 +55,13 @@ Linux remains available at `~/projects/fitness-ai-platform` as optional validati
 
 Continue through safe mechanical steps inside an authorized phase. Stop and report on a wrong branch/base, unexpected worktree changes, validation failure, database risk, scope ambiguity, missing acceptance, or need for new external authority.
 
+## Codex handoff efficiency
+
+Architecture handoffs to Codex are milestone delta specifications, not standalone project encyclopedias.
+
+Reuse AGENTS.md, Projectmem, canonical project memory, supporting workflow contracts, and repository truth instead of restating stable context. Normal product-milestone handoffs should target 200-400 lines; 500 lines is a soft ceiling requiring explicit justification to exceed.
+
+Detailed handoff structure, orientation limits, and token-efficiency guidance live in developer_delivery_workflow_contract.md.
 ## Provider and product boundaries
 
 Backend facts, calculations, constraints, validation, persistence, and fallback remain authoritative. Provider/AI output may propose or explain backend-approved options but must never silently control health decisions. AI-written daily prose is paused indefinitely. No provider, RAG, embedding, vector, runtime-agent, or health-recommendation scope is implied by this workflow.
