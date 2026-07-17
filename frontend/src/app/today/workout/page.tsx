@@ -8,6 +8,7 @@ import { formatLongReadableDate } from "@/lib/dateFormatting";
 import { getDefaultUserId, resolveTodayQuery } from "@/lib/dailyDriverApi";
 import { getSwitchableUserLabel } from "@/lib/userSwitcher";
 import { buildWeeklyWorkoutHref } from "@/lib/weeklyTrainingPlanApi";
+import { buildWorkoutHistoryHref } from "@/lib/workoutExerciseHistoryApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -67,6 +68,12 @@ export default async function WorkoutPage({
                     className="rounded-lg px-3 py-1.5 text-text-body hover:bg-surface-muted"
                   >
                     Week
+                  </Link>
+                  <Link
+                    href={buildWorkoutHistoryHref(userId)}
+                    className="rounded-lg px-3 py-1.5 text-text-body hover:bg-surface-muted"
+                  >
+                    History
                   </Link>
                 </nav>
               </div>

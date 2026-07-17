@@ -140,6 +140,41 @@ def load_completed_exercise_progression_sessions(
     if not normalized_target and catalog_exercise_id is None:
         return []
 
+    return _load_completed_progression_sessions(
+        user_id=user_id,
+        lookback_days=lookback_days,
+        limit=max(1, int(limit)),
+        normalized_target=normalized_target,
+        catalog_exercise_id=catalog_exercise_id,
+    )
+
+
+def load_completed_user_progression_sessions(
+    *,
+    user_id: int,
+    lookback_days: int,
+) -> list[ExerciseProgressionSession]:
+    """Load all effective exercise exposures from completed planned workouts."""
+
+    return _load_completed_progression_sessions(
+        user_id=user_id,
+        lookback_days=lookback_days,
+        limit=None,
+        normalized_target=None,
+        catalog_exercise_id=None,
+    )
+
+
+def _load_completed_progression_sessions(
+    *,
+    user_id: int,
+    lookback_days: int,
+    limit: int | None,
+    normalized_target: str | None,
+    catalog_exercise_id: int | None,
+) -> list[ExerciseProgressionSession]:
+    """Load shared substitution-aware completed-session evidence."""
+
     conn = get_connection()
     cursor = conn.cursor()
     if not _required_tables_exist(cursor):
@@ -217,15 +252,18 @@ def load_completed_exercise_progression_sessions(
             if replacement_name is not None
             else _nullable_int(row["planned_catalog_exercise_id"])
         )
-        if (
-            catalog_exercise_id is not None
-            and effective_catalog_exercise_id is not None
-        ):
-            identity_matches = effective_catalog_exercise_id == int(catalog_exercise_id)
-        else:
-            identity_matches = _normalize_name(effective_name) == normalized_target
-        if not identity_matches:
-            continue
+        if normalized_target is not None or catalog_exercise_id is not None:
+            if (
+                catalog_exercise_id is not None
+                and effective_catalog_exercise_id is not None
+            ):
+                identity_matches = effective_catalog_exercise_id == int(
+                    catalog_exercise_id
+                )
+            else:
+                identity_matches = _normalize_name(effective_name) == normalized_target
+            if not identity_matches:
+                continue
 
         actual_rows = cursor.execute(
             """
@@ -273,11 +311,43 @@ def load_completed_exercise_progression_sessions(
                 actual_rows=[dict(actual) for actual in actual_rows],
             )
         )
-        if len(matches) >= max(1, int(limit)):
+        if limit is not None and len(matches) >= limit:
             break
 
     conn.close()
     return matches
+
+
+def summarize_exercise_progression_session(
+    session: ExerciseProgressionSession,
+) -> WorkoutExerciseRecentSession:
+    """Return the existing deterministic compact session summary."""
+
+    return _summarize_recent_session(session)
+
+
+def select_recent_best_set(
+    sessions: list[ExerciseProgressionSession],
+) -> WorkoutExerciseBestSet | None:
+    """Apply the existing public recent-best-set semantics to loaded evidence."""
+
+    return _best_set(sessions)
+
+
+def classify_exercise_history_logging_quality(
+    sessions: list[ExerciseProgressionSession],
+) -> str:
+    """Classify exercise-history completeness without changing its semantics."""
+
+    return _logging_quality(sessions)
+
+
+def completed_exercise_actual_rows(
+    session: ExerciseProgressionSession,
+) -> list[dict[str, Any]]:
+    """Return completed, non-skipped rows for factual descriptive analytics."""
+
+    return _completed_rows(session.actual_rows)
 
 
 def _summarize_recent_session(
