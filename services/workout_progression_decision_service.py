@@ -127,7 +127,7 @@ def build_exercise_progression_decision(
         )
 
     second = _classify_session(sessions[1]) if len(sessions) > 1 else None
-    reference_weight = _consistent_reference_weight(latest.required_rows)
+    reference_weight = comparable_working_weight(sessions[0])
     reference_reason = (
         "consistent_reference_weight_available"
         if reference_weight is not None
@@ -345,6 +345,17 @@ def _consistent_reference_weight(rows: list[dict[str, Any]]) -> float | None:
     if not weights or any(weight != weights[0] for weight in weights[1:]):
         return None
     return weights[0]
+
+
+def comparable_working_weight(
+    session: ExerciseProgressionSession,
+) -> float | None:
+    """Return one conservative comparable load using progression eligibility."""
+
+    classified = _classify_session(session)
+    if classified is None:
+        return None
+    return _consistent_reference_weight(classified.required_rows)
 
 
 def _recovery_brakes(recovery: RecoveryIntelligenceV2Summary) -> bool:

@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Nutrition Gap Actions UX & Variety v1.1",
-    "current_recommended_milestone": "Exercise History & Progress Analytics v1",
+    "current_authorized_milestone": "Exercise History & Progress Analytics v1",
+    "current_recommended_milestone": "Post-History Roadmap Selection",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "NUTRITION_GAP_ACTIONS_UX_VARIETY_V1_1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should workout history and progression data become useful user-facing training insight without cluttering active workout execution?",
+    "implementation_status": "EXERCISE_HISTORY_PROGRESS_ANALYTICS_V1_ARCHITECTURE_ACCEPTED",
+    "primary_question": "Which highest-value candidate should follow Exercise History now that the longitudinal training foundation exists?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "Exercise History & Progress Analytics v1",
+    "recommended_next_milestone_after_acceptance": "Post-History Roadmap Selection",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/nutrition-gap-actions-ux-variety-v1-1",
+    "source_feature_branch": "feature/exercise-history-progress-analytics-v1",
     "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "36d5608"
+    "source_main_commit": "80f7209"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -2188,5 +2188,31 @@
     "db_path_runtime_isolation_not_supported": true,
     "next_recommended_milestone": "Exercise History & Progress Analytics v1",
     "next_milestone_implementation_authorized": false
+  },
+  "exercise_history_progress_analytics_v1": {
+    "baseline_commit": "80f7209",
+    "feature_branch": "feature/exercise-history-progress-analytics-v1",
+    "status": "EXERCISE_HISTORY_PROGRESS_ANALYTICS_V1_ARCHITECTURE_ACCEPTED",
+    "read_only_history": true,
+    "completed_planned_workout_truth": true,
+    "bounded_history_analytics": true,
+    "substitution_aware_identity": true,
+    "stable_catalog_identity": true,
+    "reusable_longitudinal_primitives": true,
+    "conservative_working_load_trends": true,
+    "incomplete_logging_safeguards": true,
+    "private_history_data_excluded": true,
+    "backend_change": true,
+    "frontend_change": true,
+    "api_change": true,
+    "database_change": false,
+    "schema_change": false,
+    "feature_branch_smoke_passed": true,
+    "mobile_smoke_passed": true,
+    "desktop_smoke_passed": true,
+    "light_dark_smoke_passed": true,
+    "idea_vault_checkpoint_completed": true,
+    "next_product_milestone": "Post-History Roadmap Selection",
+    "next_product_milestone_authorized": false
   }
 }

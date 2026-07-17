@@ -1,3 +1,45 @@
+# Current State - Exercise History & Progress Analytics v1
+
+Canonical implementation baseline before merge: main at 80f7209.
+
+Feature branch: feature/exercise-history-progress-analytics-v1.
+
+Status: EXERCISE_HISTORY_PROGRESS_ANALYTICS_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Workout now provides Today, Week, and History views without adding another primary mobile navigation item.
+- The dedicated History experience exposes bounded read-only analytics from completed planned-workout execution truth.
+- History overview reports completed workouts, completed non-skipped sets, distinct effective exercises, and the most recent completed workout date.
+- Exercise history aggregation is substitution-aware and reflects the exercise actually performed.
+- Catalog-backed exercise identity remains stable when later same-name historical sessions lack a catalog ID.
+- Exercise summaries expose bounded recent sessions, recent best logged set context, logging-quality limitations, and conservative comparable working-load trends.
+- Recent working-load trends use neutral higher_recently, steady, lower_recently, and insufficient_data semantics without physiological claims.
+- Incomplete historical logging remains incomplete rather than being fabricated as zero or converted into false progression signals.
+- Public history contracts exclude private notes, raw database rows, unnecessary internal IDs, and debug metadata.
+- Existing active-workout intelligence remains compact: empty Previous Performance and insufficient-data Next Target surfaces stay hidden.
+- Mobile and desktop production behavior, Light and Dark themes, navigation, user switching, exercise selection, and responsive layout passed feature-branch user smoke.
+
+Architecture boundaries preserved:
+
+- No schema migration or analytics persistence was introduced.
+- No estimated 1RM, universal strength score, AI interpretation, cross-domain correlation, plateau detection, or predictive analytics were added.
+- Existing progression-decision behavior remains authoritative and unchanged in product semantics.
+- Automated validation used isolated databases and the controlled canonical database hash window remained unchanged.
+
+Strategic direction:
+
+- Exercise History is the first deliberate user-facing foundation for reusable longitudinal training intelligence.
+- Future intelligence should continue building from persisted truth to deterministic metrics before pattern discovery, structured insights, or AI explanation.
+- The Idea Vault roadmap checkpoint was completed before this milestone and reinforced the value of this sequencing.
+
+Roadmap status:
+
+Exercise History & Progress Analytics v1 is accepted.
+The next product milestone has not yet been implementation-authorized.
+Near-term candidates for reassessment include Weight-Trend Smoothing, Workout Session Memory, Exercise Familiarity and Preference Profiles, Injury or Temporary Limitation Mode, and Food Preference Learning.
+
+---
 # Current State - Nutrition Gap Actions UX & Variety v1.1
 
 Canonical implementation baseline before merge: main at 36d5608.

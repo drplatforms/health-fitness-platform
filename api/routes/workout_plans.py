@@ -1,7 +1,7 @@
 from dataclasses import asdict
 from datetime import date
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from services.exercise_substitution_service import (
@@ -29,6 +29,15 @@ from services.weekly_training_plan_service import (
 from services.workout_daily_state_service import (
     get_current_day_execution_state,
     resolve_workout_daily_state,
+)
+from services.workout_exercise_history_analytics_service import (
+    DEFAULT_ANALYTICS_EXERCISE_LIMIT,
+    DEFAULT_ANALYTICS_LOOKBACK_DAYS,
+    DEFAULT_ANALYTICS_SESSION_LIMIT,
+    MAX_ANALYTICS_EXERCISE_LIMIT,
+    MAX_ANALYTICS_LOOKBACK_DAYS,
+    MAX_ANALYTICS_SESSION_LIMIT,
+    build_workout_exercise_history_analytics,
 )
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
@@ -319,6 +328,42 @@ def workout_progression_decisions(
         "user_id": user_id,
         "target_date": target_date,
         "progression_decisions": [asdict(decision) for decision in decisions],
+    }
+
+
+@router.get("/workout-plans/{user_id}/exercise-history-analytics")
+def workout_exercise_history_analytics(
+    user_id: int,
+    lookback_days: int = Query(
+        DEFAULT_ANALYTICS_LOOKBACK_DAYS,
+        ge=1,
+        le=MAX_ANALYTICS_LOOKBACK_DAYS,
+    ),
+    exercise_limit: int = Query(
+        DEFAULT_ANALYTICS_EXERCISE_LIMIT,
+        ge=1,
+        le=MAX_ANALYTICS_EXERCISE_LIMIT,
+    ),
+    session_limit: int = Query(
+        DEFAULT_ANALYTICS_SESSION_LIMIT,
+        ge=1,
+        le=MAX_ANALYTICS_SESSION_LIMIT,
+    ),
+):
+    analytics = build_workout_exercise_history_analytics(
+        user_id=user_id,
+        lookback_days=lookback_days,
+        exercise_limit=exercise_limit,
+        session_limit=session_limit,
+    )
+    return {
+        "success": True,
+        "user_id": user_id,
+        "lookback_days": lookback_days,
+        "exercise_limit": exercise_limit,
+        "session_limit": session_limit,
+        "overview": asdict(analytics.overview),
+        "exercises": [asdict(exercise) for exercise in analytics.exercises],
     }
 
 

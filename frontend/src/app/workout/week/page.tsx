@@ -7,6 +7,7 @@ import { WeeklyTrainingPlanner } from "@/components/WeeklyTrainingPlanner";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
 import { buildTodayWorkoutHref } from "@/lib/todayWorkoutApi";
 import { buildWeeklyWorkoutHref } from "@/lib/weeklyTrainingPlanApi";
+import { buildWorkoutHistoryHref } from "@/lib/workoutExerciseHistoryApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -40,6 +41,7 @@ export default async function WeeklyWorkoutPage({
               <nav aria-label="Workout view" className="mt-2 flex rounded-xl bg-surface/75 p-1 text-sm font-semibold">
                 <Link href={buildTodayWorkoutHref({ userId })} className="rounded-lg px-4 py-1.5 text-text-body hover:bg-surface-muted">Today</Link>
                 <Link href={buildWeeklyWorkoutHref(userId, initialWeekStartDate)} aria-current="page" className="rounded-lg bg-action-primary px-4 py-1.5 text-action-primary-foreground">Week</Link>
+                <Link href={buildWorkoutHistoryHref(userId)} className="rounded-lg px-4 py-1.5 text-text-body hover:bg-surface-muted">History</Link>
               </nav>
             </div>
             <ThemePreferenceControl />
