@@ -9,6 +9,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, BeforeValidator
 
 from models.personal_food_models import PersonalFoodRevisionInput
+from models.saved_meal_models import (
+    SavedMealItemInput,
+    SavedMealMutationInput,
+)
 from services.food_logging_recents_service import get_recent_canonical_foods
 from services.nutrition_actuals_confidence_service import (
     build_public_nutrition_actuals_confidence_for_date,
@@ -54,6 +58,19 @@ from services.personal_food_service import (
     restore_personal_food,
     revise_personal_food,
     search_personal_foods,
+)
+from services.saved_meal_logging_service import log_saved_meal
+from services.saved_meal_service import (
+    SavedMealArchivedError,
+    SavedMealDuplicateNameError,
+    SavedMealNotFoundError,
+    SavedMealValidationError,
+    archive_saved_meal,
+    create_saved_meal,
+    get_saved_meal,
+    list_saved_meals,
+    restore_saved_meal,
+    update_saved_meal,
 )
 
 # =====================================
@@ -152,6 +169,27 @@ class PersonalFoodLogUpdateRequest(BaseModel):
     serving_quantity: PersonalFoodNumber | None = None
     meal_type: str | None = None
     entry_date: str | None = None
+
+
+class SavedMealItemRequest(BaseModel):
+    food_type: str
+    canonical_food_id: PersonalFoodId | None = None
+    personal_food_id: PersonalFoodId | None = None
+    grams: PersonalFoodNumber | None = None
+    serving_unit_id: PersonalFoodId | None = None
+    serving_quantity: PersonalFoodNumber | None = None
+    personal_serving_quantity: PersonalFoodNumber | None = None
+
+
+class SavedMealMutationRequest(BaseModel):
+    display_name: str
+    default_meal_type: str | None = None
+    items: list[SavedMealItemRequest]
+
+
+class SavedMealLogRequest(BaseModel):
+    entry_date: str
+    meal_type: str | None = None
 
 
 # =====================================
@@ -309,6 +347,174 @@ def recent_canonical_foods(user_id: int, limit: str = "10"):
         "user_id": user_id,
         "results": get_recent_canonical_foods(user_id=user_id, limit=limit),
     }
+
+
+# =====================================
+# Saved Meal Endpoints
+# =====================================
+
+
+@router.post("/nutrition/{user_id}/saved-meals")
+def create_owned_saved_meal(user_id: int, request: SavedMealMutationRequest):
+    try:
+        saved_meal = create_saved_meal(
+            user_id=user_id,
+            mutation=_saved_meal_mutation_input(request),
+        )
+    except SavedMealDuplicateNameError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except PersonalFoodUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "saved_meal": saved_meal.to_public_dict(),
+    }
+
+
+@router.get("/nutrition/{user_id}/saved-meals")
+def list_owned_saved_meals(
+    user_id: int,
+    include_archived: bool = False,
+    limit: int = 100,
+):
+    try:
+        saved_meals = list_saved_meals(
+            user_id=user_id,
+            include_archived=include_archived,
+            limit=limit,
+        )
+    except PersonalFoodUserNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": [meal.to_public_dict() for meal in saved_meals],
+    }
+
+
+@router.get("/nutrition/{user_id}/saved-meals/{saved_meal_id}")
+def read_owned_saved_meal(user_id: int, saved_meal_id: int):
+    try:
+        saved_meal = get_saved_meal(
+            user_id=user_id,
+            saved_meal_id=saved_meal_id,
+        )
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "saved_meal": saved_meal.to_public_dict(),
+    }
+
+
+@router.patch("/nutrition/{user_id}/saved-meals/{saved_meal_id}")
+def update_owned_saved_meal(
+    user_id: int,
+    saved_meal_id: int,
+    request: SavedMealMutationRequest,
+):
+    try:
+        saved_meal = update_saved_meal(
+            user_id=user_id,
+            saved_meal_id=saved_meal_id,
+            mutation=_saved_meal_mutation_input(request),
+        )
+    except SavedMealDuplicateNameError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "saved_meal": saved_meal.to_public_dict(),
+    }
+
+
+@router.post("/nutrition/{user_id}/saved-meals/{saved_meal_id}/archive")
+def archive_owned_saved_meal(user_id: int, saved_meal_id: int):
+    return _set_owned_saved_meal_active(
+        user_id=user_id,
+        saved_meal_id=saved_meal_id,
+        restore=False,
+    )
+
+
+@router.post("/nutrition/{user_id}/saved-meals/{saved_meal_id}/restore")
+def restore_owned_saved_meal(user_id: int, saved_meal_id: int):
+    return _set_owned_saved_meal_active(
+        user_id=user_id,
+        saved_meal_id=saved_meal_id,
+        restore=True,
+    )
+
+
+@router.post("/nutrition/{user_id}/saved-meals/{saved_meal_id}/log")
+def log_owned_saved_meal(
+    user_id: int,
+    saved_meal_id: int,
+    request: SavedMealLogRequest,
+):
+    try:
+        logged = log_saved_meal(
+            user_id=user_id,
+            saved_meal_id=saved_meal_id,
+            entry_date=request.entry_date,
+            meal_type=request.meal_type,
+        )
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (SavedMealArchivedError, SavedMealValidationError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "user_id": user_id, **logged}
+
+
+def _set_owned_saved_meal_active(*, user_id: int, saved_meal_id: int, restore: bool):
+    try:
+        saved_meal = (
+            restore_saved_meal(user_id=user_id, saved_meal_id=saved_meal_id)
+            if restore
+            else archive_saved_meal(user_id=user_id, saved_meal_id=saved_meal_id)
+        )
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "saved_meal": saved_meal.to_public_dict(),
+    }
+
+
+def _saved_meal_mutation_input(
+    request: SavedMealMutationRequest,
+) -> SavedMealMutationInput:
+    return SavedMealMutationInput(
+        display_name=request.display_name,
+        default_meal_type=request.default_meal_type,
+        items=tuple(
+            SavedMealItemInput(
+                food_type=item.food_type,
+                canonical_food_id=item.canonical_food_id,
+                personal_food_id=item.personal_food_id,
+                grams=item.grams,
+                serving_unit_id=item.serving_unit_id,
+                serving_quantity=item.serving_quantity,
+                personal_serving_quantity=item.personal_serving_quantity,
+            )
+            for item in request.items
+        ),
+    )
 
 
 # =====================================

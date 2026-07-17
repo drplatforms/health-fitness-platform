@@ -4,6 +4,7 @@ import { KeyboardEvent, PointerEvent, useId, useRef, useState } from "react";
 
 import { FoodLoggingCard } from "@/components/FoodLoggingCard";
 import { PersonalFoodsList } from "@/components/PersonalFoodsList";
+import { SavedMealsPanel } from "@/components/SavedMealsPanel";
 
 import styles from "./FoodWorkspaceDeck.module.css";
 
@@ -13,7 +14,7 @@ interface FoodWorkspaceDeckProps {
   requestedDate?: string;
 }
 
-type FoodWorkspacePanel = "log" | "personal";
+type FoodWorkspacePanel = "log" | "meals" | "personal";
 
 interface PointerStart {
   pointerId: number;
@@ -23,6 +24,7 @@ interface PointerStart {
 }
 
 const SWIPE_THRESHOLD_PX = 48;
+const PANEL_ORDER: FoodWorkspacePanel[] = ["log", "meals", "personal"];
 
 export function FoodWorkspaceDeck({
   userId,
@@ -32,6 +34,7 @@ export function FoodWorkspaceDeck({
   const [activePanel, setActivePanel] = useState<FoodWorkspacePanel>("log");
   const id = useId();
   const logTabRef = useRef<HTMLButtonElement>(null);
+  const mealsTabRef = useRef<HTMLButtonElement>(null);
   const personalTabRef = useRef<HTMLButtonElement>(null);
   const pointerStartRef = useRef<PointerStart | null>(null);
   const suppressClickRef = useRef(false);
@@ -40,7 +43,11 @@ export function FoodWorkspaceDeck({
     setActivePanel(panel);
     if (moveFocus) {
       window.requestAnimationFrame(() => {
-        (panel === "log" ? logTabRef : personalTabRef).current?.focus();
+        ({
+          log: logTabRef,
+          meals: mealsTabRef,
+          personal: personalTabRef,
+        })[panel].current?.focus();
       });
     }
   }
@@ -48,10 +55,15 @@ export function FoodWorkspaceDeck({
   function handleTabKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
     let nextPanel: FoodWorkspacePanel | null = null;
 
-    if (event.key === "ArrowLeft" || event.key === "Home") {
-      nextPanel = "log";
-    } else if (event.key === "ArrowRight" || event.key === "End") {
-      nextPanel = "personal";
+    const currentIndex = PANEL_ORDER.indexOf(activePanel);
+    if (event.key === "Home") {
+      nextPanel = PANEL_ORDER[0];
+    } else if (event.key === "End") {
+      nextPanel = PANEL_ORDER[PANEL_ORDER.length - 1];
+    } else if (event.key === "ArrowLeft") {
+      nextPanel = PANEL_ORDER[Math.max(0, currentIndex - 1)];
+    } else if (event.key === "ArrowRight") {
+      nextPanel = PANEL_ORDER[Math.min(PANEL_ORDER.length - 1, currentIndex + 1)];
     }
 
     if (nextPanel) {
@@ -115,7 +127,12 @@ export function FoodWorkspaceDeck({
     }
 
     suppressClickRef.current = true;
-    activatePanel(deltaX < 0 ? "personal" : "log");
+    const currentIndex = PANEL_ORDER.indexOf(activePanel);
+    const nextIndex = Math.min(
+      PANEL_ORDER.length - 1,
+      Math.max(0, currentIndex + (deltaX < 0 ? 1 : -1)),
+    );
+    activatePanel(PANEL_ORDER[nextIndex]);
     window.setTimeout(() => {
       suppressClickRef.current = false;
     }, 0);
@@ -164,6 +181,23 @@ export function FoodWorkspaceDeck({
           <span className={styles.tabHint}>Search and log</span>
         </button>
         <button
+          ref={mealsTabRef}
+          id={`${id}-meals-tab`}
+          type="button"
+          role="tab"
+          aria-selected={activePanel === "meals"}
+          aria-controls={`${id}-meals-panel`}
+          tabIndex={activePanel === "meals" ? 0 : -1}
+          onClick={() => activatePanel("meals")}
+          onKeyDown={handleTabKeyDown}
+          className={`${styles.tab} ${
+            activePanel === "meals" ? styles.activeTab : styles.inactiveTab
+          }`}
+        >
+          <span className={styles.tabLabel}>Meals</span>
+          <span className={styles.tabHint}>Build and reuse</span>
+        </button>
+        <button
           ref={personalTabRef}
           id={`${id}-personal-tab`}
           type="button"
@@ -196,6 +230,15 @@ export function FoodWorkspaceDeck({
             navigationDate={requestedDate}
             variant="embedded"
           />
+        </div>
+        <div
+          id={`${id}-meals-panel`}
+          role="tabpanel"
+          aria-labelledby={`${id}-meals-tab`}
+          hidden={activePanel !== "meals"}
+          className={styles.panel}
+        >
+          <SavedMealsPanel userId={userId} targetDate={targetDate} />
         </div>
         <div
           id={`${id}-personal-panel`}

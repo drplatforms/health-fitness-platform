@@ -1,3 +1,47 @@
+# Current State - Meal Builder v1
+
+Canonical implementation baseline before merge: main at 5fa99e4.
+
+Feature branch: feature/meal-builder-v1.
+
+Status: MEAL_BUILDER_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Users can create, edit, reorder, archive, restore, and reuse saved meal templates.
+- Saved meals are strictly user-owned.
+- Meals may contain both canonical foods and user-owned personal foods.
+- Saved meal items preserve stable resolved gram quantities while retaining serving provenance where useful.
+- Future meal summaries and logs use current canonical nutrition truth and the current active personal-food revision.
+- Historical food entries remain immutable snapshots and are not rewritten when a saved meal or personal food changes.
+- Whole-meal logging is transactional and creates normal individual food entries for every component.
+- Logged meal components immediately participate in existing Logged Foods, nutrition totals, recents, and individual edit/delete behavior.
+- Saved meals support optional default meal types and explicit meal-type overrides.
+- The dedicated Food workspace now includes Log Food, Meals, and My Foods workflows.
+- Meal logging and editing were validated on mobile and desktop in production mode.
+- Existing text food search, barcode scanning, personal foods, serving-unit logging, and logged-food workflows remain functional.
+- Required feature-branch automated validation, isolated production smoke, and user acceptance smoke passed.
+
+Architecture boundaries preserved:
+
+- No parallel meal nutrition-total subsystem was introduced.
+- No recipe yield, preparation, grocery-list, meal-planning, or AI meal-generation scope was added.
+- No logged-meal grouping/history entity was added.
+
+Near-term follow-up:
+
+- Refresh the GitHub README and repository presentation so public-facing documentation reflects the current working system.
+- Continue treating the application as an actively developed project rather than a finished portfolio product.
+- Richer deterministic QA seed data remains recommended before future milestones that require broad scenario coverage.
+
+Roadmap status:
+
+Meal Builder v1 is accepted.
+The immediate recommended follow-up is GitHub README and project presentation refresh.
+Weekly Training Planner v1 remains the next recommended major product milestone after that documentation pass.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Mobile Daily-Driver Navigation & Compaction v1
 
 Canonical implementation baseline before merge: main at e56bd61.
