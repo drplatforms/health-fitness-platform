@@ -39,6 +39,11 @@ import {
   workoutExerciseMemoryIdentityKey,
 } from "@/lib/workoutExerciseMemoryApi";
 import {
+  dedupeWorkoutExerciseProfileIds,
+  fetchWorkoutExerciseProfiles,
+  mapWorkoutExerciseProfileResolutions,
+} from "@/lib/workoutExerciseProfileApi";
+import {
   ApprovedWorkoutPlanPreview,
   PlannedWorkoutExerciseSummary,
   WorkoutActiveSubstitutionSummary,
@@ -60,6 +65,7 @@ import {
   WorkoutExerciseMemory as WorkoutExerciseMemoryValue,
   WorkoutExerciseMemoryIdentity,
 } from "@/types/workoutExerciseMemory";
+import type { WorkoutExerciseProfile } from "@/types/workoutExerciseProfile";
 
 const workoutToneMap: Record<
   string,
@@ -97,6 +103,11 @@ interface ActualSetFormState {
 interface ExerciseMemoryState {
   scopeKey: string;
   byIdentityKey: Record<string, WorkoutExerciseMemoryValue | null>;
+}
+
+interface ExerciseProfileState {
+  scopeKey: string;
+  byCatalogId: Record<number, WorkoutExerciseProfile | null>;
 }
 
 interface ExerciseActualsSummary {
@@ -953,6 +964,8 @@ export function WorkoutPreviewExperience({
     useState<Record<string, WorkoutProgressionDecision>>({});
   const [exerciseMemoryState, setExerciseMemoryState] =
     useState<ExerciseMemoryState>({ scopeKey: "", byIdentityKey: {} });
+  const [exerciseProfileState, setExerciseProfileState] =
+    useState<ExerciseProfileState>({ scopeKey: "", byCatalogId: {} });
   const [formStateByExerciseId, setFormStateByExerciseId] = useState<
     Record<number, ActualSetFormState>
   >({});
@@ -1036,6 +1049,20 @@ export function WorkoutPreviewExperience({
   const exerciseMemoryByIdentityKey =
     exerciseMemoryState.scopeKey === exerciseMemoryScopeKey
       ? exerciseMemoryState.byIdentityKey
+      : {};
+  const visibleExerciseProfileCatalogIds = useMemo(
+    () =>
+      dedupeWorkoutExerciseProfileIds(
+        visibleExerciseMemoryIdentities.map(
+          (identity) => identity.catalog_exercise_id,
+        ),
+      ),
+    [visibleExerciseMemoryIdentities],
+  );
+  const exerciseProfileScopeKey = `${userId}:${requestedDate ?? "live"}:${viewMode}:${previewVariationIndex}:${visibleExerciseProfileCatalogIds.join("|")}`;
+  const exerciseProfileByCatalogId =
+    exerciseProfileState.scopeKey === exerciseProfileScopeKey
+      ? exerciseProfileState.byCatalogId
       : {};
   const exerciseActualsSummaries = buildExerciseActualsSummaries(
     plannedExercises,
@@ -1149,6 +1176,53 @@ export function WorkoutPreviewExperience({
             byIdentityKey: {
               ...current.byIdentityKey,
               [identityKey]: memory,
+            },
+          }
+        : current,
+    );
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!visibleExerciseProfileCatalogIds.length) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    async function loadExerciseProfiles() {
+      const result = await fetchWorkoutExerciseProfiles(
+        userId,
+        visibleExerciseProfileCatalogIds,
+      );
+      if (cancelled || result.error || !result.data) {
+        return;
+      }
+      setExerciseProfileState({
+        scopeKey: exerciseProfileScopeKey,
+        byCatalogId: mapWorkoutExerciseProfileResolutions(
+          result.data.resolved_exercises,
+        ),
+      });
+    }
+
+    void loadExerciseProfiles();
+    return () => {
+      cancelled = true;
+    };
+  }, [exerciseProfileScopeKey, userId, visibleExerciseProfileCatalogIds]);
+
+  function updateExerciseProfileState(
+    catalogExerciseId: number,
+    profile: WorkoutExerciseProfile | null,
+  ) {
+    setExerciseProfileState((current) =>
+      current.scopeKey === exerciseProfileScopeKey
+        ? {
+            ...current,
+            byCatalogId: {
+              ...current.byCatalogId,
+              [catalogExerciseId]: profile,
             },
           }
         : current,
@@ -2624,6 +2698,15 @@ export function WorkoutPreviewExperience({
                           catalogExerciseId={displayedCatalogExerciseId}
                           exerciseName={displayExerciseName}
                           isExpanded={isInstructionExpanded}
+                          userId={userId}
+                          profile={
+                            displayedCatalogExerciseId === null
+                              ? undefined
+                              : exerciseProfileByCatalogId[
+                                  displayedCatalogExerciseId
+                                ]
+                          }
+                          canEditProfile={isHistoricalReadOnly === false}
                           onExpandedChange={(nextIsExpanded) =>
                             setExpandedInstructionKey((current) =>
                               nextIsExpanded
@@ -2633,6 +2716,14 @@ export function WorkoutPreviewExperience({
                                   : current,
                             )
                           }
+                          onProfileChanged={(profile) => {
+                            if (displayedCatalogExerciseId !== null) {
+                              updateExerciseProfileState(
+                                displayedCatalogExerciseId,
+                                profile,
+                              );
+                            }
+                          }}
                         />
                       </div>
                       {activeSubstitution ? (
@@ -3148,6 +3239,15 @@ export function WorkoutPreviewExperience({
                           catalogExerciseId={exercise.catalog_exercise_id}
                           exerciseName={exercise.name}
                           isExpanded={isInstructionExpanded}
+                          userId={userId}
+                          profile={
+                            exercise.catalog_exercise_id === null
+                              ? undefined
+                              : exerciseProfileByCatalogId[
+                                  exercise.catalog_exercise_id
+                                ]
+                          }
+                          canEditProfile={isHistoricalReadOnly === false}
                           onExpandedChange={(nextIsExpanded) =>
                             setExpandedInstructionKey((current) =>
                               nextIsExpanded
@@ -3157,6 +3257,14 @@ export function WorkoutPreviewExperience({
                                   : current,
                             )
                           }
+                          onProfileChanged={(profile) => {
+                            if (exercise.catalog_exercise_id !== null) {
+                              updateExerciseProfileState(
+                                exercise.catalog_exercise_id,
+                                profile,
+                              );
+                            }
+                          }}
                         />
                       </div>
                       <div

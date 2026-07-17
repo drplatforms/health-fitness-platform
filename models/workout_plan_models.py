@@ -29,6 +29,7 @@ class WorkoutContext:
     weekly_session_title: str | None = None
     weekly_session_focus: str | None = None
     weekly_session_override: bool = False
+    exercise_preference_by_catalog_id: dict[int, str] = field(default_factory=dict)
 
 
 @dataclass

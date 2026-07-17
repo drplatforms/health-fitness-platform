@@ -1,3 +1,26 @@
+# Current State - Exercise Familiarity & Preference Profiles v1
+
+Canonical implementation baseline before merge: main at 58dee0e.
+
+Feature branch: feature/exercise-familiarity-preference-profiles-v1.
+
+Status: EXERCISE_FAMILIARITY_PREFERENCE_PROFILES_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Users explicitly manage catalog-backed exercise familiarity and preference profiles.
+- Familiarity states are unfamiliar, learning, familiar, or unset.
+- Preference states are favorite, disliked, or neutral.
+- Familiarity adapts the opt-in instruction affordance without cluttering resting workout cards.
+- Favorite and disliked provide bounded deterministic ranking influence without overriding hard eligibility or stronger rotation safeguards.
+- Substitution preference ordering remains subordinate to movement, muscle, and exercise-type compatibility.
+- Active substitutions use the replacement exercise profile.
+- Historical workout surfaces do not expose editable current profile controls.
+- Feature-branch production user smoke passed with clean mobile and desktop resting-state UX.
+
+No subsequent product milestone is implementation-authorized.
+
+---
 # Current State - Workout Session Memory v1
 
 Canonical implementation baseline before merge: main at c9c6d22.
