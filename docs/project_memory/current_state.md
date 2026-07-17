@@ -1,3 +1,25 @@
+# Current State - GitHub README and Project Presentation Refresh
+
+Canonical baseline before refresh: main at df5abc8.
+
+Documentation branch: docs/readme-refresh-v1.
+
+Status: GITHUB_README_PROJECT_PRESENTATION_REFRESH_V1_ACCEPTED
+
+Accepted outcome:
+
+- The root README now reflects the current Health & Fitness Platform rather than the earlier AI Health Coach-era project state.
+- Current nutrition, barcode scanning, saved meals, workout execution, exercise guidance, substitutions, adaptive progression, recovery intelligence, and mobile workspace capabilities are represented.
+- The README explains the deterministic backend architecture, historical-correctness principles, external food-data integration, current technology stack, local setup, validation workflow, and active-development status.
+- Public-facing language remains grounded and does not present the application as a finished commercial healthcare product or finished portfolio piece.
+
+Roadmap status:
+
+The GitHub README and project presentation refresh is complete.
+Weekly Training Planner v1 is the next recommended major product milestone.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Meal Builder v1
 
 Canonical implementation baseline before merge: main at 5fa99e4.

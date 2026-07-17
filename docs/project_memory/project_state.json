@@ -70,17 +70,17 @@
   "active_roadmap": {
     "baseline_snapshot": "fitness_ai_snapshot_2026-07-15_5c9ae9e_main_merge-desktop-workout-layout-explanation-polish-v1.zip",
     "commit_check_mode": "code",
-    "current_authorized_milestone": "Meal Builder v1",
-    "current_recommended_milestone": "GitHub README and Project Presentation Refresh",
+    "current_authorized_milestone": "None",
+    "current_recommended_milestone": "Weekly Training Planner v1",
     "current_recommended_status": "NOT_IMPLEMENTATION_AUTHORIZED",
-    "implementation_status": "MEAL_BUILDER_V1_ARCHITECTURE_ACCEPTED",
-    "primary_question": "How should the public repository presentation accurately explain the platform's current architecture and capabilities without presenting it as a finished portfolio product?",
+    "implementation_status": "NO_PRODUCT_MILESTONE_AUTHORIZED",
+    "primary_question": "How should Weekly Training Planner v1 turn existing workout generation, execution history, adaptive progression, and recovery state into a coherent weekly training structure?",
     "qa_class": "CROSS_DAY_DATE_SCOPING_REGRESSION",
-    "recommended_next_milestone_after_acceptance": "GitHub README and Project Presentation Refresh",
+    "recommended_next_milestone_after_acceptance": "Weekly Training Planner v1",
     "recommended_owner": "Architecture",
-    "source_feature_branch": "feature/meal-builder-v1",
-    "source_feature_commit": "uncommitted accepted implementation",
-    "source_main_commit": "5fa99e4"
+    "source_feature_branch": "docs/readme-refresh-v1",
+    "source_feature_commit": "uncommitted accepted documentation refresh",
+    "source_main_commit": "df5abc8"
   },
   "exercise_instruction_contract_persistence_v1": {
     "baseline_commit": "c0b7fbb",
@@ -2059,5 +2059,14 @@
     "immediate_follow_up": "GitHub README and project presentation refresh",
     "next_product_milestone": "Weekly Training Planner v1",
     "next_product_milestone_authorized": false
+  },
+  "github_readme_project_presentation_refresh_v1": {
+    "baseline_commit": "df5abc8",
+    "branch": "docs/readme-refresh-v1",
+    "status": "GITHUB_README_PROJECT_PRESENTATION_REFRESH_V1_ACCEPTED",
+    "root_readme_refreshed": true,
+    "public_project_story_updated": true,
+    "active_development_positioning_preserved": true,
+    "product_code_change": false
   }
 }
