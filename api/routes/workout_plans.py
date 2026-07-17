@@ -39,6 +39,17 @@ from services.workout_exercise_history_analytics_service import (
     MAX_ANALYTICS_SESSION_LIMIT,
     build_workout_exercise_history_analytics,
 )
+from services.workout_exercise_memory_service import (
+    MAX_WORKOUT_EXERCISE_MEMORY_BATCH_SIZE,
+    MAX_WORKOUT_EXERCISE_MEMORY_CHARACTERS,
+    MAX_WORKOUT_EXERCISE_NAME_CHARACTERS,
+    WorkoutExerciseMemoryConflictError,
+    WorkoutExerciseMemoryNotFoundError,
+    WorkoutExerciseMemoryValidationError,
+    delete_workout_exercise_memory,
+    resolve_workout_exercise_memories,
+    save_workout_exercise_memory,
+)
 from services.workout_plan_persistence_service import (
     WorkoutPlanInvalidStatusError,
     WorkoutPlanNotFoundError,
@@ -117,6 +128,29 @@ class WorkoutProgressionHistoryPayload(BaseModel):
     limit: int = DEFAULT_HISTORY_LIMIT
 
 
+class WorkoutExerciseMemoryIdentityPayload(BaseModel):
+    catalog_exercise_id: int | None = Field(default=None, ge=1)
+    exercise_name: str = Field(
+        min_length=1,
+        max_length=MAX_WORKOUT_EXERCISE_NAME_CHARACTERS,
+    )
+
+
+class WorkoutExerciseMemoryResolvePayload(BaseModel):
+    exercises: list[WorkoutExerciseMemoryIdentityPayload] = Field(
+        min_length=1,
+        max_length=MAX_WORKOUT_EXERCISE_MEMORY_BATCH_SIZE,
+    )
+
+
+class WorkoutExerciseMemorySavePayload(WorkoutExerciseMemoryIdentityPayload):
+    memory_id: int | None = Field(default=None, ge=1)
+    memory_text: str = Field(
+        min_length=1,
+        max_length=MAX_WORKOUT_EXERCISE_MEMORY_CHARACTERS,
+    )
+
+
 class WorkoutProgressionDecisionExercisePayload(BaseModel):
     exercise_name: str = Field(min_length=1)
     catalog_exercise_id: int | None = None
@@ -153,6 +187,16 @@ def _raise_weekly_training_plan_http_error(exc: Exception) -> None:
     if isinstance(exc, WeeklyTrainingPlanProtectedDateError):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     if isinstance(exc, WeeklyTrainingPlanValidationError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise exc
+
+
+def _raise_workout_exercise_memory_http_error(exc: Exception) -> None:
+    if isinstance(exc, WorkoutExerciseMemoryNotFoundError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, WorkoutExerciseMemoryConflictError):
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if isinstance(exc, WorkoutExerciseMemoryValidationError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     raise exc
 
@@ -296,6 +340,68 @@ def workout_progression_history(
         "user_id": user_id,
         "lookback_days": payload.lookback_days,
         "exercise_histories": [asdict(history) for history in histories],
+    }
+
+
+@router.post("/workout-plans/{user_id}/exercise-memories/resolve")
+def workout_exercise_memory_resolve(
+    user_id: int,
+    payload: WorkoutExerciseMemoryResolvePayload,
+):
+    try:
+        resolutions = resolve_workout_exercise_memories(
+            user_id,
+            [exercise.model_dump() for exercise in payload.exercises],
+        )
+    except (
+        WorkoutExerciseMemoryConflictError,
+        WorkoutExerciseMemoryNotFoundError,
+        WorkoutExerciseMemoryValidationError,
+    ) as exc:
+        _raise_workout_exercise_memory_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "resolved_exercises": [asdict(resolution) for resolution in resolutions],
+    }
+
+
+@router.put("/workout-plans/{user_id}/exercise-memories")
+def workout_exercise_memory_save(
+    user_id: int,
+    payload: WorkoutExerciseMemorySavePayload,
+):
+    try:
+        memory = save_workout_exercise_memory(
+            user_id,
+            memory_id=payload.memory_id,
+            catalog_exercise_id=payload.catalog_exercise_id,
+            exercise_name=payload.exercise_name,
+            memory_text=payload.memory_text,
+        )
+    except (
+        WorkoutExerciseMemoryConflictError,
+        WorkoutExerciseMemoryNotFoundError,
+        WorkoutExerciseMemoryValidationError,
+    ) as exc:
+        _raise_workout_exercise_memory_http_error(exc)
+    return {"success": True, "user_id": user_id, "memory": asdict(memory)}
+
+
+@router.delete("/workout-plans/{user_id}/exercise-memories/{memory_id}")
+def workout_exercise_memory_delete(user_id: int, memory_id: int):
+    try:
+        delete_workout_exercise_memory(user_id, memory_id)
+    except (
+        WorkoutExerciseMemoryConflictError,
+        WorkoutExerciseMemoryNotFoundError,
+        WorkoutExerciseMemoryValidationError,
+    ) as exc:
+        _raise_workout_exercise_memory_http_error(exc)
+    return {
+        "success": True,
+        "user_id": user_id,
+        "deleted_memory_id": memory_id,
     }
 
 

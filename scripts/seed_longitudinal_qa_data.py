@@ -28,6 +28,11 @@ from services.exercise_catalog_service import seed_exercise_catalog  # noqa: E40
 from services.food_normalization_service import (  # noqa: E402
     ensure_starter_canonical_foods_seeded,
 )
+from services.workout_exercise_memory_service import (  # noqa: E402
+    build_workout_exercise_memory_identity_key,
+    ensure_workout_exercise_memory_table,
+    normalize_workout_exercise_memory_name,
+)
 from services.workout_plan_persistence_service import (  # noqa: E402
     ensure_workout_plan_persistence_tables,
 )
@@ -349,6 +354,10 @@ def _clear_existing_qa_user_data(cursor) -> None:
     placeholders = _placeholders(QA_USER_IDS)
 
     cursor.execute(
+        f"DELETE FROM workout_exercise_memories WHERE user_id IN ({placeholders})",
+        QA_USER_IDS,
+    )
+    cursor.execute(
         f"""
         DELETE FROM workout_plan_exercise_substitutions
         WHERE workout_plan_instance_id IN (
@@ -414,6 +423,65 @@ def _clear_existing_qa_user_data(cursor) -> None:
         f"DELETE FROM user_equipment_profiles WHERE user_id IN ({placeholders})",
         QA_USER_IDS,
     )
+
+
+def _seed_workout_exercise_memories(cursor) -> None:
+    fixtures = (
+        (
+            102,
+            "Dumbbell Bench Press",
+            True,
+            "Bench notch 3. Keep the dumbbells just inside the rack uprights.",
+        ),
+        (
+            102,
+            "One-Arm Dumbbell Row",
+            True,
+            "Brace on the flat bench and start with the right side.",
+        ),
+        (
+            103,
+            "Cable Crunch",
+            False,
+            "Use the rope attachment and kneel one pad back from the stack.",
+        ),
+    )
+    for user_id, exercise_name, catalog_backed, memory_text in fixtures:
+        catalog_exercise_id = None
+        if catalog_backed:
+            row = cursor.execute(
+                "SELECT id FROM exercise_catalog_exercises WHERE name = ?",
+                (exercise_name,),
+            ).fetchone()
+            if row is None:
+                raise RuntimeError(
+                    f"Missing catalog exercise required by QA memory seed: {exercise_name}"
+                )
+            catalog_exercise_id = int(row["id"])
+        cursor.execute(
+            """
+            INSERT INTO workout_exercise_memories (
+                user_id,
+                identity_key,
+                catalog_exercise_id,
+                exercise_name,
+                normalized_exercise_name,
+                memory_text
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                user_id,
+                build_workout_exercise_memory_identity_key(
+                    catalog_exercise_id,
+                    exercise_name,
+                ),
+                catalog_exercise_id,
+                exercise_name,
+                normalize_workout_exercise_memory_name(exercise_name),
+                memory_text,
+            ),
+        )
 
 
 def _seed_users(cursor) -> None:
@@ -1071,6 +1139,7 @@ def seed_longitudinal_qa_data(
 
     database.initialize_database()
     ensure_workout_plan_persistence_tables()
+    ensure_workout_exercise_memory_table()
     ensure_starter_canonical_foods_seeded()
     seed_exercise_catalog()
 
@@ -1080,6 +1149,7 @@ def seed_longitudinal_qa_data(
     try:
         _clear_existing_qa_user_data(cursor)
         _seed_users(cursor)
+        _seed_workout_exercise_memories(cursor)
         food_ids = _ensure_legacy_foods_from_canonical(cursor)
         days = _date_series(end_date=end_date, day_count=day_count)
 

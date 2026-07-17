@@ -64,6 +64,9 @@ def test_seed_longitudinal_qa_data_runs_and_is_idempotent(tmp_path, monkeypatch)
             )
             """
         ),
+        "exercise_memories": _count_rows(
+            "SELECT COUNT(*) FROM workout_exercise_memories WHERE user_id IN (101,102,103,104,105)"
+        ),
     }
 
     second = seed_longitudinal_qa_data(end_date=FIXED_END_DATE)
@@ -89,6 +92,9 @@ def test_seed_longitudinal_qa_data_runs_and_is_idempotent(tmp_path, monkeypatch)
             )
             """
         ),
+        "exercise_memories": _count_rows(
+            "SELECT COUNT(*) FROM workout_exercise_memories WHERE user_id IN (101,102,103,104,105)"
+        ),
     }
 
     assert [item.user_id for item in first] == list(QA_USER_IDS)
@@ -99,6 +105,41 @@ def test_seed_longitudinal_qa_data_runs_and_is_idempotent(tmp_path, monkeypatch)
     assert counts_after_second["nutrition"] >= 500
     assert counts_after_second["plans"] >= 250
     assert counts_after_second["actuals"] >= 2500
+    assert counts_after_second["exercise_memories"] == 3
+
+    memories = _all_rows(
+        """
+        SELECT user_id, catalog_exercise_id, exercise_name, memory_text
+        FROM workout_exercise_memories
+        ORDER BY user_id, exercise_name
+        """
+    )
+    assert memories == [
+        {
+            "user_id": 102,
+            "catalog_exercise_id": memories[0]["catalog_exercise_id"],
+            "exercise_name": "Dumbbell Bench Press",
+            "memory_text": (
+                "Bench notch 3. Keep the dumbbells just inside the rack uprights."
+            ),
+        },
+        {
+            "user_id": 102,
+            "catalog_exercise_id": memories[1]["catalog_exercise_id"],
+            "exercise_name": "One-Arm Dumbbell Row",
+            "memory_text": "Brace on the flat bench and start with the right side.",
+        },
+        {
+            "user_id": 103,
+            "catalog_exercise_id": None,
+            "exercise_name": "Cable Crunch",
+            "memory_text": (
+                "Use the rope attachment and kneel one pad back from the stack."
+            ),
+        },
+    ]
+    assert memories[0]["catalog_exercise_id"] is not None
+    assert memories[1]["catalog_exercise_id"] is not None
 
 
 def test_seed_preserves_real_user_and_global_catalogs(tmp_path, monkeypatch):
