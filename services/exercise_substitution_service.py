@@ -13,6 +13,9 @@ from services.exercise_catalog_service import (
     find_catalog_entry_by_name,
     get_exercise_catalog,
 )
+from services.temporary_workout_limitation_service import (
+    get_active_temporary_workout_limitation,
+)
 from services.workout_constraint_service import get_recent_exercise_exposures
 from services.workout_exercise_profile_service import (
     get_workout_exercise_preference_map,
@@ -316,11 +319,28 @@ def get_substitution_candidates(
         )
 
     equipment_profile = get_effective_equipment_profile(plan_instance.user_id)
+    temporary_limitation = get_active_temporary_workout_limitation(
+        plan_instance.user_id
+    )
+    restricted_movements = set(
+        temporary_limitation.restricted_movement_patterns
+        if temporary_limitation is not None
+        else []
+    )
+    excluded_catalog_ids = set(
+        temporary_limitation.excluded_catalog_exercise_ids
+        if temporary_limitation is not None
+        else []
+    )
     planned_name = _normalize_display_name(planned_catalog_entry.name)
 
     eligible_candidates: list[ExerciseSubstitutionCandidate] = []
 
     for entry in catalog:
+        if entry.id in excluded_catalog_ids:
+            continue
+        if _normalize_token(entry.movement_pattern) in restricted_movements:
+            continue
         if _normalize_display_name(entry.name) == planned_name:
             continue
 

@@ -8,6 +8,7 @@ class WorkoutConstraints:
     preferred_movements: list[str] = field(default_factory=list)
     avoid_movements: list[str] = field(default_factory=list)
     movement_restrictions: list[str] = field(default_factory=list)
+    excluded_catalog_exercise_ids: list[int] = field(default_factory=list)
     sore_regions: list[str] = field(default_factory=list)
     recent_exercises: list[str] = field(default_factory=list)
     confidence: str = "Low"
