@@ -16,7 +16,6 @@ import {
   getDefaultUserId,
   resolveTodayQuery,
 } from "@/lib/dailyDriverApi";
-import { buildDailyWorkspaceHref } from "@/lib/dailyNavigation";
 import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
 import {
@@ -244,16 +243,6 @@ export default async function Home({
   ]);
   const workoutHref = buildTodayWorkoutHref(todayQuery);
   const currentUserId = todayQuery.userId ?? data?.user_id ?? getDefaultUserId();
-  const foodHref = buildDailyWorkspaceHref(
-    "food",
-    currentUserId,
-    todayQuery.date,
-  );
-  const recoveryHref = buildDailyWorkspaceHref(
-    "recovery",
-    currentUserId,
-    todayQuery.date,
-  );
   const displayDate = formatLongReadableDate(data?.target_date ?? todayQuery.date);
   const workoutMeta = data
     ? buildWorkoutMeta(
@@ -351,13 +340,6 @@ export default async function Home({
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="min-w-0 space-y-3 lg:space-y-4">
               <NutritionMacroCard nutrition={data.nutrition} />
-              <Link
-                href={foodHref}
-                className="flex min-h-11 items-center justify-between rounded-2xl bg-surface px-4 py-2.5 text-sm font-semibold !text-accent-text shadow-[0_18px_38px_-32px_rgba(15,23,42,0.5)] md:hidden"
-              >
-                Open Food workspace
-                <span aria-hidden="true">→</span>
-              </Link>
               <div
                 id="food-workspace"
                 className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
@@ -423,7 +405,7 @@ export default async function Home({
                     {data.workout.planned ? (
                       <Link
                         href={workoutHref}
-                        className="inline-flex items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover"
+                        className="hidden items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold !text-action-primary-foreground transition hover:bg-action-primary-hover md:inline-flex"
                       >
                         {getWorkoutActionLabel(data.workout.status)}
                       </Link>
@@ -458,12 +440,6 @@ export default async function Home({
                   <p className="text-sm text-text-body">
                     {data.readiness.headline}
                   </p>
-                  <Link
-                    href={recoveryHref}
-                    className="inline-flex min-h-11 items-center font-semibold !text-accent-text"
-                  >
-                    Open Recovery workspace
-                  </Link>
                 </div>
               </TodayCard>
 
