@@ -138,16 +138,7 @@ export function ExerciseInstructionDisclosure({
       return null;
     }
     return (
-      <section className="space-y-2 rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
-        <div>
-          <h3 className="text-sm font-semibold text-text-primary">
-            Your exercise profile
-          </h3>
-          <p className="mt-0.5 text-xs leading-5 text-text-muted">
-            Familiarity changes this instruction shortcut. Preference gently
-            influences future valid exercise options.
-          </p>
-        </div>
+      <section className="space-y-3 border-t border-border-subtle pt-3">
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="space-y-1 text-xs font-semibold text-text-body">
             <span>Familiarity</span>

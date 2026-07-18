@@ -1,3 +1,37 @@
+# Current State - Workout UX Density & Polish v1
+
+Canonical implementation baseline before merge: main at 35c3c67.
+
+Feature branch: feature/workout-ux-density-polish-v1.
+
+Status: WORKOUT_UX_DENSITY_POLISH_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Exercise memory now uses a compact blank-slate interaction without unnecessary instructional copy or example setup text.
+- Exercise instruction and profile surfaces use flatter hierarchy with less nested-card visual weight while preserving familiarity, preference, and instruction behavior.
+- Workout preview replacement is visually stabilized across Quick, Standard, Extended, and variation changes without stale metadata flashes.
+- Touched workout surfaces render consistently without the previous washed-out instruction transition treatment.
+- Redundant Food, Workout, and Recovery workspace links are removed from mobile Today where bottom navigation already owns navigation.
+- Exercise substitution candidates now present concise user-facing muscle and equipment information instead of backend ranking explanations.
+- Selected Session Status is compact and retains only useful status, exercise count, duration, and substitution or action messaging.
+- Generic workout-plan filler titles were removed from the selected Session Status presentation.
+- Required feature-branch automated validation, isolated production smoke, and user acceptance smoke passed on desktop and mobile.
+
+Architecture boundaries preserved:
+
+- No backend, API, database, schema, dependency, workout-generation, substitution-ranking, or persistence behavior changes were introduced.
+- Existing workout selection, execution, logging, completion, history, familiarity, preference, and exercise-memory behavior remains intact.
+- Existing issue #0093 remains open: substituted exercise cards may retain original equipment metadata because replacement-equipment data is not yet available through the frontend contract.
+- Issue #0093 was intentionally not expanded into this frontend polish milestone.
+
+Roadmap status:
+
+Workout UX Density & Polish v1 is accepted.
+Injury / Temporary Limitation Mode v1 remains the leading recommended next workout-lane candidate.
+The next product milestone remains pending discussion and is not implementation-authorized.
+
+---
 # Current State - Exercise Familiarity & Preference Profiles v1
 
 Canonical implementation baseline before merge: main at 58dee0e.

@@ -106,13 +106,13 @@ export function WorkoutExerciseMemory({
           onClick={beginEditing}
           className="min-h-11 rounded-lg px-2 py-2 text-left text-xs font-semibold text-text-muted transition hover:bg-surface hover:text-accent-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
         >
-          Remember for next time
+          Add memory
         </button>
       ) : null;
     }
 
     return (
-      <div className="rounded-xl bg-surface/80 px-3 py-2 ring-1 ring-border">
+      <div className="px-1 py-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
@@ -137,16 +137,7 @@ export function WorkoutExerciseMemory({
   }
 
   return (
-    <div className="space-y-2 rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
-      <div>
-        <p className="text-sm font-semibold text-text-strong">
-          Remember for next time
-        </p>
-        <p className="mt-0.5 text-xs leading-5 text-text-muted">
-          Rack height, attachment, setup, or anything useful next time. This is
-          separate from Notes on a logged set.
-        </p>
-      </div>
+    <div className="space-y-2 px-1 py-1">
       <label className="block space-y-1 text-xs font-medium text-text-body">
         <span className="sr-only">Exercise memory</span>
         <textarea
@@ -154,7 +145,6 @@ export function WorkoutExerciseMemory({
           maxLength={MAX_WORKOUT_EXERCISE_MEMORY_CHARACTERS}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Rack 12. Bench notch 3. Use rope attachment."
           className="w-full rounded-xl border border-border bg-surface-subtle px-3 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:text-sm"
         />
       </label>
@@ -165,7 +155,7 @@ export function WorkoutExerciseMemory({
           disabled={isSubmitting}
           className="min-h-11 rounded-xl bg-action-primary px-3 py-2 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting ? "Saving…" : "Save memory"}
+          {isSubmitting ? "Saving…" : "Save"}
         </button>
         <button
           type="button"

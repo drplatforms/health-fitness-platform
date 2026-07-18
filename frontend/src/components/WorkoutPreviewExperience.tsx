@@ -750,6 +750,12 @@ function SubstitutionCandidateOption({
   onApply: (candidate: WorkoutSubstitutionCandidate) => void;
 }) {
   const isApplying = applyingCandidateId === candidate.catalog_exercise_id;
+  const candidateDetails = [
+    candidate.primary_muscle_groups.slice(0, 2).join(", "),
+    candidate.required_equipment.length
+      ? `Equipment: ${candidate.required_equipment.join(", ")}`
+      : null,
+  ].filter((detail): detail is string => Boolean(detail));
 
   return (
     <div className="rounded-xl bg-surface px-3 py-3 ring-1 ring-border">
@@ -758,12 +764,9 @@ function SubstitutionCandidateOption({
           <p className="text-sm font-semibold text-text-strong">
             {candidate.name}
           </p>
-          <p className="mt-1 text-xs leading-5 text-text-secondary">
-            {candidate.why_this_fits}
-          </p>
-          {candidate.required_equipment.length ? (
+          {candidateDetails.length ? (
             <p className="mt-1 text-xs font-medium text-text-muted">
-              Equipment: {candidate.required_equipment.join(", ")}
+              {candidateDetails.join(" · ")}
             </p>
           ) : null}
         </div>
@@ -916,6 +919,26 @@ function statusSummaryLine(
   }
 
   return "Workout unavailable";
+}
+
+function sessionStatusPrimaryLine(
+  approvedPlan: ApprovedWorkoutPlanPreview | null,
+  preview: WorkoutPreviewResponse | null,
+  viewMode: WorkoutViewMode,
+  selectedPlanStatus: string | null | undefined,
+  plannedVsActualSummary: WorkoutPlannedVsActualSummary | null,
+): string | null {
+  if (selectedPlanStatus === "selected") {
+    return null;
+  }
+
+  return statusSummaryLine(
+    approvedPlan,
+    preview,
+    viewMode,
+    selectedPlanStatus,
+    plannedVsActualSummary,
+  );
 }
 
 export function WorkoutPreviewExperience({
@@ -1240,6 +1263,17 @@ export function WorkoutPreviewExperience({
       setIsLoadingPreview(true);
       setErrorMessage(null);
       setActionMessage(null);
+      setPreview(null);
+      setPersistedPlan(null);
+      setSelectedPlan(null);
+      setExecutionSession(null);
+      setPlannedExercises([]);
+      setActualSets([]);
+      setFocusedExerciseId(null);
+      setActiveSubstitutions([]);
+      setPlannedVsActualSummary(null);
+      setProgressionHistoryByExerciseName({});
+      setProgressionDecisionByExerciseKey({});
       setIsCompletionReviewOpen(false);
       setSubstitutionPanelExerciseId(null);
       setSubstitutionCandidates([]);
@@ -1502,6 +1536,7 @@ export function WorkoutPreviewExperience({
 
   function handleSizeChange(nextValue: WorkoutSizePreference) {
     setExpandedInstructionKey(null);
+    setPreview(null);
     setWorkoutSizePreference(nextValue);
     setSizePreferenceInitialized(true);
     setPreviewVariationIndex(0);
@@ -1524,6 +1559,7 @@ export function WorkoutPreviewExperience({
 
   function handleTryDifferentVersion() {
     setExpandedInstructionKey(null);
+    setPreview(null);
     setPreviewVariationIndex((current) => current + 1);
     setViewMode("preview");
     setDailyState(null);
@@ -2190,15 +2226,17 @@ export function WorkoutPreviewExperience({
         <section className="min-w-0 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border md:hidden">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-text-strong">
-                {statusSummaryLine(
-                  approvedPlan,
-                  preview,
-                  viewMode,
-                  summaryStatus,
-                  plannedVsActualSummary,
-                )}
-              </p>
+              {summaryStatus !== "selected" ? (
+                <p className="text-sm font-semibold text-text-strong">
+                  {sessionStatusPrimaryLine(
+                    approvedPlan,
+                    preview,
+                    viewMode,
+                    summaryStatus,
+                    plannedVsActualSummary,
+                  )}
+                </p>
+              ) : null}
               {topMetrics.length ? (
                 <p className="mt-0.5 truncate text-xs text-text-secondary">
                   {topMetrics.slice(0, 2).join(" · ")}
@@ -2240,19 +2278,18 @@ export function WorkoutPreviewExperience({
       >
         <div className="space-y-3">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="space-y-2">
-              <p className="text-2xl font-semibold uppercase tracking-[0.12em] text-text-strong">
-                {statusLabel.replaceAll("_", " ")}
-              </p>
-              <p className="text-sm font-semibold text-text-body">
-                {statusSummaryLine(
-                  approvedPlan,
-                  preview,
-                  viewMode,
-                  summaryStatus,
-                  plannedVsActualSummary,
-                )}
-              </p>
+            <div className="min-w-0">
+              {summaryStatus !== "selected" ? (
+                <p className="text-lg font-semibold text-text-strong">
+                  {sessionStatusPrimaryLine(
+                    approvedPlan,
+                    preview,
+                    viewMode,
+                    summaryStatus,
+                    plannedVsActualSummary,
+                  )}
+                </p>
+              ) : null}
             </div>
             <StatusPill
               label={statusLabel.replaceAll("_", " ")}
@@ -3185,6 +3222,23 @@ export function WorkoutPreviewExperience({
                 );
               })}
             </div>
+          ) : isLoadingPreview ? (
+            <div
+              aria-busy="true"
+              aria-label="Loading workout preview"
+              className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3"
+            >
+              {[0, 1, 2].map((index) => (
+                <div
+                  key={index}
+                  className="min-h-36 rounded-[24px] border border-border bg-surface-subtle p-4"
+                >
+                  <div className="h-5 w-3/5 rounded bg-surface-muted" />
+                  <div className="mt-4 h-3 w-2/5 rounded bg-surface-muted" />
+                  <div className="mt-3 h-3 w-4/5 rounded bg-surface-muted" />
+                </div>
+              ))}
+            </div>
           ) : approvedPlan?.exercises.length ? (
             <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] gap-3">
               {approvedPlan.exercises.map((exercise, index) => {
@@ -3221,7 +3275,7 @@ export function WorkoutPreviewExperience({
                   <article
                     key={`${exercise.name}-${index + 1}`}
                     data-expanded={isInstructionExpanded}
-                    className={`border-t border-border-subtle bg-transparent py-3 first:border-t-0 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 md:rounded-[24px] md:border md:border-border md:bg-surface-subtle/80 md:p-4 ${
+                    className={`border-t border-border-subtle bg-transparent py-3 first:border-t-0 motion-safe:transition-[border-color,background-color,box-shadow] motion-safe:duration-300 md:rounded-[24px] md:border md:border-border md:bg-surface-subtle md:p-4 ${
                       isInstructionExpanded
                         ? "md:col-span-full md:border-workout-card-active-border md:[background:var(--theme-workout-card-active-surface)] md:p-6 md:shadow-[0_24px_55px_-40px_rgba(15,118,110,0.65)]"
                         : expandedInstructionKey !== null
