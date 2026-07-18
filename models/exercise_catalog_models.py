@@ -24,6 +24,23 @@ class ExerciseInstruction:
 
 
 @dataclass
+class ExerciseFormMediaAsset:
+    catalog_exercise_id: int
+    media_key: str
+    media_type: str
+    asset_path: str
+    alt_text: str
+    caption: str | None
+    sort_order: int
+    source_name: str
+    source_exercise_id: str
+    source_url: str
+    license_name: str
+    license_url: str
+    asset_sha256: str
+
+
+@dataclass
 class ExerciseSubstitutionCandidate:
     catalog_exercise_id: int
     name: str

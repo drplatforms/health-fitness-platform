@@ -28,7 +28,7 @@ inspect
 2. Confirm the handoff matches current project memory, expected files, boundaries, and base branch.
 3. Preserve existing work and reuse current services, contracts, and helpers.
 4. Implement only the authorized behavior and files. Avoid broad refactors.
-5. Select targeted checks from `docs/project_memory/validation_matrix.md`; add tests required by the milestone's actual risk.
+5. Select the narrowest credible targeted checks from `docs/project_memory/validation_matrix.md`; add tests required by the milestone's actual risk. Never run the full repository suite unless the Architecture handoff explicitly authorizes it and states the concrete cross-cutting risk justification. Milestone closeout alone is not justification.
 6. Run lint/build for touched areas. Run production browser smoke for UI work and for milestones that explicitly require runtime confidence.
 7. Use a temporary database or copy for automated smoke. Never mutate the real `fitness_ai.db`.
 8. Remove temporary scripts, databases, logs, reports, and fixtures.
@@ -45,3 +45,9 @@ inspect
 - Treat unexpected overlapping changes or branch conflicts as reportable conditions. Work around unrelated changes when safe; stop when the milestone cannot be isolated.
 
 Never claim completion while required validation is missing or temporary artifacts remain.
+
+## Validation Cost Guardrail
+
+Targeted, risk-based validation is the default for every milestone, correction, and closeout. Mechanical data/content work should stay on focused affected-feature checks; frontend-only work should use affected frontend tests plus lint/build and required smoke; bounded backend work should use affected service/API tests plus nearest regression slices. Broaden only for shared contracts or genuinely cross-cutting behavior.
+
+A full repository test-suite run requires explicit Architecture authorization with a concrete recorded risk justification. If a broad/full suite is useful but agent reasoning is not needed during execution, prefer running it outside the expensive Codex implementation session where practical.

@@ -18,8 +18,25 @@ export interface ExerciseInstruction {
   safety_notes: string[];
 }
 
+export interface ExerciseFormMediaAsset {
+  catalog_exercise_id: number;
+  media_key: string;
+  media_type: "static_image";
+  asset_path: string;
+  alt_text: string;
+  caption: string | null;
+  sort_order: number;
+  source_name: string;
+  source_exercise_id: string;
+  source_url: string;
+  license_name: string;
+  license_url: string;
+  asset_sha256: string;
+}
+
 export interface ExerciseInstructionResponse {
   success: boolean;
   exercise: ExerciseInstructionExercise;
   instruction: ExerciseInstruction;
+  form_media: ExerciseFormMediaAsset[];
 }

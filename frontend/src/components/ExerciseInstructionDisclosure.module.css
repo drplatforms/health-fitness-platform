@@ -1,3 +1,30 @@
 .expandedSurface {
   isolation: isolate;
 }
+
+.visualGuide {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.visualGuideGrid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+}
+
+.visualGuideFigure {
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.75rem;
+  background: var(--surface-subtle);
+}
+
+.visualGuideImageFrame {
+  position: relative;
+  aspect-ratio: 3 / 2;
+}
+
+.visualGuideImage {
+  object-fit: contain;
+}
