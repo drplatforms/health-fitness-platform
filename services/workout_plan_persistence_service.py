@@ -1590,6 +1590,21 @@ def _persist_selected_workout_plan(
     user_id: int,
     approved_plan: ApprovedWorkoutPlan,
 ) -> dict:
+    from services.temporary_workout_limitation_service import (
+        get_active_temporary_workout_limitation,
+        limitation_conflicts_for_exercises,
+    )
+
+    conflicts = limitation_conflicts_for_exercises(
+        get_active_temporary_workout_limitation(user_id),
+        approved_plan.exercises,
+    )
+    if conflicts:
+        raise WorkoutPlanValidationError(
+            "This workout preview is stale because it contains exercises that are "
+            "now temporarily restricted. Generate another compatible workout."
+        )
+
     ensure_workout_plan_persistence_tables()
     conn = get_connection()
     cursor = conn.cursor()
@@ -1782,6 +1797,26 @@ def start_selected_workout_plan(workout_plan_instance_id: int) -> dict:
     approved_plan = _approved_workout_plan_from_dict(
         _decode_json(instance_row["approved_workout_plan_json"], {})
     )
+
+    from services.temporary_workout_limitation_service import (
+        get_plan_limitation_conflicts,
+    )
+
+    try:
+        conflicts = get_plan_limitation_conflicts(
+            int(instance_row["user_id"]),
+            workout_plan_instance_id,
+        )
+    except Exception:
+        conn.close()
+        raise
+    if conflicts:
+        conn.close()
+        raise WorkoutPlanValidationError(
+            "This selected workout contains exercises that are now temporarily "
+            "restricted. Choose another workout or edit the temporary limitation "
+            "before starting."
+        )
 
     cursor.execute(
         """

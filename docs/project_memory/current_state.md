@@ -1,3 +1,55 @@
+# Current State - Injury / Temporary Limitation Mode v1
+
+Canonical implementation baseline before merge: main at d30120b.
+
+Feature branch: feature/injury-temporary-limitation-mode-v1.
+
+Status: INJURY_TEMPORARY_LIMITATION_MODE_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- Users can create, edit, expire, and clear a current temporary workout limitation.
+- Users explicitly select restricted canonical movement patterns and/or specific catalog exercises.
+- Explicit temporary restrictions are hard workout constraints.
+- Affected body regions are optional descriptive context only and do not automatically infer exercise restrictions.
+- Active limitations feed the existing WorkoutConstraints boundary.
+- Deterministic workout generation, provider-backed workout validation, preview variation, substitutions, plan selection, and workout start respect active limitations.
+- Specific exercise exclusions use canonical catalog identity and remain distinct from soft exercise preference signals.
+- Stale workout previews are revalidated before selection.
+- Selected workouts are revalidated before start and conflicting plans are blocked safely without silent mutation.
+- In-progress workouts are never silently rewritten when a new limitation is added.
+- Substitution candidates and substitution application both revalidate against current active limitations.
+- Successful substitutions refresh limitation conflicts so resolved warnings clear immediately.
+- Restrictive combinations produce a deliberate safe unavailable state when a valid unique workout cannot be constructed.
+- Expired limitations behave as inactive without requiring a background cleanup process.
+- No-limitation behavior remains preserved.
+- Compact desktop and mobile Set/Edit/Clear limitation UI passed production smoke.
+- Required feature-branch automated validation, Architecture source review, correction review, and user production smoke passed.
+
+Architecture boundaries preserved:
+
+- The feature does not diagnose injuries, infer movement restrictions from body regions, prescribe rehabilitation, or provide medical treatment advice.
+- Approved workout snapshots and historical workout data remain immutable.
+- No arbitrary cross-pattern substitution behavior was introduced.
+- Existing workout generation, weekly planning, adaptive progression, equipment filtering, exercise rotation, familiarity, and preference behavior remain authoritative outside explicit temporary restrictions.
+- Existing issue #0093 remains separate and unresolved.
+
+Known follow-up:
+
+- Body-region-aware exercise involvement remains a future catalog/modeling opportunity.
+- Exercises can involve or stabilize a selected body region even when their primary movement pattern is not explicitly restricted.
+- Any future body-region-aware constraint system should use explicit catalog-backed involvement metadata rather than inferred medical restrictions.
+
+Roadmap status:
+
+Injury / Temporary Limitation Mode v1 is accepted.
+Minimum Viable Workout Mode v1 is the next recommended workout milestone.
+Visual Exercise Form Guidance remains the next major workout usability initiative after Minimum Viable Workout Mode.
+Smart Rest Timer remains a later focused execution milestone.
+Workout Duration Prediction is optional and lower priority.
+No next product milestone is implementation-authorized yet.
+
+---
 # Current State - Workout UX Density & Polish v1
 
 Canonical implementation baseline before merge: main at 35c3c67.

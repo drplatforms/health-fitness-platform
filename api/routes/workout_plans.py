@@ -16,6 +16,15 @@ from services.post_workout_review_service import (
 from services.recovery_intelligence_v2_service import (
     build_recovery_intelligence_v2,
 )
+from services.temporary_workout_limitation_service import (
+    MAX_AFFECTED_REGIONS,
+    MAX_EXCLUDED_CATALOG_EXERCISES,
+    MAX_RESTRICTED_MOVEMENT_PATTERNS,
+    TemporaryWorkoutLimitationValidationError,
+    clear_temporary_workout_limitation,
+    save_temporary_workout_limitation,
+    temporary_workout_limitation_response,
+)
 from services.user_state_service import build_user_health_state
 from services.weekly_training_plan_service import (
     WeeklyTrainingPlanConflictError,
@@ -77,6 +86,7 @@ from services.workout_plan_persistence_service import (
     update_actual_set,
 )
 from services.workout_plan_service import (
+    WorkoutPlanUnavailableError,
     build_approved_workout_plan,
     build_approved_workout_plan_for_context,
     build_configured_approved_workout_plan_with_metadata,
@@ -126,6 +136,22 @@ class ActualSetUpdatePayload(BaseModel):
 class ExerciseSubstitutionPayload(BaseModel):
     replacement_catalog_exercise_id: int
     substitution_reason: str | None = "user_selected"
+
+
+class TemporaryWorkoutLimitationPayload(BaseModel):
+    affected_regions: list[str] = Field(
+        default_factory=list,
+        max_length=MAX_AFFECTED_REGIONS,
+    )
+    restricted_movement_patterns: list[str] = Field(
+        default_factory=list,
+        max_length=MAX_RESTRICTED_MOVEMENT_PATTERNS,
+    )
+    excluded_catalog_exercise_ids: list[int] = Field(
+        default_factory=list,
+        max_length=MAX_EXCLUDED_CATALOG_EXERCISES,
+    )
+    expires_at: str | None = None
 
 
 class WorkoutPlanSelectionPayload(BaseModel):
@@ -230,6 +256,37 @@ def _raise_workout_exercise_profile_http_error(exc: Exception) -> None:
     if isinstance(exc, WorkoutExerciseProfileValidationError):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     raise exc
+
+
+@router.get("/users/{user_id}/temporary-workout-limitation")
+def temporary_workout_limitation_state(user_id: int):
+    return temporary_workout_limitation_response(user_id)
+
+
+@router.put("/users/{user_id}/temporary-workout-limitation")
+def temporary_workout_limitation_save(
+    user_id: int,
+    payload: TemporaryWorkoutLimitationPayload,
+):
+    try:
+        save_temporary_workout_limitation(
+            user_id,
+            affected_regions=payload.affected_regions,
+            restricted_movement_patterns=payload.restricted_movement_patterns,
+            excluded_catalog_exercise_ids=payload.excluded_catalog_exercise_ids,
+            expires_at=payload.expires_at,
+        )
+    except TemporaryWorkoutLimitationValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return temporary_workout_limitation_response(user_id)
+
+
+@router.delete("/users/{user_id}/temporary-workout-limitation")
+def temporary_workout_limitation_clear(user_id: int):
+    deleted = clear_temporary_workout_limitation(user_id)
+    response = temporary_workout_limitation_response(user_id)
+    response["cleared"] = deleted
+    return response
 
 
 @router.get("/weekly-training-plans/{user_id}")
@@ -657,7 +714,10 @@ def workout_plan_preview(
         weekly_training_context=weekly_training_context,
         exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
     )
-    approved_plan = build_approved_workout_plan_for_context(context)
+    try:
+        approved_plan = build_approved_workout_plan_for_context(context)
+    except WorkoutPlanUnavailableError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {
         "success": True,
@@ -906,7 +966,7 @@ def start_workout_plan(plan_instance_id: int):
         started = start_selected_workout_plan(plan_instance_id)
     except WorkoutPlanNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except WorkoutPlanInvalidStatusError as exc:
+    except (WorkoutPlanInvalidStatusError, WorkoutPlanValidationError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     workout_plan_instance = started["workout_plan_instance"]

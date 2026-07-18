@@ -4,6 +4,9 @@ from database import get_connection
 from models.user_state_models import UserHealthState
 from models.workout_constraint_models import WorkoutConstraints
 from services.equipment_profile_service import get_effective_equipment_profile
+from services.temporary_workout_limitation_service import (
+    get_active_temporary_workout_limitation,
+)
 from services.workout_service import get_recent_workouts
 
 
@@ -97,6 +100,7 @@ def build_workout_constraints(health_state: UserHealthState) -> WorkoutConstrain
     equipment_profile = get_effective_equipment_profile(health_state.user_id)
     recent_exercises = get_recent_exercise_exposures(health_state.user_id)
     reason_codes = list(equipment_profile.reason_codes)
+    temporary_limitation = get_active_temporary_workout_limitation(health_state.user_id)
 
     if recent_exercises:
         reason_codes.append("recent_exercise_history_available")
@@ -110,12 +114,26 @@ def build_workout_constraints(health_state: UserHealthState) -> WorkoutConstrain
         _normalize_equipment(item) for item in equipment_profile.unavailable_equipment
     ]
 
+    movement_restrictions: list[str] = []
+    excluded_catalog_exercise_ids: list[int] = []
+    if temporary_limitation is not None:
+        movement_restrictions = list(temporary_limitation.restricted_movement_patterns)
+        excluded_catalog_exercise_ids = list(
+            temporary_limitation.excluded_catalog_exercise_ids
+        )
+        reason_codes.append("temporary_limitation_active")
+        if movement_restrictions:
+            reason_codes.append("temporary_movement_restrictions_active")
+        if excluded_catalog_exercise_ids:
+            reason_codes.append("temporary_exercise_exclusions_active")
+
     return WorkoutConstraints(
         available_equipment=available_equipment,
         unavailable_equipment=unavailable_equipment,
         preferred_movements=[],
         avoid_movements=[],
-        movement_restrictions=[],
+        movement_restrictions=movement_restrictions,
+        excluded_catalog_exercise_ids=excluded_catalog_exercise_ids,
         sore_regions=[],
         recent_exercises=recent_exercises,
         confidence=equipment_profile.confidence,

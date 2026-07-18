@@ -12,6 +12,7 @@ import {
 import { ExerciseInstructionDisclosure } from "@/components/ExerciseInstructionDisclosure";
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
+import { TemporaryWorkoutLimitationCard } from "@/components/TemporaryWorkoutLimitationCard";
 import { WorkoutExerciseMemory } from "@/components/WorkoutExerciseMemory";
 import {
   getBrowserLocalDateString,
@@ -840,7 +841,7 @@ function WorkoutSubstitutionPanel({
         </p>
       ) : candidates.length === 0 ? (
         <p className="py-3 text-sm font-medium text-text-secondary">
-          No compatible substitutions are available for your current equipment.
+          No compatible substitutions are available right now.
         </p>
       ) : (
         <div className="max-h-80 space-y-4 overflow-y-auto overflow-x-hidden pr-1">
@@ -950,6 +951,9 @@ export function WorkoutPreviewExperience({
   const [previewVariationIndex, setPreviewVariationIndex] = useState(0);
   const [sizePreferenceInitialized, setSizePreferenceInitialized] = useState(false);
   const [trainAnywayOverride, setTrainAnywayOverride] = useState(false);
+  const [limitationVersion, setLimitationVersion] = useState(0);
+  const [limitationConflictRefreshVersion, setLimitationConflictRefreshVersion] =
+    useState(0);
   const [preview, setPreview] = useState<WorkoutPreviewResponse | null>(null);
   const [weeklyTrainingContext, setWeeklyTrainingContext] =
     useState<WeeklyTrainingContext | null>(null);
@@ -1524,6 +1528,7 @@ export function WorkoutPreviewExperience({
     };
   }, [
     isHistoricalReadOnly,
+    limitationVersion,
     loadProgressionHistoryForNames,
     loadProgressionDecisionsForExercises,
     previewVariationIndex,
@@ -1717,6 +1722,7 @@ export function WorkoutPreviewExperience({
       activeSubstitution,
     ]);
     setSelectedPlan(result.data.workout_plan_instance ?? selectedPlan);
+    setLimitationConflictRefreshVersion((version) => version + 1);
     const replacementHistory = await loadProgressionHistoryForNames([
       activeSubstitution.replacement_exercise_name,
     ]);
@@ -2148,7 +2154,14 @@ export function WorkoutPreviewExperience({
     !isCompletedState
   ) {
     return (
-      <section className="rounded-2xl bg-surface px-4 py-4 ring-1 ring-border">
+      <div className="space-y-3">
+        <TemporaryWorkoutLimitationCard
+          key={userId}
+          userId={userId}
+          refreshVersion={limitationConflictRefreshVersion}
+          onChanged={() => setLimitationVersion((version) => version + 1)}
+        />
+        <section className="rounded-2xl bg-surface px-4 py-4 ring-1 ring-border">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
           This week
         </p>
@@ -2171,12 +2184,23 @@ export function WorkoutPreviewExperience({
             View week
           </Link>
         </div>
-      </section>
+        </section>
+      </div>
     );
   }
 
   return (
     <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
+      {isHistoricalReadOnly === false ? (
+        <div className="lg:col-span-2">
+          <TemporaryWorkoutLimitationCard
+            key={userId}
+            userId={userId}
+            refreshVersion={limitationConflictRefreshVersion}
+            onChanged={() => setLimitationVersion((version) => version + 1)}
+          />
+        </div>
+      ) : null}
       {weeklyTrainingContext?.has_weekly_plan &&
       (weeklyTrainingContext.session_title || weeklyTrainingContext.is_override) ? (
         <div className="min-w-0 rounded-xl bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-body ring-1 ring-border lg:col-span-2">

@@ -463,7 +463,11 @@ def _catalog_entry_allowed_for_context(entry, context: WorkoutContext) -> bool:
         + context.workout_constraints.movement_restrictions
         if movement.strip()
     }
-    return entry.movement_pattern not in avoid_movements
+    if entry.movement_pattern in avoid_movements:
+        return False
+    return entry.id not in set(
+        context.workout_constraints.excluded_catalog_exercise_ids
+    )
 
 
 def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, Any]]:
@@ -646,8 +650,12 @@ def _movement_allowed_for_selection(
 ) -> bool:
     if catalog_entry is None:
         return True
-    return catalog_entry.movement_pattern not in _blocked_selection_patterns(
+    if catalog_entry.movement_pattern in _blocked_selection_patterns(
         workout_constraints
+    ):
+        return False
+    return catalog_entry.id not in set(
+        workout_constraints.excluded_catalog_exercise_ids
     )
 
 
@@ -1060,8 +1068,27 @@ def _select_exercise(
             preview_variation_index=preview_variation_index,
         )
 
-    name, equipment_required = options[-1]
-    return _catalog_equipment_for_option(name, equipment_required)
+    compatible_patterns = _compatible_selection_patterns(slot_key)
+    catalog_fallbacks = []
+    for entry in get_exercise_catalog():
+        if not _equipment_allowed(entry.equipment_required, workout_constraints):
+            continue
+        if not _movement_allowed_for_selection(entry, workout_constraints):
+            continue
+        catalog_fallbacks.append(entry)
+
+    compatible_fallbacks = [
+        entry
+        for entry in catalog_fallbacks
+        if not compatible_patterns or entry.movement_pattern in compatible_patterns
+    ]
+    eligible_fallbacks = compatible_fallbacks or catalog_fallbacks
+    if not eligible_fallbacks:
+        raise WorkoutPlanUnavailableError(
+            "No compatible workout is available with the current temporary limitations."
+        )
+    fallback = eligible_fallbacks[0]
+    return fallback.name, list(fallback.equipment_required)
 
 
 def _prefer_alternate_template(context: WorkoutContext) -> bool:
@@ -1941,16 +1968,72 @@ def _finalize_candidate_workout_plan(
     return plan
 
 
+class WorkoutPlanUnavailableError(ValueError):
+    """Raised when hard workout constraints leave no safe unique workout."""
+
+
+def _resolve_temporary_limitation_duplicates(
+    context: WorkoutContext,
+    candidate: CandidateWorkoutPlan,
+) -> CandidateWorkoutPlan:
+    """Repair fallback duplicates without relaxing active hard limitations."""
+
+    constraints = context.workout_constraints
+    if not (
+        constraints.movement_restrictions or constraints.excluded_catalog_exercise_ids
+    ):
+        return candidate
+
+    selected_names: set[str] = set()
+    catalog = get_exercise_catalog()
+    for exercise in candidate.exercises:
+        normalized_name = _normalize_exercise_name(exercise.name)
+        if normalized_name not in selected_names:
+            selected_names.add(normalized_name)
+            continue
+
+        original_entry = find_catalog_entry_by_name(exercise.name)
+        eligible_entries = [
+            entry
+            for entry in catalog
+            if _equipment_allowed(entry.equipment_required, constraints)
+            and _movement_allowed_for_selection(entry, constraints)
+            and _normalize_exercise_name(entry.name) not in selected_names
+        ]
+        if original_entry is not None:
+            same_pattern_entries = [
+                entry
+                for entry in eligible_entries
+                if entry.movement_pattern == original_entry.movement_pattern
+            ]
+            eligible_entries = same_pattern_entries or eligible_entries
+        if not eligible_entries:
+            raise WorkoutPlanUnavailableError(
+                "No compatible unique workout is available with the current "
+                "temporary limitations."
+            )
+
+        replacement = eligible_entries[0]
+        exercise.name = replacement.name
+        exercise.catalog_exercise_id = replacement.id
+        exercise.equipment_required = list(replacement.equipment_required)
+        selected_names.add(_normalize_exercise_name(replacement.name))
+
+    return candidate
+
+
 def generate_candidate_workout_plan(context: WorkoutContext) -> CandidateWorkoutPlan:
     if context.weekly_session_directive and not context.weekly_session_override:
-        return _finalize_candidate_workout_plan(
+        candidate = _finalize_candidate_workout_plan(
             context,
             _generate_weekly_directed_candidate_workout_plan(context),
         )
-    return _finalize_candidate_workout_plan(
-        context,
-        _generate_base_candidate_workout_plan(context),
-    )
+    else:
+        candidate = _finalize_candidate_workout_plan(
+            context,
+            _generate_base_candidate_workout_plan(context),
+        )
+    return _resolve_temporary_limitation_duplicates(context, candidate)
 
 
 class WorkoutCandidateParseError(ValueError):
@@ -2162,6 +2245,13 @@ def _catalog_validation_violations(
     if catalog_entry.movement_pattern in avoid_movements:
         violations.append(
             f"{exercise.name} uses a movement pattern outside current constraints."
+        )
+
+    if catalog_entry.id in set(
+        context.workout_constraints.excluded_catalog_exercise_ids
+    ):
+        violations.append(
+            f"{exercise.name} is temporarily excluded from current workouts."
         )
 
     return violations
