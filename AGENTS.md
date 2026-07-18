@@ -44,7 +44,12 @@ Stop and report conflicts when the branch, base, working tree, or project memory
 
 ## Validation
 
-- Use targeted pytest slices by default; select commands from `docs/project_memory/validation_matrix.md` and expand them when milestone risk requires it.
+- Validation is targeted and risk-based by default. Use the narrowest credible validation set for the actual change and select targeted pytest slices from `docs/project_memory/validation_matrix.md`.
+- Full repository test-suite execution is exceptional, not a default milestone or closeout requirement. Codex may run the full suite only when Architecture explicitly authorizes it and records a concrete cross-cutting risk justification. Milestone closeout by itself is never sufficient justification.
+- Mechanical data/content expansions should use focused affected-feature tests plus only the relevant static, build, and smoke checks.
+- Frontend-only work should use affected frontend tests, lint/build, and required browser smoke.
+- Bounded backend work should use affected service/API tests plus the nearest credible regression slices. Broader category suites are reserved for shared contracts or genuinely cross-cutting behavior.
+- When a broad or full suite is genuinely useful but Codex does not need to reason through its execution, prefer running it outside the expensive Codex implementation session where practical.
 - Run lint and build checks for touched areas.
 - UI-impacting work requires production-mode browser smoke after lint/build. Browser smoke is the final confidence check, not a substitute for automated tests.
 - Use safe test data, inspect console errors, and include a mobile-width check for frontend work.
@@ -81,3 +86,4 @@ Projectmem orientation report:
 - Projectmem tools used:
 - Direct canonical project-memory files read:
 - Broad repository scan performed: yes/no
+```

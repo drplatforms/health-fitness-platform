@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import asdict
+from pathlib import Path
 
 import database
 from database import get_connection
-from models.exercise_catalog_models import ExerciseCatalogEntry, ExerciseInstruction
-from services import exercise_instruction_seed_data
+from models.exercise_catalog_models import (
+    ExerciseCatalogEntry,
+    ExerciseFormMediaAsset,
+    ExerciseInstruction,
+)
+from services import exercise_form_media_seed_data, exercise_instruction_seed_data
 
 _CATALOG_CACHE_BY_DB_PATH: dict[str, list[ExerciseCatalogEntry]] = {}
 
@@ -2279,6 +2286,54 @@ def _validate_exercise_instruction(instruction: ExerciseInstruction) -> None:
             raise TypeError(f"{field_name} must be a list of strings")
 
 
+_FORM_MEDIA_PATH_PREFIX = "/exercise-media/free-exercise-db/"
+_SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+_PUBLIC_DIRECTORY = Path(__file__).resolve().parents[1] / "frontend" / "public"
+
+
+def _validate_exercise_form_media_asset(asset: ExerciseFormMediaAsset) -> None:
+    if not isinstance(asset, ExerciseFormMediaAsset):
+        raise TypeError("asset must be an ExerciseFormMediaAsset")
+    _validate_catalog_exercise_id(asset.catalog_exercise_id)
+    if not asset.media_key.strip():
+        raise ValueError("media_key is required")
+    if asset.media_type != "static_image":
+        raise ValueError("Only static_image form media is supported")
+    if (
+        not asset.asset_path.startswith(_FORM_MEDIA_PATH_PREFIX)
+        or ".." in asset.asset_path
+    ):
+        raise ValueError("asset_path must be a local approved form-media path")
+    if not asset.alt_text.strip():
+        raise ValueError("alt_text is required")
+    if not isinstance(asset.sort_order, int) or asset.sort_order < 1:
+        raise ValueError("sort_order must be a positive integer")
+    if not all(
+        isinstance(value, str) and value.strip()
+        for value in (
+            asset.source_name,
+            asset.source_exercise_id,
+            asset.source_url,
+            asset.license_name,
+            asset.license_url,
+        )
+    ):
+        raise ValueError("complete media provenance is required")
+    if not _SHA256_PATTERN.fullmatch(asset.asset_sha256):
+        raise ValueError("asset_sha256 must be a lowercase SHA-256 digest")
+
+    local_asset = _PUBLIC_DIRECTORY / asset.asset_path.lstrip("/")
+    if not local_asset.is_file():
+        raise ValueError(
+            f"Approved local form-media asset is missing: {asset.asset_path}"
+        )
+    actual_hash = hashlib.sha256(local_asset.read_bytes()).hexdigest()
+    if actual_hash != asset.asset_sha256:
+        raise ValueError(
+            f"Approved local form-media asset checksum mismatch: {asset.asset_path}"
+        )
+
+
 def ensure_exercise_catalog_tables() -> None:
     conn = get_connection()
     cursor = conn.cursor()
@@ -2320,6 +2375,30 @@ def ensure_exercise_catalog_tables() -> None:
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
+        FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_catalog_form_media (
+        exercise_id INTEGER NOT NULL,
+        media_key TEXT NOT NULL,
+        media_type TEXT NOT NULL,
+        asset_path TEXT NOT NULL,
+        alt_text TEXT NOT NULL,
+        caption TEXT,
+        sort_order INTEGER NOT NULL,
+        source_name TEXT NOT NULL,
+        source_exercise_id TEXT NOT NULL,
+        source_url TEXT NOT NULL,
+        license_name TEXT NOT NULL,
+        license_url TEXT NOT NULL,
+        asset_sha256 TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        PRIMARY KEY (exercise_id, media_key),
+        UNIQUE (exercise_id, sort_order),
         FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
     )
     """)
@@ -2440,6 +2519,98 @@ def get_exercise_instruction(
         ),
         safety_notes=_decode_instruction_list(row["safety_notes_json"], "safety_notes"),
     )
+
+
+def _upsert_exercise_form_media_row(cursor, asset: ExerciseFormMediaAsset) -> None:
+    cursor.execute(
+        "SELECT 1 FROM exercise_catalog_exercises WHERE id = ?",
+        (asset.catalog_exercise_id,),
+    )
+    if cursor.fetchone() is None:
+        raise ValueError(f"Catalog exercise {asset.catalog_exercise_id} does not exist")
+
+    cursor.execute(
+        """
+        INSERT INTO exercise_catalog_form_media (
+            exercise_id, media_key, media_type, asset_path, alt_text, caption,
+            sort_order, source_name, source_exercise_id, source_url,
+            license_name, license_url, asset_sha256, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(exercise_id, media_key) DO UPDATE SET
+            media_type = excluded.media_type,
+            asset_path = excluded.asset_path,
+            alt_text = excluded.alt_text,
+            caption = excluded.caption,
+            sort_order = excluded.sort_order,
+            source_name = excluded.source_name,
+            source_exercise_id = excluded.source_exercise_id,
+            source_url = excluded.source_url,
+            license_name = excluded.license_name,
+            license_url = excluded.license_url,
+            asset_sha256 = excluded.asset_sha256,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            asset.catalog_exercise_id,
+            asset.media_key,
+            asset.media_type,
+            asset.asset_path,
+            asset.alt_text,
+            asset.caption,
+            asset.sort_order,
+            asset.source_name,
+            asset.source_exercise_id,
+            asset.source_url,
+            asset.license_name,
+            asset.license_url,
+            asset.asset_sha256,
+        ),
+    )
+
+
+def get_exercise_form_media(
+    catalog_exercise_id: int,
+) -> list[ExerciseFormMediaAsset]:
+    """Return ordered approved local media for one stable catalog identity."""
+
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                exercise_id, media_key, media_type, asset_path, alt_text, caption,
+                sort_order, source_name, source_exercise_id, source_url,
+                license_name, license_url, asset_sha256
+            FROM exercise_catalog_form_media
+            WHERE exercise_id = ?
+            ORDER BY sort_order, media_key
+            """,
+            (catalog_exercise_id,),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    return [
+        ExerciseFormMediaAsset(
+            catalog_exercise_id=row["exercise_id"],
+            media_key=row["media_key"],
+            media_type=row["media_type"],
+            asset_path=row["asset_path"],
+            alt_text=row["alt_text"],
+            caption=row["caption"],
+            sort_order=row["sort_order"],
+            source_name=row["source_name"],
+            source_exercise_id=row["source_exercise_id"],
+            source_url=row["source_url"],
+            license_name=row["license_name"],
+            license_url=row["license_url"],
+            asset_sha256=row["asset_sha256"],
+        )
+        for row in rows
+    ]
 
 
 def _entry_to_legacy_exercise_row(
@@ -2625,6 +2796,86 @@ def seed_exercise_instructions() -> list[ExerciseInstruction]:
         conn.close()
 
     return instructions
+
+
+def seed_exercise_form_media() -> list[ExerciseFormMediaAsset]:
+    """Atomically project approved local form media onto stable catalog IDs."""
+
+    seed_exercise_catalog()
+    seeds = exercise_form_media_seed_data.EXERCISE_FORM_MEDIA_SEEDS
+    catalog_names = {entry.name for entry in CURATED_EXERCISE_CATALOG}
+    seed_names = {seed.canonical_exercise_name for seed in seeds}
+    unknown_names = sorted(seed_names - catalog_names)
+    if unknown_names:
+        raise ValueError(
+            "Form-media seed references unknown catalog exercises: "
+            + ", ".join(unknown_names)
+        )
+
+    duplicate_keys: set[tuple[str, str]] = set()
+    duplicate_orders: set[tuple[str, int]] = set()
+    seen_keys: set[tuple[str, str]] = set()
+    seen_orders: set[tuple[str, int]] = set()
+    for seed in seeds:
+        key = (seed.canonical_exercise_name, seed.media_key)
+        order = (seed.canonical_exercise_name, seed.sort_order)
+        if key in seen_keys:
+            duplicate_keys.add(key)
+        if order in seen_orders:
+            duplicate_orders.add(order)
+        seen_keys.add(key)
+        seen_orders.add(order)
+    if duplicate_keys or duplicate_orders:
+        raise ValueError("Form-media seed contains duplicate media keys or ordering")
+
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            "SELECT id, name FROM exercise_catalog_exercises"
+        ).fetchall()
+        persisted_ids_by_name = {row["name"]: row["id"] for row in rows}
+        unresolved = sorted(seed_names - set(persisted_ids_by_name))
+        if unresolved:
+            raise ValueError(
+                "Persisted exercise catalog is missing form-media targets: "
+                + ", ".join(unresolved)
+            )
+
+        assets = [
+            ExerciseFormMediaAsset(
+                catalog_exercise_id=persisted_ids_by_name[seed.canonical_exercise_name],
+                media_key=seed.media_key,
+                media_type="static_image",
+                asset_path=seed.asset_path,
+                alt_text=seed.alt_text,
+                caption=seed.caption,
+                sort_order=seed.sort_order,
+                source_name=exercise_form_media_seed_data.SOURCE_NAME,
+                source_exercise_id=seed.source_exercise_id,
+                source_url=seed.source_url,
+                license_name=exercise_form_media_seed_data.LICENSE_NAME,
+                license_url=exercise_form_media_seed_data.LICENSE_URL,
+                asset_sha256=seed.asset_sha256,
+            )
+            for seed in seeds
+        ]
+        for asset in assets:
+            _validate_exercise_form_media_asset(asset)
+
+        with conn:
+            cursor = conn.cursor()
+            # Form media is a repository-owned projection, not user-authored data.
+            # Validate every candidate before this transaction, then replace the
+            # complete projection so removed manifest entries cannot remain live.
+            cursor.execute("DELETE FROM exercise_catalog_form_media")
+            for asset in assets:
+                _upsert_exercise_form_media_row(cursor, asset)
+    finally:
+        conn.close()
+
+    return sorted(
+        assets, key=lambda asset: (asset.catalog_exercise_id, asset.sort_order)
+    )
 
 
 def _row_to_catalog_entry(row, equipment_required: list[str]) -> ExerciseCatalogEntry:

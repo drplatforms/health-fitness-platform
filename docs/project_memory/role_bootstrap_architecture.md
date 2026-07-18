@@ -13,5 +13,7 @@ Guardrails:
 - Windows/FastAPI/production Next.js is canonical; Linux is secondary and Streamlit legacy/developer-only.
 - Require explicit user authority for material product-direction changes and consequential external/destructive actions.
 - Require database safety, targeted validation, project-memory synchronization, and an exact final status/diff/staged/artifact audit.
+- Define the narrowest credible validation set for each milestone or correction. Do not authorize a full repository test-suite run unless a concrete cross-cutting risk is explicitly stated; milestone closeout alone never qualifies.
+- When broad validation is useful but Codex does not need to reason through the execution, prefer running it outside the expensive Codex implementation session where practical.
 
 The current active status and milestone link live at the top of `current_state.md`.

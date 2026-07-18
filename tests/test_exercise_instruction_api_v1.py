@@ -13,6 +13,7 @@ from services.exercise_catalog_service import (
     get_exercise_catalog_entry_by_id,
     get_exercise_instruction,
     seed_exercise_catalog,
+    seed_exercise_form_media,
     seed_exercise_instructions,
 )
 
@@ -63,6 +64,7 @@ def test_valid_catalog_id_returns_complete_persisted_instruction_contract():
         "success": True,
         "exercise": asdict(exercise),
         "instruction": asdict(instruction),
+        "form_media": [],
     }
     assert (
         response.json()["instruction"]["catalog_exercise_id"]
@@ -92,6 +94,47 @@ def test_instruction_response_exposes_no_second_identity_or_persistence_fields()
     assert not any(key.endswith("_json") for key in payload["instruction"])
     assert "created_at" not in payload["instruction"]
     assert "updated_at" not in payload["instruction"]
+
+
+def test_covered_instruction_response_includes_ordered_local_form_media():
+    _initialize_and_seed_instructions()
+    seed_exercise_form_media()
+    covered = next(
+        entry
+        for entry in get_exercise_catalog()
+        if entry.name == "Incline Dumbbell Press"
+    )
+    assert covered.id is not None
+
+    response = TestClient(app).get(f"/exercise-catalog/{covered.id}/instruction")
+
+    assert response.status_code == 200
+    assert [asset["media_key"] for asset in response.json()["form_media"]] == [
+        "start",
+        "finish",
+    ]
+    assert all(
+        asset["catalog_exercise_id"] == covered.id
+        and asset["asset_path"].startswith("/exercise-media/free-exercise-db/")
+        for asset in response.json()["form_media"]
+    )
+    assert {asset["source_exercise_id"] for asset in response.json()["form_media"]} == {
+        "Incline_Dumbbell_Press"
+    }
+
+
+def test_uncovered_instruction_response_remains_text_only_after_media_expansion():
+    _initialize_and_seed_instructions()
+    seed_exercise_form_media()
+    uncovered = next(
+        entry for entry in get_exercise_catalog() if entry.name == "Back Squat"
+    )
+    assert uncovered.id is not None
+
+    response = TestClient(app).get(f"/exercise-catalog/{uncovered.id}/instruction")
+
+    assert response.status_code == 200
+    assert response.json()["form_media"] == []
 
 
 def test_unknown_catalog_id_returns_bounded_exercise_not_found_response():

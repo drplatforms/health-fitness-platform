@@ -1,8 +1,18 @@
 # Validation Matrix
 
-This matrix maps common Fitness AI areas to maintainable targeted validation. It is guidance, not a ceiling: milestone-specific risk, cross-module contracts, or newly discovered regressions may require additional tests. Full `pytest -q` is not the default because it is slow.
+This matrix maps common Fitness AI areas to maintainable targeted validation. Targeted, risk-based validation is the default: use the narrowest credible checks for the actual change and expand only when the blast radius justifies it.
+
+Full `pytest -q` is not a default milestone or closeout requirement. It may run only when Architecture explicitly authorizes it and records a concrete cross-cutting risk justification. Milestone closeout by itself is never sufficient justification. When a broad or full suite is useful but Codex does not need to reason through its execution, prefer running it outside the expensive Codex implementation session where practical.
 
 Run Python commands from the repository root with the project virtual environment.
+
+## Validation Escalation Policy
+
+- **Mechanical data/content expansion:** focused affected-feature tests plus only relevant static, build, integrity, or smoke checks.
+- **Frontend-only change:** affected frontend tests, lint/build, and required production browser smoke.
+- **Bounded backend change:** affected service/API tests plus the nearest credible regression slices.
+- **Shared contract or cross-cutting behavior:** broaden to the relevant category-level suites.
+- **Full repository suite:** exceptional; requires explicit Architecture authorization and a recorded concrete cross-cutting risk justification.
 
 ## Workout Persistence And Actual-Set Logging
 
@@ -70,4 +80,8 @@ Use a production frontend build and a backend pointed at a temporary copy of `fi
 
 ## Full Suite Conditions
 
-Run full `pytest -q` only when the milestone changes broad shared contracts, migrations, cross-domain state, provider or fallback behavior, test infrastructure, or when targeted checks reveal wider regressions. Architecture or QA may also require it for acceptance.
+Do not run full `pytest -q` unless Architecture explicitly authorizes it and records the concrete cross-cutting risk that makes targeted validation insufficient.
+
+Potential justifications include foundational persistence/database infrastructure changes, global test-fixture or test-infrastructure changes, central shared contracts with broad blast radius, major architecture migrations, or targeted validation that exposes an unexplained wider regression.
+
+Milestone completion or closeout alone is never justification for a full-suite run. Silence in a handoff means targeted validation only.

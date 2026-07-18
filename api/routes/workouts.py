@@ -10,6 +10,7 @@ from api.models.workout_models import WorkoutRequest
 from services.exercise_catalog_service import (
     get_exercise_catalog_dicts,
     get_exercise_catalog_entry_by_id,
+    get_exercise_form_media,
     get_exercise_instruction,
 )
 from services.workout_service import (
@@ -92,6 +93,9 @@ def exercise_instruction(
         "success": True,
         "exercise": asdict(exercise),
         "instruction": asdict(instruction),
+        "form_media": [
+            asdict(asset) for asset in get_exercise_form_media(catalog_exercise_id)
+        ],
     }
 
 
