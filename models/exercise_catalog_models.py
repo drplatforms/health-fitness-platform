@@ -62,6 +62,37 @@ class ExerciseFormMediaAsset:
     asset_sha256: str
 
 
+@dataclass(frozen=True)
+class ExerciseVisualMediaItem:
+    """Provider-neutral media returned with an exercise instruction."""
+
+    media_key: str
+    media_type: str
+    role: str
+    url: str
+    alt_text: str
+    caption: str | None
+    source_type: str
+    source_catalog_exercise_id: int | None
+    provider: str | None
+    provider_exercise_id: str | None
+    attribution: str | None
+    provenance: str
+
+
+@dataclass(frozen=True)
+class ExerciseVisualMediaResolution:
+    """How media for one requested catalog exercise was resolved."""
+
+    requested_catalog_exercise_id: int
+    visual_identity_slug: str | None
+    resolution_mode: str
+    source_type: str
+    source_catalog_exercise_id: int | None
+    provider: str | None
+    provider_exercise_id: str | None
+
+
 @dataclass
 class ExerciseTaxonomyMetadata:
     catalog_exercise_id: int

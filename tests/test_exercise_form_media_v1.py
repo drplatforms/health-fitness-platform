@@ -1,3 +1,4 @@
+import sqlite3
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
@@ -12,8 +13,8 @@ from services.exercise_catalog_service import (
     get_exercise_catalog,
     get_exercise_catalog_entry_by_id,
     get_exercise_form_media,
-    seed_exercise_catalog,
     seed_exercise_form_media,
+    seed_exercise_taxonomy,
 )
 
 
@@ -31,14 +32,18 @@ def pytest_owned_database(tmp_path, monkeypatch):
 
 def _seed_media():
     database.initialize_database()
+    seed_exercise_taxonomy()
     return seed_exercise_form_media()
 
 
 def _media_row_count() -> int:
     conn = database.get_connection()
-    count = conn.execute(
-        "SELECT COUNT(*) AS count FROM exercise_catalog_form_media"
-    ).fetchone()["count"]
+    try:
+        count = conn.execute(
+            "SELECT COUNT(*) AS count FROM exercise_catalog_form_media"
+        ).fetchone()["count"]
+    except sqlite3.OperationalError:
+        count = 0
     conn.close()
     return count
 
@@ -170,17 +175,29 @@ def test_seeded_media_reads_by_stable_id_in_deterministic_order_without_fallback
 
 def test_reseeding_is_idempotent_and_does_not_rewrite_catalog_records():
     database.initialize_database()
-    seed_exercise_catalog()
+    seed_exercise_taxonomy()
     conn = database.get_connection()
-    before = [
+    before_catalog = [
         tuple(row)
         for row in conn.execute(
             """
             SELECT id, name, exercise_type, movement_pattern,
-                   primary_muscle_groups_json, difficulty
+                   primary_muscle_groups_json, difficulty, created_at, updated_at
             FROM exercise_catalog_exercises
             ORDER BY id
             """
+        ).fetchall()
+    ]
+    before_equipment = [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT * FROM exercise_equipment_requirements ORDER BY id"
+        ).fetchall()
+    ]
+    before_taxonomy = [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT * FROM exercise_catalog_taxonomy ORDER BY exercise_id"
         ).fetchall()
     ]
     conn.close()
@@ -189,22 +206,36 @@ def test_reseeding_is_idempotent_and_does_not_rewrite_catalog_records():
     second = seed_exercise_form_media()
 
     conn = database.get_connection()
-    after = [
+    after_catalog = [
         tuple(row)
         for row in conn.execute(
             """
             SELECT id, name, exercise_type, movement_pattern,
-                   primary_muscle_groups_json, difficulty
+                   primary_muscle_groups_json, difficulty, created_at, updated_at
             FROM exercise_catalog_exercises
             ORDER BY id
             """
+        ).fetchall()
+    ]
+    after_equipment = [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT * FROM exercise_equipment_requirements ORDER BY id"
+        ).fetchall()
+    ]
+    after_taxonomy = [
+        tuple(row)
+        for row in conn.execute(
+            "SELECT * FROM exercise_catalog_taxonomy ORDER BY exercise_id"
         ).fetchall()
     ]
     conn.close()
 
     assert first == second
     assert _media_row_count() == len(seed_data.EXERCISE_FORM_MEDIA_SEEDS)
-    assert after == before
+    assert after_catalog == before_catalog
+    assert after_equipment == before_equipment
+    assert after_taxonomy == before_taxonomy
 
 
 def test_reseeding_replaces_removed_manifest_asset_without_stale_runtime_media(
@@ -253,8 +284,24 @@ def test_invalid_seed_manifest_fails_before_any_media_write(monkeypatch, kind):
     assert _media_row_count() == 0
 
 
+def test_form_media_seed_requires_established_catalog_and_taxonomy_before_writes():
+    database.initialize_database()
+
+    with pytest.raises(ValueError, match="established complete catalog"):
+        seed_exercise_form_media()
+
+    assert _media_row_count() == 0
+
+    catalog_service.seed_exercise_catalog()
+    with pytest.raises(ValueError, match="established taxonomy"):
+        seed_exercise_form_media()
+
+    assert _media_row_count() == 0
+
+
 def test_media_seed_rolls_back_atomically_on_unexpected_write_failure(monkeypatch):
     database.initialize_database()
+    seed_exercise_taxonomy()
     original_upsert = catalog_service._upsert_exercise_form_media_row
     calls = 0
 

@@ -1,17 +1,18 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Image from "next/image";
 
 import styles from "@/components/ExerciseInstructionDisclosure.module.css";
 import { fetchExerciseInstruction } from "@/lib/exerciseInstructionApi";
+import { selectCurrentExerciseInstructionResponse } from "@/lib/exerciseVisualMedia";
 import {
   exerciseInstructionAffordance,
   saveWorkoutExerciseProfile,
 } from "@/lib/workoutExerciseProfileApi";
 import type {
-  ExerciseFormMediaAsset,
   ExerciseInstructionResponse,
+  ExerciseVisualMediaItem,
 } from "@/types/exerciseInstruction";
 import type {
   WorkoutExerciseFamiliarity,
@@ -52,7 +53,39 @@ function InstructionSection({ heading, items }: InstructionSectionProps) {
   );
 }
 
-function VisualGuide({ media }: { media: ExerciseFormMediaAsset[] }) {
+function AnimatedVisualMedia({ asset }: { asset: ExerciseVisualMediaItem }) {
+  const [hasFailed, setHasFailed] = useState(false);
+
+  if (hasFailed) {
+    return (
+      <p className="px-2 pb-2 pt-1 text-xs text-text-secondary" role="status">
+        Animated guide unavailable. Follow the written instructions below.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <div className={styles.animatedVisualMediaFrame}>
+        {/* Provider URLs are normalized by the backend; an img preserves GIF animation. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={asset.url}
+          alt={asset.alt_text}
+          className={styles.animatedVisualMedia}
+          onError={() => setHasFailed(true)}
+        />
+      </div>
+      {asset.attribution ? (
+        <figcaption className="px-2 pb-2 pt-1 text-xs font-medium text-text-secondary">
+          {asset.attribution}
+        </figcaption>
+      ) : null}
+    </>
+  );
+}
+
+function VisualGuide({ media }: { media: ExerciseVisualMediaItem[] }) {
   if (!media.length) {
     return null;
   }
@@ -63,20 +96,26 @@ function VisualGuide({ media }: { media: ExerciseFormMediaAsset[] }) {
       <div className={styles.visualGuideGrid}>
         {media.map((asset) => (
           <figure key={asset.media_key} className={styles.visualGuideFigure}>
-            <div className={styles.visualGuideImageFrame}>
-              <Image
-                src={asset.asset_path}
-                alt={asset.alt_text}
-                fill
-                sizes="(max-width: 640px) 100vw, 50vw"
-                className={styles.visualGuideImage}
-              />
-            </div>
-            {asset.caption ? (
-              <figcaption className="px-2 pb-2 pt-1 text-xs font-medium text-text-secondary">
-                {asset.caption}
-              </figcaption>
-            ) : null}
+            {asset.media_type === "animated_image" ? (
+              <AnimatedVisualMedia asset={asset} />
+            ) : (
+              <>
+                <div className={styles.visualGuideImageFrame}>
+                  <Image
+                    src={asset.url}
+                    alt={asset.alt_text}
+                    fill
+                    sizes="(max-width: 640px) 100vw, 50vw"
+                    className={styles.visualGuideImage}
+                  />
+                </div>
+                {asset.caption ? (
+                  <figcaption className="px-2 pb-2 pt-1 text-xs font-medium text-text-secondary">
+                    {asset.caption}
+                  </figcaption>
+                ) : null}
+              </>
+            )}
           </figure>
         ))}
       </div>
@@ -97,14 +136,24 @@ export function ExerciseInstructionDisclosure({
   const disclosureId = useId();
   const mobilePanelId = `${disclosureId}-mobile`;
   const desktopPanelId = `${disclosureId}-desktop`;
-  const [isLoading, setIsLoading] = useState(false);
   const [instructionResponse, setInstructionResponse] =
     useState<ExerciseInstructionResponse | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const requestVersionRef = useRef(0);
+  const [loadingCatalogExerciseId, setLoadingCatalogExerciseId] = useState<
+    number | null
+  >(null);
+  const [instructionError, setInstructionError] = useState<{
+    catalogExerciseId: number;
+    message: string;
+  } | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileErrorMessage, setProfileErrorMessage] = useState<string | null>(
     null,
   );
+
+  useEffect(() => {
+    requestVersionRef.current += 1;
+  }, [catalogExerciseId]);
 
   if (catalogExerciseId === null) {
     return null;
@@ -112,35 +161,47 @@ export function ExerciseInstructionDisclosure({
 
   const loadInstruction = async () => {
     const requestedCatalogExerciseId = catalogExerciseId;
-    setIsLoading(true);
-    setErrorMessage(null);
+    const requestVersion = requestVersionRef.current + 1;
+    requestVersionRef.current = requestVersion;
+    setLoadingCatalogExerciseId(requestedCatalogExerciseId);
+    setInstructionError(null);
 
     const result = await fetchExerciseInstruction(requestedCatalogExerciseId);
-    setIsLoading(false);
+    if (requestVersion !== requestVersionRef.current) {
+      return;
+    }
+    setLoadingCatalogExerciseId(null);
     setInstructionResponse(result.data);
-    setErrorMessage(result.error?.message ?? null);
+    setInstructionError(
+      result.error
+        ? {
+            catalogExerciseId: requestedCatalogExerciseId,
+            message: result.error.message,
+          }
+        : null,
+    );
   };
 
   const handleToggle = () => {
     const nextIsExpanded = !isExpanded;
     onExpandedChange(nextIsExpanded);
 
-    if (nextIsExpanded && !instructionResponse && !isLoading) {
+    if (nextIsExpanded && !instruction && !isLoading) {
       void loadInstruction();
     }
   };
 
-  const instruction =
-    instructionResponse?.instruction.catalog_exercise_id === catalogExerciseId
-      ? instructionResponse.instruction
+  const currentInstructionResponse = selectCurrentExerciseInstructionResponse(
+    instructionResponse,
+    catalogExerciseId,
+  );
+  const instruction = currentInstructionResponse?.instruction ?? null;
+  const isLoading = loadingCatalogExerciseId === catalogExerciseId;
+  const errorMessage =
+    instructionError?.catalogExerciseId === catalogExerciseId
+      ? instructionError.message
       : null;
-  const formMedia =
-    instruction &&
-    instructionResponse?.form_media.every(
-      (asset) => asset.catalog_exercise_id === catalogExerciseId,
-    )
-      ? instructionResponse.form_media
-      : [];
+  const visualMedia = currentInstructionResponse?.visual_media ?? [];
   const showMediaBeforeOverview =
     profile?.familiarity_state === "unfamiliar" ||
     profile?.familiarity_state === "learning";
@@ -265,7 +326,7 @@ export function ExerciseInstructionDisclosure({
     return (
       <div className={isDesktop ? "space-y-6" : "space-y-3"}>
         {renderProfileControls()}
-        {showMediaBeforeOverview ? <VisualGuide media={formMedia} /> : null}
+        {showMediaBeforeOverview ? <VisualGuide media={visualMedia} /> : null}
         <p
           className={
             isDesktop
@@ -275,7 +336,7 @@ export function ExerciseInstructionDisclosure({
         >
           {instruction.overview}
         </p>
-        {!showMediaBeforeOverview ? <VisualGuide media={formMedia} /> : null}
+        {!showMediaBeforeOverview ? <VisualGuide media={visualMedia} /> : null}
         <div
           className={
             isDesktop

@@ -104,6 +104,26 @@ Layer selective intelligence on top of trustworthy history
 
 The highest-value work is increasingly driven by daily friction rather than missing backend capability.
 
+## Current Strategic Priority — Exercise Catalog and Visualization Expansion
+
+The immediate strategic priority is the exercise-catalog and visualization expansion program.
+
+Visualization v2 establishes the provider-neutral visual-media foundation.
+
+The active objective is to expand the internal canonical catalog from 240 exercises to at least 450-500 canonical exercises, using the free AscendAPI inventory as the primary candidate source.
+
+AscendAPI is not the platform source of truth. New exercises must be deliberately reviewed, canonicalized, deduplicated, assigned internal taxonomy, equipment and measurement semantics, structured instructions, visual-media relationships, and appropriate workout-generation eligibility.
+
+Catalog utilization and rotation must be reviewed and improved as necessary so expanded catalog coverage produces real workout variety rather than unreachable inventory.
+
+Until this objective is substantially achieved and Architecture closes the expansion program, unrelated major roadmap milestones are not the primary implementation focus.
+
+Injury / Temporary Limitation Mode is already completed.
+
+Smart Exercise Substitutions is already completed.
+
+Older roadmap sections below are retained as durable historical product direction, but their ordering is not current implementation authority and individual items may already be complete.
+
 ## Immediate Roadmap
 
 ### 1. Personal Food Serving Display Fix v1

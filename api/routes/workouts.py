@@ -16,6 +16,7 @@ from services.exercise_catalog_service import (
     get_exercise_protocol_template,
     get_exercise_taxonomy,
 )
+from services.exercise_visual_media_service import resolve_exercise_visual_media
 from services.workout_service import (
     add_workout_set,
     create_workout_session,
@@ -92,13 +93,19 @@ def exercise_instruction(
             detail="Exercise instruction not found",
         )
 
+    visual_media = resolve_exercise_visual_media(catalog_exercise_id)
+
     return {
         "success": True,
         "exercise": asdict(exercise),
         "instruction": asdict(instruction),
+        # Retained for local-media response compatibility.  New consumers use
+        # the provider-neutral normalized contract below.
         "form_media": [
             asdict(asset) for asset in get_exercise_form_media(catalog_exercise_id)
         ],
+        "visual_media": [asdict(item) for item in visual_media.media],
+        "visual_media_resolution": asdict(visual_media.resolution),
     }
 
 

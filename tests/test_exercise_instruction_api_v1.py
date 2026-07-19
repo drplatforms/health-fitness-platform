@@ -12,9 +12,11 @@ from services.exercise_catalog_service import (
     get_exercise_catalog,
     get_exercise_catalog_entry_by_id,
     get_exercise_instruction,
+    get_exercise_taxonomy,
     seed_exercise_catalog,
     seed_exercise_form_media,
     seed_exercise_instructions,
+    seed_exercise_taxonomy,
 )
 
 
@@ -25,6 +27,7 @@ def pytest_owned_database(tmp_path, monkeypatch):
     assert test_db.resolve() != canonical_db.resolve()
 
     monkeypatch.setattr(database, "DB_PATH", test_db)
+    monkeypatch.delenv("EXERCISE_VISUAL_MEDIA_PROVIDER", raising=False)
     clear_exercise_catalog_cache()
     yield test_db
     clear_exercise_catalog_cache()
@@ -32,7 +35,9 @@ def pytest_owned_database(tmp_path, monkeypatch):
 
 def _initialize_and_seed_instructions():
     database.initialize_database()
-    return seed_exercise_instructions()
+    instructions = seed_exercise_instructions()
+    seed_exercise_taxonomy()
+    return instructions
 
 
 def _instruction_row_counts() -> tuple[int, int]:
@@ -53,18 +58,29 @@ def test_valid_catalog_id_returns_complete_persisted_instruction_contract():
     instructions = _initialize_and_seed_instructions()
     instruction = instructions[0]
     exercise = get_exercise_catalog_entry_by_id(instruction.catalog_exercise_id)
+    taxonomy = get_exercise_taxonomy(instruction.catalog_exercise_id)
     assert exercise is not None
+    assert taxonomy is not None
 
     response = TestClient(app).get(
         f"/exercise-catalog/{instruction.catalog_exercise_id}/instruction"
     )
 
     assert response.status_code == 200
-    assert response.json() == {
-        "success": True,
-        "exercise": asdict(exercise),
-        "instruction": asdict(instruction),
-        "form_media": [],
+    payload = response.json()
+    assert payload["success"] is True
+    assert payload["exercise"] == asdict(exercise)
+    assert payload["instruction"] == asdict(instruction)
+    assert payload["form_media"] == []
+    assert payload["visual_media"] == []
+    assert payload["visual_media_resolution"] == {
+        "requested_catalog_exercise_id": instruction.catalog_exercise_id,
+        "visual_identity_slug": taxonomy.visual_identity_slug,
+        "resolution_mode": "none",
+        "source_type": "none",
+        "source_catalog_exercise_id": None,
+        "provider": None,
+        "provider_exercise_id": None,
     }
     assert (
         response.json()["instruction"]["catalog_exercise_id"]
@@ -121,6 +137,12 @@ def test_covered_instruction_response_includes_ordered_local_form_media():
     assert {asset["source_exercise_id"] for asset in response.json()["form_media"]} == {
         "Incline_Dumbbell_Press"
     }
+    assert (
+        response.json()["visual_media_resolution"]["resolution_mode"] == "direct_local"
+    )
+    assert {
+        asset["source_catalog_exercise_id"] for asset in response.json()["visual_media"]
+    } == {covered.id}
 
 
 def test_uncovered_instruction_response_remains_text_only_after_media_expansion():
@@ -135,6 +157,41 @@ def test_uncovered_instruction_response_remains_text_only_after_media_expansion(
 
     assert response.status_code == 200
     assert response.json()["form_media"] == []
+    assert response.json()["visual_media"] == []
+    assert response.json()["visual_media_resolution"]["resolution_mode"] == "none"
+
+
+def test_configured_free_v1_instruction_response_is_normalized_without_a_key(
+    monkeypatch,
+):
+    _initialize_and_seed_instructions()
+    seed_exercise_form_media()
+    monkeypatch.setenv("EXERCISE_VISUAL_MEDIA_PROVIDER", "ascendapi_free_v1")
+    provider_backed = next(
+        entry for entry in get_exercise_catalog() if entry.name == "Back Squat"
+    )
+    assert provider_backed.id is not None
+
+    response = TestClient(app).get(
+        f"/exercise-catalog/{provider_backed.id}/instruction"
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["form_media"] == []
+    assert payload["visual_media_resolution"] == {
+        "requested_catalog_exercise_id": provider_backed.id,
+        "visual_identity_slug": "visual_back_squat",
+        "resolution_mode": "provider",
+        "source_type": "remote_provider",
+        "source_catalog_exercise_id": None,
+        "provider": "ascendapi_free_v1",
+        "provider_exercise_id": "DhMl549",
+    }
+    assert payload["visual_media"][0]["media_type"] == "animated_image"
+    assert payload["visual_media"][0]["url"].endswith("/DhMl549.gif")
+    assert "ExerciseDB / AscendAPI Free V1" in response.text
+    assert "non-commercial prototype phase" in response.text
 
 
 def test_unknown_catalog_id_returns_bounded_exercise_not_found_response():

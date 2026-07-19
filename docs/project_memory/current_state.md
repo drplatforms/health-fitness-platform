@@ -1,3 +1,67 @@
+# Current State - Visualization v2: Animated Provider Media Integration
+
+Canonical implementation baseline before merge: main at d6f968b.
+
+Feature branch: eature/visualization-v2-provider-media.
+
+Status: VISUALIZATION_V2_PROVIDER_MEDIA_INTEGRATION_ARCHITECTURE_ACCEPTED.
+
+Accepted behavior:
+
+- The internal canonical exercise catalog remains the source of truth for exercise identity.
+- Structured taxonomy remains the source of truth for physical isual_identity_slug.
+- Visual-media resolution is deterministic: direct curated local media, accepted shared-local visual identity, approved configured provider media, then text-only fallback.
+- Local form media remains authoritative and unchanged.
+- Exactly three accepted shared-local visual identities are supported.
+- Exactly 46 reviewed scendapi_free_v1 provider visual identities fan out to 52 canonical exercises.
+- Configured visual guidance coverage is 83 direct local + 3 shared local + 52 provider-backed = 138 / 240 canonical exercises.
+- The remaining 102 canonical exercises safely retain complete text guidance without visual media.
+- Provider mappings are explicit repository-owned metadata; there is no fuzzy runtime matching, live provider search, name guessing, family fallback, or catalog-truth mutation.
+- Shared-local runtime resolution is genuinely read-only and does not invoke catalog seeding.
+- Ambiguous multiple direct local-media owners for one accepted shared visual identity fail explicitly.
+- Provider media requires explicit server-side selection through EXERCISE_VISUAL_MEDIA_PROVIDER=ascendapi_free_v1.
+- Provider failure or missing configuration degrades safely to text-only guidance.
+- Provider attribution remains visible.
+- Provider animated media is rendered compactly without forced cropping or aggressive upscaling.
+- Existing local static Start/Finish media behavior remains unchanged.
+- Provider use remains authorized only for the current non-commercial/prototype phase; rights must be revisited before monetized or SaaS use.
+
+Validation and acceptance evidence:
+
+- The corrected shared-local resolver regression exercised all three accepted shared-local mappings through the real runtime resolver.
+- Resolver regression proved complete persisted rows remained unchanged for xercise_catalog_exercises, xercise_equipment_requirements, and xercise_catalog_taxonomy.
+- Catalog seeding was explicitly prevented during the read-only resolver regression.
+- Focused post-correction backend validation passed: 39 tests.
+- Architecture independently reconstructed the corrected milestone against the clean d6f968b baseline and passed a 121-test relevant backend slice.
+- Frontend visual-media selection and stale-response tests passed: 4 tests.
+- Targeted Ruff checks and formatting checks passed.
+- Frontend lint and production build passed.
+- Architecture source review passed for the complete final working-tree patch.
+- Feature-branch production smoke passed on desktop and approximately 390 x 844 mobile width.
+- Provider animated media rendered successfully with visible attribution, intact written guidance, no horizontal overflow, and acceptable compact sizing.
+- The canonical itness_ai.db was not mutated by milestone automated validation.
+
+Architecture boundaries preserved:
+
+- AscendAPI Free remains a provider and candidate source, not the internal catalog source of truth.
+- No provider media is permanently cached, vendored, mirrored, redistributed, or persisted as fake local media.
+- No workout-generation behavior or catalog membership was changed by Visualization v2.
+
+Current strategic objective:
+
+- Continue the exercise-catalog and visualization expansion program until the internal canonical catalog reaches at least roughly 450-500 exercises.
+- Use the free AscendAPI inventory as the primary candidate source for expansion.
+- New exercises must be deliberately reviewed, canonicalized, deduplicated, assigned internal taxonomy, equipment and measurement semantics, instructions, and appropriate visual-media mappings before admission.
+- Catalog utilization and rotation must be reviewed as needed so the expanded catalog is meaningfully reachable in the product.
+- Do not move on to unrelated major roadmap milestones until the 450-500 canonical-exercise expansion objective is substantially achieved and Architecture explicitly closes that program.
+- Injury / Temporary Limitation Mode is already completed and must not be treated as future roadmap work.
+
+Next Architecture center:
+
+Exercise Catalog Expansion Program v2 toward at least 450-500 canonical exercises using AscendAPI Free as the primary candidate inventory.
+
+---
+
 # Current State - Structured AscendAPI Coverage Reassessment v1
 
 Canonical evidence baseline: `main` at `a38aefc`.

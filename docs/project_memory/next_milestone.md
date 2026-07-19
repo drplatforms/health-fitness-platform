@@ -1,14 +1,28 @@
-# Next Milestone — Roadmap Review and Fresh Architecture Selection
+# Next Milestone — Exercise Catalog Expansion Program v2
 
-The current authorized milestone is Project Memory + Developer Workflow Canonicalization v1. Its remaining sequence is:
+Visualization v2 is Architecture accepted.
 
-1. Complete the canonicalization cleanup and validation.
-2. Submit the resulting repository-owned memory and workflow to Architecture for review and closeout.
-3. Have the user provide the rough current product roadmap.
-4. Onboard a fresh Architecture chat from the canonical repository memory.
-5. Have Architecture review that roadmap and select the next narrow product milestone.
+The current strategic objective is to expand the internal canonical exercise catalog from 240 exercises to at least 450-500 exercises before returning to unrelated major roadmap milestones.
 
-No next product milestone is authorized by this file. Exercise Instruction Contract / Data Design v1 may be considered as a candidate only after the user supplies the roadmap and fresh Architecture reviews it.
+Primary candidate source: AscendAPI Free.
+
+AscendAPI remains a provider and candidate source rather than the internal source of truth.
+
+Candidate exercises must be deliberately reviewed and admitted with:
+
+- canonical identity and deduplication;
+- structured taxonomy and physical visual identity;
+- equipment requirements;
+- prescription and measurement semantics;
+- structured exercise instructions;
+- approved visual-media relationships and provider provenance;
+- appropriate workout-generation eligibility.
+
+Catalog utilization and rotation must be reviewed as needed during the expansion program so the larger catalog is meaningfully reachable rather than merely stored.
+
+The first bounded implementation milestone within this program still requires Architecture scoping and is not implementation-authorized by this document alone.
+
+Injury / Temporary Limitation Mode is already complete and is not future roadmap work.
 
 ---
 
