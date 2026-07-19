@@ -138,6 +138,20 @@ function formatRange(min: number | null, max: number | null): string | null {
   return `${min}-${max}`;
 }
 
+function formatDuration(seconds: number | null): string | null {
+  if (seconds === null) {
+    return null;
+  }
+  return seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} sec`;
+}
+
+function formatDistance(meters: number | null): string | null {
+  if (meters === null) {
+    return null;
+  }
+  return `${Number.isInteger(meters) ? meters : meters.toFixed(1)} m`;
+}
+
 function actualSetsForExercise(
   actualSets: WorkoutActualSetSummary[],
   plannedExerciseId: number,
@@ -152,7 +166,17 @@ function actualSetsForExercise(
 function formatActualSetDetail(actualSet: WorkoutActualSetSummary): string[] {
   const details: string[] = [];
 
-  if (actualSet.actual_reps !== null) {
+  if (actualSet.measurement_type === "duration") {
+    const duration = formatDuration(actualSet.actual_duration_seconds);
+    if (duration) {
+      details.push(duration);
+    }
+  } else if (actualSet.measurement_type === "distance") {
+    const distance = formatDistance(actualSet.actual_distance_meters);
+    if (distance) {
+      details.push(distance);
+    }
+  } else if (actualSet.actual_reps !== null) {
     details.push(`${actualSet.actual_reps} reps`);
   }
   if (actualSet.actual_weight !== null) {
@@ -181,6 +205,14 @@ function currentWorkoutRows(
     const latestLoggedSet = loggedSets[loggedSets.length - 1];
     const plannedReps = formatRange(exercise.reps_min, exercise.reps_max);
     const plannedRir = formatRange(exercise.rir_min, exercise.rir_max);
+    const plannedPrimary =
+      exercise.measurement_type === "duration"
+        ? formatDuration(exercise.target_duration_seconds)
+        : exercise.measurement_type === "distance"
+          ? formatDistance(exercise.target_distance_meters)
+          : plannedReps
+            ? `${plannedReps} reps`
+            : null;
     const detailParts = latestLoggedSet
       ? [
           `${loggedSets.length}/${exercise.sets} sets`,
@@ -188,8 +220,10 @@ function currentWorkoutRows(
         ]
       : [
           `0/${exercise.sets} sets`,
-          plannedReps ? `planned ${plannedReps}` : null,
-          plannedRir ? `RIR ${plannedRir}` : null,
+          plannedPrimary ? `planned ${plannedPrimary}` : null,
+          exercise.measurement_type === "reps" && plannedRir
+            ? `RIR ${plannedRir}`
+            : null,
         ].filter((value): value is string => Boolean(value));
 
     return {
@@ -210,7 +244,13 @@ function todayWorkoutRows(
   return workout.exercises.slice(0, 6).map((exercise) => {
     const detailParts = [
       exercise.sets === null ? null : `0/${exercise.sets} sets`,
-      exercise.reps ? `planned ${exercise.reps}` : null,
+      exercise.measurement_type === "duration"
+        ? formatDuration(exercise.target_duration_seconds)
+        : exercise.measurement_type === "distance"
+          ? formatDistance(exercise.target_distance_meters)
+          : exercise.reps
+            ? `${exercise.reps} reps`
+            : null,
     ].filter((value): value is string => Boolean(value));
 
     return {

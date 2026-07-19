@@ -7,7 +7,10 @@ interface WorkoutActualSetRequestPayload {
   planned_workout_exercise_id?: number;
   exercise_name?: string;
   set_number?: number;
+  measurement_type?: "reps" | "duration" | "distance";
   actual_reps?: number;
+  actual_duration_seconds?: number;
+  actual_distance_meters?: number;
   actual_weight?: number;
   actual_rir?: number;
   completed?: boolean;
@@ -42,7 +45,10 @@ export async function POST(request: NextRequest) {
         planned_workout_exercise_id: payload?.planned_workout_exercise_id,
         exercise_name: payload?.exercise_name,
         set_number: payload?.set_number,
+        measurement_type: payload?.measurement_type,
         actual_reps: payload?.actual_reps,
+        actual_duration_seconds: payload?.actual_duration_seconds,
+        actual_distance_meters: payload?.actual_distance_meters,
         actual_weight: payload?.actual_weight,
         actual_rir: payload?.actual_rir,
         completed: payload?.completed,
@@ -104,7 +110,10 @@ export async function PATCH(request: NextRequest) {
         planned_workout_exercise_id: payload?.planned_workout_exercise_id,
         exercise_name: payload?.exercise_name,
         set_number: payload?.set_number,
+        measurement_type: payload?.measurement_type,
         actual_reps: payload?.actual_reps,
+        actual_duration_seconds: payload?.actual_duration_seconds,
+        actual_distance_meters: payload?.actual_distance_meters,
         actual_weight: payload?.actual_weight,
         actual_rir: payload?.actual_rir,
         completed: payload?.completed,

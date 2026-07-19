@@ -8,7 +8,11 @@ import database
 import services.post_workout_review_service as post_workout_review_service
 import services.workout_plan_service as workout_plan_service
 from api.main import app
-from models.exercise_catalog_models import ExerciseCatalogEntry
+from models.exercise_catalog_models import (
+    ExerciseCatalogEntry,
+    ExercisePrescriptionMeasurementMetadata,
+    ExerciseTaxonomyMetadata,
+)
 from models.training_constraint_models import TrainingConstraints
 from models.workout_constraint_models import WorkoutConstraints
 from models.workout_plan_models import WorkoutContext
@@ -138,8 +142,14 @@ def test_recovery_limited_workout_is_recovery_aware(tmp_path, monkeypatch):
     assert "rir 2-3" in rendered
     assert "max effort" not in rendered
     assert "to failure" not in rendered
-    assert all(exercise.rir_min >= 2 for exercise in approved.exercises)
-    assert all(exercise.rir_max <= 3 for exercise in approved.exercises)
+    assert all(
+        exercise.rir_min is None or exercise.rir_min >= 2
+        for exercise in approved.exercises
+    )
+    assert all(
+        exercise.rir_max is None or exercise.rir_max <= 3
+        for exercise in approved.exercises
+    )
 
 
 def test_aligned_managed_workout_avoids_unnecessary_intervention(tmp_path, monkeypatch):
@@ -643,8 +653,8 @@ def test_home_gym_ten_preview_select_cycles_do_not_converge_to_same_plan(
         for exercise in approved.exercises:
             equipment_modalities.update(exercise.equipment_required)
             assert "machine" not in exercise.equipment_required
-            assert exercise.rir_min >= 2
-            assert exercise.rir_max <= 4
+            assert exercise.rir_min is None or exercise.rir_min >= 2
+            assert exercise.rir_max is None or exercise.rir_max <= 4
 
         select_current_workout_plan(102)
 
@@ -712,9 +722,46 @@ def _patch_lightweight_catalog(monkeypatch):
     def fake_find_catalog_entry_by_name(name: str):
         return _LIGHTWEIGHT_CATALOG.get(name)
 
+    def fake_measurement_metadata(catalog_exercise_id: int):
+        if catalog_exercise_id not in {
+            entry.id for entry in _LIGHTWEIGHT_CATALOG.values()
+        }:
+            return None
+        return ExercisePrescriptionMeasurementMetadata(
+            catalog_exercise_id=catalog_exercise_id,
+            default_measurement_type="reps",
+            allowed_measurement_types=("reps",),
+            sets_applicable=True,
+            load_applicability="applicable",
+            rir_applicability="applicable",
+        )
+
+    def fake_taxonomy(catalog_exercise_id: int):
+        if catalog_exercise_id not in {
+            entry.id for entry in _LIGHTWEIGHT_CATALOG.values()
+        }:
+            return None
+        return ExerciseTaxonomyMetadata(
+            catalog_exercise_id=catalog_exercise_id,
+            family_slug="strength",
+            base_movement_slug="strength",
+            visual_identity_slug="strength",
+            taxonomy_status="accepted",
+        )
+
     monkeypatch.setattr(
         "services.workout_plan_service.find_catalog_entry_by_name",
         fake_find_catalog_entry_by_name,
+    )
+    monkeypatch.setattr(
+        workout_plan_service,
+        "get_exercise_prescription_measurement_metadata",
+        fake_measurement_metadata,
+    )
+    monkeypatch.setattr(
+        workout_plan_service,
+        "get_exercise_taxonomy",
+        fake_taxonomy,
     )
 
 
@@ -788,8 +835,11 @@ def _candidate_payload_for_entry(
                 "movement_pattern": entry.movement_pattern,
                 "target_zone": "main" if index == 0 else "accessory",
                 "sets": 3,
+                "measurement_type": "reps",
                 "reps_min": 8,
                 "reps_max": 10,
+                "target_duration_seconds": None,
+                "target_distance_meters": None,
                 "target_rir_min": 2,
                 "target_rir_max": 3,
                 "required_equipment": entry.equipment_required,
@@ -1038,8 +1088,11 @@ def _provider_payload_from_candidate(candidate) -> dict:
                 "movement_pattern": entry.movement_pattern,
                 "target_zone": exercise.target_zone or "main",
                 "sets": exercise.sets,
+                "measurement_type": exercise.measurement_type,
                 "reps_min": exercise.reps_min,
                 "reps_max": exercise.reps_max,
+                "target_duration_seconds": exercise.target_duration_seconds,
+                "target_distance_meters": exercise.target_distance_meters,
                 "target_rir_min": exercise.rir_min,
                 "target_rir_max": exercise.rir_max,
                 "required_equipment": entry.equipment_required,
@@ -1104,6 +1157,9 @@ def test_workout_context_to_llm_json_is_bounded_and_safe(tmp_path, monkeypatch):
             "exercise_name",
             "movement_pattern",
             "required_equipment",
+            "default_measurement_type",
+            "allowed_measurement_types",
+            "rir_applicability",
             "target_zone",
         }
         for exercise in payload["allowed_exercises"]
@@ -1898,18 +1954,29 @@ def _completed_workout_execution(tmp_path, monkeypatch) -> tuple[int, int]:
 
     for exercise in started["planned_exercises"]:
         for set_number in range(1, exercise.sets + 1):
+            actual_payload = {
+                "planned_workout_exercise_id": exercise.id,
+                "exercise_name": exercise.name,
+                "set_number": set_number,
+                "actual_weight": 25,
+                "completed": True,
+                "skipped": False,
+            }
+            if exercise.measurement_type == "duration":
+                actual_payload["actual_duration_seconds"] = (
+                    exercise.target_duration_seconds
+                )
+            elif exercise.measurement_type == "distance":
+                actual_payload["actual_distance_meters"] = (
+                    exercise.target_distance_meters
+                )
+            else:
+                actual_payload["actual_reps"] = exercise.reps_min
+                if exercise.rir_min is not None:
+                    actual_payload["actual_rir"] = exercise.rir_min
             log_actual_set(
                 plan_instance_id,
-                {
-                    "planned_workout_exercise_id": exercise.id,
-                    "exercise_name": exercise.name,
-                    "set_number": set_number,
-                    "actual_reps": exercise.reps_min,
-                    "actual_weight": 25,
-                    "actual_rir": exercise.rir_min,
-                    "completed": True,
-                    "skipped": False,
-                },
+                actual_payload,
             )
 
     completed = complete_workout_plan(plan_instance_id)

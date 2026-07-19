@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime
 from typing import Any
@@ -57,6 +59,165 @@ class WorkoutPlanValidationError(WorkoutPlanPersistenceError):
     """Raised when execution logging payloads are invalid."""
 
 
+_PLANNED_EXERCISE_MEASUREMENT_COLUMNS = {
+    "measurement_type",
+    "target_duration_seconds",
+    "target_distance_meters",
+}
+
+
+def _create_planned_workout_exercises_table(cursor, table_name: str) -> None:
+    if table_name not in {
+        "planned_workout_exercises",
+        "planned_workout_exercises_measurement_v1",
+    }:
+        raise ValueError("Unsupported planned workout exercise table name")
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS {table_name} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        workout_plan_instance_id INTEGER NOT NULL,
+        exercise_order INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        sets INTEGER NOT NULL,
+        measurement_type TEXT,
+        reps_min INTEGER,
+        reps_max INTEGER,
+        target_duration_seconds INTEGER,
+        target_distance_meters REAL,
+        rir_min INTEGER,
+        rir_max INTEGER,
+        notes TEXT NOT NULL,
+        equipment_required_json TEXT NOT NULL,
+        catalog_exercise_id INTEGER,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (workout_plan_instance_id)
+            REFERENCES workout_plan_instances(id)
+    )
+    """)
+
+
+def _planned_workout_exercises_requires_measurement_migration(cursor) -> bool:
+    cursor.execute("PRAGMA table_info(planned_workout_exercises)")
+    columns = {row["name"]: row for row in cursor.fetchall()}
+    if not columns:
+        return False
+    if _PLANNED_EXERCISE_MEASUREMENT_COLUMNS - set(columns):
+        return True
+    return any(
+        columns[column_name]["notnull"] != 0
+        for column_name in (
+            "measurement_type",
+            "reps_min",
+            "reps_max",
+            "target_duration_seconds",
+            "target_distance_meters",
+            "rir_min",
+            "rir_max",
+        )
+    )
+
+
+def _foreign_key_violation_multiset(cursor) -> Counter[tuple[Any, ...]]:
+    return Counter(
+        tuple(row) for row in cursor.execute("PRAGMA foreign_key_check").fetchall()
+    )
+
+
+def _migrate_planned_workout_exercises_measurement_schema(
+    conn,
+    *,
+    after_copy_hook: Callable[[], None] | None = None,
+) -> None:
+    """Rebuild the legacy table without changing IDs or child references."""
+
+    cursor = conn.cursor()
+    if not _planned_workout_exercises_requires_measurement_migration(cursor):
+        return
+
+    cursor.execute("PRAGMA table_info(planned_workout_exercises)")
+    existing_columns = {row["name"] for row in cursor.fetchall()}
+
+    def source(column_name: str) -> str:
+        return column_name if column_name in existing_columns else "NULL"
+
+    conn.commit()
+    foreign_key_violation_baseline = _foreign_key_violation_multiset(conn.cursor())
+    foreign_keys_enabled = bool(conn.execute("PRAGMA foreign_keys").fetchone()[0])
+    if foreign_keys_enabled:
+        conn.execute("PRAGMA foreign_keys = OFF")
+
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        cursor = conn.cursor()
+        _create_planned_workout_exercises_table(
+            cursor,
+            "planned_workout_exercises_measurement_v1",
+        )
+        cursor.execute(f"""
+        INSERT INTO planned_workout_exercises_measurement_v1 (
+            id,
+            workout_plan_instance_id,
+            exercise_order,
+            name,
+            sets,
+            measurement_type,
+            reps_min,
+            reps_max,
+            target_duration_seconds,
+            target_distance_meters,
+            rir_min,
+            rir_max,
+            notes,
+            equipment_required_json,
+            catalog_exercise_id,
+            created_at
+        )
+        SELECT
+            id,
+            workout_plan_instance_id,
+            exercise_order,
+            name,
+            sets,
+            {source("measurement_type")},
+            reps_min,
+            reps_max,
+            {source("target_duration_seconds")},
+            {source("target_distance_meters")},
+            rir_min,
+            rir_max,
+            notes,
+            equipment_required_json,
+            {source("catalog_exercise_id")},
+            created_at
+        FROM planned_workout_exercises
+        """)
+        if after_copy_hook is not None:
+            after_copy_hook()
+        cursor.execute("DROP TABLE planned_workout_exercises")
+        cursor.execute(
+            "ALTER TABLE planned_workout_exercises_measurement_v1 "
+            "RENAME TO planned_workout_exercises"
+        )
+        foreign_key_violations = _foreign_key_violation_multiset(cursor)
+        if foreign_key_violations != foreign_key_violation_baseline:
+            added_violations = foreign_key_violations - foreign_key_violation_baseline
+            removed_violations = foreign_key_violation_baseline - foreign_key_violations
+            raise WorkoutPlanPersistenceError(
+                "Planned workout exercise migration changed the foreign-key "
+                "violation baseline "
+                f"(added={sum(added_violations.values())}, "
+                f"removed={sum(removed_violations.values())})"
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        if foreign_keys_enabled:
+            conn.execute("PRAGMA foreign_keys = ON")
+
+
 def _encode_json(value: Any) -> str:
     return json.dumps(value, sort_keys=True)
 
@@ -94,34 +255,10 @@ def ensure_workout_plan_persistence_tables() -> None:
     )
     """)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS planned_workout_exercises (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        workout_plan_instance_id INTEGER NOT NULL,
-        exercise_order INTEGER NOT NULL,
-        name TEXT NOT NULL,
-        sets INTEGER NOT NULL,
-        reps_min INTEGER NOT NULL,
-        reps_max INTEGER NOT NULL,
-        rir_min INTEGER NOT NULL,
-        rir_max INTEGER NOT NULL,
-        notes TEXT NOT NULL,
-        equipment_required_json TEXT NOT NULL,
-        catalog_exercise_id INTEGER,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-
-        FOREIGN KEY (workout_plan_instance_id)
-            REFERENCES workout_plan_instances(id)
-    )
-    """)
-
-    cursor.execute("PRAGMA table_info(planned_workout_exercises)")
-    planned_workout_exercise_columns = {row["name"] for row in cursor.fetchall()}
-    if "catalog_exercise_id" not in planned_workout_exercise_columns:
-        cursor.execute(
-            "ALTER TABLE planned_workout_exercises "
-            "ADD COLUMN catalog_exercise_id INTEGER"
-        )
+    _create_planned_workout_exercises_table(cursor, "planned_workout_exercises")
+    conn.commit()
+    _migrate_planned_workout_exercises_measurement_schema(conn)
+    cursor = conn.cursor()
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS workout_execution_sessions (
@@ -166,9 +303,14 @@ def ensure_workout_plan_persistence_tables() -> None:
         set_number INTEGER NOT NULL,
         planned_reps_min INTEGER,
         planned_reps_max INTEGER,
+        measurement_type TEXT,
+        planned_duration_seconds INTEGER,
+        planned_distance_meters REAL,
         planned_rir_min INTEGER,
         planned_rir_max INTEGER,
         actual_reps INTEGER,
+        actual_duration_seconds INTEGER,
+        actual_distance_meters REAL,
         actual_weight REAL,
         actual_rir INTEGER,
         completed INTEGER NOT NULL DEFAULT 0,
@@ -190,6 +332,21 @@ def ensure_workout_plan_persistence_tables() -> None:
             REFERENCES planned_workout_exercises(id)
     )
     """)
+
+    cursor.execute("PRAGMA table_info(workout_execution_set_actuals)")
+    actual_set_columns = {row["name"] for row in cursor.fetchall()}
+    for column_name, column_type in (
+        ("measurement_type", "TEXT"),
+        ("planned_duration_seconds", "INTEGER"),
+        ("planned_distance_meters", "REAL"),
+        ("actual_duration_seconds", "INTEGER"),
+        ("actual_distance_meters", "REAL"),
+    ):
+        if column_name not in actual_set_columns:
+            cursor.execute(
+                f"ALTER TABLE workout_execution_set_actuals "
+                f"ADD COLUMN {column_name} {column_type}"
+            )
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS workout_plan_exercise_substitutions (
@@ -223,14 +380,20 @@ def ensure_workout_plan_persistence_tables() -> None:
 
 
 def _approved_workout_plan_from_dict(raw_plan: dict) -> ApprovedWorkoutPlan:
+    def optional_int(value):
+        return None if value is None else int(value)
+
+    def optional_float(value):
+        return None if value is None else float(value)
+
     exercises = [
         ApprovedWorkoutExercise(
             name=str(exercise["name"]),
             sets=int(exercise["sets"]),
-            reps_min=int(exercise["reps_min"]),
-            reps_max=int(exercise["reps_max"]),
-            rir_min=int(exercise["rir_min"]),
-            rir_max=int(exercise["rir_max"]),
+            reps_min=optional_int(exercise.get("reps_min")),
+            reps_max=optional_int(exercise.get("reps_max")),
+            rir_min=optional_int(exercise.get("rir_min")),
+            rir_max=optional_int(exercise.get("rir_max")),
             notes=str(exercise["notes"]),
             equipment_required=[
                 str(equipment) for equipment in exercise.get("equipment_required", [])
@@ -239,6 +402,13 @@ def _approved_workout_plan_from_dict(raw_plan: dict) -> ApprovedWorkoutPlan:
                 None
                 if exercise.get("catalog_exercise_id") is None
                 else int(exercise["catalog_exercise_id"])
+            ),
+            measurement_type=str(exercise.get("measurement_type") or "reps"),
+            target_duration_seconds=optional_int(
+                exercise.get("target_duration_seconds")
+            ),
+            target_distance_meters=optional_float(
+                exercise.get("target_distance_meters")
             ),
         )
         for exercise in raw_plan.get("exercises", [])
@@ -320,6 +490,9 @@ def _row_to_planned_exercise(row) -> PlannedWorkoutExercise:
             for equipment in _decode_json(row["equipment_required_json"], [])
         ],
         catalog_exercise_id=_row_value(row, "catalog_exercise_id"),
+        measurement_type=_row_value(row, "measurement_type") or "reps",
+        target_duration_seconds=_row_value(row, "target_duration_seconds"),
+        target_distance_meters=_row_value(row, "target_distance_meters"),
     )
 
 
@@ -362,6 +535,11 @@ def _row_to_actual_set(row) -> WorkoutExecutionSetActual:
         notes=row["notes"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
+        measurement_type=_row_value(row, "measurement_type") or "reps",
+        planned_duration_seconds=_row_value(row, "planned_duration_seconds"),
+        planned_distance_meters=_row_value(row, "planned_distance_meters"),
+        actual_duration_seconds=_row_value(row, "actual_duration_seconds"),
+        actual_distance_meters=_row_value(row, "actual_distance_meters"),
     )
 
 
@@ -1102,25 +1280,119 @@ def _validate_actual_set_payload(
     if completed and skipped:
         raise WorkoutPlanValidationError("completed and skipped cannot both be true.")
 
+    planned_measurement_type = (
+        planned_exercise.measurement_type if planned_exercise is not None else None
+    )
+    payload_measurement_type = payload.get("measurement_type")
+    if (
+        planned_measurement_type is not None
+        and payload_measurement_type is not None
+        and payload_measurement_type != planned_measurement_type
+    ):
+        raise WorkoutPlanValidationError(
+            "measurement_type must match the referenced planned exercise."
+        )
+    measurement_type = planned_measurement_type or payload_measurement_type or "reps"
+    if measurement_type not in {"reps", "duration", "distance"}:
+        raise WorkoutPlanValidationError(
+            "measurement_type must be reps, duration, or distance."
+        )
+
     actual_reps = payload.get("actual_reps")
+    actual_duration_seconds = payload.get("actual_duration_seconds")
+    actual_distance_meters = payload.get("actual_distance_meters")
     actual_weight = payload.get("actual_weight")
     actual_rir = payload.get("actual_rir")
 
     if actual_reps is not None:
         actual_reps = int(actual_reps)
+    if actual_duration_seconds is not None:
+        actual_duration_seconds = int(actual_duration_seconds)
+    if actual_distance_meters is not None:
+        actual_distance_meters = float(actual_distance_meters)
     if actual_weight is not None:
         actual_weight = float(actual_weight)
     if actual_rir is not None:
         actual_rir = int(actual_rir)
 
     _validate_non_negative_int(actual_reps, "actual_reps")
+    _validate_non_negative_int(actual_duration_seconds, "actual_duration_seconds")
+    _validate_non_negative_float(actual_distance_meters, "actual_distance_meters")
     _validate_non_negative_float(actual_weight, "actual_weight")
     _validate_actual_rir(actual_rir)
 
-    if completed and not skipped and (actual_reps is None or actual_rir is None):
-        raise WorkoutPlanValidationError(
-            "completed actual sets require actual_reps and actual_rir."
+    if skipped and any(
+        value is not None
+        for value in (
+            actual_reps,
+            actual_duration_seconds,
+            actual_distance_meters,
+            actual_rir,
         )
+    ):
+        raise WorkoutPlanValidationError(
+            "skipped actual sets cannot include primary measurements or RIR."
+        )
+
+    if measurement_type == "reps":
+        if actual_duration_seconds is not None or actual_distance_meters is not None:
+            raise WorkoutPlanValidationError(
+                "rep actual sets cannot include duration or distance."
+            )
+        if completed and not skipped and (actual_reps is None or actual_reps <= 0):
+            raise WorkoutPlanValidationError(
+                "completed rep actual sets require actual_reps greater than zero."
+            )
+        planned_rir_applicable = (
+            planned_exercise is not None
+            and planned_exercise.rir_min is not None
+            and planned_exercise.rir_max is not None
+        )
+        if completed and not skipped and planned_rir_applicable and actual_rir is None:
+            raise WorkoutPlanValidationError(
+                "completed rep actual sets require actual_rir for this exercise."
+            )
+    elif measurement_type == "duration":
+        if (
+            actual_reps is not None
+            or actual_distance_meters is not None
+            or actual_rir is not None
+        ):
+            raise WorkoutPlanValidationError(
+                "duration actual sets cannot include reps, distance, or RIR."
+            )
+        if (
+            completed
+            and not skipped
+            and (actual_duration_seconds is None or actual_duration_seconds <= 0)
+        ):
+            raise WorkoutPlanValidationError(
+                "completed duration actual sets require positive duration."
+            )
+    else:
+        if (
+            actual_reps is not None
+            or actual_duration_seconds is not None
+            or actual_rir is not None
+        ):
+            raise WorkoutPlanValidationError(
+                "distance actual sets cannot include reps, duration, or RIR."
+            )
+        if (
+            completed
+            and not skipped
+            and (actual_distance_meters is None or actual_distance_meters <= 0)
+        ):
+            raise WorkoutPlanValidationError(
+                "completed distance actual sets require positive distance."
+            )
+
+    payload["measurement_type"] = measurement_type
+    payload["actual_reps"] = actual_reps
+    payload["actual_duration_seconds"] = actual_duration_seconds
+    payload["actual_distance_meters"] = actual_distance_meters
+    payload["actual_weight"] = actual_weight
+    payload["actual_rir"] = actual_rir
 
     if planned_exercise is None and not payload.get("exercise_name"):
         raise WorkoutPlanValidationError(
@@ -1185,8 +1457,11 @@ def log_actual_set(plan_instance_id: int, payload: dict) -> dict:
         completed = bool(payload.get("completed", True))
         skipped = bool(payload.get("skipped", False))
         actual_reps = payload.get("actual_reps")
+        actual_duration_seconds = payload.get("actual_duration_seconds")
+        actual_distance_meters = payload.get("actual_distance_meters")
         actual_weight = payload.get("actual_weight")
         actual_rir = payload.get("actual_rir")
+        measurement_type = payload["measurement_type"]
 
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -1199,11 +1474,16 @@ def log_actual_set(plan_instance_id: int, payload: dict) -> dict:
                 workout_set_id,
                 exercise_name,
                 set_number,
+                measurement_type,
                 planned_reps_min,
                 planned_reps_max,
+                planned_duration_seconds,
+                planned_distance_meters,
                 planned_rir_min,
                 planned_rir_max,
                 actual_reps,
+                actual_duration_seconds,
+                actual_distance_meters,
                 actual_weight,
                 actual_rir,
                 completed,
@@ -1212,7 +1492,7 @@ def log_actual_set(plan_instance_id: int, payload: dict) -> dict:
                 notes,
                 updated_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 execution_row["id"],
@@ -1221,11 +1501,20 @@ def log_actual_set(plan_instance_id: int, payload: dict) -> dict:
                 None,
                 str(exercise_name),
                 set_number,
+                measurement_type,
                 planned_exercise.reps_min if planned_exercise else None,
                 planned_exercise.reps_max if planned_exercise else None,
+                (
+                    planned_exercise.target_duration_seconds
+                    if planned_exercise
+                    else None
+                ),
+                (planned_exercise.target_distance_meters if planned_exercise else None),
                 planned_exercise.rir_min if planned_exercise else None,
                 planned_exercise.rir_max if planned_exercise else None,
                 actual_reps,
+                actual_duration_seconds,
+                actual_distance_meters,
                 actual_weight,
                 actual_rir,
                 1 if completed else 0,
@@ -1373,7 +1662,15 @@ def update_actual_set(
             ],
             "exercise_name": actual_set_row["exercise_name"],
             "set_number": actual_set_row["set_number"],
+            "measurement_type": _row_value(actual_set_row, "measurement_type")
+            or "reps",
             "actual_reps": actual_set_row["actual_reps"],
+            "actual_duration_seconds": _row_value(
+                actual_set_row, "actual_duration_seconds"
+            ),
+            "actual_distance_meters": _row_value(
+                actual_set_row, "actual_distance_meters"
+            ),
             "actual_weight": actual_set_row["actual_weight"],
             "actual_rir": actual_set_row["actual_rir"],
             "completed": bool(actual_set_row["completed"]),
@@ -1427,10 +1724,16 @@ def update_actual_set(
             )
 
         actual_reps = candidate.get("actual_reps")
+        actual_duration_seconds = candidate.get("actual_duration_seconds")
+        actual_distance_meters = candidate.get("actual_distance_meters")
         actual_weight = candidate.get("actual_weight")
         actual_rir = candidate.get("actual_rir")
         if actual_reps is not None:
             actual_reps = int(actual_reps)
+        if actual_duration_seconds is not None:
+            actual_duration_seconds = int(actual_duration_seconds)
+        if actual_distance_meters is not None:
+            actual_distance_meters = float(actual_distance_meters)
         if actual_weight is not None:
             actual_weight = float(actual_weight)
         if actual_rir is not None:
@@ -1447,11 +1750,16 @@ def update_actual_set(
                 planned_workout_exercise_id = ?,
                 exercise_name = ?,
                 set_number = ?,
+                measurement_type = ?,
                 planned_reps_min = ?,
                 planned_reps_max = ?,
+                planned_duration_seconds = ?,
+                planned_distance_meters = ?,
                 planned_rir_min = ?,
                 planned_rir_max = ?,
                 actual_reps = ?,
+                actual_duration_seconds = ?,
+                actual_distance_meters = ?,
                 actual_weight = ?,
                 actual_rir = ?,
                 completed = ?,
@@ -1466,11 +1774,20 @@ def update_actual_set(
                 planned_exercise_id,
                 str(exercise_name),
                 set_number,
+                candidate["measurement_type"],
                 planned_exercise.reps_min if planned_exercise else None,
                 planned_exercise.reps_max if planned_exercise else None,
+                (
+                    planned_exercise.target_duration_seconds
+                    if planned_exercise
+                    else None
+                ),
+                (planned_exercise.target_distance_meters if planned_exercise else None),
                 planned_exercise.rir_min if planned_exercise else None,
                 planned_exercise.rir_max if planned_exercise else None,
                 actual_reps,
+                actual_duration_seconds,
+                actual_distance_meters,
                 actual_weight,
                 actual_rir,
                 1 if completed else 0,
@@ -1565,6 +1882,90 @@ def delete_actual_set(plan_instance_id: int, actual_set_id: int) -> dict:
     }
 
 
+def _validate_planned_exercise_measurement(
+    exercise: ApprovedWorkoutExercise,
+) -> None:
+    measurement_type = exercise.measurement_type or "reps"
+    if measurement_type not in {"reps", "duration", "distance"}:
+        raise WorkoutPlanValidationError(
+            f"Unsupported measurement type for {exercise.name}."
+        )
+    if exercise.sets <= 0:
+        raise WorkoutPlanValidationError(f"Invalid set count for {exercise.name}.")
+
+    rir_present = exercise.rir_min is not None or exercise.rir_max is not None
+    if rir_present and (exercise.rir_min is None or exercise.rir_max is None):
+        raise WorkoutPlanValidationError(
+            f"RIR targets must be both present or both null for {exercise.name}."
+        )
+    if rir_present and (
+        exercise.rir_min < 0
+        or exercise.rir_max > 5
+        or exercise.rir_max < exercise.rir_min
+    ):
+        raise WorkoutPlanValidationError(f"Invalid RIR range for {exercise.name}.")
+
+    if measurement_type == "reps":
+        if (
+            exercise.reps_min is None
+            or exercise.reps_max is None
+            or exercise.reps_min <= 0
+            or exercise.reps_max < exercise.reps_min
+        ):
+            raise WorkoutPlanValidationError(f"Invalid rep range for {exercise.name}.")
+        if (
+            exercise.target_duration_seconds is not None
+            or exercise.target_distance_meters is not None
+        ):
+            raise WorkoutPlanValidationError(
+                f"Rep prescription has mixed target dimensions for {exercise.name}."
+            )
+    elif measurement_type == "duration":
+        if (
+            exercise.target_duration_seconds is None
+            or exercise.target_duration_seconds <= 0
+            or exercise.reps_min is not None
+            or exercise.reps_max is not None
+            or exercise.target_distance_meters is not None
+            or rir_present
+        ):
+            raise WorkoutPlanValidationError(
+                f"Invalid duration prescription for {exercise.name}."
+            )
+    elif (
+        exercise.target_distance_meters is None
+        or exercise.target_distance_meters <= 0
+        or exercise.reps_min is not None
+        or exercise.reps_max is not None
+        or exercise.target_duration_seconds is not None
+        or rir_present
+    ):
+        raise WorkoutPlanValidationError(
+            f"Invalid distance prescription for {exercise.name}."
+        )
+
+    if exercise.catalog_exercise_id is not None:
+        from services.exercise_catalog_service import (
+            get_exercise_prescription_measurement_metadata,
+        )
+
+        metadata = get_exercise_prescription_measurement_metadata(
+            exercise.catalog_exercise_id
+        )
+        if metadata is None:
+            raise WorkoutPlanValidationError(
+                f"Measurement metadata is unavailable for {exercise.name}."
+            )
+        if measurement_type not in metadata.allowed_measurement_types:
+            raise WorkoutPlanValidationError(
+                f"Measurement type is not allowed for {exercise.name}."
+            )
+        if metadata.rir_applicability != "applicable" and rir_present:
+            raise WorkoutPlanValidationError(
+                f"RIR is not applicable to {exercise.name}."
+            )
+
+
 def approved_workout_plan_from_payload(raw_plan: dict) -> ApprovedWorkoutPlan:
     """Build a validated ApprovedWorkoutPlan from an approved preview payload."""
 
@@ -1583,6 +1984,9 @@ def approved_workout_plan_from_payload(raw_plan: dict) -> ApprovedWorkoutPlan:
             "approved_workout_plan must include at least one exercise."
         )
 
+    for exercise in approved_plan.exercises:
+        _validate_planned_exercise_measurement(exercise)
+
     return approved_plan
 
 
@@ -1594,6 +1998,9 @@ def _persist_selected_workout_plan(
         get_active_temporary_workout_limitation,
         limitation_conflicts_for_exercises,
     )
+
+    for exercise in approved_plan.exercises:
+        _validate_planned_exercise_measurement(exercise)
 
     conflicts = limitation_conflicts_for_exercises(
         get_active_temporary_workout_limitation(user_id),
@@ -1648,23 +2055,29 @@ def _persist_selected_workout_plan(
                     exercise_order,
                     name,
                     sets,
+                    measurement_type,
                     reps_min,
                     reps_max,
+                    target_duration_seconds,
+                    target_distance_meters,
                     rir_min,
                     rir_max,
                     notes,
                     equipment_required_json,
                     catalog_exercise_id
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     instance_id,
                     index,
                     exercise.name,
                     exercise.sets,
+                    exercise.measurement_type,
                     exercise.reps_min,
                     exercise.reps_max,
+                    exercise.target_duration_seconds,
+                    exercise.target_distance_meters,
                     exercise.rir_min,
                     exercise.rir_max,
                     exercise.notes,
@@ -2037,6 +2450,12 @@ def _average_planned_rir(
     set_count = 0
 
     for exercise in planned_exercises:
+        if (
+            exercise.measurement_type != "reps"
+            or exercise.rir_min is None
+            or exercise.rir_max is None
+        ):
+            continue
         rir_midpoint = (exercise.rir_min + exercise.rir_max) / 2
         rir_total += rir_midpoint * exercise.sets
         set_count += exercise.sets
@@ -2053,6 +2472,7 @@ def _average_actual_rir(actual_sets: list[WorkoutExecutionSetActual]) -> float |
         for actual_set in actual_sets
         if actual_set.completed
         and not actual_set.skipped
+        and actual_set.measurement_type == "reps"
         and actual_set.actual_rir is not None
     ]
 
@@ -2118,12 +2538,43 @@ def build_planned_vs_actual_summary(
     sets_below_planned_reps = 0
     sets_inside_planned_reps = 0
     sets_above_planned_reps = 0
+    duration_comparable_set_count = 0
+    duration_delta_seconds_total = 0
+    distance_comparable_set_count = 0
+    distance_delta_meters_total = 0.0
 
     missing_actual_rir = False
     missing_actual_reps = False
 
     for actual_set in non_skipped_actual_sets:
-        if actual_set.actual_rir is None:
+        if actual_set.measurement_type == "duration":
+            if (
+                actual_set.actual_duration_seconds is not None
+                and actual_set.planned_duration_seconds is not None
+            ):
+                duration_comparable_set_count += 1
+                duration_delta_seconds_total += (
+                    actual_set.actual_duration_seconds
+                    - actual_set.planned_duration_seconds
+                )
+            continue
+        if actual_set.measurement_type == "distance":
+            if (
+                actual_set.actual_distance_meters is not None
+                and actual_set.planned_distance_meters is not None
+            ):
+                distance_comparable_set_count += 1
+                distance_delta_meters_total += (
+                    actual_set.actual_distance_meters
+                    - actual_set.planned_distance_meters
+                )
+            continue
+
+        if (
+            actual_set.planned_rir_min is not None
+            and actual_set.planned_rir_max is not None
+            and actual_set.actual_rir is None
+        ):
             missing_actual_rir = True
         if actual_set.actual_reps is None:
             missing_actual_reps = True
@@ -2223,6 +2674,10 @@ def build_planned_vs_actual_summary(
         sets_below_planned_reps=sets_below_planned_reps,
         sets_inside_planned_reps=sets_inside_planned_reps,
         sets_above_planned_reps=sets_above_planned_reps,
+        duration_comparable_set_count=duration_comparable_set_count,
+        duration_delta_seconds_total=duration_delta_seconds_total,
+        distance_comparable_set_count=distance_comparable_set_count,
+        distance_delta_meters_total=round(distance_delta_meters_total, 2),
         notes=notes,
         deviation_flags=deviation_flags,
     )

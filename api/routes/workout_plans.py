@@ -3,7 +3,7 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from services.exercise_substitution_service import (
     apply_substitution,
@@ -111,9 +111,12 @@ class ActualSetPayload(BaseModel):
     planned_workout_exercise_id: int | None = None
     exercise_name: str | None = None
     set_number: int | None = None
-    actual_reps: int | None = None
-    actual_weight: float | None = None
-    actual_rir: int | None = None
+    measurement_type: Literal["reps", "duration", "distance"] | None = None
+    actual_reps: int | None = Field(default=None, gt=0)
+    actual_duration_seconds: int | None = Field(default=None, gt=0)
+    actual_distance_meters: float | None = Field(default=None, gt=0)
+    actual_weight: float | None = Field(default=None, ge=0)
+    actual_rir: int | None = Field(default=None, ge=0, le=10)
     completed: bool = True
     skipped: bool = False
     substitution_for_planned_exercise_id: int | None = None
@@ -124,9 +127,12 @@ class ActualSetUpdatePayload(BaseModel):
     planned_workout_exercise_id: int | None = None
     exercise_name: str | None = None
     set_number: int | None = None
-    actual_reps: int | None = None
-    actual_weight: float | None = None
-    actual_rir: int | None = None
+    measurement_type: Literal["reps", "duration", "distance"] | None = None
+    actual_reps: int | None = Field(default=None, gt=0)
+    actual_duration_seconds: int | None = Field(default=None, gt=0)
+    actual_distance_meters: float | None = Field(default=None, gt=0)
+    actual_weight: float | None = Field(default=None, ge=0)
+    actual_rir: int | None = Field(default=None, ge=0, le=10)
     completed: bool | None = None
     skipped: bool | None = None
     substitution_for_planned_exercise_id: int | None = None
@@ -204,10 +210,48 @@ class WorkoutProgressionDecisionExercisePayload(BaseModel):
     exercise_name: str = Field(min_length=1)
     catalog_exercise_id: int | None = None
     sets: int = Field(ge=1)
-    reps_min: int = Field(ge=0)
-    reps_max: int = Field(ge=0)
-    rir_min: int = Field(ge=0)
-    rir_max: int = Field(ge=0)
+    measurement_type: Literal["reps", "duration", "distance"] = "reps"
+    reps_min: int | None = Field(default=None, gt=0)
+    reps_max: int | None = Field(default=None, gt=0)
+    target_duration_seconds: int | None = Field(default=None, gt=0)
+    target_distance_meters: float | None = Field(default=None, gt=0)
+    rir_min: int | None = Field(default=None, ge=0, le=5)
+    rir_max: int | None = Field(default=None, ge=0, le=5)
+
+    @model_validator(mode="after")
+    def validate_measurement_target(self):
+        rir_present = self.rir_min is not None or self.rir_max is not None
+        if rir_present and (
+            self.rir_min is None or self.rir_max is None or self.rir_max < self.rir_min
+        ):
+            raise ValueError("RIR targets must be an ordered pair or both null.")
+        if self.measurement_type == "reps":
+            if (
+                self.reps_min is None
+                or self.reps_max is None
+                or self.reps_max < self.reps_min
+                or self.target_duration_seconds is not None
+                or self.target_distance_meters is not None
+            ):
+                raise ValueError("Rep progression requires one ordered rep range.")
+        elif self.measurement_type == "duration":
+            if (
+                self.target_duration_seconds is None
+                or self.reps_min is not None
+                or self.reps_max is not None
+                or self.target_distance_meters is not None
+                or rir_present
+            ):
+                raise ValueError("Duration progression requires one duration target.")
+        elif (
+            self.target_distance_meters is None
+            or self.reps_min is not None
+            or self.reps_max is not None
+            or self.target_duration_seconds is not None
+            or rir_present
+        ):
+            raise ValueError("Distance progression requires one distance target.")
+        return self
 
 
 class WorkoutProgressionDecisionPayload(BaseModel):
@@ -574,6 +618,9 @@ def workout_progression_decisions(
                 reps_max=exercise.reps_max,
                 rir_min=exercise.rir_min,
                 rir_max=exercise.rir_max,
+                measurement_type=exercise.measurement_type,
+                target_duration_seconds=exercise.target_duration_seconds,
+                target_distance_meters=exercise.target_distance_meters,
             )
             for exercise in payload.exercises
         ],

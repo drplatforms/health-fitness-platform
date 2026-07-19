@@ -12,6 +12,8 @@ from services.equipment_profile_service import get_effective_equipment_profile
 from services.exercise_catalog_service import (
     find_catalog_entry_by_name,
     get_exercise_catalog,
+    get_exercise_prescription_measurement_metadata,
+    seed_exercise_prescription_measurements,
 )
 from services.temporary_workout_limitation_service import (
     get_active_temporary_workout_limitation,
@@ -300,6 +302,10 @@ def get_substitution_candidates(
     )
 
     catalog = get_exercise_catalog()
+    if catalog and catalog[0].id is not None:
+        first_metadata = get_exercise_prescription_measurement_metadata(catalog[0].id)
+        if first_metadata is None:
+            seed_exercise_prescription_measurements()
     planned_catalog_entry = None
     if planned_exercise.catalog_exercise_id is not None:
         planned_catalog_entry = next(
@@ -333,6 +339,7 @@ def get_substitution_candidates(
         else []
     )
     planned_name = _normalize_display_name(planned_catalog_entry.name)
+    planned_measurement_type = planned_exercise.measurement_type or "reps"
 
     eligible_candidates: list[ExerciseSubstitutionCandidate] = []
 
@@ -342,6 +349,18 @@ def get_substitution_candidates(
         if _normalize_token(entry.movement_pattern) in restricted_movements:
             continue
         if _normalize_display_name(entry.name) == planned_name:
+            continue
+        if entry.id is None:
+            continue
+        measurement_metadata = get_exercise_prescription_measurement_metadata(entry.id)
+        if measurement_metadata is None:
+            raise WorkoutPlanValidationError(
+                "Substitution measurement metadata is incomplete."
+            )
+        if (
+            planned_measurement_type
+            not in measurement_metadata.allowed_measurement_types
+        ):
             continue
 
         movement_reason = _movement_match_reason(
@@ -358,6 +377,7 @@ def get_substitution_candidates(
             "catalog_backed_substitution_candidate",
             movement_reason,
             "equipment_compatible_with_current_profile",
+            "measurement_type_compatible",
         ]
 
         eligible_candidates.append(_candidate_from_catalog_entry(entry, reason_codes))

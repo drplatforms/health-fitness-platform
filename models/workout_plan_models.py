@@ -36,15 +36,18 @@ class WorkoutContext:
 class CandidateWorkoutExercise:
     name: str
     sets: int
-    reps_min: int
-    reps_max: int
-    rir_min: int
-    rir_max: int
+    reps_min: int | None
+    reps_max: int | None
+    rir_min: int | None
+    rir_max: int | None
     notes: str
     equipment_required: list[str] = field(default_factory=list)
     catalog_exercise_id: int | None = None
     movement_pattern: str | None = None
     target_zone: str | None = None
+    measurement_type: str = "reps"
+    target_duration_seconds: int | None = None
+    target_distance_meters: float | None = None
 
 
 @dataclass
@@ -64,13 +67,16 @@ class CandidateWorkoutPlan:
 class ApprovedWorkoutExercise:
     name: str
     sets: int
-    reps_min: int
-    reps_max: int
-    rir_min: int
-    rir_max: int
+    reps_min: int | None
+    reps_max: int | None
+    rir_min: int | None
+    rir_max: int | None
     notes: str
     equipment_required: list[str] = field(default_factory=list)
     catalog_exercise_id: int | None = None
+    measurement_type: str = "reps"
+    target_duration_seconds: int | None = None
+    target_distance_meters: float | None = None
 
 
 @dataclass
@@ -166,13 +172,16 @@ class PlannedWorkoutExercise:
     exercise_order: int
     name: str
     sets: int
-    reps_min: int
-    reps_max: int
-    rir_min: int
-    rir_max: int
+    reps_min: int | None
+    reps_max: int | None
+    rir_min: int | None
+    rir_max: int | None
     notes: str
     equipment_required: list[str] = field(default_factory=list)
     catalog_exercise_id: int | None = None
+    measurement_type: str = "reps"
+    target_duration_seconds: int | None = None
+    target_distance_meters: float | None = None
 
 
 @dataclass
@@ -227,6 +236,11 @@ class WorkoutExecutionSetActual:
     notes: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
+    measurement_type: str = "reps"
+    planned_duration_seconds: int | None = None
+    planned_distance_meters: float | None = None
+    actual_duration_seconds: int | None = None
+    actual_distance_meters: float | None = None
 
 
 @dataclass
@@ -267,6 +281,10 @@ class WorkoutPlannedVsActualSummary:
     sets_below_planned_reps: int
     sets_inside_planned_reps: int
     sets_above_planned_reps: int
+    duration_comparable_set_count: int = 0
+    duration_delta_seconds_total: int = 0
+    distance_comparable_set_count: int = 0
+    distance_delta_meters_total: float = 0.0
     notes: list[str] = field(default_factory=list)
     deviation_flags: list[str] = field(default_factory=list)
 

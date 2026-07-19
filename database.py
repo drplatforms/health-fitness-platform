@@ -626,12 +626,16 @@ def initialize_database():
         exercise_order INTEGER NOT NULL,
         name TEXT NOT NULL,
         sets INTEGER NOT NULL,
-        reps_min INTEGER NOT NULL,
-        reps_max INTEGER NOT NULL,
-        rir_min INTEGER NOT NULL,
-        rir_max INTEGER NOT NULL,
+        measurement_type TEXT,
+        reps_min INTEGER,
+        reps_max INTEGER,
+        target_duration_seconds INTEGER,
+        target_distance_meters REAL,
+        rir_min INTEGER,
+        rir_max INTEGER,
         notes TEXT NOT NULL,
         equipment_required_json TEXT NOT NULL,
+        catalog_exercise_id INTEGER,
 
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
 
@@ -688,10 +692,15 @@ def initialize_database():
 
         planned_reps_min INTEGER,
         planned_reps_max INTEGER,
+        measurement_type TEXT,
+        planned_duration_seconds INTEGER,
+        planned_distance_meters REAL,
         planned_rir_min INTEGER,
         planned_rir_max INTEGER,
 
         actual_reps INTEGER,
+        actual_duration_seconds INTEGER,
+        actual_distance_meters REAL,
         actual_weight REAL,
         actual_rir INTEGER,
 

@@ -1,3 +1,80 @@
+# Current State - Exercise Prescription Measurement Types v1
+
+Canonical implementation baseline before merge: main at 3901d91.
+
+Feature branch: feature/exercise-prescription-measurement-types-v1.
+
+Status: EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES_V1_IMPLEMENTATION_COMPLETE_READY_FOR_ARCHITECTURE_SOURCE_REVIEW
+
+Implementation-ready behavior:
+
+- Canonical exercise metadata now owns reviewed defaults and bounded allowed
+  modes for exactly reps, duration, and distance through a stable-ID one-to-one
+  persistence projection.
+- The explicit 240-row runtime manifest preserves the accepted 203/29/8 default,
+  31 multi-mode, and 25 distance-enabled invariants without reading the audit CSV
+  at runtime.
+- Planned, actual-set, summary, progression, substitution, API, and workout UI
+  contracts are type-aware while historical missing types decode as reps.
+- Legacy non-null rep/RIR planned schemas migrate through an ID-preserving,
+  foreign-key-safe transactional table rebuild. Existing rows remain null-typed
+  on disk; no name inference or sentinels are used. The rebuild captures the
+  complete pre-existing `foreign_key_check` result before its transaction and
+  requires the post-rebuild violation multiset to match exactly, including
+  duplicate counts, without depending on row order.
+- Deterministic plans preserve rep behavior, use 30-second duration work blocks,
+  20-meter distance work blocks, and one 600-second block for treadmill/bike
+  continuous duration defaults.
+- Valid non-rep work no longer poisons rep/RIR summaries or set intelligence.
+  Duration/distance progression remains neutral with the explicit unsupported-v1
+  reason, and substitutions preserve compatible planned types and targets.
+- Existing workout endpoints and UI now render and log one truthful primary
+  measurement, optional weight, and RIR only for eligible rep work.
+- Focused backend validation passed 363 tests; targeted Ruff, frontend lint/build,
+  project-memory validation, `git diff --check`, and disposable-database desktop
+  and mobile production smoke are green.
+- The corrected 256-test core and 97-test adjacent regression slices were rerun
+  with the canonical database hashed before and after; all tests passed and both
+  SHA-256 and mtime remained unchanged.
+
+Architecture boundaries preserved:
+
+- No combined duration-distance mode, ranges, pace/speed, device metrics,
+  protocol segments, automated non-rep progression, historical semantic
+  inference, load redesign, broad utilization work, media changes, or parallel
+  API was added.
+- Browser evidence is not self-acceptance. Architecture/user retains source
+  review, feature-branch smoke acceptance, Git closeout, merge, push, and
+  snapshot ownership.
+- Database-safety recovery is complete. Before cleanup, an online SQLite backup
+  was written to
+  `C:\projects\fitness_ai_external\database_backups\fitness_ai_before_measurement_projection_cleanup_20260719T104936Z.db`
+  with SHA-256
+  `613836377790F5ECA105A372829DD31D5D6A55B20B5F4C01A387F99EB04D1782`.
+- Architecture authorized dropping only
+  `exercise_catalog_prescription_measurements`. Independent post-cleanup checks
+  confirm the table is absent, `quick_check` is `ok`, only that schema object was
+  removed, protected planned/actual schemas are unchanged, and the immediate
+  post-cleanup canonical SHA-256 was
+  `1B9BC83DAC8B73ADDA2C7ED24F5590B69D8B612CE90AC07E522677EC1365BFE8`.
+- `foreign_key_check` retains the exact same 34 pre-existing violations with no
+  additions. Architecture accepted that baseline exception for this recovery;
+  repairing those unrelated rows remains outside this milestone.
+- The one-use recovery script and all recovery database sidecars were removed.
+  Eight unrelated July 6-7 database artifacts already under `tmp/` were
+  preserved as out-of-scope existing data. The feature-branch application was
+  not restarted against the canonical database after cleanup.
+- A later unrelated `daily_checkins` write advanced the canonical SHA-256 to
+  `CA9961E553A1781F25B97CA2A0535CDB2DFFCF8CFCA21F500D8D8A4197E5B07A`
+  before migration-correction validation. Read-only inspection confirmed the
+  projection remains absent, legacy planned/actual schemas remain untouched,
+  and the exact 34-row foreign-key baseline remains unchanged. All correction
+  tests preserved that current hash.
+
+See:
+`docs/project_memory/milestones/exercise_prescription_measurement_types_v1.md`
+
+---
 # Current State - Injury / Temporary Limitation Mode v1
 
 Canonical implementation baseline before merge: main at d30120b.

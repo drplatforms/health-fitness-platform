@@ -1,5 +1,14 @@
 from dataclasses import dataclass, field
 
+EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES = frozenset({"reps", "duration", "distance"})
+EXERCISE_PRESCRIPTION_LOAD_APPLICABILITIES = frozenset(
+    {"applicable", "optional", "not_applicable", "ambiguous"}
+)
+EXERCISE_PRESCRIPTION_RIR_APPLICABILITIES = frozenset(
+    {"applicable", "not_applicable", "ambiguous"}
+)
+EXERCISE_PRESCRIPTION_DISTANCE_UNITS = frozenset({"meters"})
+
 
 @dataclass
 class ExerciseCatalogEntry:
@@ -59,6 +68,17 @@ class ExerciseTaxonomyMetadata:
     locomotion_mode: str | None = None
     execution_mode: str | None = None
     variant_extensions: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ExercisePrescriptionMeasurementMetadata:
+    catalog_exercise_id: int
+    default_measurement_type: str
+    allowed_measurement_types: tuple[str, ...]
+    sets_applicable: bool
+    load_applicability: str
+    rir_applicability: str
+    distance_unit: str | None = None
 
 
 @dataclass

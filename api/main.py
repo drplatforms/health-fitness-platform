@@ -37,7 +37,11 @@ from database import initialize_database
 from services.exercise_catalog_service import (
     seed_exercise_form_media,
     seed_exercise_instructions,
+    seed_exercise_prescription_measurements,
     seed_exercise_taxonomy,
+)
+from services.workout_plan_persistence_service import (
+    ensure_workout_plan_persistence_tables,
 )
 
 # =====================================
@@ -49,7 +53,9 @@ from services.exercise_catalog_service import (
 async def lifespan(app: FastAPI):
     del app
     initialize_database()
+    ensure_workout_plan_persistence_tables()
     seed_exercise_taxonomy()
+    seed_exercise_prescription_measurements()
     seed_exercise_instructions()
     seed_exercise_form_media()
     yield

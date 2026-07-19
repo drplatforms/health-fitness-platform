@@ -141,6 +141,8 @@ def test_legacy_planned_exercise_schema_upgrades_additively_and_reads_null_id(
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
     conn = database.get_connection()
     cursor = conn.cursor()
+    cursor.execute("CREATE TABLE workout_plan_instances (id INTEGER PRIMARY KEY)")
+    cursor.execute("INSERT INTO workout_plan_instances (id) VALUES (1)")
     cursor.execute(
         """
         CREATE TABLE planned_workout_exercises (
@@ -1095,12 +1097,17 @@ def test_planned_vs_actual_summary_average_planned_rir_weighted_by_sets(
 ):
     instance_id, started = _started_plan(tmp_path, monkeypatch)
     planned_exercises = started["planned_exercises"]
+    rir_exercises = [
+        exercise
+        for exercise in planned_exercises
+        if exercise.rir_min is not None and exercise.rir_max is not None
+    ]
     expected = round(
         sum(
             ((exercise.rir_min + exercise.rir_max) / 2) * exercise.sets
-            for exercise in planned_exercises
+            for exercise in rir_exercises
         )
-        / sum(exercise.sets for exercise in planned_exercises),
+        / sum(exercise.sets for exercise in rir_exercises),
         2,
     )
 
