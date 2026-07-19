@@ -5,6 +5,7 @@ import json
 import re
 from dataclasses import asdict
 from pathlib import Path
+from types import MappingProxyType
 
 import database
 from database import get_connection
@@ -12,8 +13,13 @@ from models.exercise_catalog_models import (
     ExerciseCatalogEntry,
     ExerciseFormMediaAsset,
     ExerciseInstruction,
+    ExerciseTaxonomyMetadata,
 )
-from services import exercise_form_media_seed_data, exercise_instruction_seed_data
+from services import (
+    exercise_form_media_seed_data,
+    exercise_instruction_seed_data,
+    exercise_taxonomy_seed_data,
+)
 
 _CATALOG_CACHE_BY_DB_PATH: dict[str, list[ExerciseCatalogEntry]] = {}
 
@@ -2402,6 +2408,19 @@ def ensure_exercise_catalog_tables() -> None:
         FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
     )
     """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_catalog_taxonomy (
+        exercise_id INTEGER PRIMARY KEY,
+        family_slug TEXT NOT NULL, base_movement_slug TEXT NOT NULL,
+        visual_identity_slug TEXT NOT NULL, taxonomy_status TEXT NOT NULL,
+        body_position TEXT, support_type TEXT, bench_angle TEXT, laterality TEXT,
+        grip TEXT, stance TEXT, load_position TEXT, attachment TEXT,
+        movement_direction TEXT, locomotion_mode TEXT, execution_mode TEXT,
+        variant_extensions_json TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
+    )
+    """)
 
     conn.commit()
     conn.close()
@@ -2611,6 +2630,188 @@ def get_exercise_form_media(
         )
         for row in rows
     ]
+
+
+_TAXONOMY_CONTROLLED_FIELDS = (
+    "body_position",
+    "support_type",
+    "bench_angle",
+    "laterality",
+    "grip",
+    "stance",
+    "load_position",
+    "attachment",
+    "movement_direction",
+    "locomotion_mode",
+    "execution_mode",
+)
+_TAXONOMY_CONTROLLED_VALUES = MappingProxyType(
+    {
+        "body_position": frozenset(
+            {
+                "chest_supported",
+                "childs_pose",
+                "half_kneeling",
+                "plank",
+                "prone",
+                "quadruped",
+                "seated",
+                "standing",
+                "tall_kneeling",
+            }
+        ),
+        "support_type": frozenset({"bench", "floor", "machine", "thigh", "wall"}),
+        "bench_angle": frozenset({"decline", "incline", "low_incline"}),
+        "laterality": frozenset({"bilateral", "unilateral"}),
+        "grip": frozenset(
+            {
+                "close",
+                "hammer",
+                "mixed",
+                "neutral",
+                "pinch",
+                "pronated",
+                "reverse",
+                "supinated",
+            }
+        ),
+        "stance": frozenset({"split", "sumo"}),
+        "load_position": frozenset(
+            {"front_rack", "goblet", "overhead", "sides", "suitcase"}
+        ),
+        "attachment": frozenset({"rope"}),
+        "movement_direction": frozenset(
+            {"cross_body", "high_diagonal", "horizontal", "rotation", "vertical"}
+        ),
+        "locomotion_mode": frozenset({"jog", "march", "run", "unspecified", "walk"}),
+        "execution_mode": frozenset({"dynamic", "eccentric_only", "isometric"}),
+    }
+)
+_ALLOWED_TAXONOMY_EXTENSION_KEYS = frozenset(
+    {"grade", "range", "range_of_motion_variant", "lower_body_drive"}
+)
+_SUPPORTED_TAXONOMY_STATUSES = frozenset(
+    {"reviewed", "alias_candidate", "review_required"}
+)
+_TAXONOMY_TOKEN = re.compile(r"^[a-z0-9]+(?:_[a-z0-9]+)*$")
+
+
+def _validate_taxonomy_seed() -> None:
+    seeds = exercise_taxonomy_seed_data.EXERCISE_TAXONOMY_SEEDS
+    names, catalog_names = (
+        [seed.canonical_exercise_name for seed in seeds],
+        [entry.name for entry in CURATED_EXERCISE_CATALOG],
+    )
+    if len(names) != len(set(names)) or set(names) != set(catalog_names):
+        raise ValueError(
+            "Exercise taxonomy seed must have exact unique canonical-name coverage"
+        )
+    for seed in seeds:
+        tokens = (
+            seed.family_slug,
+            seed.base_movement_slug,
+            seed.visual_identity_slug,
+            *seed.variants.values(),
+            *seed.variant_extensions.values(),
+        )
+        if not seed.visual_identity_slug.startswith("visual_") or any(
+            not _TAXONOMY_TOKEN.fullmatch(value) for value in tokens
+        ):
+            raise ValueError("Taxonomy values must be strict normalized tokens")
+        if seed.taxonomy_status not in _SUPPORTED_TAXONOMY_STATUSES:
+            raise ValueError("Unsupported taxonomy status")
+        if (
+            set(seed.variants) - set(_TAXONOMY_CONTROLLED_FIELDS)
+            or set(seed.variant_extensions) - _ALLOWED_TAXONOMY_EXTENSION_KEYS
+        ):
+            raise ValueError("Unsupported taxonomy variant field")
+        if any(
+            value not in _TAXONOMY_CONTROLLED_VALUES[key]
+            for key, value in seed.variants.items()
+        ):
+            raise ValueError("Unsupported taxonomy controlled value")
+
+
+def seed_exercise_taxonomy() -> list[ExerciseTaxonomyMetadata]:
+    seed_exercise_catalog()
+    _validate_taxonomy_seed()
+    seeds = exercise_taxonomy_seed_data.EXERCISE_TAXONOMY_SEEDS
+    conn = get_connection()
+    try:
+        ids = {
+            row["name"]: row["id"]
+            for row in conn.execute("SELECT id, name FROM exercise_catalog_exercises")
+        }
+        if set(seed.canonical_exercise_name for seed in seeds) - set(ids):
+            raise ValueError("Persisted exercise catalog is missing taxonomy targets")
+        metadata = [
+            ExerciseTaxonomyMetadata(
+                ids[seed.canonical_exercise_name],
+                seed.family_slug,
+                seed.base_movement_slug,
+                seed.visual_identity_slug,
+                seed.taxonomy_status,
+                variant_extensions=dict(seed.variant_extensions),
+                **seed.variants,
+            )
+            for seed in seeds
+        ]
+        with conn:
+            conn.execute("DELETE FROM exercise_catalog_taxonomy")
+            conn.executemany(
+                "INSERT INTO exercise_catalog_taxonomy (exercise_id,family_slug,base_movement_slug,visual_identity_slug,taxonomy_status,body_position,support_type,bench_angle,laterality,grip,stance,load_position,attachment,movement_direction,locomotion_mode,execution_mode,variant_extensions_json) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [
+                    (
+                        item.catalog_exercise_id,
+                        item.family_slug,
+                        item.base_movement_slug,
+                        item.visual_identity_slug,
+                        item.taxonomy_status,
+                        *[
+                            getattr(item, field)
+                            for field in _TAXONOMY_CONTROLLED_FIELDS
+                        ],
+                        json.dumps(item.variant_extensions, sort_keys=True),
+                    )
+                    for item in metadata
+                ],
+            )
+    finally:
+        conn.close()
+    return metadata
+
+
+def get_exercise_taxonomy(catalog_exercise_id: int) -> ExerciseTaxonomyMetadata | None:
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM exercise_catalog_taxonomy WHERE exercise_id = ?",
+            (catalog_exercise_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    try:
+        extensions = json.loads(row["variant_extensions_json"])
+    except json.JSONDecodeError as exc:
+        raise ValueError("Invalid persisted taxonomy variant extensions") from exc
+    if not isinstance(extensions, dict) or any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in extensions.items()
+    ):
+        raise ValueError("Invalid persisted taxonomy variant extensions")
+    return ExerciseTaxonomyMetadata(
+        row["exercise_id"],
+        row["family_slug"],
+        row["base_movement_slug"],
+        row["visual_identity_slug"],
+        row["taxonomy_status"],
+        variant_extensions=extensions,
+        **{field: row[field] for field in _TAXONOMY_CONTROLLED_FIELDS},
+    )
 
 
 def _entry_to_legacy_exercise_row(

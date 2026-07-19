@@ -12,6 +12,7 @@ from services.exercise_catalog_service import (
     get_exercise_catalog_entry_by_id,
     get_exercise_form_media,
     get_exercise_instruction,
+    get_exercise_taxonomy,
 )
 from services.workout_service import (
     add_workout_set,
@@ -97,6 +98,43 @@ def exercise_instruction(
             asdict(asset) for asset in get_exercise_form_media(catalog_exercise_id)
         ],
     }
+
+
+@router.get("/exercise-catalog/{catalog_exercise_id}/taxonomy")
+def exercise_taxonomy(catalog_exercise_id: int = Path(gt=0)):
+    exercise = get_exercise_catalog_entry_by_id(catalog_exercise_id)
+    if exercise is None:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    taxonomy = get_exercise_taxonomy(catalog_exercise_id)
+    if taxonomy is None:
+        raise HTTPException(status_code=404, detail="Exercise taxonomy not found")
+    fields = (
+        "body_position",
+        "support_type",
+        "bench_angle",
+        "laterality",
+        "grip",
+        "stance",
+        "load_position",
+        "attachment",
+        "movement_direction",
+        "locomotion_mode",
+        "execution_mode",
+    )
+    result = {
+        "family": taxonomy.family_slug,
+        "base_movement": taxonomy.base_movement_slug,
+        "visual_identity": taxonomy.visual_identity_slug,
+        "status": taxonomy.taxonomy_status,
+        "variants": {
+            field: getattr(taxonomy, field)
+            for field in fields
+            if getattr(taxonomy, field) is not None
+        },
+    }
+    if taxonomy.variant_extensions:
+        result["extensions"] = taxonomy.variant_extensions
+    return {"success": True, "exercise": asdict(exercise), "taxonomy": result}
 
 
 # =====================================

@@ -41,6 +41,27 @@ class ExerciseFormMediaAsset:
 
 
 @dataclass
+class ExerciseTaxonomyMetadata:
+    catalog_exercise_id: int
+    family_slug: str
+    base_movement_slug: str
+    visual_identity_slug: str
+    taxonomy_status: str
+    body_position: str | None = None
+    support_type: str | None = None
+    bench_angle: str | None = None
+    laterality: str | None = None
+    grip: str | None = None
+    stance: str | None = None
+    load_position: str | None = None
+    attachment: str | None = None
+    movement_direction: str | None = None
+    locomotion_mode: str | None = None
+    execution_mode: str | None = None
+    variant_extensions: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass
 class ExerciseSubstitutionCandidate:
     catalog_exercise_id: int
     name: str
