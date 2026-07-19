@@ -183,8 +183,13 @@ def _bounded_confidence(confidence: str) -> str:
     return "Low"
 
 
-def _effort_delta_summary(rir_deviation: float | None) -> str:
+def _effort_delta_summary(
+    rir_deviation: float | None,
+    average_planned_rir: float | None = None,
+) -> str:
     if rir_deviation is None:
+        if average_planned_rir is None:
+            return "RIR comparison is not applicable to the comparable logged work."
         return "Actual effort cannot be compared because RIR logging is incomplete."
     if rir_deviation < -0.25:
         return "Actual effort was a little harder than the planned RIR target."
@@ -201,6 +206,11 @@ def _reps_completed_summary(summary) -> str:
         return "Logged reps mostly landed inside the planned ranges."
     if below or above:
         return "Some logged reps differed from the planned ranges."
+    if summary.duration_comparable_set_count or summary.distance_comparable_set_count:
+        return (
+            "Duration and distance work used their own neutral planned-versus-"
+            "actual comparisons."
+        )
     return "Rep completion is hard to assess from the current logs."
 
 
@@ -291,15 +301,22 @@ def build_post_workout_review_context(execution_id: int) -> PostWorkoutReviewCon
     ]
 
     planned_rir_min_values = [
-        exercise.rir_min for exercise in plan_instance.approved_workout_plan.exercises
+        exercise.rir_min
+        for exercise in plan_instance.approved_workout_plan.exercises
+        if exercise.rir_min is not None
     ]
     planned_rir_max_values = [
-        exercise.rir_max for exercise in plan_instance.approved_workout_plan.exercises
+        exercise.rir_max
+        for exercise in plan_instance.approved_workout_plan.exercises
+        if exercise.rir_max is not None
     ]
     training_execution_summary = build_training_execution_summary(plan_instance.user_id)
 
     approved_summary_facts = [
-        _effort_delta_summary(summary.rir_deviation),
+        _effort_delta_summary(
+            summary.rir_deviation,
+            summary.average_planned_rir,
+        ),
         _reps_completed_summary(summary),
         _volume_completion_summary(summary),
         _logging_completeness(summary),
@@ -329,7 +346,10 @@ def build_post_workout_review_context(execution_id: int) -> PostWorkoutReviewCon
         actual_rir_average=summary.average_actual_rir,
         actual_rir_min=min(actual_rirs) if actual_rirs else None,
         actual_rir_max=max(actual_rirs) if actual_rirs else None,
-        effort_delta_summary=_effort_delta_summary(summary.rir_deviation),
+        effort_delta_summary=_effort_delta_summary(
+            summary.rir_deviation,
+            summary.average_planned_rir,
+        ),
         reps_completed_summary=_reps_completed_summary(summary),
         volume_completion_summary=_volume_completion_summary(summary),
         logging_completeness=_logging_completeness(summary),

@@ -103,7 +103,11 @@ def _build_persisted_workout_response(
             order=exercise.exercise_order,
             section="Main Session",
             sets=exercise.sets,
-            reps=_format_rep_range(exercise.reps_min, exercise.reps_max),
+            reps=(
+                _format_rep_range(exercise.reps_min, exercise.reps_max)
+                if exercise.measurement_type == "reps"
+                else None
+            ),
             weight=None,
             weight_unit=None,
             rest_seconds=None,
@@ -112,6 +116,9 @@ def _build_persisted_workout_response(
             substitution_notes=_substitution_note(
                 substitution_by_planned_id.get(exercise.id)
             ),
+            measurement_type=exercise.measurement_type,
+            target_duration_seconds=exercise.target_duration_seconds,
+            target_distance_meters=exercise.target_distance_meters,
         )
         for exercise in planned_exercises
     ]
@@ -153,13 +160,20 @@ def _build_generated_workout_response(
             order=index,
             section="Main Session",
             sets=exercise.sets,
-            reps=_format_rep_range(exercise.reps_min, exercise.reps_max),
+            reps=(
+                _format_rep_range(exercise.reps_min, exercise.reps_max)
+                if exercise.measurement_type == "reps"
+                else None
+            ),
             weight=None,
             weight_unit=None,
             rest_seconds=None,
             tempo=None,
             notes=exercise.notes or None,
             substitution_notes=None,
+            measurement_type=exercise.measurement_type,
+            target_duration_seconds=exercise.target_duration_seconds,
+            target_distance_meters=exercise.target_distance_meters,
         )
         for index, exercise in enumerate(approved_plan.exercises, start=1)
     ]

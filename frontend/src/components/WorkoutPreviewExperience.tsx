@@ -96,6 +96,8 @@ interface WorkoutPreviewExperienceProps {
 
 interface ActualSetFormState {
   actualReps: string;
+  actualDurationSeconds: string;
+  actualDistanceMeters: string;
   actualWeight: string;
   actualRir: string;
   notes: string;
@@ -122,6 +124,8 @@ interface ExerciseActualsSummary {
   averageRir: number | null;
   effortStatus: string;
   repRangeStatus: string;
+  showRirMetrics: boolean;
+  showRepMetrics: boolean;
 }
 
 type WorkoutViewMode = "preview" | "persisted" | "completed";
@@ -140,14 +144,64 @@ function detailLabel(label: string, value: string | number | null): string | nul
   return `${label}: ${value}`;
 }
 
-function formatRange(min: number, max: number): string {
+function formatRange(min: number | null, max: number | null): string | null {
+  if (min === null || max === null) {
+    return null;
+  }
   return min === max ? String(min) : `${min}-${max}`;
 }
 
+function formatDuration(seconds: number | null): string | null {
+  if (seconds === null) {
+    return null;
+  }
+  if (seconds % 60 === 0) {
+    return `${seconds / 60} min`;
+  }
+  return `${seconds} sec`;
+}
+
+function formatDistance(meters: number | null): string | null {
+  if (meters === null) {
+    return null;
+  }
+  return `${Number.isInteger(meters) ? meters : meters.toFixed(1)} m`;
+}
+
+function formatSignedDelta(value: number, unit: string): string {
+  const normalized = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  return `${value > 0 ? "+" : ""}${normalized} ${unit}`;
+}
+
+function primaryTarget(
+  exercise: WorkoutPreviewExercise | PlannedWorkoutExerciseSummary,
+): string | null {
+  if (exercise.measurement_type === "duration") {
+    return formatDuration(exercise.target_duration_seconds);
+  }
+  if (exercise.measurement_type === "distance") {
+    return formatDistance(exercise.target_distance_meters);
+  }
+  const reps = formatRange(exercise.reps_min, exercise.reps_max);
+  return reps === null ? null : `${reps} reps`;
+}
+
 function exerciseMeta(exercise: WorkoutPreviewExercise): string[] {
+  const measurementLabel =
+    exercise.measurement_type === "duration"
+      ? "Duration"
+      : exercise.measurement_type === "distance"
+        ? "Distance"
+        : "Reps";
+  const measurementValue =
+    exercise.measurement_type === "reps"
+      ? formatRange(exercise.reps_min, exercise.reps_max)
+      : exercise.measurement_type === "duration"
+        ? formatDuration(exercise.target_duration_seconds)
+        : formatDistance(exercise.target_distance_meters);
   return [
     detailLabel("Sets", exercise.sets),
-    detailLabel("Reps", formatRange(exercise.reps_min, exercise.reps_max)),
+    detailLabel(measurementLabel, measurementValue),
     detailLabel("RIR", formatRange(exercise.rir_min, exercise.rir_max)),
   ].filter((value): value is string => Boolean(value));
 }
@@ -224,6 +278,14 @@ function actualSetFormStateFromSet(
   return {
     actualReps:
       actualSet.actual_reps === null ? "" : String(actualSet.actual_reps),
+    actualDurationSeconds:
+      actualSet.actual_duration_seconds === null
+        ? ""
+        : String(actualSet.actual_duration_seconds),
+    actualDistanceMeters:
+      actualSet.actual_distance_meters === null
+        ? ""
+        : String(actualSet.actual_distance_meters),
     actualWeight:
       actualSet.actual_weight === null ? "" : String(actualSet.actual_weight),
     actualRir: actualSet.actual_rir === null ? "" : String(actualSet.actual_rir),
@@ -244,9 +306,25 @@ function plannedActualSetFormState(
   exercise: PlannedWorkoutExerciseSummary,
 ): ActualSetFormState {
   return {
-    actualReps: String(exercise.reps_min),
-    actualWeight: "0",
-    actualRir: String(exercise.rir_max),
+    actualReps:
+      exercise.measurement_type === "reps" && exercise.reps_min !== null
+        ? String(exercise.reps_min)
+        : "",
+    actualDurationSeconds:
+      exercise.measurement_type === "duration" &&
+      exercise.target_duration_seconds !== null
+        ? String(exercise.target_duration_seconds)
+        : "",
+    actualDistanceMeters:
+      exercise.measurement_type === "distance" &&
+      exercise.target_distance_meters !== null
+        ? String(exercise.target_distance_meters)
+        : "",
+    actualWeight: "",
+    actualRir:
+      exercise.measurement_type === "reps" && exercise.rir_max !== null
+        ? String(exercise.rir_max)
+        : "",
     notes: "",
   };
 }
@@ -303,7 +381,17 @@ function formatActualSetLine(actualSet: WorkoutActualSetSummary): string {
   }
 
   const parts = [`Set ${actualSet.set_number}`];
-  if (actualSet.actual_reps !== null) {
+  if (actualSet.measurement_type === "duration") {
+    const duration = formatDuration(actualSet.actual_duration_seconds);
+    if (duration) {
+      parts.push(duration);
+    }
+  } else if (actualSet.measurement_type === "distance") {
+    const distance = formatDistance(actualSet.actual_distance_meters);
+    if (distance) {
+      parts.push(distance);
+    }
+  } else if (actualSet.actual_reps !== null) {
     parts.push(`${actualSet.actual_reps} reps`);
   }
   if (actualSet.actual_weight !== null) {
@@ -433,6 +521,14 @@ function repRangeStatusForExercise(
   exercise: PlannedWorkoutExerciseSummary,
   loggedSets: WorkoutActualSetSummary[],
 ): string {
+  if (exercise.measurement_type !== "reps") {
+    return "";
+  }
+  if (exercise.reps_min === null || exercise.reps_max === null) {
+    return "No rep target";
+  }
+  const repsMin = exercise.reps_min;
+  const repsMax = exercise.reps_max;
   const loggedReps = loggedSets
     .map((actualSet) => actualSet.actual_reps)
     .filter((reps): reps is number => reps !== null);
@@ -441,12 +537,8 @@ function repRangeStatusForExercise(
     return "No logged reps";
   }
 
-  const belowCount = loggedReps.filter(
-    (reps) => reps < exercise.reps_min,
-  ).length;
-  const aboveCount = loggedReps.filter(
-    (reps) => reps > exercise.reps_max,
-  ).length;
+  const belowCount = loggedReps.filter((reps) => reps < repsMin).length;
+  const aboveCount = loggedReps.filter((reps) => reps > repsMax).length;
   const insideCount = loggedReps.length - belowCount - aboveCount;
 
   if (insideCount === loggedReps.length) {
@@ -474,9 +566,11 @@ function buildExerciseActualsSummaries(
       (actualSet) => actualSet.completed && !actualSet.skipped,
     );
     const averageRir = average(
-      loggedSets
-        .map((actualSet) => actualSet.actual_rir)
-        .filter((rir): rir is number => rir !== null),
+      exercise.measurement_type === "reps"
+        ? loggedSets
+            .map((actualSet) => actualSet.actual_rir)
+            .filter((rir): rir is number => rir !== null)
+        : [],
     );
     const plannedSets = Math.max(exercise.sets, 0);
     const loggedSetCount = loggedSets.length;
@@ -499,6 +593,11 @@ function buildExerciseActualsSummaries(
       averageRir,
       effortStatus: effortStatusForAverageRir(averageRir),
       repRangeStatus: repRangeStatusForExercise(exercise, loggedSets),
+      showRirMetrics:
+        exercise.measurement_type === "reps" &&
+        exercise.rir_min !== null &&
+        exercise.rir_max !== null,
+      showRepMetrics: exercise.measurement_type === "reps",
     };
   });
 }
@@ -556,7 +655,7 @@ function ExerciseActualsSummaryPanel({
               >
                 {summary.completionStatus}
               </span>
-              {summary.loggedSets > 0 ? (
+              {summary.loggedSets > 0 && summary.showRirMetrics ? (
                 <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
                   Avg RIR{" "}
                   {summary.averageRir === null
@@ -564,12 +663,16 @@ function ExerciseActualsSummaryPanel({
                     : formatAverageRir(summary.averageRir)}
                 </span>
               ) : null}
-              <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
-                {summary.effortStatus}
-              </span>
-              <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
-                {summary.repRangeStatus}
-              </span>
+              {summary.showRirMetrics ? (
+                <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
+                  {summary.effortStatus}
+                </span>
+              ) : null}
+              {summary.showRepMetrics ? (
+                <span className="rounded-full bg-neutral-surface px-2 py-1 text-xs font-medium text-neutral-foreground">
+                  {summary.repRangeStatus}
+                </span>
+              ) : null}
             </div>
           </div>
         ))}
@@ -650,8 +753,11 @@ function progressionRequestExercise(
       activeSubstitution?.replacement_catalog_exercise_id ??
       exercise.catalog_exercise_id,
     sets: exercise.sets,
+    measurement_type: exercise.measurement_type,
     reps_min: exercise.reps_min,
     reps_max: exercise.reps_max,
+    target_duration_seconds: exercise.target_duration_seconds,
+    target_distance_meters: exercise.target_distance_meters,
     rir_min: exercise.rir_min,
     rir_max: exercise.rir_max,
   };
@@ -1600,6 +1706,10 @@ export function WorkoutPreviewExperience({
       ...current,
       [plannedExerciseId]: {
         actualReps: current[plannedExerciseId]?.actualReps ?? "",
+        actualDurationSeconds:
+          current[plannedExerciseId]?.actualDurationSeconds ?? "",
+        actualDistanceMeters:
+          current[plannedExerciseId]?.actualDistanceMeters ?? "",
         actualWeight: current[plannedExerciseId]?.actualWeight ?? "",
         actualRir: current[plannedExerciseId]?.actualRir ?? "",
         notes: current[plannedExerciseId]?.notes ?? "",
@@ -1624,6 +1734,10 @@ export function WorkoutPreviewExperience({
       ...current,
       [actualSetId]: {
         actualReps: current[actualSetId]?.actualReps ?? "",
+        actualDurationSeconds:
+          current[actualSetId]?.actualDurationSeconds ?? "",
+        actualDistanceMeters:
+          current[actualSetId]?.actualDistanceMeters ?? "",
         actualWeight: current[actualSetId]?.actualWeight ?? "",
         actualRir: current[actualSetId]?.actualRir ?? "",
         notes: current[actualSetId]?.notes ?? "",
@@ -1869,9 +1983,6 @@ export function WorkoutPreviewExperience({
     const formState =
       formStateByExerciseId[exercise.id] ??
       nextActualSetFormState(exercise, actualSets);
-    const actualReps = formState?.actualReps || String(exercise.reps_min);
-    const actualWeight = formState?.actualWeight || "0";
-    const actualRir = formState?.actualRir || String(exercise.rir_max);
     const notes = formState?.notes.trim() || undefined;
 
     setIsSubmitting(true);
@@ -1888,9 +1999,32 @@ export function WorkoutPreviewExperience({
           exercise.id,
           exercise.sets,
         ),
-        actual_reps: Number(actualReps),
-        actual_weight: Number(actualWeight),
-        actual_rir: Number(actualRir),
+        measurement_type: exercise.measurement_type,
+        actual_reps:
+          exercise.measurement_type === "reps" && formState.actualReps !== ""
+            ? Number(formState.actualReps)
+            : undefined,
+        actual_duration_seconds:
+          exercise.measurement_type === "duration" &&
+          formState.actualDurationSeconds !== ""
+            ? Number(formState.actualDurationSeconds)
+            : undefined,
+        actual_distance_meters:
+          exercise.measurement_type === "distance" &&
+          formState.actualDistanceMeters !== ""
+            ? Number(formState.actualDistanceMeters)
+            : undefined,
+        actual_weight:
+          formState.actualWeight === ""
+            ? undefined
+            : Number(formState.actualWeight),
+        actual_rir:
+          exercise.measurement_type === "reps" &&
+          exercise.rir_min !== null &&
+          exercise.rir_max !== null &&
+          formState.actualRir !== ""
+            ? Number(formState.actualRir)
+            : undefined,
         completed: true,
         skipped: false,
         notes,
@@ -1941,14 +2075,32 @@ export function WorkoutPreviewExperience({
     try {
       setErrorMessage(null);
       const result = await updateWorkoutActualSet(selectedPlan.id, actualSet.id, {
+        measurement_type: actualSet.measurement_type,
         actual_reps:
-          formState.actualReps === "" ? undefined : Number(formState.actualReps),
+          actualSet.measurement_type === "reps" && formState.actualReps !== ""
+            ? Number(formState.actualReps)
+            : undefined,
+        actual_duration_seconds:
+          actualSet.measurement_type === "duration" &&
+          formState.actualDurationSeconds !== ""
+            ? Number(formState.actualDurationSeconds)
+            : undefined,
+        actual_distance_meters:
+          actualSet.measurement_type === "distance" &&
+          formState.actualDistanceMeters !== ""
+            ? Number(formState.actualDistanceMeters)
+            : undefined,
         actual_weight:
           formState.actualWeight === ""
             ? undefined
             : Number(formState.actualWeight),
         actual_rir:
-          formState.actualRir === "" ? undefined : Number(formState.actualRir),
+          actualSet.measurement_type === "reps" &&
+          actualSet.planned_rir_min !== null &&
+          actualSet.planned_rir_max !== null &&
+          formState.actualRir !== ""
+            ? Number(formState.actualRir)
+            : undefined,
         notes: formState.notes.trim() || undefined,
       });
 
@@ -2389,22 +2541,55 @@ export function WorkoutPreviewExperience({
                 </p>
               ) : null}
             </div>
-            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
-              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                Average Actual RIR
-              </p>
-              <p className="mt-2 text-xl font-semibold text-text-primary">
-                {compactMetric(plannedVsActualSummary.average_actual_rir)}
-              </p>
-            </div>
-            <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
-              <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
-                Rep Range Match
-              </p>
-              <p className="mt-2 text-xl font-semibold text-text-primary">
-                {plannedVsActualSummary.sets_inside_planned_reps}
-              </p>
-            </div>
+            {plannedVsActualSummary.average_planned_rir !== null ? (
+              <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+                <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
+                  Average Actual RIR
+                </p>
+                <p className="mt-2 text-xl font-semibold text-text-primary">
+                  {compactMetric(plannedVsActualSummary.average_actual_rir)}
+                </p>
+              </div>
+            ) : null}
+            {plannedVsActualSummary.sets_below_planned_reps +
+              plannedVsActualSummary.sets_inside_planned_reps +
+              plannedVsActualSummary.sets_above_planned_reps >
+            0 ? (
+              <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+                <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
+                  Rep Range Match
+                </p>
+                <p className="mt-2 text-xl font-semibold text-text-primary">
+                  {plannedVsActualSummary.sets_inside_planned_reps}
+                </p>
+              </div>
+            ) : null}
+            {plannedVsActualSummary.duration_comparable_set_count > 0 ? (
+              <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+                <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
+                  Duration Delta
+                </p>
+                <p className="mt-2 text-xl font-semibold text-text-primary">
+                  {formatSignedDelta(
+                    plannedVsActualSummary.duration_delta_seconds_total,
+                    "sec",
+                  )}
+                </p>
+              </div>
+            ) : null}
+            {plannedVsActualSummary.distance_comparable_set_count > 0 ? (
+              <div className="rounded-2xl bg-surface px-4 py-3 ring-1 ring-border">
+                <p className="text-xs uppercase tracking-[0.16em] text-text-muted">
+                  Distance Delta
+                </p>
+                <p className="mt-2 text-xl font-semibold text-text-primary">
+                  {formatSignedDelta(
+                    plannedVsActualSummary.distance_delta_meters_total,
+                    "m",
+                  )}
+                </p>
+              </div>
+            ) : null}
           </div>
           <ExerciseActualsSummaryPanel summaries={exerciseActualsSummaries} />
         </TodayCard>
@@ -2588,10 +2773,34 @@ export function WorkoutPreviewExperience({
                             {plannedVsActualSummary.completed_exercise_count} /{" "}
                             {plannedVsActualSummary.planned_exercise_count}
                           </span>
-                          <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
-                            Avg RIR:{" "}
-                            {compactMetric(plannedVsActualSummary.average_actual_rir)}
-                          </span>
+                          {plannedVsActualSummary.average_planned_rir !== null ? (
+                            <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
+                              Avg RIR:{" "}
+                              {compactMetric(
+                                plannedVsActualSummary.average_actual_rir,
+                              )}
+                            </span>
+                          ) : null}
+                          {plannedVsActualSummary.duration_comparable_set_count >
+                          0 ? (
+                            <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
+                              Duration:{" "}
+                              {formatSignedDelta(
+                                plannedVsActualSummary.duration_delta_seconds_total,
+                                "sec",
+                              )}
+                            </span>
+                          ) : null}
+                          {plannedVsActualSummary.distance_comparable_set_count >
+                          0 ? (
+                            <span className="rounded-full bg-surface-subtle px-3 py-1 text-text-body ring-1 ring-border">
+                              Distance:{" "}
+                              {formatSignedDelta(
+                                plannedVsActualSummary.distance_delta_meters_total,
+                                "m",
+                              )}
+                            </span>
+                          ) : null}
                         </div>
                       ) : (
                         <p className="text-sm font-medium text-text-secondary">
@@ -2827,13 +3036,15 @@ export function WorkoutPreviewExperience({
                         {canLogWorkout ? (
                           <p className="text-sm font-medium text-text-body md:hidden">
                             {exercise.sets} sets <span aria-hidden="true">•</span>{" "}
-                            {exercise.reps_min === exercise.reps_max
-                              ? exercise.reps_min
-                              : `${exercise.reps_min}-${exercise.reps_max}`} reps{" "}
-                            <span aria-hidden="true">•</span> RIR{" "}
-                            {exercise.rir_min === exercise.rir_max
-                              ? exercise.rir_min
-                              : `${exercise.rir_min}-${exercise.rir_max}`}
+                            {primaryTarget(exercise)}
+                            {exercise.measurement_type === "reps" &&
+                            exercise.rir_min !== null &&
+                            exercise.rir_max !== null ? (
+                              <>
+                                {" "}<span aria-hidden="true">•</span> RIR{" "}
+                                {formatRange(exercise.rir_min, exercise.rir_max)}
+                              </>
+                            ) : null}
                           </p>
                         ) : null}
                         <div
@@ -2958,25 +3169,62 @@ export function WorkoutPreviewExperience({
                             >
                               {isEditing ? (
                                 <div className="space-y-2">
-                                  <div className="grid grid-cols-3 gap-2">
+                                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                    {actualSet.measurement_type === "reps" ? (
+                                      <label className="space-y-1 text-xs font-medium text-text-body">
+                                        <span>Reps</span>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={editFormState.actualReps}
+                                          onChange={(event) =>
+                                            updateActualSetEditFormState(
+                                              actualSet.id,
+                                              "actualReps",
+                                              event.target.value,
+                                            )
+                                          }
+                                          className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
+                                        />
+                                      </label>
+                                    ) : actualSet.measurement_type === "duration" ? (
+                                      <label className="space-y-1 text-xs font-medium text-text-body">
+                                        <span>Duration (sec)</span>
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={editFormState.actualDurationSeconds}
+                                          onChange={(event) =>
+                                            updateActualSetEditFormState(
+                                              actualSet.id,
+                                              "actualDurationSeconds",
+                                              event.target.value,
+                                            )
+                                          }
+                                          className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
+                                        />
+                                      </label>
+                                    ) : (
+                                      <label className="space-y-1 text-xs font-medium text-text-body">
+                                        <span>Distance (m)</span>
+                                        <input
+                                          type="number"
+                                          min="0.1"
+                                          step="0.1"
+                                          value={editFormState.actualDistanceMeters}
+                                          onChange={(event) =>
+                                            updateActualSetEditFormState(
+                                              actualSet.id,
+                                              "actualDistanceMeters",
+                                              event.target.value,
+                                            )
+                                          }
+                                          className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
+                                        />
+                                      </label>
+                                    )}
                                     <label className="space-y-1 text-xs font-medium text-text-body">
-                                      <span>Reps</span>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        value={editFormState.actualReps}
-                                        onChange={(event) =>
-                                          updateActualSetEditFormState(
-                                            actualSet.id,
-                                            "actualReps",
-                                            event.target.value,
-                                          )
-                                        }
-                                        className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
-                                      />
-                                    </label>
-                                    <label className="space-y-1 text-xs font-medium text-text-body">
-                                      <span>Weight</span>
+                                      <span>Weight (optional)</span>
                                       <input
                                         type="number"
                                         min="0"
@@ -2992,23 +3240,27 @@ export function WorkoutPreviewExperience({
                                         className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
                                       />
                                     </label>
-                                    <label className="space-y-1 text-xs font-medium text-text-body">
-                                      <span>RIR</span>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max="10"
-                                        value={editFormState.actualRir}
-                                        onChange={(event) =>
-                                          updateActualSetEditFormState(
-                                            actualSet.id,
-                                            "actualRir",
-                                            event.target.value,
-                                          )
-                                        }
-                                        className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
-                                      />
-                                    </label>
+                                    {actualSet.measurement_type === "reps" &&
+                                    actualSet.planned_rir_min !== null &&
+                                    actualSet.planned_rir_max !== null ? (
+                                      <label className="space-y-1 text-xs font-medium text-text-body">
+                                        <span>RIR</span>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          max="10"
+                                          value={editFormState.actualRir}
+                                          onChange={(event) =>
+                                            updateActualSetEditFormState(
+                                              actualSet.id,
+                                              "actualRir",
+                                              event.target.value,
+                                            )
+                                          }
+                                          className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none focus:border-focus-subtle md:px-3 md:text-sm"
+                                        />
+                                      </label>
+                                    ) : null}
                                   </div>
                                   <label className="block space-y-1 text-xs font-medium text-text-body">
                                     <span>Notes</span>
@@ -3142,25 +3394,62 @@ export function WorkoutPreviewExperience({
                           </button>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 md:mt-3">
+                        <div className="grid grid-cols-2 gap-2 md:mt-3 sm:grid-cols-3">
+                          {exercise.measurement_type === "reps" ? (
+                            <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
+                              <span className="font-medium">Reps</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={formState.actualReps}
+                                onChange={(event) =>
+                                  updateExerciseFormState(
+                                    exercise.id,
+                                    "actualReps",
+                                    event.target.value,
+                                  )
+                                }
+                                className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
+                              />
+                            </label>
+                          ) : exercise.measurement_type === "duration" ? (
+                            <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
+                              <span className="font-medium">Duration (sec)</span>
+                              <input
+                                type="number"
+                                min="1"
+                                value={formState.actualDurationSeconds}
+                                onChange={(event) =>
+                                  updateExerciseFormState(
+                                    exercise.id,
+                                    "actualDurationSeconds",
+                                    event.target.value,
+                                  )
+                                }
+                                className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
+                              />
+                            </label>
+                          ) : (
+                            <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
+                              <span className="font-medium">Distance (m)</span>
+                              <input
+                                type="number"
+                                min="0.1"
+                                step="0.1"
+                                value={formState.actualDistanceMeters}
+                                onChange={(event) =>
+                                  updateExerciseFormState(
+                                    exercise.id,
+                                    "actualDistanceMeters",
+                                    event.target.value,
+                                  )
+                                }
+                                className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
+                              />
+                            </label>
+                          )}
                           <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
-                            <span className="font-medium">Reps</span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={formState.actualReps}
-                              onChange={(event) =>
-                                updateExerciseFormState(
-                                  exercise.id,
-                                  "actualReps",
-                                  event.target.value,
-                                )
-                              }
-                              className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
-                            />
-                          </label>
-                          <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
-                            <span className="font-medium">Weight</span>
+                            <span className="font-medium">Weight (optional)</span>
                             <input
                               type="number"
                               min="0"
@@ -3176,23 +3465,27 @@ export function WorkoutPreviewExperience({
                               className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
                             />
                           </label>
-                          <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
-                            <span className="font-medium">RIR</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="10"
-                              value={formState.actualRir}
-                              onChange={(event) =>
-                                updateExerciseFormState(
-                                  exercise.id,
-                                  "actualRir",
-                                  event.target.value,
-                                )
-                              }
-                              className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
-                            />
-                          </label>
+                          {exercise.measurement_type === "reps" &&
+                          exercise.rir_min !== null &&
+                          exercise.rir_max !== null ? (
+                            <label className="min-w-0 space-y-1 text-xs text-text-body md:text-sm">
+                              <span className="font-medium">RIR</span>
+                              <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={formState.actualRir}
+                                onChange={(event) =>
+                                  updateExerciseFormState(
+                                    exercise.id,
+                                    "actualRir",
+                                    event.target.value,
+                                  )
+                                }
+                                className="min-w-0 w-full rounded-xl border border-border bg-surface-subtle px-2 py-2 text-base text-text-strong outline-none ring-0 focus:border-focus-subtle md:px-3 md:text-sm"
+                              />
+                            </label>
+                          ) : null}
                         </div>
 
                         <button

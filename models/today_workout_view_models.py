@@ -46,6 +46,9 @@ class TodayWorkoutExerciseItem:
     tempo: str | None
     notes: str | None
     substitution_notes: str | None
+    measurement_type: str = "reps"
+    target_duration_seconds: int | None = None
+    target_distance_meters: float | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(

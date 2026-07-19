@@ -26,6 +26,10 @@ from services.coaching_decision_service import build_coaching_decision
 from services.exercise_catalog_service import (
     find_catalog_entry_by_name,
     get_exercise_catalog,
+    get_exercise_prescription_measurement_metadata,
+    get_exercise_taxonomy,
+    seed_exercise_prescription_measurements,
+    seed_exercise_taxonomy,
 )
 from services.training_constraint_service import build_training_constraints
 from services.training_execution_summary_service import build_training_execution_summary
@@ -148,8 +152,11 @@ _ALLOWED_WORKOUT_EXERCISE_FIELDS = {
     "movement_pattern",
     "target_zone",
     "sets",
+    "measurement_type",
     "reps_min",
     "reps_max",
+    "target_duration_seconds",
+    "target_distance_meters",
     "target_rir_min",
     "target_rir_max",
     "required_equipment",
@@ -172,10 +179,6 @@ _REQUIRED_WORKOUT_EXERCISE_FIELDS = {
     "exercise_name",
     "movement_pattern",
     "sets",
-    "reps_min",
-    "reps_max",
-    "target_rir_min",
-    "target_rir_max",
     "required_equipment",
     "notes",
 }
@@ -474,8 +477,13 @@ def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, A
     target_patterns = _movement_pattern_targets_for_context(context)
     target_pattern_set = set(target_patterns)
     scored_entries: list[tuple[int, dict[str, Any]]] = []
+    catalog = get_exercise_catalog()
+    if catalog and catalog[0].id is not None:
+        first_metadata = get_exercise_prescription_measurement_metadata(catalog[0].id)
+        if first_metadata is None:
+            seed_exercise_prescription_measurements()
 
-    for index, entry in enumerate(get_exercise_catalog()):
+    for index, entry in enumerate(catalog):
         if not _catalog_entry_allowed_for_context(entry, context):
             continue
 
@@ -499,6 +507,14 @@ def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, A
                 }
             )
 
+        measurement_metadata = (
+            get_exercise_prescription_measurement_metadata(entry.id)
+            if entry.id is not None
+            else None
+        )
+        if measurement_metadata is None:
+            continue
+
         scored_entries.append(
             (
                 score,
@@ -509,6 +525,13 @@ def _allowed_catalog_exercise_slice(context: WorkoutContext) -> list[dict[str, A
                     "required_equipment": [
                         _normalize_equipment(item) for item in entry.equipment_required
                     ],
+                    "default_measurement_type": (
+                        measurement_metadata.default_measurement_type
+                    ),
+                    "allowed_measurement_types": list(
+                        measurement_metadata.allowed_measurement_types
+                    ),
+                    "rir_applicability": measurement_metadata.rir_applicability,
                     "target_zone": (
                         "core"
                         if entry.movement_pattern.startswith("core")
@@ -1110,16 +1133,69 @@ def _exercise(
     equipment_required: list[str],
 ) -> CandidateWorkoutExercise:
     catalog_entry = find_catalog_entry_by_name(name)
+    measurement_type = "reps"
+    target_duration_seconds = None
+    target_distance_meters = None
+    resolved_sets = sets
+    resolved_reps_min: int | None = reps_min
+    resolved_reps_max: int | None = reps_max
+    resolved_rir_min: int | None = rir_min
+    resolved_rir_max: int | None = rir_max
+
+    if catalog_entry is not None and catalog_entry.id is not None:
+        measurement_metadata = get_exercise_prescription_measurement_metadata(
+            catalog_entry.id
+        )
+        taxonomy = get_exercise_taxonomy(catalog_entry.id)
+        if measurement_metadata is None or taxonomy is None:
+            seed_exercise_taxonomy()
+            seed_exercise_prescription_measurements()
+            measurement_metadata = get_exercise_prescription_measurement_metadata(
+                catalog_entry.id
+            )
+            taxonomy = get_exercise_taxonomy(catalog_entry.id)
+        if measurement_metadata is None or taxonomy is None:
+            raise WorkoutPlanUnavailableError(
+                f"Exercise prescription metadata is unavailable for {name}."
+            )
+
+        measurement_type = measurement_metadata.default_measurement_type
+        if measurement_type == "duration":
+            resolved_reps_min = None
+            resolved_reps_max = None
+            resolved_rir_min = None
+            resolved_rir_max = None
+            if taxonomy.family_slug in {
+                "treadmill_locomotion",
+                "stationary_cycling",
+            }:
+                resolved_sets = 1
+                target_duration_seconds = 600
+            else:
+                target_duration_seconds = 30
+        elif measurement_type == "distance":
+            resolved_reps_min = None
+            resolved_reps_max = None
+            resolved_rir_min = None
+            resolved_rir_max = None
+            target_distance_meters = 20.0
+        elif measurement_metadata.rir_applicability != "applicable":
+            resolved_rir_min = None
+            resolved_rir_max = None
+
     return CandidateWorkoutExercise(
         name=name,
-        sets=sets,
-        reps_min=reps_min,
-        reps_max=reps_max,
-        rir_min=rir_min,
-        rir_max=rir_max,
+        sets=resolved_sets,
+        reps_min=resolved_reps_min,
+        reps_max=resolved_reps_max,
+        rir_min=resolved_rir_min,
+        rir_max=resolved_rir_max,
         notes=notes,
         equipment_required=[_normalize_equipment(item) for item in equipment_required],
         catalog_exercise_id=(catalog_entry.id if catalog_entry is not None else None),
+        measurement_type=measurement_type,
+        target_duration_seconds=target_duration_seconds,
+        target_distance_meters=target_distance_meters,
     )
 
 
@@ -2058,6 +2134,24 @@ def _require_int(payload: dict, key: str) -> int:
     return value
 
 
+def _optional_int(payload: dict, key: str) -> int | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise WorkoutCandidateParseError(f"{key} must be an integer or null.")
+    return value
+
+
+def _optional_float(payload: dict, key: str) -> float | None:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise WorkoutCandidateParseError(f"{key} must be numeric or null.")
+    return float(value)
+
+
 def _require_string_list(payload: dict, key: str) -> list[str]:
     value = payload.get(key)
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
@@ -2159,14 +2253,20 @@ def parse_candidate_workout_plan_json(
                 f"Exercise {index} catalog_exercise_id must be an integer when present."
             )
 
+        measurement_type = (
+            "reps"
+            if "measurement_type" not in exercise_payload
+            else _require_string(exercise_payload, "measurement_type")
+        )
+
         exercises.append(
             CandidateWorkoutExercise(
                 name=_require_string(exercise_payload, "exercise_name"),
                 sets=_require_int(exercise_payload, "sets"),
-                reps_min=_require_int(exercise_payload, "reps_min"),
-                reps_max=_require_int(exercise_payload, "reps_max"),
-                rir_min=_require_int(exercise_payload, "target_rir_min"),
-                rir_max=_require_int(exercise_payload, "target_rir_max"),
+                reps_min=_optional_int(exercise_payload, "reps_min"),
+                reps_max=_optional_int(exercise_payload, "reps_max"),
+                rir_min=_optional_int(exercise_payload, "target_rir_min"),
+                rir_max=_optional_int(exercise_payload, "target_rir_max"),
                 notes=_require_string(exercise_payload, "notes"),
                 equipment_required=_normalize_required_equipment(
                     _require_string_list(exercise_payload, "required_equipment")
@@ -2177,6 +2277,15 @@ def parse_candidate_workout_plan_json(
                     str(exercise_payload.get("target_zone")).strip()
                     if exercise_payload.get("target_zone") is not None
                     else None
+                ),
+                measurement_type=measurement_type,
+                target_duration_seconds=_optional_int(
+                    exercise_payload,
+                    "target_duration_seconds",
+                ),
+                target_distance_meters=_optional_float(
+                    exercise_payload,
+                    "target_distance_meters",
                 ),
             )
         )
@@ -2206,6 +2315,33 @@ def _catalog_validation_violations(
     catalog_entry = _catalog_entry_for_candidate_exercise(exercise)
     if catalog_entry is None:
         return [f"{exercise.name} does not exist in the exercise catalog."]
+
+    measurement_metadata = (
+        get_exercise_prescription_measurement_metadata(catalog_entry.id)
+        if catalog_entry.id is not None
+        else None
+    )
+    if measurement_metadata is None and catalog_entry.id is not None:
+        seed_exercise_prescription_measurements()
+        measurement_metadata = get_exercise_prescription_measurement_metadata(
+            catalog_entry.id
+        )
+    if measurement_metadata is None:
+        violations.append(f"{exercise.name} is missing exercise prescription metadata.")
+    else:
+        if (
+            exercise.measurement_type
+            not in measurement_metadata.allowed_measurement_types
+        ):
+            violations.append(
+                f"{exercise.name} uses a measurement type not allowed by the catalog."
+            )
+        if measurement_metadata.rir_applicability != "applicable" and (
+            exercise.rir_min is not None or exercise.rir_max is not None
+        ):
+            violations.append(
+                f"{exercise.name} cannot use RIR for its canonical prescription."
+            )
 
     if (
         exercise.catalog_exercise_id is not None
@@ -2257,6 +2393,59 @@ def _catalog_validation_violations(
     return violations
 
 
+def _measurement_validation_violations(
+    exercise: CandidateWorkoutExercise,
+) -> list[str]:
+    violations: list[str] = []
+    measurement_type = exercise.measurement_type or "reps"
+    if measurement_type not in {"reps", "duration", "distance"}:
+        return [f"Invalid measurement type for {exercise.name}."]
+
+    rir_present = exercise.rir_min is not None or exercise.rir_max is not None
+    if rir_present and (exercise.rir_min is None or exercise.rir_max is None):
+        violations.append(f"Incomplete RIR range for {exercise.name}.")
+    elif rir_present and (
+        exercise.rir_min < 0
+        or exercise.rir_max > 5
+        or exercise.rir_max < exercise.rir_min
+    ):
+        violations.append(f"Invalid RIR range for {exercise.name}.")
+
+    if measurement_type == "reps":
+        if (
+            exercise.reps_min is None
+            or exercise.reps_max is None
+            or exercise.reps_min < 1
+            or exercise.reps_max < exercise.reps_min
+        ):
+            violations.append(f"Invalid rep range for {exercise.name}.")
+        if (
+            exercise.target_duration_seconds is not None
+            or exercise.target_distance_meters is not None
+        ):
+            violations.append(f"Mixed target dimensions for {exercise.name}.")
+    elif measurement_type == "duration":
+        if (
+            exercise.target_duration_seconds is None
+            or exercise.target_duration_seconds <= 0
+            or exercise.reps_min is not None
+            or exercise.reps_max is not None
+            or exercise.target_distance_meters is not None
+            or rir_present
+        ):
+            violations.append(f"Invalid duration target for {exercise.name}.")
+    elif (
+        exercise.target_distance_meters is None
+        or exercise.target_distance_meters <= 0
+        or exercise.reps_min is not None
+        or exercise.reps_max is not None
+        or exercise.target_duration_seconds is not None
+        or rir_present
+    ):
+        violations.append(f"Invalid distance target for {exercise.name}.")
+    return violations
+
+
 def build_approved_workout_plan_from_candidate_output(
     raw_output: str,
     context: WorkoutContext,
@@ -2304,23 +2493,21 @@ def validate_candidate_workout_plan(
         if exercise.sets < 1 or exercise.sets > 6:
             violations.append(f"Invalid set count for {exercise.name}.")
 
-        if exercise.reps_min < 1 or exercise.reps_max < exercise.reps_min:
-            violations.append(f"Invalid rep range for {exercise.name}.")
+        violations.extend(_measurement_validation_violations(exercise))
 
         if (
-            exercise.rir_min < 0
-            or exercise.rir_max > 5
-            or exercise.rir_max < exercise.rir_min
+            exercise.rir_min is not None
+            and training_constraints.recommended_rir_min is not None
         ):
-            violations.append(f"Invalid RIR range for {exercise.name}.")
-
-        if training_constraints.recommended_rir_min is not None:
             if exercise.rir_min < training_constraints.recommended_rir_min:
                 violations.append(
                     f"{exercise.name} uses lower RIR than current constraints allow."
                 )
 
-        if training_constraints.recommended_rir_max is not None:
+        if (
+            exercise.rir_max is not None
+            and training_constraints.recommended_rir_max is not None
+        ):
             if exercise.rir_max > training_constraints.recommended_rir_max:
                 violations.append(
                     f"{exercise.name} uses higher RIR than current constraints allow."
@@ -2394,6 +2581,9 @@ def approve_candidate_workout_plan(
                 notes=exercise.notes,
                 equipment_required=exercise.equipment_required,
                 catalog_exercise_id=exercise.catalog_exercise_id,
+                measurement_type=exercise.measurement_type,
+                target_duration_seconds=exercise.target_duration_seconds,
+                target_distance_meters=exercise.target_distance_meters,
             )
             for exercise in candidate.exercises
         ],
@@ -3140,11 +3330,18 @@ Never use these top-level wrapper keys:
 workout_plan, plan, response, result, data
 
 Each exercise must use this exact key set only:
-exercise_name, catalog_exercise_id, movement_pattern, target_zone, sets, reps_min,
-reps_max, target_rir_min, target_rir_max, required_equipment, notes
+exercise_name, catalog_exercise_id, movement_pattern, target_zone, sets,
+measurement_type, reps_min, reps_max, target_duration_seconds,
+target_distance_meters, target_rir_min, target_rir_max, required_equipment, notes
 
 Never use these exercise keys:
 equipment, reps, rir_target, rir, exercise, name
+
+Choose only a measurement_type listed in that exercise's allowed_measurement_types.
+Use exactly one target dimension: a positive rep range, positive duration seconds,
+or positive distance meters. Use null for every irrelevant target. RIR may be a
+0-5 range only for rep work whose rir_applicability is applicable; otherwise use
+null for both RIR fields.
 
 Compact valid example:
 {{
@@ -3158,8 +3355,11 @@ Compact valid example:
       "movement_pattern": "squat",
       "target_zone": "main",
       "sets": 3,
+      "measurement_type": "reps",
       "reps_min": 8,
       "reps_max": 10,
+      "target_duration_seconds": null,
+      "target_distance_meters": null,
       "target_rir_min": 2,
       "target_rir_max": 4,
       "required_equipment": ["dumbbell"],
@@ -3641,13 +3841,27 @@ def render_approved_workout_plan(plan: ApprovedWorkoutPlan) -> str:
     ]
 
     for exercise in plan.exercises:
-        lines.append(
-            "- "
-            f"{exercise.name}: {exercise.sets} sets x "
-            f"{exercise.reps_min}-{exercise.reps_max} reps, "
-            f"RIR {exercise.rir_min}-{exercise.rir_max}. "
-            f"{exercise.notes}"
-        )
+        if exercise.measurement_type == "duration":
+            duration_seconds = exercise.target_duration_seconds or 0
+            if duration_seconds % 60 == 0:
+                primary_target = f"{duration_seconds // 60} min"
+            else:
+                primary_target = f"{duration_seconds} sec"
+            prescription = f"{exercise.sets} sets x {primary_target}"
+        elif exercise.measurement_type == "distance":
+            distance = exercise.target_distance_meters or 0
+            distance_label = (
+                str(int(distance)) if float(distance).is_integer() else str(distance)
+            )
+            prescription = f"{exercise.sets} sets x {distance_label} m"
+        else:
+            prescription = (
+                f"{exercise.sets} sets x "
+                f"{exercise.reps_min}-{exercise.reps_max} reps"
+            )
+            if exercise.rir_min is not None and exercise.rir_max is not None:
+                prescription += f", RIR {exercise.rir_min}-{exercise.rir_max}"
+        lines.append("- " f"{exercise.name}: {prescription}. " f"{exercise.notes}")
 
     lines.extend(
         [

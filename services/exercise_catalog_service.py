@@ -10,14 +10,20 @@ from types import MappingProxyType
 import database
 from database import get_connection
 from models.exercise_catalog_models import (
+    EXERCISE_PRESCRIPTION_DISTANCE_UNITS,
+    EXERCISE_PRESCRIPTION_LOAD_APPLICABILITIES,
+    EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES,
+    EXERCISE_PRESCRIPTION_RIR_APPLICABILITIES,
     ExerciseCatalogEntry,
     ExerciseFormMediaAsset,
     ExerciseInstruction,
+    ExercisePrescriptionMeasurementMetadata,
     ExerciseTaxonomyMetadata,
 )
 from services import (
     exercise_form_media_seed_data,
     exercise_instruction_seed_data,
+    exercise_prescription_measurement_seed_data,
     exercise_taxonomy_seed_data,
 )
 
@@ -2422,6 +2428,22 @@ def ensure_exercise_catalog_tables() -> None:
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_catalog_prescription_measurements (
+        exercise_id INTEGER PRIMARY KEY,
+        default_measurement_type TEXT NOT NULL,
+        allowed_measurement_types_json TEXT NOT NULL,
+        sets_applicable INTEGER NOT NULL,
+        load_applicability TEXT NOT NULL,
+        rir_applicability TEXT NOT NULL,
+        distance_unit TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -2812,6 +2834,187 @@ def get_exercise_taxonomy(catalog_exercise_id: int) -> ExerciseTaxonomyMetadata 
         variant_extensions=extensions,
         **{field: row[field] for field in _TAXONOMY_CONTROLLED_FIELDS},
     )
+
+
+def _validate_prescription_measurement_values(
+    metadata: ExercisePrescriptionMeasurementMetadata,
+) -> None:
+    _validate_catalog_exercise_id(metadata.catalog_exercise_id)
+    if metadata.default_measurement_type not in EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES:
+        raise ValueError("Unsupported default exercise prescription measurement type")
+    if (
+        not metadata.allowed_measurement_types
+        or len(metadata.allowed_measurement_types)
+        != len(set(metadata.allowed_measurement_types))
+        or set(metadata.allowed_measurement_types)
+        - EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES
+    ):
+        raise ValueError("Unsupported allowed exercise prescription measurement types")
+    if metadata.default_measurement_type not in metadata.allowed_measurement_types:
+        raise ValueError("Default exercise prescription type must be allowed")
+    if not isinstance(metadata.sets_applicable, bool):
+        raise ValueError("Exercise prescription sets_applicable must be boolean")
+    if metadata.load_applicability not in EXERCISE_PRESCRIPTION_LOAD_APPLICABILITIES:
+        raise ValueError("Unsupported exercise prescription load applicability")
+    if metadata.rir_applicability not in EXERCISE_PRESCRIPTION_RIR_APPLICABILITIES:
+        raise ValueError("Unsupported exercise prescription RIR applicability")
+    distance_enabled = "distance" in metadata.allowed_measurement_types
+    if (
+        distance_enabled
+        and metadata.distance_unit not in EXERCISE_PRESCRIPTION_DISTANCE_UNITS
+    ):
+        raise ValueError("Distance-enabled exercise prescriptions must use meters")
+    if not distance_enabled and metadata.distance_unit is not None:
+        raise ValueError(
+            "Non-distance exercise prescriptions cannot define a distance unit"
+        )
+
+
+def _validated_prescription_measurement_seed_metadata(
+    ids_by_name: dict[str, int],
+) -> list[ExercisePrescriptionMeasurementMetadata]:
+    seeds = exercise_prescription_measurement_seed_data.EXERCISE_PRESCRIPTION_MEASUREMENT_SEEDS
+    seed_names = [seed.canonical_exercise_name for seed in seeds]
+    catalog_names = [entry.name for entry in CURATED_EXERCISE_CATALOG]
+    if (
+        len(seed_names) != 240
+        or len(seed_names) != len(set(seed_names))
+        or set(seed_names) != set(catalog_names)
+    ):
+        raise ValueError(
+            "Exercise prescription measurement seed must have exact unique "
+            "canonical-name coverage"
+        )
+    if set(seed_names) - set(ids_by_name):
+        raise ValueError(
+            "Persisted exercise catalog is missing prescription measurement targets"
+        )
+
+    metadata = [
+        ExercisePrescriptionMeasurementMetadata(
+            catalog_exercise_id=ids_by_name[seed.canonical_exercise_name],
+            default_measurement_type=seed.default_measurement_type,
+            allowed_measurement_types=seed.allowed_measurement_types,
+            sets_applicable=seed.sets_applicable,
+            load_applicability=seed.load_applicability,
+            rir_applicability=seed.rir_applicability,
+            distance_unit=seed.distance_unit,
+        )
+        for seed in seeds
+    ]
+    for item in metadata:
+        _validate_prescription_measurement_values(item)
+
+    default_counts = {
+        measurement_type: sum(
+            item.default_measurement_type == measurement_type for item in metadata
+        )
+        for measurement_type in EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES
+    }
+    multi_mode_count = sum(len(item.allowed_measurement_types) > 1 for item in metadata)
+    distance_enabled_count = sum(
+        "distance" in item.allowed_measurement_types for item in metadata
+    )
+    if (
+        default_counts != {"reps": 203, "duration": 29, "distance": 8}
+        or multi_mode_count != 31
+        or distance_enabled_count != 25
+    ):
+        raise ValueError("Exercise prescription measurement seed invariants failed")
+    return metadata
+
+
+def seed_exercise_prescription_measurements() -> (
+    list[ExercisePrescriptionMeasurementMetadata]
+):
+    """Atomically replace the complete stable-ID measurement projection."""
+
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        ids_by_name = {
+            row["name"]: row["id"]
+            for row in conn.execute("SELECT id, name FROM exercise_catalog_exercises")
+        }
+        metadata = _validated_prescription_measurement_seed_metadata(ids_by_name)
+        with conn:
+            conn.execute("DELETE FROM exercise_catalog_prescription_measurements")
+            conn.executemany(
+                """
+                INSERT INTO exercise_catalog_prescription_measurements (
+                    exercise_id,
+                    default_measurement_type,
+                    allowed_measurement_types_json,
+                    sets_applicable,
+                    load_applicability,
+                    rir_applicability,
+                    distance_unit,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """,
+                [
+                    (
+                        item.catalog_exercise_id,
+                        item.default_measurement_type,
+                        json.dumps(item.allowed_measurement_types),
+                        int(item.sets_applicable),
+                        item.load_applicability,
+                        item.rir_applicability,
+                        item.distance_unit,
+                    )
+                    for item in metadata
+                ],
+            )
+    finally:
+        conn.close()
+    return metadata
+
+
+def get_exercise_prescription_measurement_metadata(
+    catalog_exercise_id: int,
+) -> ExercisePrescriptionMeasurementMetadata | None:
+    """Return persisted measurement metadata for one stable catalog ID."""
+
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM exercise_catalog_prescription_measurements
+            WHERE exercise_id = ?
+            """,
+            (catalog_exercise_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    try:
+        allowed_raw = json.loads(row["allowed_measurement_types_json"])
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(
+            "Invalid persisted exercise prescription measurement types"
+        ) from exc
+    if not isinstance(allowed_raw, list) or any(
+        not isinstance(value, str) for value in allowed_raw
+    ):
+        raise ValueError("Invalid persisted exercise prescription measurement types")
+    if row["sets_applicable"] not in {0, 1}:
+        raise ValueError("Invalid persisted exercise prescription sets applicability")
+    metadata = ExercisePrescriptionMeasurementMetadata(
+        catalog_exercise_id=row["exercise_id"],
+        default_measurement_type=row["default_measurement_type"],
+        allowed_measurement_types=tuple(allowed_raw),
+        sets_applicable=bool(row["sets_applicable"]),
+        load_applicability=row["load_applicability"],
+        rir_applicability=row["rir_applicability"],
+        distance_unit=row["distance_unit"],
+    )
+    _validate_prescription_measurement_values(metadata)
+    return metadata
 
 
 def _entry_to_legacy_exercise_row(

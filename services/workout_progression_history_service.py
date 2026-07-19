@@ -187,6 +187,11 @@ def _load_completed_progression_sessions(
     planned_catalog_expr = (
         "pwe.catalog_exercise_id" if "catalog_exercise_id" in pwe_columns else "NULL"
     )
+    planned_measurement_expr = (
+        "COALESCE(pwe.measurement_type, 'reps')"
+        if "measurement_type" in pwe_columns
+        else "'reps'"
+    )
     plan_completed_at = "wpi.completed_at" if "completed_at" in wpi_columns else "NULL"
     performed_at_expr = f"COALESCE(wes.completed_at, {plan_completed_at}, wpi.selected_at, wpi.created_at)"
     rows = cursor.execute(
@@ -197,6 +202,7 @@ def _load_completed_progression_sessions(
                pwe.id AS planned_exercise_id,
                pwe.name AS planned_exercise_name,
                pwe.sets AS planned_set_count,
+               {planned_measurement_expr} AS planned_measurement_type,
                {planned_catalog_expr} AS planned_catalog_exercise_id
         FROM workout_plan_instances AS wpi
         JOIN workout_execution_sessions AS wes
@@ -217,6 +223,8 @@ def _load_completed_progression_sessions(
     )
     matches: list[ExerciseProgressionSession] = []
     for row in rows:
+        if row["planned_measurement_type"] != "reps":
+            continue
         planned_name = str(row["planned_exercise_name"] or "")
         replacement_name: str | None = None
         replacement_catalog_exercise_id: int | None = None

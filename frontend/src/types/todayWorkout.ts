@@ -11,6 +11,7 @@ export type TodayWorkoutSource =
   | "none";
 
 export type WorkoutSizePreference = "quick" | "standard" | "full";
+export type WorkoutMeasurementType = "reps" | "duration" | "distance";
 
 export interface WeeklyTrainingContext {
   has_weekly_plan: boolean;
@@ -37,10 +38,13 @@ export interface WorkoutPreviewExercise {
   catalog_exercise_id: number | null;
   name: string;
   sets: number;
-  reps_min: number;
-  reps_max: number;
-  rir_min: number;
-  rir_max: number;
+  measurement_type: WorkoutMeasurementType;
+  reps_min: number | null;
+  reps_max: number | null;
+  target_duration_seconds: number | null;
+  target_distance_meters: number | null;
+  rir_min: number | null;
+  rir_max: number | null;
   notes: string;
   equipment_required: string[];
 }
@@ -91,10 +95,13 @@ export interface PlannedWorkoutExerciseSummary {
   exercise_order: number;
   name: string;
   sets: number;
-  reps_min: number;
-  reps_max: number;
-  rir_min: number;
-  rir_max: number;
+  measurement_type: WorkoutMeasurementType;
+  reps_min: number | null;
+  reps_max: number | null;
+  target_duration_seconds: number | null;
+  target_distance_meters: number | null;
+  rir_min: number | null;
+  rir_max: number | null;
   notes: string;
   equipment_required: string[];
 }
@@ -179,11 +186,16 @@ export interface WorkoutActualSetSummary {
   workout_set_id: number | null;
   exercise_name: string;
   set_number: number;
+  measurement_type: WorkoutMeasurementType;
   planned_reps_min: number | null;
   planned_reps_max: number | null;
+  planned_duration_seconds: number | null;
+  planned_distance_meters: number | null;
   planned_rir_min: number | null;
   planned_rir_max: number | null;
   actual_reps: number | null;
+  actual_duration_seconds: number | null;
+  actual_distance_meters: number | null;
   actual_weight: number | null;
   actual_rir: number | null;
   completed: boolean;
@@ -271,6 +283,10 @@ export interface WorkoutPlannedVsActualSummary {
   sets_below_planned_reps: number;
   sets_inside_planned_reps: number;
   sets_above_planned_reps: number;
+  duration_comparable_set_count: number;
+  duration_delta_seconds_total: number;
+  distance_comparable_set_count: number;
+  distance_delta_meters_total: number;
   notes: string[];
   deviation_flags: string[];
 }
@@ -296,7 +312,10 @@ export interface WorkoutActualSetCreatePayload {
   planned_workout_exercise_id?: number;
   exercise_name?: string;
   set_number?: number;
+  measurement_type?: WorkoutMeasurementType;
   actual_reps?: number;
+  actual_duration_seconds?: number;
+  actual_distance_meters?: number;
   actual_weight?: number;
   actual_rir?: number;
   completed?: boolean;
@@ -389,10 +408,13 @@ export interface WorkoutProgressionDecisionRequestExercise {
   exercise_name: string;
   catalog_exercise_id: number | null;
   sets: number;
-  reps_min: number;
-  reps_max: number;
-  rir_min: number;
-  rir_max: number;
+  measurement_type: WorkoutMeasurementType;
+  reps_min: number | null;
+  reps_max: number | null;
+  target_duration_seconds: number | null;
+  target_distance_meters: number | null;
+  rir_min: number | null;
+  rir_max: number | null;
 }
 
 export interface WorkoutProgressionDecision {
@@ -422,7 +444,10 @@ export interface TodayWorkoutExerciseItem {
   order: number;
   section: string | null;
   sets: number | null;
+  measurement_type: WorkoutMeasurementType;
   reps: string | null;
+  target_duration_seconds: number | null;
+  target_distance_meters: number | null;
   weight: number | null;
   weight_unit: string | null;
   rest_seconds: number | null;

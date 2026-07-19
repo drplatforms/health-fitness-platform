@@ -303,11 +303,18 @@ def _build_session_summary(plan: _PlanInstanceRow) -> _SessionBuildResult:
 
 def _load_planned_rows(plan_instance_id: int) -> list[dict[str, Any]]:
     conn = get_connection()
+    columns = _column_names(conn.cursor(), "planned_workout_exercises")
+    measurement_select = (
+        "COALESCE(measurement_type, 'reps') AS measurement_type"
+        if "measurement_type" in columns
+        else "'reps' AS measurement_type"
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT id,
                name,
                sets,
+               {measurement_select},
                reps_min,
                reps_max,
                rir_min,
@@ -346,8 +353,14 @@ def _load_execution_session(plan_instance_id: int) -> dict[str, Any] | None:
 
 def _load_actual_rows(workout_execution_session_id: int) -> list[dict[str, Any]]:
     conn = get_connection()
+    columns = _column_names(conn.cursor(), "workout_execution_set_actuals")
+    measurement_select = (
+        "COALESCE(measurement_type, 'reps') AS measurement_type"
+        if "measurement_type" in columns
+        else "'reps' AS measurement_type"
+    )
     rows = conn.execute(
-        """
+        f"""
         SELECT id,
                workout_execution_session_id,
                planned_workout_exercise_id,
@@ -355,6 +368,7 @@ def _load_actual_rows(workout_execution_session_id: int) -> list[dict[str, Any]]
                workout_set_id,
                exercise_name,
                set_number,
+               {measurement_select},
                planned_reps_min,
                planned_reps_max,
                planned_rir_min,
@@ -394,7 +408,9 @@ def _summarize_session(
         else None
     )
     planned_rirs = _planned_rirs_for_session(planned_rows, actual_rows)
-    actual_rirs = [_safe_float(row.get("actual_rir")) for row in completed_rows]
+    rep_rows = [row for row in completed_rows if _measurement_type(row) == "reps"]
+    rir_rows = [row for row in rep_rows if _planned_rir_midpoint(row) is not None]
+    actual_rirs = [_safe_float(row.get("actual_rir")) for row in rir_rows]
     actual_rirs = [value for value in actual_rirs if value is not None]
     avg_planned_rir = _round_mean(planned_rirs)
     avg_actual_rir = _round_mean(actual_rirs)
@@ -403,9 +419,9 @@ def _summarize_session(
         if avg_actual_rir is not None and avg_planned_rir is not None
         else None
     )
-    rep_counts = _rep_counts(completed_rows)
-    missing_reps = sum(1 for row in completed_rows if row.get("actual_reps") is None)
-    missing_rir = sum(1 for row in completed_rows if row.get("actual_rir") is None)
+    rep_counts = _rep_counts(rep_rows)
+    missing_reps = sum(1 for row in rep_rows if row.get("actual_reps") is None)
+    missing_rir = sum(1 for row in rir_rows if row.get("actual_rir") is None)
     missing_weight = sum(
         1 for row in completed_rows if row.get("actual_weight") is None
     )
@@ -416,13 +432,13 @@ def _summarize_session(
         skipped_count=skipped_set_count,
         missing_rows=max(planned_set_count - completed_set_count, 0),
     )
-    effort_indicator = _classify_effort(rir_delta, missing_rir, completed_set_count)
+    effort_indicator = _classify_effort(rir_delta, missing_rir, len(rir_rows))
     rep_range_indicator = _classify_rep_range(
         below=rep_counts["below"],
         inside=rep_counts["inside"],
         above=rep_counts["above"],
         missing_actual_reps=missing_reps,
-        completed_set_count=completed_set_count,
+        completed_set_count=len(rep_rows),
     )
     logging_quality = _classify_logging_quality(
         planned_set_count=planned_set_count,
@@ -504,6 +520,8 @@ def _planned_rirs_for_session(
 def _rep_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     counts = {"below": 0, "inside": 0, "above": 0}
     for row in rows:
+        if _measurement_type(row) != "reps":
+            continue
         actual = _safe_float(row.get("actual_reps"))
         if actual is None:
             continue
@@ -540,18 +558,23 @@ def _build_exercise_indicators(
             if not _is_completed(actual):
                 continue
             acc["completed_set_count"] += 1
+            measurement_type = _measurement_type(actual)
             actual_reps = _safe_float(actual.get("actual_reps"))
             actual_rir = _safe_float(actual.get("actual_rir"))
             actual_weight = _safe_float(actual.get("actual_weight"))
             planned_rir = _planned_rir_midpoint(actual)
-            if actual_reps is None:
-                acc["missing_actual_reps"] += 1
-            else:
-                acc["actual_reps"].append(actual_reps)
-            if actual_rir is None:
-                acc["missing_actual_rir"] += 1
-            else:
-                acc["actual_rirs"].append(actual_rir)
+            if measurement_type == "reps":
+                acc["rep_completed_set_count"] += 1
+                if actual_reps is None:
+                    acc["missing_actual_reps"] += 1
+                else:
+                    acc["actual_reps"].append(actual_reps)
+                if planned_rir is not None:
+                    acc["rir_applicable_completed_set_count"] += 1
+                    if actual_rir is None:
+                        acc["missing_actual_rir"] += 1
+                    else:
+                        acc["actual_rirs"].append(actual_rir)
             if actual_weight is None:
                 acc["missing_actual_weight"] += 1
             else:
@@ -581,6 +604,8 @@ def _exercise_accumulator(
             "plan_instance_ids": set(),
             "planned_set_count": 0,
             "completed_set_count": 0,
+            "rep_completed_set_count": 0,
+            "rir_applicable_completed_set_count": 0,
             "skipped_set_count": 0,
             "planned_rirs": [],
             "actual_rirs": [],
@@ -630,14 +655,14 @@ def _build_exercise_indicator(
     effort_indicator = _classify_effort(
         rir_delta,
         int(acc["missing_actual_rir"]),
-        completed_set_count,
+        int(acc["rir_applicable_completed_set_count"]),
     )
     rep_range_indicator = _classify_rep_range(
         below=int(acc["sets_below"]),
         inside=int(acc["sets_inside"]),
         above=int(acc["sets_above"]),
         missing_actual_reps=int(acc["missing_actual_reps"]),
-        completed_set_count=completed_set_count,
+        completed_set_count=int(acc["rep_completed_set_count"]),
     )
     load_indicator = _classify_load(weight_delta, latest_weight, prior_weight)
     confidence = _classify_exercise_confidence(
@@ -1072,6 +1097,8 @@ def _build_coach_safe_summary(
 
 
 def _planned_rir_midpoint(row: dict[str, Any]) -> float | None:
+    if _measurement_type(row) != "reps":
+        return None
     minimum = _safe_float(row.get("planned_rir_min") or row.get("rir_min"))
     maximum = _safe_float(row.get("planned_rir_max") or row.get("rir_max"))
     if minimum is None and maximum is None:
@@ -1081,6 +1108,10 @@ def _planned_rir_midpoint(row: dict[str, Any]) -> float | None:
     if maximum is None:
         return minimum
     return round((minimum + maximum) / 2, 2)
+
+
+def _measurement_type(row: dict[str, Any]) -> str:
+    return str(row.get("measurement_type") or "reps")
 
 
 def _is_completed(row: dict[str, Any]) -> bool:

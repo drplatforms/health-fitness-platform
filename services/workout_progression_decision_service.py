@@ -31,10 +31,13 @@ class CurrentExercisePrescription:
     exercise_name: str
     catalog_exercise_id: int | None
     sets: int
-    reps_min: int
-    reps_max: int
-    rir_min: int
-    rir_max: int
+    reps_min: int | None
+    reps_max: int | None
+    rir_min: int | None
+    rir_max: int | None
+    measurement_type: str = "reps"
+    target_duration_seconds: int | None = None
+    target_distance_meters: float | None = None
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,21 @@ def build_exercise_progression_decision(
     recovery: RecoveryIntelligenceV2Summary,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> WorkoutProgressionDecision:
+    if current_exercise.measurement_type in {"duration", "distance"}:
+        return _decision(
+            current_exercise,
+            decision="insufficient_data",
+            headline="Follow the plan",
+            target_guidance=("Follow the planned primary measurement target today."),
+            why=(
+                "Automated duration and distance progression is not supported "
+                "in this version."
+            ),
+            reason_codes=["unsupported_measurement_type_for_progression_v1"],
+            evidence_session_count=0,
+            confidence="Limited",
+        )
+
     sessions = load_completed_exercise_progression_sessions(
         user_id=user_id,
         exercise_name=current_exercise.exercise_name,
@@ -443,10 +461,21 @@ def _coerce_current_exercise(
             else int(value["catalog_exercise_id"])
         ),
         sets=int(value["sets"]),
-        reps_min=int(value["reps_min"]),
-        reps_max=int(value["reps_max"]),
-        rir_min=int(value["rir_min"]),
-        rir_max=int(value["rir_max"]),
+        reps_min=(None if value.get("reps_min") is None else int(value["reps_min"])),
+        reps_max=(None if value.get("reps_max") is None else int(value["reps_max"])),
+        rir_min=(None if value.get("rir_min") is None else int(value["rir_min"])),
+        rir_max=(None if value.get("rir_max") is None else int(value["rir_max"])),
+        measurement_type=str(value.get("measurement_type") or "reps"),
+        target_duration_seconds=(
+            None
+            if value.get("target_duration_seconds") is None
+            else int(value["target_duration_seconds"])
+        ),
+        target_distance_meters=(
+            None
+            if value.get("target_distance_meters") is None
+            else float(value["target_distance_meters"])
+        ),
     )
 
 
