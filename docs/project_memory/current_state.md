@@ -2,18 +2,18 @@
 
 Canonical implementation baseline before merge: main at d6f968b.
 
-Feature branch: eature/visualization-v2-provider-media.
+Feature branch: feature/visualization-v2-provider-media.
 
 Status: VISUALIZATION_V2_PROVIDER_MEDIA_INTEGRATION_ARCHITECTURE_ACCEPTED.
 
 Accepted behavior:
 
 - The internal canonical exercise catalog remains the source of truth for exercise identity.
-- Structured taxonomy remains the source of truth for physical isual_identity_slug.
+- Structured taxonomy remains the source of truth for physical visual_identity_slug.
 - Visual-media resolution is deterministic: direct curated local media, accepted shared-local visual identity, approved configured provider media, then text-only fallback.
 - Local form media remains authoritative and unchanged.
 - Exactly three accepted shared-local visual identities are supported.
-- Exactly 46 reviewed scendapi_free_v1 provider visual identities fan out to 52 canonical exercises.
+- Exactly 46 reviewed ascendapi_free_v1 provider visual identities fan out to 52 canonical exercises.
 - Configured visual guidance coverage is 83 direct local + 3 shared local + 52 provider-backed = 138 / 240 canonical exercises.
 - The remaining 102 canonical exercises safely retain complete text guidance without visual media.
 - Provider mappings are explicit repository-owned metadata; there is no fuzzy runtime matching, live provider search, name guessing, family fallback, or catalog-truth mutation.
@@ -29,7 +29,7 @@ Accepted behavior:
 Validation and acceptance evidence:
 
 - The corrected shared-local resolver regression exercised all three accepted shared-local mappings through the real runtime resolver.
-- Resolver regression proved complete persisted rows remained unchanged for xercise_catalog_exercises, xercise_equipment_requirements, and xercise_catalog_taxonomy.
+- Resolver regression proved complete persisted rows remained unchanged for exercise_catalog_exercises, exercise_equipment_requirements, and exercise_catalog_taxonomy.
 - Catalog seeding was explicitly prevented during the read-only resolver regression.
 - Focused post-correction backend validation passed: 39 tests.
 - Architecture independently reconstructed the corrected milestone against the clean d6f968b baseline and passed a 121-test relevant backend slice.
@@ -39,7 +39,7 @@ Validation and acceptance evidence:
 - Architecture source review passed for the complete final working-tree patch.
 - Feature-branch production smoke passed on desktop and approximately 390 x 844 mobile width.
 - Provider animated media rendered successfully with visible attribution, intact written guidance, no horizontal overflow, and acceptable compact sizing.
-- The canonical itness_ai.db was not mutated by milestone automated validation.
+- The canonical fitness_ai.db was not mutated by milestone automated validation.
 
 Architecture boundaries preserved:
 
