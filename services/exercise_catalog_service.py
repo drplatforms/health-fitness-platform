@@ -14,16 +14,20 @@ from models.exercise_catalog_models import (
     EXERCISE_PRESCRIPTION_LOAD_APPLICABILITIES,
     EXERCISE_PRESCRIPTION_MEASUREMENT_TYPES,
     EXERCISE_PRESCRIPTION_RIR_APPLICABILITIES,
+    EXERCISE_PROTOCOL_SLUGS,
     ExerciseCatalogEntry,
     ExerciseFormMediaAsset,
     ExerciseInstruction,
     ExercisePrescriptionMeasurementMetadata,
+    ExerciseProtocolMetadata,
+    ExerciseProtocolTemplate,
     ExerciseTaxonomyMetadata,
 )
 from services import (
     exercise_form_media_seed_data,
     exercise_instruction_seed_data,
     exercise_prescription_measurement_seed_data,
+    exercise_protocol_seed_data,
     exercise_taxonomy_seed_data,
 )
 
@@ -2444,6 +2448,17 @@ def ensure_exercise_catalog_tables() -> None:
     )
     """)
 
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS exercise_catalog_protocols (
+        exercise_id INTEGER PRIMARY KEY,
+        protocol_slug TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (exercise_id) REFERENCES exercise_catalog_exercises(id)
+    )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -3015,6 +3030,133 @@ def get_exercise_prescription_measurement_metadata(
     )
     _validate_prescription_measurement_values(metadata)
     return metadata
+
+
+def _protocol_templates_by_slug() -> dict[str, ExerciseProtocolTemplate]:
+    templates = exercise_protocol_seed_data.EXERCISE_PROTOCOL_TEMPLATES
+    slugs = [template.protocol_slug for template in templates]
+    if (
+        len(templates) != 9
+        or len(slugs) != len(set(slugs))
+        or set(slugs) != EXERCISE_PROTOCOL_SLUGS
+        or any(
+            not template.display_name.strip() or not template.description.strip()
+            for template in templates
+        )
+    ):
+        raise ValueError("Exercise protocol template registry is invalid")
+    return {
+        template.protocol_slug: ExerciseProtocolTemplate(
+            protocol_slug=template.protocol_slug,
+            display_name=template.display_name,
+            description=template.description,
+        )
+        for template in templates
+    }
+
+
+def get_exercise_protocol_template(
+    protocol_slug: str,
+) -> ExerciseProtocolTemplate | None:
+    """Return one immutable repository-owned protocol template by its slug."""
+
+    return _protocol_templates_by_slug().get(protocol_slug)
+
+
+def _validated_protocol_seed_metadata(
+    ids_by_name: dict[str, int],
+) -> list[ExerciseProtocolMetadata]:
+    templates = _protocol_templates_by_slug()
+    seeds = exercise_protocol_seed_data.EXERCISE_PROTOCOL_SEEDS
+    names = [seed.canonical_exercise_name for seed in seeds]
+    if len(seeds) != 16 or len(names) != len(set(names)):
+        raise ValueError("Exercise protocol seed must have exactly 16 unique names")
+    if set(names) - {entry.name for entry in CURATED_EXERCISE_CATALOG}:
+        raise ValueError("Exercise protocol seed references unknown catalog exercises")
+    if set(names) - set(ids_by_name):
+        raise ValueError("Persisted exercise catalog is missing protocol targets")
+    if any(seed.protocol_slug not in templates for seed in seeds):
+        raise ValueError("Exercise protocol seed references an unsupported protocol")
+
+    metadata = [
+        ExerciseProtocolMetadata(
+            catalog_exercise_id=ids_by_name[seed.canonical_exercise_name],
+            protocol_slug=seed.protocol_slug,
+        )
+        for seed in seeds
+    ]
+    expected_counts = {
+        "tempo": 4,
+        "intervals": 2,
+        "easy": 2,
+        "hill_intervals": 2,
+        "recovery": 2,
+        "steady_state": 1,
+        "pause": 1,
+        "easy_intervals": 1,
+        "cadence_drill": 1,
+    }
+    actual_counts = {
+        slug: sum(item.protocol_slug == slug for item in metadata)
+        for slug in EXERCISE_PROTOCOL_SLUGS
+    }
+    if actual_counts != expected_counts:
+        raise ValueError("Exercise protocol seed invariants failed")
+    return metadata
+
+
+def seed_exercise_protocols() -> list[ExerciseProtocolMetadata]:
+    """Atomically replace the complete protocol projection by stable catalog ID."""
+
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        ids_by_name = {
+            row["name"]: row["id"]
+            for row in conn.execute("SELECT id, name FROM exercise_catalog_exercises")
+        }
+        metadata = _validated_protocol_seed_metadata(ids_by_name)
+        with conn:
+            conn.execute("DELETE FROM exercise_catalog_protocols")
+            conn.executemany(
+                """
+                INSERT INTO exercise_catalog_protocols (
+                    exercise_id, protocol_slug, updated_at
+                ) VALUES (?, ?, CURRENT_TIMESTAMP)
+                """,
+                [(item.catalog_exercise_id, item.protocol_slug) for item in metadata],
+            )
+    finally:
+        conn.close()
+    return metadata
+
+
+def get_exercise_protocol_metadata(
+    catalog_exercise_id: int,
+) -> ExerciseProtocolMetadata | None:
+    """Return protocol metadata by stable catalog ID, or explicit absence."""
+
+    _validate_catalog_exercise_id(catalog_exercise_id)
+    ensure_exercise_catalog_tables()
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            """
+            SELECT exercise_id, protocol_slug
+            FROM exercise_catalog_protocols
+            WHERE exercise_id = ?
+            """,
+            (catalog_exercise_id,),
+        ).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        return None
+    if get_exercise_protocol_template(row["protocol_slug"]) is None:
+        raise ValueError("Invalid persisted exercise protocol slug")
+    return ExerciseProtocolMetadata(
+        catalog_exercise_id=row["exercise_id"], protocol_slug=row["protocol_slug"]
+    )
 
 
 def _entry_to_legacy_exercise_row(

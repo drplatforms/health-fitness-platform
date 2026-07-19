@@ -8,6 +8,19 @@ EXERCISE_PRESCRIPTION_RIR_APPLICABILITIES = frozenset(
     {"applicable", "not_applicable", "ambiguous"}
 )
 EXERCISE_PRESCRIPTION_DISTANCE_UNITS = frozenset({"meters"})
+EXERCISE_PROTOCOL_SLUGS = frozenset(
+    {
+        "intervals",
+        "steady_state",
+        "tempo",
+        "pause",
+        "easy",
+        "hill_intervals",
+        "recovery",
+        "easy_intervals",
+        "cadence_drill",
+    }
+)
 
 
 @dataclass
@@ -79,6 +92,19 @@ class ExercisePrescriptionMeasurementMetadata:
     load_applicability: str
     rir_applicability: str
     distance_unit: str | None = None
+
+
+@dataclass(frozen=True)
+class ExerciseProtocolTemplate:
+    protocol_slug: str
+    display_name: str
+    description: str
+
+
+@dataclass(frozen=True)
+class ExerciseProtocolMetadata:
+    catalog_exercise_id: int
+    protocol_slug: str
 
 
 @dataclass
