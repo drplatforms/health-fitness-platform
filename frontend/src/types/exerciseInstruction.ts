@@ -34,9 +34,47 @@ export interface ExerciseFormMediaAsset {
   asset_sha256: string;
 }
 
+export type ExerciseVisualMediaType = "static_image" | "animated_image";
+export type ExerciseVisualMediaResolutionMode =
+  | "direct_local"
+  | "shared_local_visual_identity"
+  | "provider"
+  | "none";
+export type ExerciseVisualMediaSourceType =
+  | "local"
+  | "remote_provider"
+  | "none";
+
+export interface ExerciseVisualMediaItem {
+  media_key: string;
+  media_type: ExerciseVisualMediaType;
+  role: string;
+  url: string;
+  alt_text: string;
+  caption: string | null;
+  source_type: ExerciseVisualMediaSourceType;
+  source_catalog_exercise_id: number | null;
+  provider: string | null;
+  provider_exercise_id: string | null;
+  attribution: string | null;
+  provenance: string;
+}
+
+export interface ExerciseVisualMediaResolution {
+  requested_catalog_exercise_id: number;
+  visual_identity_slug: string | null;
+  resolution_mode: ExerciseVisualMediaResolutionMode;
+  source_type: ExerciseVisualMediaSourceType;
+  source_catalog_exercise_id: number | null;
+  provider: string | null;
+  provider_exercise_id: string | null;
+}
+
 export interface ExerciseInstructionResponse {
   success: boolean;
   exercise: ExerciseInstructionExercise;
   instruction: ExerciseInstruction;
   form_media: ExerciseFormMediaAsset[];
+  visual_media: ExerciseVisualMediaItem[];
+  visual_media_resolution: ExerciseVisualMediaResolution;
 }

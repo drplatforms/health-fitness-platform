@@ -56,6 +56,37 @@ Run Python commands from the repository root with the project virtual environmen
 .\.venv\Scripts\python.exe -m pytest tests/test_food_logging_recents_service.py tests/test_food_logging_recents_api.py tests/test_canonical_food_log_edit_serving_units_service.py tests/test_canonical_food_log_edit_serving_units_api.py -q
 ```
 
+## Exercise Visualization And Provider Media
+
+Run backend validation from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest `
+  tests/test_exercise_visual_media_resolution_v2.py `
+  tests/test_exercise_form_media_v1.py `
+  tests/test_exercise_instruction_api_v1.py `
+  -q
+```
+
+Run the pure frontend media-selection tests from `frontend/`:
+
+```powershell
+node --test --experimental-strip-types `
+  src/lib/exerciseVisualMedia.test.mts
+```
+
+For UI-impacting visual-media work, also run frontend lint/build and production browser smoke at desktop and approximately 390px mobile width.
+
+Provider-media smoke should verify:
+
+- the intended exercise receives the intended visual resolution;
+- direct local media remains authoritative;
+- accepted shared-local resolution does not fall through to provider media;
+- configured provider animation renders with visible attribution;
+- written instructions remain intact when media is unavailable;
+- media failure degrades safely;
+- no horizontal overflow is introduced.
+
 ## Frontend Lint And Build
 
 Run from `frontend/`:

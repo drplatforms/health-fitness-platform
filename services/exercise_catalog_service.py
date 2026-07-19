@@ -3344,10 +3344,9 @@ def seed_exercise_instructions() -> list[ExerciseInstruction]:
     return instructions
 
 
-def seed_exercise_form_media() -> list[ExerciseFormMediaAsset]:
-    """Atomically project approved local form media onto stable catalog IDs."""
+def _validated_exercise_form_media_seeds():
+    """Validate the complete local manifest before opening its write transaction."""
 
-    seed_exercise_catalog()
     seeds = exercise_form_media_seed_data.EXERCISE_FORM_MEDIA_SEEDS
     catalog_names = {entry.name for entry in CURATED_EXERCISE_CATALOG}
     seed_names = {seed.canonical_exercise_name for seed in seeds}
@@ -3373,6 +3372,14 @@ def seed_exercise_form_media() -> list[ExerciseFormMediaAsset]:
         seen_orders.add(order)
     if duplicate_keys or duplicate_orders:
         raise ValueError("Form-media seed contains duplicate media keys or ordering")
+    return seeds, catalog_names, seed_names
+
+
+def seed_exercise_form_media() -> list[ExerciseFormMediaAsset]:
+    """Atomically replace local media without mutating catalog-owned projections."""
+
+    seeds, catalog_names, seed_names = _validated_exercise_form_media_seeds()
+    ensure_exercise_catalog_tables()
 
     conn = get_connection()
     try:
@@ -3380,11 +3387,37 @@ def seed_exercise_form_media() -> list[ExerciseFormMediaAsset]:
             "SELECT id, name FROM exercise_catalog_exercises"
         ).fetchall()
         persisted_ids_by_name = {row["name"]: row["id"] for row in rows}
+        missing_catalog = sorted(catalog_names - set(persisted_ids_by_name))
+        if missing_catalog:
+            raise ValueError(
+                "Form-media seeding requires an established complete catalog: "
+                + ", ".join(missing_catalog)
+            )
         unresolved = sorted(seed_names - set(persisted_ids_by_name))
         if unresolved:
             raise ValueError(
                 "Persisted exercise catalog is missing form-media targets: "
                 + ", ".join(unresolved)
+            )
+
+        persisted_catalog_ids = set(persisted_ids_by_name.values())
+        taxonomy_rows = conn.execute(
+            "SELECT exercise_id, visual_identity_slug FROM exercise_catalog_taxonomy"
+        ).fetchall()
+        taxonomy_by_catalog_id = {
+            row["exercise_id"]: row["visual_identity_slug"] for row in taxonomy_rows
+        }
+        missing_taxonomy_ids = persisted_catalog_ids - set(taxonomy_by_catalog_id)
+        if missing_taxonomy_ids:
+            raise ValueError(
+                "Form-media seeding requires established taxonomy for every catalog exercise"
+            )
+        direct_visual_identities = {
+            taxonomy_by_catalog_id[persisted_ids_by_name[name]] for name in seed_names
+        }
+        if len(direct_visual_identities) != 83:
+            raise ValueError(
+                "Form-media direct owners must map to exactly 83 unique visual identities"
             )
 
         assets = [
