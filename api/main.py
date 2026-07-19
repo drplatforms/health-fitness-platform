@@ -38,6 +38,7 @@ from services.exercise_catalog_service import (
     seed_exercise_form_media,
     seed_exercise_instructions,
     seed_exercise_prescription_measurements,
+    seed_exercise_protocols,
     seed_exercise_taxonomy,
 )
 from services.workout_plan_persistence_service import (
@@ -56,6 +57,7 @@ async def lifespan(app: FastAPI):
     ensure_workout_plan_persistence_tables()
     seed_exercise_taxonomy()
     seed_exercise_prescription_measurements()
+    seed_exercise_protocols()
     seed_exercise_instructions()
     seed_exercise_form_media()
     yield

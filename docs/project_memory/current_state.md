@@ -1,3 +1,19 @@
+# Current State - Exercise Protocol Templates v1
+
+Canonical implementation baseline: `main` at `1d2f143`.
+
+Feature branch: `feature/exercise-protocol-templates-v1`.
+
+Status: `EXERCISE_PROTOCOL_TEMPLATES_V1_ARCHITECTURE_ACCEPTED`.
+
+The authorized additive milestone separates nine accepted high-level protocol
+templates from the physical identity of the exact 16 existing protocol-bearing
+canonical exercises. It must preserve taxonomy, prescription measurement,
+generation, workout execution, progression, substitution, media, and frontend
+behavior. See `docs/project_memory/milestones/exercise_protocol_templates_v1.md`.
+
+---
+
 # Current State - Exercise Prescription Measurement Types v1
 
 Canonical implementation baseline before merge: main at 3901d91.

@@ -12,6 +12,8 @@ from services.exercise_catalog_service import (
     get_exercise_catalog_entry_by_id,
     get_exercise_form_media,
     get_exercise_instruction,
+    get_exercise_protocol_metadata,
+    get_exercise_protocol_template,
     get_exercise_taxonomy,
 )
 from services.workout_service import (
@@ -135,6 +137,32 @@ def exercise_taxonomy(catalog_exercise_id: int = Path(gt=0)):
     if taxonomy.variant_extensions:
         result["extensions"] = taxonomy.variant_extensions
     return {"success": True, "exercise": asdict(exercise), "taxonomy": result}
+
+
+@router.get("/exercise-catalog/{catalog_exercise_id}/protocol")
+def exercise_protocol(catalog_exercise_id: int = Path(gt=0)):
+    exercise = get_exercise_catalog_entry_by_id(catalog_exercise_id)
+    if exercise is None:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    metadata = get_exercise_protocol_metadata(catalog_exercise_id)
+    protocol = (
+        None
+        if metadata is None
+        else get_exercise_protocol_template(metadata.protocol_slug)
+    )
+    if metadata is not None and protocol is None:
+        raise RuntimeError("Persisted exercise protocol template is unavailable")
+    return {
+        "success": True,
+        "exercise": asdict(exercise),
+        "protocol": None
+        if protocol is None
+        else {
+            "slug": protocol.protocol_slug,
+            "display_name": protocol.display_name,
+            "description": protocol.description,
+        },
+    }
 
 
 # =====================================
