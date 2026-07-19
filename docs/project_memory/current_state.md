@@ -1,3 +1,33 @@
+# Current State - Structured AscendAPI Coverage Reassessment v1
+
+Canonical evidence baseline: `main` at `a38aefc`.
+
+Spike branch: `spike/structured-ascendapi-coverage-reassessment-v1`.
+
+Status: `STRUCTURED_ASCENDAPI_COVERAGE_REASSESSMENT_V1_ARCHITECTURE_ACCEPTED`.
+
+The deterministic reassessment reconciles 240 canonical exercises, 231 accepted
+visual identities, 83 directly media-covered canonical exercises, and 151
+direct-uncovered visual identities. The complete 1,500-record unauthenticated
+ExerciseDB V1 inventory supports 46 visually reviewed exact provider assets for
+46 visual identities and 52 canonical exercises; three additional canonical
+exercises can use already accepted internal visual identities. A future
+visual-identity-aware ingestion milestone would therefore project 138 / 240
+canonical exercises covered, with 102 canonical and 102 visual-identity gaps
+remaining. Eleven of 12 prior exact mappings remain approved; `Band Biceps Curl`
+is downgraded because its provider GIF is explicitly alternating/unilateral.
+
+Recommendation: `SEMANTICALLY_READY_PROVIDER_RIGHTS_BLOCKED`. The official free
+tier is non-commercial and attribution-required, while permanent caching,
+vendoring, redistribution, and CDN-mirroring rights remain unconfirmed. No
+provider ingestion, production code, database, API, frontend, or runtime media
+behavior changed. See
+`docs/project_memory/spikes/ascendapi_structured_coverage_reassessment_v1.md`
+and
+`docs/project_memory/spikes/ascendapi_structured_coverage_reassessment_matrix_v1.csv`.
+
+---
+
 # Current State - Exercise Protocol Templates v1
 
 Canonical implementation baseline: `main` at `1d2f143`.
