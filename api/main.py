@@ -37,6 +37,7 @@ from database import initialize_database
 from services.exercise_catalog_service import (
     seed_exercise_form_media,
     seed_exercise_instructions,
+    seed_exercise_taxonomy,
 )
 
 # =====================================
@@ -48,6 +49,7 @@ from services.exercise_catalog_service import (
 async def lifespan(app: FastAPI):
     del app
     initialize_database()
+    seed_exercise_taxonomy()
     seed_exercise_instructions()
     seed_exercise_form_media()
     yield
