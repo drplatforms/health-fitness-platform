@@ -302,7 +302,7 @@ def test_fastapi_lifespan_seeds_complete_instruction_coverage():
         response = client.get("/health")
 
     assert response.status_code == 200
-    assert _instruction_row_counts() == (240, 240)
+    assert _instruction_row_counts() == (300, 300)
 
 
 def test_repeated_fastapi_lifespan_initialization_is_idempotent():
@@ -311,7 +311,7 @@ def test_repeated_fastapi_lifespan_initialization_is_idempotent():
     with TestClient(app):
         second_counts = _instruction_row_counts()
 
-    assert first_counts == second_counts == (240, 240)
+    assert first_counts == second_counts == (300, 300)
 
 
 def test_api_tests_are_bound_to_pytest_owned_database(pytest_owned_database):

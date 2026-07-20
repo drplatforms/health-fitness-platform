@@ -142,10 +142,10 @@ def test_seed_projection_is_exact_idempotent_stale_removing_and_read_strict(
     first = seed_exercise_prescription_measurements()
     second = seed_exercise_prescription_measurements()
 
-    assert len(first) == len(second) == 240
-    assert len({item.catalog_exercise_id for item in first}) == 240
+    assert len(first) == len(second) == 300
+    assert len({item.catalog_exercise_id for item in first}) == 300
     assert Counter(item.default_measurement_type for item in first) == {
-        "reps": 203,
+        "reps": 263,
         "duration": 29,
         "distance": 8,
     }
@@ -204,7 +204,7 @@ def test_seed_projection_is_exact_idempotent_stale_removing_and_read_strict(
         conn.execute(
             "SELECT COUNT(*) AS count FROM exercise_catalog_prescription_measurements"
         ).fetchone()["count"]
-        == 240
+        == 300
     )
     assert (
         conn.execute(

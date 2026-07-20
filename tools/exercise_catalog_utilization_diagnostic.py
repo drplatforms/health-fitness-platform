@@ -198,6 +198,7 @@ def _trace_selection_records(
         user_id: int | None = None,
         slot_key: str | None = None,
         preview_variation_index: int = 0,
+        exercise_preference_by_catalog_id: dict[int, str] | None = None,
     ) -> tuple[str, list[str]]:
         slot_counter["value"] += 1
         resolved_slot_key = slot_key or workout_plans._selection_slot_key(options)  # noqa: SLF001
@@ -236,6 +237,7 @@ def _trace_selection_records(
                     recent_pattern_counts,
                     recent_modality_counts,
                     most_recent_plan_names,
+                    exercise_preference_by_catalog_id or {},
                 )
                 entry = find_catalog_entry_by_name(catalog_name)
                 allowed_candidates.append(
@@ -265,6 +267,7 @@ def _trace_selection_records(
             user_id=user_id,
             slot_key=slot_key,
             preview_variation_index=preview_variation_index,
+            exercise_preference_by_catalog_id=exercise_preference_by_catalog_id,
         )
         selected_entry = find_catalog_entry_by_name(selected_name)
         ranked_candidates = sorted(

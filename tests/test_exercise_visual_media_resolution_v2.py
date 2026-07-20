@@ -110,6 +110,24 @@ def test_provider_manifest_matches_only_accepted_reassessment_rows():
             if row["structured_status"] == "ascendapi_approved_exact"
         }
 
+    expansion_evidence_path = (
+        Path(__file__).resolve().parents[1]
+        / "docs"
+        / "project_memory"
+        / "catalogs"
+        / "exercise_catalog_expansion_v2_batch_1_matrix.csv"
+    )
+    with expansion_evidence_path.open(encoding="utf-8", newline="") as evidence_file:
+        expansion_rows = list(csv.DictReader(evidence_file))
+
+    assert len(expansion_rows) == 60
+    assert {row["provider_media_decision"] for row in expansion_rows} == {
+        "provider_media_not_approved"
+    }
+    assert not {row["visual_identity_slug"] for row in expansion_rows}.intersection(
+        approved_evidence
+    )
+
     assert {
         mapping.visual_identity_slug: (
             mapping.provider_exercise_name,
@@ -302,7 +320,7 @@ def test_unapproved_or_materially_distinct_identity_never_initializes_provider(
 def test_configured_provider_coverage_reconciles_exactly():
     _seed_visual_media_runtime()
     entries = get_exercise_catalog()
-    assert len(entries) == 240
+    assert len(entries) == 300
     assert (
         len(
             {
@@ -311,7 +329,7 @@ def test_configured_provider_coverage_reconciles_exactly():
                 if entry.id is not None
             }
         )
-        == 231
+        == 291
     )
 
     previous_provider = visual_media_service.get_configured_visual_media_provider
@@ -332,6 +350,6 @@ def test_configured_provider_coverage_reconciles_exactly():
         "direct_local": 83,
         "shared_local_visual_identity": 3,
         "provider": 52,
-        "none": 102,
+        "none": 162,
     }
     assert sum(bool(result.media) for result in results) == 138
