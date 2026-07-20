@@ -236,6 +236,8 @@ For milestone acceptance and Git closeout, follow:
 
 as the canonical executable command ceremony.
 
+Reuse its canonical commands; do not reinvent equivalent routine Git or PowerShell flows.
+
 The bootstrap document defines authority and lifecycle ownership.
 
 The closeout-command template defines the exact operational sequence:
@@ -243,5 +245,7 @@ The closeout-command template defines the exact operational sequence:
 feature-branch smoke → Architecture acceptance → acceptance-state project memory → validation → exact-file staging → commit → feature push → `--no-ff` merge → merged-main validation → merged-main smoke when required → main push → external snapshot → final pasteback.
 
 Do not invent a different routine closeout flow without a milestone-specific technical reason.
+
+Only the final closeout pasteback is routinely required unless a phase fails or its output looks wrong.
 
 New Architecture chats must read both documents before managing their first milestone closeout.

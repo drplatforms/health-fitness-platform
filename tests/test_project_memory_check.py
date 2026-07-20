@@ -1341,3 +1341,37 @@ def test_current_facing_malformed_arrow_encoding_fails_closed(
         and "malformed-encoding" in result.message
         for result in results
     )
+
+
+def test_canonical_closeout_template_preserves_phase_and_command_invariants() -> None:
+    template = Path(
+        "docs/project_memory/architecture_milestone_closeout_command_template.md"
+    ).read_text(encoding="utf-8")
+
+    ordered_markers = [
+        "## Phase 4A — feature commit",
+        "## Phase 4B — feature push",
+        "## Phase 4C — local `main` merge",
+        "## Phase 7A — push `main`",
+        "## Phase 7B — snapshot",
+    ]
+    positions = [template.index(marker) for marker in ordered_markers]
+
+    assert positions == sorted(positions)
+    assert "git pull --ff-only origin main" in template
+    assert "git merge-base --is-ancestor $AcceptedFeatureCommit main" in template
+    assert "docs/project_memory/current_state.md" in template
+    assert "docs/project_memory/current_truth.json" in template
+    assert "generated `docs/project_memory/current_truth.md`" in template
+    assert "only the final Phase 8 pasteback" in template
+    assert "{{MUTATING_FORMAT_COMMANDS_IF_REQUIRED}}" in template
+    assert "mutating formatters before Phase 3" in template
+
+    phase_1 = template[
+        template.index("## Phase 1 — record acceptance state") : template.index(
+            "## Phase 2 — validate before staging"
+        )
+    ]
+    assert "project_state.json" not in "\n".join(
+        line for line in phase_1.splitlines() if line.lstrip().startswith("$")
+    )

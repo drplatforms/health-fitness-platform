@@ -47,11 +47,11 @@ Stop and report conflicts when the branch, base, working tree, or project memory
 
 - Dustin operates consequential repository phases through complete copy/paste Windows PowerShell blocks supplied by Architecture.
 - Reuse the canonical Architecture command template when one exists. Do not invent an alternate routine Git or closeout sequence without stating the technical reason.
-- Provide one complete phase at a time for consequential operations. Never split dependent PowerShell syntax across messages and never provide a detached `else`.
-- Any consequential paste block that depends on `throw`, `$LASTEXITCODE`, or another stop-on-failure guard must execute as one PowerShell script block such as `& { ... }`, so a failure terminates the entire pasted phase instead of allowing later commands to continue.
+- Separate consequential operations into distinct phases. Never put commit, feature push, branch switching, and merge into one pasted phase. Never split dependent PowerShell syntax across messages and never provide a detached `else`.
+- When commands later in the same phase rely on `throw`, `$LASTEXITCODE`, or another stop-on-failure guard, provide one complete PowerShell script block such as `& { ... }` whose stop behavior is reliable.
 - Use literal here-strings when writing Markdown that contains backticks.
 - Stage exact reviewed files only. Never use `git add .` or `git add -A`.
-- Stop and diagnose any failed validation, staging, commit, push, checkout, pull, merge, or safety check. Verify each consequential operation before continuing.
+- Stop and diagnose any failed validation, staging, commit, push, checkout, pull, merge, or safety check. Do not continue into the next phase after a failure or suspicious output.
 - Codex does not perform Architecture Git closeout: no staging, committing, pushing, merging, or snapshot creation without separate explicit authority.
 
 ## Validation
