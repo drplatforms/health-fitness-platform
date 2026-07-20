@@ -2,6 +2,30 @@
 
 > This file preserves historical milestone chronology. It is not operational authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
 
+# Accepted Milestone - Canonical Closeout Command Flow Hardening v1
+
+Canonical implementation baseline before merge: main at 728e478.
+
+Feature branch: feature/canonical-closeout-command-flow-v1.
+
+Status: CANONICAL_CLOSEOUT_COMMAND_FLOW_HARDENING_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- The canonical Architecture closeout flow is concise, command-first, and preserves Dustin's established direct Windows PowerShell style.
+- Feature commit, feature push, local main merge, main push, and snapshot creation are isolated into distinct consequential phases.
+- Exact-file staging remains mandatory; `git add .` and `git add -A` are prohibited.
+- Repository-required mutating formatters run before exact-file staging to avoid staged/unstaged splits during commit.
+- Routine closeout requires only one final pasteback unless a command fails or output looks wrong.
+- Routine milestone acceptance updates only `current_state.md`, `current_truth.json`, and generated `current_truth.md`.
+
+Roadmap status:
+
+Canonical Closeout Command Flow Hardening v1 is accepted.
+The next recommended milestone is Project Memory Consolidation + North Star Preservation v1.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
 # Accepted Milestone - Current Truth Kernel + Fail-Closed Consistency v1
 
 Canonical implementation baseline before merge: main at 44b3754.
