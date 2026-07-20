@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+import pytest
+
+import database
+from services.exercise_catalog_service import clear_exercise_catalog_cache
 from services.exercise_eligibility_matrix_service import (
     build_exercise_eligibility_matrix,
     build_exercise_eligibility_summary,
@@ -23,6 +29,18 @@ HOME_GYM_AVAILABLE_EQUIPMENT = [
     "exercise_ball",
 ]
 HOME_GYM_UNAVAILABLE_EQUIPMENT = ["machine"]
+
+
+@pytest.fixture(autouse=True)
+def pytest_owned_database(tmp_path, monkeypatch):
+    test_db = tmp_path / "fitness_ai_eligibility_matrix_test.db"
+    canonical_db = Path(database.__file__).resolve().parent / "fitness_ai.db"
+    assert test_db.resolve() != canonical_db.resolve()
+
+    monkeypatch.setattr(database, "DB_PATH", test_db)
+    clear_exercise_catalog_cache()
+    yield test_db
+    clear_exercise_catalog_cache()
 
 
 def _home_gym_matrix():

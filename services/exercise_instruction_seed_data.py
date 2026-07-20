@@ -1188,6 +1188,492 @@ _TEMPLATES = {
             "Use padding for the knees and a load that does not pull you toward the stack.",
         ),
     ),
+    "dumbbell_push_press": _template(
+        "is a leg-assisted dumbbell overhead press that transfers controlled lower-body drive into both weights.",
+        (
+            "Hold the dumbbells at shoulder height with the feet about hip width.",
+            "Brace before making a short, balanced dip through the knees.",
+        ),
+        (
+            "Drive through the floor and transfer that force into the dumbbells.",
+            "Finish overhead, then lower the dumbbells under control to the shoulders.",
+        ),
+        (
+            "Dip straight down with the heels planted.",
+            "Keep the dumbbells balanced as they pass beside the face.",
+        ),
+        (
+            "Turning the dip into a forward squat.",
+            "Pressing before the legs finish driving.",
+        ),
+        (
+            "Use a clear overhead area and dumbbells that can be returned to the shoulders safely.",
+        ),
+    ),
+    "dumbbell_cuban_press": _template(
+        "is a light dumbbell shoulder sequence that combines elbow lift, external rotation, and pressing.",
+        (
+            "Stand tall with light dumbbells held in front of the thighs.",
+            "Brace the trunk and keep both wrists neutral before lifting the elbows.",
+        ),
+        (
+            "Raise the elbows, rotate the forearms upward, and press smoothly overhead.",
+            "Reverse the sequence slowly to return the dumbbells to the start.",
+        ),
+        (
+            "Let the elbows lead the rotation without shrugging.",
+            "Keep the motion smooth and use only a comfortable shoulder range.",
+        ),
+        (
+            "Using dumbbells too heavy to control the rotation.",
+            "Rushing from the elbow lift into the overhead press.",
+        ),
+        ("Keep the load light and stop if the shoulder feels pinched or unstable.",),
+    ),
+    "dumbbell_seated_calf_raise": _template(
+        "is a seated dumbbell calf raise that trains ankle plantar flexion with the knees bent.",
+        (
+            "Sit upright on the bench with both feet planted and the knees bent.",
+            "Rest the dumbbells securely across the thighs just above the knees.",
+        ),
+        (
+            "Raise both heels through the ankles while keeping the thighs steady.",
+            "Lower the heels slowly without bouncing at the bottom.",
+        ),
+        (
+            "Keep pressure centered through the forefoot.",
+            "Use a smooth ankle range without lifting the hips from the bench.",
+        ),
+        (
+            "Letting the dumbbells slide off the thighs.",
+            "Bouncing instead of controlling the lowering phase.",
+        ),
+        (
+            "Use a load that stays secure on the thighs and a range that feels comfortable at the ankles.",
+        ),
+    ),
+    "machine_seated_calf_raise": _template(
+        "is a seated machine calf raise that trains ankle plantar flexion with the knees secured under the pad.",
+        (
+            "Sit fully into the machine and place the knees under the pad.",
+            "Set the balls of the feet on the platform before releasing the machine support.",
+        ),
+        (
+            "Raise both heels through the ankles while the knees stay under the pad.",
+            "Lower the heels slowly until a comfortable calf stretch is reached.",
+        ),
+        (
+            "Keep pressure centered through the forefoot.",
+            "Use a smooth ankle range without lifting the hips from the seat.",
+        ),
+        (
+            "Letting the knees lose contact with the pad.",
+            "Bouncing instead of controlling the lowering phase.",
+        ),
+        (
+            "Set the machine support securely and use a load that allows controlled ankle motion.",
+        ),
+    ),
+    "barbell_hack_squat": _template(
+        "is a barbell squat variation performed with the bar held behind the legs to emphasize the quadriceps.",
+        (
+            "Stand over the bar with it close behind the calves and use a secure grip.",
+            "Set the feet firmly, brace the trunk, and lift the bar clear with a controlled hip-and-knee extension.",
+        ),
+        (
+            "Lower through the knees and hips while keeping the bar close behind the legs.",
+            "Drive through the floor to stand without letting the bar drift away from the calves.",
+        ),
+        (
+            "Keep the chest lifted and the bar close to the lower legs.",
+            "Track the knees in line with the toes.",
+        ),
+        (
+            "Letting the bar swing away from the legs.",
+            "Rounding the trunk to force a deeper range.",
+        ),
+        (
+            "Use a conservative load and stop the descent before the position becomes unstable.",
+        ),
+    ),
+    "standing_cable_crunch": _template(
+        "uses a cable to train controlled spinal flexion while both feet remain planted.",
+        (
+            "Stand facing away from the cable stack with the rope held beside the head.",
+            "Set the feet about hip width and take tension before bracing the trunk.",
+        ),
+        (
+            "Curl the ribs toward the pelvis without turning the movement into a squat.",
+            "Return slowly to a tall standing position while keeping the rope quiet beside the head.",
+        ),
+        (
+            "Move through the trunk rather than pulling with the arms.",
+            "Keep both feet planted and the hips mostly still.",
+        ),
+        (
+            "Hinging deeply at the hips instead of curling the torso.",
+            "Letting the cable pull the shoulders forward at the top.",
+        ),
+        (
+            "Use a load that allows controlled trunk motion without pulling you off balance.",
+        ),
+    ),
+    "band_step_up": _template(
+        "is a band-resisted step-up that trains the legs while the band is loaded under the working feet.",
+        (
+            "Stand on the band and hold its ends at shoulder height.",
+            "Place one full foot on the bench and keep the other foot clear of the step.",
+        ),
+        (
+            "Drive through the foot on the bench to stand tall on the step.",
+            "Lower under control and keep tension in the band as the trailing foot returns to the floor.",
+        ),
+        (
+            "Keep the working knee tracking over the toes.",
+            "Use the bench leg rather than pushing hard from the trailing foot.",
+        ),
+        (
+            "Letting the band slip from under the feet.",
+            "Using the trailing foot to jump onto the bench.",
+        ),
+        ("Use a stable bench and band tension that lets you step down under control.",),
+    ),
+    "low_cable_fly": _template(
+        "is a low-to-high cable fly that trains the chest through an upward and inward arm arc.",
+        (
+            "Set both cable handles at the lowest position and step forward into a stable split stance.",
+            "Begin with the hands low beside the hips and the elbows softly bent.",
+        ),
+        (
+            "Sweep the handles upward and inward until the hands meet near upper-chest height.",
+            "Return slowly to the low-handle start without turning the movement into a press.",
+        ),
+        (
+            "Keep the elbow bend nearly constant.",
+            "Keep the ribs down while the arms travel upward.",
+        ),
+        (
+            "Starting with the handles high in front of the chest.",
+            "Bending and straightening the elbows to move the handles.",
+        ),
+        (
+            "Use a range that keeps the shoulders comfortable and the cable path controlled.",
+        ),
+    ),
+    "self_assisted_nordic_curl": _template(
+        "is a kneeling hamstring-strength exercise in which anchored lower legs support a controlled torso descent.",
+        (
+            "Secure the lower legs under the bench support and kneel tall with the hips extended.",
+            "Place the hands ready to assist the return if needed.",
+        ),
+        (
+            "Lower the torso forward from the knees while resisting with the hamstrings.",
+            "Use the hands only enough to assist the return to the tall kneeling start.",
+        ),
+        (
+            "Keep a straight line from the knees through the torso.",
+            "Control the forward descent instead of dropping toward the floor.",
+        ),
+        (
+            "Bending at the hips to shorten the descent.",
+            "Letting the lower legs lose their anchored position.",
+        ),
+        (
+            "Use enough hand assistance to keep the descent controlled and stop if the hamstrings cramp.",
+        ),
+    ),
+    "cable_assisted_nordic_curl": _template(
+        "is a cable-assisted kneeling hamstring exercise with anchored lower legs and controlled torso movement.",
+        (
+            "Secure the lower legs under the machine pad and hold the high cable attachment close to the chest.",
+            "Kneel tall with the hips extended and take enough cable tension to assist the descent.",
+        ),
+        (
+            "Lower the torso forward from the knees while the cable provides controlled assistance.",
+            "Use the cable to assist the return to the tall kneeling start without losing the anchored lower-leg position.",
+        ),
+        (
+            "Keep a straight line from the knees through the torso.",
+            "Maintain steady cable tension rather than pulling abruptly with the arms.",
+        ),
+        (
+            "Bending at the hips to shorten the descent.",
+            "Letting the lower legs lose contact with the machine pad.",
+        ),
+        (
+            "Use cable assistance that keeps the torso movement controlled and reduce the range if the hamstrings cramp.",
+        ),
+    ),
+    "archer_push_up": _template(
+        "is an asymmetric bodyweight press that shifts load toward one arm while the other arm stays long.",
+        (
+            "Place the hands well wider than shoulder width with the body in a straight plank.",
+            "Set the feet wide enough to keep the trunk steady as weight shifts side to side.",
+        ),
+        (
+            "Shift the chest toward one hand as that elbow bends while the opposite arm stays long.",
+            "Press through the bent arm to return to the centered plank under control.",
+        ),
+        (
+            "Keep the hips and ribs facing the floor as the chest travels sideways.",
+            "Let the working elbow bend while the opposite arm remains extended.",
+        ),
+        (
+            "Starting with the hands too narrow for the side-to-side path.",
+            "Twisting the hips toward the working arm.",
+        ),
+        ("Use a hand width and range that keep both shoulders comfortable.",),
+    ),
+    "pistol_squat": _template(
+        "is a single-leg squat that trains the working leg through a controlled balance challenge.",
+        (
+            "Stand on one working foot with the other leg extended forward off the floor.",
+            "Brace lightly and keep the working foot fully planted before descending.",
+        ),
+        (
+            "Sit down over the working hip while the free leg stays extended forward.",
+            "Drive through the working foot to stand without letting the free foot touch down.",
+        ),
+        (
+            "Track the working knee in line with the toes.",
+            "Keep the chest lifted enough to stay balanced over the working foot.",
+        ),
+        (
+            "Letting the free foot touch down to assist the repetition.",
+            "Letting the working knee collapse inward.",
+        ),
+        ("Use a reduced range or light support if single-leg balance is not steady.",),
+    ),
+    "single_arm_dumbbell_shoulder_press": _template(
+        "is a unilateral dumbbell overhead press that trains one shoulder and triceps while the trunk resists side bending.",
+        (
+            "Hold one dumbbell at the working shoulder with the wrist stacked over the elbow.",
+            "Brace the trunk and keep the free arm relaxed before pressing.",
+        ),
+        (
+            "Press the dumbbell overhead until the working arm is straight without leaning sideways.",
+            "Lower the dumbbell under control to the working shoulder.",
+        ),
+        (
+            "Keep the ribs over the pelvis as the working arm moves.",
+            "Finish with the dumbbell beside the ear if the shoulder is comfortable.",
+        ),
+        (
+            "Leaning away from the working arm.",
+            "Letting the dumbbell drift forward of the shoulder at the bottom.",
+        ),
+        ("Use a load that can be returned safely to the working shoulder.",),
+    ),
+    "single_arm_dumbbell_bench_press": _template(
+        "is a unilateral dumbbell bench press that trains one side while the trunk resists rotation.",
+        (
+            "Set the bench firmly, plant both feet, and hold one dumbbell over the working side of the chest.",
+            "Keep the unloaded arm anchored and the wrist stacked over the working elbow.",
+        ),
+        (
+            "Lower the dumbbell under control until the upper arm reaches a comfortable depth.",
+            "Press the dumbbell over the working shoulder without letting the torso roll.",
+        ),
+        (
+            "Keep the shoulder blade supported against the bench.",
+            "Keep the ribs and hips level as the dumbbell moves.",
+        ),
+        (
+            "Letting the torso rotate toward the loaded side.",
+            "Letting the dumbbell drift toward the face or stomach.",
+        ),
+        ("Use a load you can guide safely into and out of the single-arm position.",),
+    ),
+    "dumbbell_single_leg_calf_raise": _template(
+        "is a single-leg dumbbell calf raise that trains the working ankle while the free foot stays off the floor.",
+        (
+            "Stand on one working foot with the free foot off the floor and hold one dumbbell securely.",
+            "Use light support if needed while keeping the working forefoot planted.",
+        ),
+        (
+            "Rise through the working ankle and pause briefly at the top.",
+            "Lower the working heel slowly without setting the free foot down.",
+        ),
+        (
+            "Keep pressure centered through the working forefoot.",
+            "Keep the working ankle tracking straight ahead.",
+        ),
+        (
+            "Using the free foot to push off the floor.",
+            "Rolling onto the outer edge of the working foot.",
+        ),
+        ("Use support and a smaller range if single-leg balance is uncertain.",),
+    ),
+    "reverse_grip_incline_dumbbell_row": _template(
+        "is a chest-supported dumbbell row performed on an incline bench with a supinated grip.",
+        (
+            "Set the incline bench securely and lie chest-down with a dumbbell in each hand.",
+            "Let the dumbbells hang below the shoulders with palms facing forward before rowing.",
+        ),
+        (
+            "Pull both elbows toward the ribs while keeping the chest supported on the bench.",
+            "Lower the dumbbells to straight arms without losing contact with the bench.",
+        ),
+        (
+            "Keep the neck long and the shoulders away from the ears.",
+            "Move the elbows rather than lifting the chest from the bench.",
+        ),
+        (
+            "Using a bench angle that prevents the chest from staying supported.",
+            "Letting the dumbbells drop or pull the shoulders forward at the bottom.",
+        ),
+        (
+            "Set the bench and dumbbells so they can be picked up and set down without twisting.",
+        ),
+    ),
+    "bench_supported_dumbbell_rear_delt_row": _template(
+        "is a bench-supported dumbbell rear-delt row that uses a wide elbow path toward the upper ribs.",
+        (
+            "Brace one hand and the same-side knee on the bench while holding one dumbbell with the other hand.",
+            "Set the torso flat and let the dumbbell hang below the working shoulder.",
+        ),
+        (
+            "Row the dumbbell toward the upper ribs with the elbow held wide.",
+            "Lower slowly until the arm is straight without rotating the torso.",
+        ),
+        (
+            "Lead with the wide elbow rather than shrugging the shoulder.",
+            "Keep the chest and hips quiet against the bench support.",
+        ),
+        (
+            "Turning the rear-delt row into a narrow-elbow lat row.",
+            "Rotating the torso to pull the dumbbell higher.",
+        ),
+        ("Use a load that keeps the bench-supported torso position stable.",),
+    ),
+    "cable_reverse_crunch": _template(
+        "is a cable-resisted reverse crunch that uses controlled posterior pelvic curl to train the lower trunk.",
+        (
+            "Lie on a clear floor area with the low cable attached securely to the feet.",
+            "Settle the ribs and pelvis before taking enough cable tension to control the return.",
+        ),
+        (
+            "Curl the pelvis and lower trunk gently off the floor as the knees move toward the chest.",
+            "Lower the pelvis back under control without letting the cable pull the legs abruptly.",
+        ),
+        (
+            "Use the abdominals to curl the pelvis rather than swinging the legs.",
+            "Return to a neutral lower-back position instead of arching to increase the range.",
+        ),
+        (
+            "Arching the lower back hard instead of making a controlled pelvic curl.",
+            "Using cable momentum to fling the knees toward the chest.",
+        ),
+        ("Reduce cable tension or range if the lower back feels strained.",),
+    ),
+    "resistance_band_seated_row": _template(
+        "is a seated resistance-band row with the band looped around the feet for portable back training.",
+        (
+            "Sit on the bench with the band looped securely around both feet and hold one end in each hand.",
+            "Sit tall with the arms long and take light tension before pulling.",
+        ),
+        (
+            "Row both band ends toward the ribs without leaning backward.",
+            "Return slowly to straight arms while keeping the band looped around the feet.",
+        ),
+        (
+            "Keep the torso quiet while the elbows travel back.",
+            "Keep the shoulders away from the ears as the band tension increases.",
+        ),
+        (
+            "Letting the band slip from the feet.",
+            "Leaning far backward to finish the row.",
+        ),
+        (
+            "Check the band for wear and keep the loop secure around the feet before starting.",
+        ),
+    ),
+    "band_single_leg_calf_raise": _template(
+        "is a band-resisted single-leg calf raise that loads one working ankle while the free foot stays clear.",
+        (
+            "Place the working forefoot on a stable plate with the band under it and keep the free foot off the floor.",
+            "Hold the band securely and use light support if needed for balance.",
+        ),
+        (
+            "Raise the working heel through the ankle while maintaining band tension.",
+            "Lower the heel slowly without rolling the working ankle outward.",
+        ),
+        (
+            "Keep pressure centered through the working forefoot.",
+            "Keep the free foot clear rather than sharing the load.",
+        ),
+        (
+            "Using the free foot to push off the floor.",
+            "Letting the band slide from beneath the working forefoot.",
+        ),
+        (
+            "Use a stable plate, secure band placement, and support if balance is uncertain.",
+        ),
+    ),
+    "band_reverse_fly": _template(
+        "uses a forward-anchored band to open the arms and train the rear shoulders and upper back.",
+        (
+            "Anchor the band in front at chest height and take one end in each hand with the arms extended forward.",
+            "Brace the trunk and keep a soft elbow bend before opening the arms.",
+        ),
+        (
+            "Open both arms wide in a fly arc while keeping the shoulders down.",
+            "Return the hands forward under control without letting the band snap back.",
+        ),
+        (
+            "Keep the elbow bend nearly constant as the arms open.",
+            "Move from the upper arms without shrugging or leaning backward.",
+        ),
+        (
+            "Beginning from a slack, downward arm position instead of forward band tension.",
+            "Pulling the elbows back into a row instead of opening the arms.",
+        ),
+        ("Confirm the front anchor and band condition before loading the fly.",),
+    ),
+    "machine_reverse_fly": _template(
+        "is a reverse-fly machine exercise that trains the rear shoulders and upper back from a chest-supported position.",
+        (
+            "Face the chest pad and set the seat so the handles begin forward at shoulder height.",
+            "Hold the machine handles with a soft elbow bend and keep the chest against the pad.",
+        ),
+        (
+            "Open both machine arms outward until they reach a comfortable rear-shoulder position.",
+            "Return the handles forward under control without lifting the chest from the pad.",
+        ),
+        (
+            "Keep the neck relaxed and shoulders down as the arms open.",
+            "Keep the elbow bend nearly constant through the machine path.",
+        ),
+        (
+            "Beginning from a downward arm position instead of forward handles.",
+            "Shrugging or lifting the chest from the pad to move the handles.",
+        ),
+        (
+            "Adjust the seat and load so the machine path stays comfortable for the shoulders.",
+        ),
+    ),
+    "assisted_triceps_dip": _template(
+        "is an assisted dip that trains the triceps, chest, and shoulders while the assistance pad supports part of the body weight.",
+        (
+            "Kneel on the assistance pad and take a secure grip on both dip handles.",
+            "Set the torso upright with the shoulders down before lowering between the handles.",
+        ),
+        (
+            "Bend the elbows and allow the shoulders to move through a comfortable controlled descent.",
+            "Press through the handles to rise while keeping the torso upright on the assistance pad.",
+        ),
+        (
+            "Keep the shoulders controlled rather than forcing them forward at the bottom.",
+            "Let the elbows bend and straighten smoothly as the body lowers and rises.",
+        ),
+        (
+            "Dropping too deep or forcing an uncomfortable shoulder range.",
+            "Leaning or swinging the torso to finish the press.",
+        ),
+        (
+            "Set assistance high enough to keep the dip path controlled and shoulders comfortable.",
+        ),
+    ),
     "high_pull": _template(
         "is an explosive barbell pull for the hips, upper back, and traps without a catch.",
         (
@@ -2448,6 +2934,306 @@ _SEED_DEFINITIONS: tuple[_SeedDefinition, ...] = (
         "Bike Cadence Drill",
         "bike",
         "Practice the planned cadence changes while keeping resistance light enough to avoid bouncing.",
+    ),
+    _SeedDefinition(
+        "Archer Push-Up",
+        "archer_push_up",
+        "Shift the chest toward one hand as that elbow bends while the opposite arm stays long, then press back to center.",
+    ),
+    _SeedDefinition(
+        "Reverse Plank Leg Lift",
+        "plank",
+        "Hold a reverse plank and lift one straight leg without letting the hips drop or rotate.",
+    ),
+    _SeedDefinition(
+        "Side Plank Hip Adduction",
+        "plank",
+        "Support the top foot on the bench, lift the lower leg toward it, and keep the hips stacked in the side plank.",
+    ),
+    _SeedDefinition(
+        "Glute Bridge March",
+        "bridge",
+        "Keep the hips level at the top of the bridge while lifting one foot at a time in a controlled march.",
+    ),
+    _SeedDefinition(
+        "Self-Assisted Nordic Curl",
+        "self_assisted_nordic_curl",
+        "Secure the lower legs on the bench, lower the torso under hamstring control, and use the hands only enough to return.",
+    ),
+    _SeedDefinition(
+        "Pistol Squat",
+        "pistol_squat",
+        "Extend the free leg forward while sitting down on the working leg, then stand without the free foot touching.",
+    ),
+    _SeedDefinition(
+        "Forward Lunge",
+        "lunge_body",
+        "Step forward, lower both knees under control, and push through the front foot to return to standing.",
+    ),
+    _SeedDefinition(
+        "Jump Squat",
+        "squat_body",
+        "Drive out of the squat into a vertical jump and land softly before settling into the next repetition.",
+    ),
+    _SeedDefinition(
+        "Side Plank Hip Abduction",
+        "plank",
+        "Hold a side plank and lift the top leg without letting the pelvis roll backward or the hips drop.",
+    ),
+    _SeedDefinition(
+        "Archer Pull-Up",
+        "pull_up",
+        "Pull the chest toward one hand while the opposite arm straightens along the bar, then return to center under control.",
+    ),
+    _SeedDefinition(
+        "Dumbbell Push Press",
+        "dumbbell_push_press",
+        "Dip through the knees and hips, then drive the dumbbells from shoulder height to overhead as the legs extend.",
+    ),
+    _SeedDefinition(
+        "Dumbbell Cuban Press",
+        "dumbbell_cuban_press",
+        "Raise the elbows, rotate the forearms upright, and press the light dumbbells overhead without shrugging.",
+    ),
+    _SeedDefinition(
+        "Incline Dumbbell Curl",
+        "curl",
+        "Keep the upper arms hanging behind the torso against the incline bench while curling both dumbbells.",
+    ),
+    _SeedDefinition(
+        "Dumbbell Preacher Curl",
+        "curl",
+        "Brace the upper arm on the incline bench and curl the dumbbell without lifting the elbow from the pad.",
+    ),
+    _SeedDefinition(
+        "Dumbbell Seated Calf Raise",
+        "dumbbell_seated_calf_raise",
+        "Sit tall with the dumbbells on the thighs and raise both heels while the knees remain bent.",
+    ),
+    _SeedDefinition(
+        "Contralateral Dumbbell Forward Lunge",
+        "lunge_loaded",
+        "Hold one dumbbell opposite the stepping leg, lunge forward, and keep the torso square as you return.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Dumbbell Shoulder Press",
+        "single_arm_dumbbell_shoulder_press",
+        "Press one dumbbell from the shoulder to overhead while resisting any side bend through the torso.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Dumbbell Bench Press",
+        "single_arm_dumbbell_bench_press",
+        "Press one dumbbell over the chest while the unloaded side stays anchored and the torso remains level.",
+    ),
+    _SeedDefinition(
+        "Dumbbell Single-Leg Calf Raise",
+        "dumbbell_single_leg_calf_raise",
+        "Hold one dumbbell and rise through the working ankle while the free foot remains off the floor.",
+    ),
+    _SeedDefinition(
+        "Reverse-Grip Incline Dumbbell Row",
+        "reverse_grip_incline_dumbbell_row",
+        "Lie chest-down on the incline bench and row both dumbbells with palms forward and elbows close to the ribs.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Dumbbell Bench Fly",
+        "chest_fly",
+        "Open one dumbbell in a wide arc while the opposite shoulder and both hips stay anchored to the bench.",
+    ),
+    _SeedDefinition(
+        "Bench-Supported Dumbbell Rear Delt Row",
+        "bench_supported_dumbbell_rear_delt_row",
+        "Brace one hand and knee on the bench and row the dumbbell toward the upper ribs with the elbow held wide.",
+    ),
+    _SeedDefinition(
+        "Zercher Squat",
+        "squat_barbell",
+        "Cradle the bar in the elbow bends, keep it close to the torso, and squat without letting the chest collapse.",
+    ),
+    _SeedDefinition(
+        "Sumo Deadlift",
+        "deadlift",
+        "Take a wide toe-out stance, grip the bar inside the knees, and stand while driving the knees outward.",
+    ),
+    _SeedDefinition(
+        "Barbell Step-Up",
+        "lunge_loaded",
+        "Keep the bar fixed across the upper back and drive through the full foot on the bench to step up.",
+    ),
+    _SeedDefinition(
+        "Barbell Lateral Lunge",
+        "lunge_loaded",
+        "Step sideways under the bar, sit into the stepping hip, and keep the opposite leg long before returning.",
+    ),
+    _SeedDefinition(
+        "Barbell Upright Row",
+        "upright_row",
+        "Pull the bar upward close to the torso until the elbows reach a comfortable height, then lower slowly.",
+    ),
+    _SeedDefinition(
+        "Barbell Reverse Curl",
+        "curl",
+        "Curl the bar with palms facing down while keeping both upper arms fixed beside the torso.",
+    ),
+    _SeedDefinition(
+        "Barbell Hack Squat",
+        "barbell_hack_squat",
+        "Start with the bar behind the legs, keep it close to the calves, and stand by extending the knees and hips together.",
+    ),
+    _SeedDefinition(
+        "Barbell Single-Leg Deadlift",
+        "hinge_barbell",
+        "Balance on one leg and hinge the bar down close to the standing leg while the free leg reaches behind.",
+    ),
+    _SeedDefinition(
+        "EZ-Bar Spider Curl",
+        "curl",
+        "Lie chest-down on the incline bench and curl the EZ-bar while the upper arms hang vertically.",
+    ),
+    _SeedDefinition(
+        "EZ-Bar Reverse-Grip Row",
+        "barbell_row",
+        "Hinge over the EZ-bar with palms forward and row it toward the lower ribs while keeping the torso fixed.",
+    ),
+    _SeedDefinition(
+        "Incline EZ-Bar Triceps Extension",
+        "triceps",
+        "Lie on the incline bench and bend only the elbows to lower the EZ-bar behind the head before extending.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Cable Lat Pulldown",
+        "pulldown",
+        "Pull one cable handle from overhead toward the same-side ribs without leaning or rotating.",
+    ),
+    _SeedDefinition(
+        "Low Cable Fly",
+        "low_cable_fly",
+        "Start with both handles low and sweep them upward and inward until the hands meet near upper-chest height.",
+    ),
+    _SeedDefinition(
+        "Standing Cable Crunch",
+        "standing_cable_crunch",
+        "Hold the rope beside the head and curl the ribs toward the pelvis while remaining on both feet.",
+    ),
+    _SeedDefinition(
+        "Cable Reverse Crunch",
+        "cable_reverse_crunch",
+        "Attach the low cable to the feet and curl the pelvis off the floor as the knees move toward the chest.",
+    ),
+    _SeedDefinition(
+        "Cable Shrug",
+        "shrug",
+        "Stand over the low cable and lift both shoulders straight toward the ears without bending the elbows.",
+    ),
+    _SeedDefinition(
+        "Cable Lying Triceps Extension",
+        "triceps",
+        "Lie on the bench facing away from the low cable and extend the elbows while the upper arms remain still.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Cable Decline Fly",
+        "chest_fly",
+        "Lie on the decline bench and sweep one low cable handle over the chest while the opposite shoulder stays anchored.",
+    ),
+    _SeedDefinition(
+        "Cable-Assisted Nordic Curl",
+        "cable_assisted_nordic_curl",
+        "Secure the lower legs under the machine pad and use the high cable for assistance while lowering forward from the knees.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Cable Reverse Curl",
+        "curl",
+        "Curl one cable handle with the palm facing down while the upper arm stays fixed beside the torso.",
+    ),
+    _SeedDefinition(
+        "Bench-Kneeling Cable Triceps Extension",
+        "triceps",
+        "Kneel behind the bench, support the torso on it, and extend both elbows against the cable without moving the upper arms.",
+    ),
+    _SeedDefinition(
+        "Resistance Band Seated Row",
+        "resistance_band_seated_row",
+        "Sit on the bench with the band looped around the feet and row both ends toward the ribs without leaning backward.",
+    ),
+    _SeedDefinition(
+        "Single-Arm Band Low Row",
+        "supported_row",
+        "Row one end of the low-anchored band toward the hip while keeping the shoulders and hips square.",
+    ),
+    _SeedDefinition(
+        "Band Overhead Front Raise",
+        "raise",
+        "Stand on the band and raise both straight arms forward and overhead without leaning back.",
+    ),
+    _SeedDefinition(
+        "Band Step-Up",
+        "band_step_up",
+        "Stand on the band, hold it at the shoulders, and drive through the full foot on the bench to step up.",
+    ),
+    _SeedDefinition(
+        "Band Shrug",
+        "shrug",
+        "Stand on the band with straight arms and lift both shoulders vertically against the band tension.",
+    ),
+    _SeedDefinition(
+        "Band Reverse Fly",
+        "band_reverse_fly",
+        "With the band anchored in front, open both arms wide in a fly arc while keeping a soft elbow bend.",
+    ),
+    _SeedDefinition(
+        "Band Single-Leg Calf Raise",
+        "band_single_leg_calf_raise",
+        "Place the working forefoot on a stable plate with the band under it and raise the heel without rolling the ankle outward.",
+    ),
+    _SeedDefinition(
+        "Machine Seated Leg Curl",
+        "hamstring_curl",
+        "Keep the thighs under the pad and curl the lower legs down without lifting the hips from the seat.",
+    ),
+    _SeedDefinition(
+        "Machine High Row",
+        "supported_row",
+        "Keep the chest on the pad and pull the high handles down and back toward the upper ribs.",
+    ),
+    _SeedDefinition(
+        "Machine Seated Calf Raise",
+        "machine_seated_calf_raise",
+        "Keep the knees under the machine pad and raise both heels through the ankles without bouncing.",
+    ),
+    _SeedDefinition(
+        "Machine Reverse Fly",
+        "machine_reverse_fly",
+        "Face the pad and open both machine arms outward while the chest stays supported.",
+    ),
+    _SeedDefinition(
+        "Machine Preacher Curl",
+        "curl",
+        "Keep both upper arms planted on the machine pad and curl the handles without lifting the elbows.",
+    ),
+    _SeedDefinition(
+        "Assisted Triceps Dip",
+        "assisted_triceps_dip",
+        "Kneel on the assistance pad, lower between the handles, and press up while the torso stays upright.",
+    ),
+    _SeedDefinition(
+        "Machine Shoulder Press",
+        "shoulder_press",
+        "Keep the back against the pad and press the machine handles overhead without shrugging.",
+    ),
+    _SeedDefinition(
+        "Incline Machine Chest Press",
+        "cable_press",
+        "Settle against the incline pad and press the machine handles upward and forward without lifting the shoulders.",
+    ),
+    _SeedDefinition(
+        "Hack Squat Machine",
+        "squat_supported",
+        "Keep the back and shoulders on the pads, lower the sled under control, and drive through both feet to stand.",
+    ),
+    _SeedDefinition(
+        "Assisted Pull-Up",
+        "pull_up",
+        "Kneel on the assistance pad and pull the chest toward the bar while the body stays quiet.",
     ),
 )
 

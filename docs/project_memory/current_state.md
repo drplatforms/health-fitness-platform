@@ -1,3 +1,79 @@
+# Current State - Exercise Catalog Expansion v2 Batch 1
+
+Canonical implementation baseline before merge: main at 9940d39.
+
+Feature branch: feature/exercise-catalog-expansion-v2-batch-1.
+
+Status: EXERCISE_CATALOG_EXPANSION_V2_BATCH_1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- The internal canonical exercise catalog expands from exactly 240 to exactly 300 exercises.
+- Exactly 60 reviewed AscendAPI Free candidates were admitted as internally canonical exercises.
+- The original first 240 canonical catalog entries remain preserved in their existing order and semantics.
+- Every new Batch 1 exercise has complete internal catalog, taxonomy, prescription-measurement, visual-identity, and structured-instruction coverage.
+- The original pre-Batch-1 taxonomy, prescription-measurement, and instruction state remains preserved.
+- All newly admitted exercises use existing internal vocabularies and contracts; no new schema, enum family, API contract, or parallel catalog subsystem was introduced.
+- Instruction-template leakage identified during Architecture review was corrected for 23 new exercises with exercise-appropriate setup, execution, cue, mistake, and safety guidance.
+- All 60 new exercises remain generator-eligible under the existing workout system.
+- 49 of the 60 new exercises are visible under Dustin's existing home-gym equipment profile.
+- 11 of the 60 new exercises intentionally broaden commercial-gym or machine coverage.
+- The existing workout-generation, ranking, rotation, anchor-pool, substitution, and progression logic was not changed by this milestone.
+- The utilization diagnostic was updated and used to measure reachability without changing generation behavior.
+- The existing 46 pre-Batch-1 provider-media mappings remain preserved.
+- No Batch 1 exercise adds an AscendAPI GIF mapping.
+- AscendAPI GIF and animation expansion is no longer an active product objective.
+- Existing provider-neutral visual-media infrastructure remains available as dormant prototype infrastructure.
+- High-quality approved local Start/Finish media remains the preferred visual layer where available.
+- Exercises without approved local visual media continue to rely on complete written instructions.
+- The Batch 1 evidence matrix remains review evidence and does not become runtime catalog truth.
+
+Architecture boundaries preserved:
+
+- AscendAPI remains a candidate inventory and supplemental provider, not the internal catalog source of truth.
+- No database schema or migration changes were introduced.
+- No API route or response-contract changes were introduced.
+- No frontend changes were introduced.
+- No dependency changes were introduced.
+- No workout-generation or rotation behavior was altered.
+- No AI, recovery, nutrition, progression, substitution-ranking, or injury-limitation behavior was altered.
+- The original 46 provider mappings remain unchanged and no new GIF mappings were admitted.
+
+Validation and acceptance evidence:
+
+- Architecture directly reviewed the complete final v3 working-tree patch.
+- Architecture reconstructed the final patch against main at 9940d39.
+- Final focused catalog, taxonomy, measurement, instruction, provider-media, eligibility, and utilization validation passed.
+- The final instruction and API review confirmed the corrected Batch 1 instruction outputs.
+- Project-memory validation passed with 603 checks passed, 44 existing warnings, and 0 failures.
+- git diff --check passed.
+- No production browser smoke was required because this milestone introduces no frontend or runtime-contract change.
+
+Database safety incident:
+
+- During implementation, an existing eligibility test initially used the canonical fitness_ai.db instead of a temporary test database and changed its SHA-256.
+- The affected test path was corrected to use pytest-owned database isolation.
+- Subsequent correction and validation runs preserved the observed canonical database hash.
+- An exact pre-incident database copy was not available, so no destructive or approximate restoration was attempted.
+- The current canonical database was preserved as-is and an external quarantine copy was created.
+- Historical database backups were identified but intentionally not restored because they were not exact pre-incident copies and could discard legitimate user data.
+- The database-safety issue remains tracked for follow-up and must continue to inform automated-test isolation requirements.
+
+Current product direction:
+
+- Exercise Catalog Expansion v2 Batch 1 is accepted at 300 canonical exercises.
+- Further catalog expansion toward at least 450-500 canonical exercises remains the next major product program after the immediate workflow initiative.
+- AscendAPI GIF coverage and broader animation expansion are paused indefinitely and are not current roadmap objectives.
+- Future visual work, if resumed, should prioritize a coherent high-quality visual standard rather than maximizing mixed-source animation coverage.
+
+Immediate Architecture priority:
+
+- Before beginning another major product milestone, perform the Anti-Drift and Hallucination Workflow Initiative.
+- The initiative should audit why the current safeguards still permit unacceptable drift and hallucination before adding more documentation or memory systems.
+- Priority areas include authority reduction, current-truth consolidation, scoped context retrieval, contradiction detection, deterministic grounding packets, persistent correction records, and mid-session re-grounding gates.
+- No implementation design for the anti-drift initiative is authorized by this acceptance record alone.
+
+---
 # Current State - Visualization v2: Animated Provider Media Integration
 
 Canonical implementation baseline before merge: main at d6f968b.

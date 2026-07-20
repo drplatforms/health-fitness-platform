@@ -51,7 +51,7 @@ TARGET_CANDIDATE_OPTIONS = {
 def _collect_report(tmp_path, monkeypatch) -> dict:
     monkeypatch.setattr(database, "DB_PATH", Path(tmp_path) / "fitness_ai_test.db")
     return collect_catalog_utilization_diagnostic(
-        variation_count=10,
+        variation_count=12,
         available_equipment=list(DEFAULT_HOME_GYM_EQUIPMENT),
     )
 

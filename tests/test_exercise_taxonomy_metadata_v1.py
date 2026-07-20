@@ -300,12 +300,12 @@ def test_manifest_has_exact_accepted_coverage_counts_and_shared_visual_groups():
         entry.name for entry in exercise_catalog_service.CURATED_EXERCISE_CATALOG
     }
     seed_names = [seed.canonical_exercise_name for seed in seeds]
-    assert len(seeds) == len(seed_names) == len(set(seed_names)) == 240
+    assert len(seeds) == len(seed_names) == len(set(seed_names)) == 300
     assert set(seed_names) == catalog_names
     assert {seed.family_slug for seed in seeds} == EXPECTED_FAMILIES
-    assert len({seed.visual_identity_slug for seed in seeds}) == 231
+    assert len({seed.visual_identity_slug for seed in seeds}) == 291
     assert Counter(seed.taxonomy_status for seed in seeds) == {
-        "reviewed": 233,
+        "reviewed": 293,
         "alias_candidate": 3,
         "review_required": 4,
     }
@@ -374,7 +374,7 @@ def test_seed_projects_all_rows_exactly_and_is_idempotent_with_stable_catalog_id
             strict=True,
         )
     }
-    assert len(first_projection) == len(first_metadata) == 240
+    assert len(first_projection) == len(first_metadata) == 300
 
     persisted_by_name = {row[0]: row for row in first_projection}
     for seed in exercise_taxonomy_seed_data.EXERCISE_TAXONOMY_SEEDS:
@@ -449,10 +449,10 @@ def test_reseeding_removes_stale_taxonomy_rows():
     finally:
         conn.close()
 
-    assert len(_taxonomy_projection()) == 241
+    assert len(_taxonomy_projection()) == 301
     exercise_catalog_service.seed_exercise_taxonomy()
     projection = _taxonomy_projection()
-    assert len(projection) == 240
+    assert len(projection) == 300
     assert "Stale Taxonomy Exercise" not in {row[0] for row in projection}
 
 

@@ -53,7 +53,7 @@ def test_exercise_catalog_seeds_curated_entries_with_requirements(
 
     entries = get_exercise_catalog()
 
-    assert 225 <= len(entries) <= 260
+    assert len(entries) == 300
     assert all(entry.name for entry in entries)
     assert all(entry.movement_pattern for entry in entries)
     assert all(entry.exercise_type for entry in entries)
@@ -584,7 +584,7 @@ def test_exercise_catalog_expansion_v1_adds_curated_reviewable_entries(
     entries = get_exercise_catalog()
     names = {entry.name for entry in entries}
 
-    assert len(entries) == 240
+    assert len(entries) == 300
     for expected_name in {
         "Wall Push-Up",
         "Scapular Push-Up",
