@@ -44,7 +44,7 @@ Important workflow:
 - Architecture owns milestone scope, handoffs, review, acceptance, project-memory acceptance state, and Git closeout.
 - Codex owns bounded implementation and implementation validation.
 - Codex does not commit, push, merge, snapshot, or self-accept milestones.
-- Codex should use Projectmem first when available, then directly inspect only the canonical files and implementation areas required for the active milestone.
+- Codex should use Projectmem first when available, then read `docs/project_memory/current_truth.json` and directly inspect only the canonical files and implementation areas required for the active milestone.
 - Projectmem is supplemental and never overrides Architecture, AGENTS.md, canonical project memory, or repository truth.
 - Automated tests, QA, and browser smoke must never mutate the real canonical fitness_ai.db.
 - UI work requires production browser smoke before Architecture acceptance.

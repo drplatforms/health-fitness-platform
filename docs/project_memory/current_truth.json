@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "project_id": "fitness_ai",
+  "canonical_repository": "drplatforms/health-fitness-platform",
+  "canonical_branch": "main",
+  "current_initiative": {
+    "id": "anti-drift-and-hallucination-workflow",
+    "name": "Anti-Drift and Hallucination Workflow Initiative",
+    "status": "ACTIVE"
+  },
+  "active_milestone": {
+    "id": "none",
+    "name": "No active implementation milestone",
+    "status": "NO_IMPLEMENTATION_AUTHORIZED"
+  },
+  "implementation_authorization": {
+    "status": "NOT_AUTHORIZED",
+    "authority": "Architecture",
+    "scope": "No implementation beyond the accepted milestone is authorized."
+  },
+  "immediate_next_priority": {
+    "id": "project-memory-consolidation-north-star-preservation-v1",
+    "name": "Project Memory Consolidation + North Star Preservation v1",
+    "status": "PENDING_ARCHITECTURE_SCOPING"
+  },
+  "active_correction_ids": [
+    "CTK-AUTHORITY-DUPLICATION",
+    "CTK-STALE-CURRENT-HANDOFFS",
+    "CTK-PROJECTMEM-LOGGING-NOISE"
+  ],
+  "strategic_source_paths": [
+    "docs/project_memory/product_roadmap.md"
+  ]
+}

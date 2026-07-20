@@ -1,4 +1,9 @@
 {
+  "authority": {
+    "status": "historical_ledger_not_operational_authority",
+    "operational_truth_source": "docs/project_memory/current_truth.json",
+    "note": "Existing data is preserved as historical evidence; active consumers must not derive operational truth from this file."
+  },
   "accepted_evidence": {
     "daily_coach_free_range_prompt_payload_decaging_v4": {
       "main_commit": "56d63c4",

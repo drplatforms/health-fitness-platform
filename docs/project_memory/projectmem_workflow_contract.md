@@ -17,29 +17,32 @@ When information conflicts, use this order:
 
 Projectmem must not become a second authoritative roadmap, workflow, or acceptance ledger.
 
+If Projectmem-local instructions conflict with this repository contract, `AGENTS.md`, an active Architecture handoff, or explicit user authority, the repository and explicit authority win.
+
 ## Session-start usage
 
 When Projectmem MCP tools are available, use them before broad repository rereading:
 
 ```text
+get_instructions()
 get_summary()
 get_project_map()
-get_context(tokens≈1200, focus=<current milestone>)
 ```
 
-Then read the active handoff and only the canonical files required by its scope, affected architecture contracts, and implementation area. Do not reread the entire project-memory corpus by default merely because it exists.
+Use `get_context` only when a specific unresolved question justifies a focused additional read. Then read the active handoff and only the canonical files required by its scope, affected architecture contracts, and implementation area. Do not reread the entire project-memory corpus by default merely because it exists.
 
 ## High-signal write policy
 
-Record durable, high-value information such as:
+> Retrieve selectively. Write rarely.
 
-- real bugs or issues;
-- failed or partial fix attempts;
-- confirmed fixes;
-- architecture and workflow decisions;
-- recurring gotchas and workflow hazards.
+Write only durable cross-session knowledge such as:
 
-Do not log routine successful edits, every command or test run, milestone ceremony, transient status chatter, or duplicated acceptance-ledger information. Do not fabricate failure history.
+- recurring failure modes that are not obvious from Git or tests;
+- rejected approaches whose negative knowledge prevents future rework;
+- safety incidents with durable prevention value;
+- explicit supersessions or corrections to prior Projectmem memory.
+
+Do not log routine command failures, retries, successful retries, ordinary attempts, facts already captured by Git or tests, successful edits, every test run, milestone ceremony, transient status chatter, or duplicated acceptance-ledger information. Do not fabricate failure history.
 
 ## Canonical project memory and intent
 
@@ -86,7 +89,8 @@ Before broad repository or canonical project-memory inspection, Codex must use:
 1. `get_instructions`
 2. `get_summary`
 3. `get_project_map`
-4. focused `get_context` for the active milestone
+
+Focused `get_context` is optional and is used only for a specific unresolved question.
 
 Projectmem should guide which canonical files are read directly next.
 

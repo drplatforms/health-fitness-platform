@@ -53,9 +53,14 @@ def test_session_brief_writes_utf8_output(tmp_path: Path) -> None:
     assert output_path.exists()
 
     output = output_path.read_text(encoding="utf-8")
+    truth = dev_assistant.load_current_truth_kernel()
 
     required_sections = [
         "Health & Fitness Platform",
+        f"Current initiative: {truth['current_initiative']['name']}",
+        f"Active milestone: {truth['active_milestone']['name']}",
+        f"Implementation authorization: {truth['implementation_authorization']['status']}",
+        "Strategic context only: docs/project_memory/product_roadmap.md",
         "Git Status",
         "Recent Commits",
         "Dev Assistant Status",
@@ -101,15 +106,31 @@ def test_session_brief_does_not_mutate_source_files(tmp_path: Path) -> None:
     assert after == before
 
 
-def test_continuity_brief_uses_current_identity_runtime_and_workflow() -> None:
+def test_continuity_brief_uses_kernel_and_separate_live_git_facts(
+    monkeypatch,
+) -> None:
     dev_assistant = load_dev_assistant()
+    monkeypatch.setattr(dev_assistant, "get_current_branch", lambda: "feature/live-git")
+    monkeypatch.setattr(
+        dev_assistant,
+        "get_latest_commit",
+        lambda: "abc1234 Live Git commit subject",
+    )
+    monkeypatch.setattr(dev_assistant, "get_short_status", lambda: " M live-file.txt")
 
     output = dev_assistant.generate_continuity_brief()
+    truth = dev_assistant.load_current_truth_kernel()
 
     required = [
-        "Project: Health & Fitness Platform / health-fitness-platform",
-        "Latest accepted commit: c8349e0",
-        "Project Memory + Developer Workflow Canonicalization v1",
+        "Project: Health & Fitness Platform / drplatforms/health-fitness-platform",
+        f"Current initiative: {truth['current_initiative']['name']}",
+        f"Active milestone: {truth['active_milestone']['name']}",
+        f"Milestone status: {truth['active_milestone']['status']}",
+        f"Implementation authorization: {truth['implementation_authorization']['status']}",
+        f"Immediate next priority: {truth['immediate_next_priority']['name']}",
+        "Current branch: feature/live-git",
+        "Latest commit: abc1234 Live Git commit subject",
+        "Working tree:  M live-file.txt",
         "FastAPI on 8000 plus production Next.js on 3100",
         "http://127.0.0.1:3100",
         "Secondary/back-burner optional validation",
@@ -122,6 +143,7 @@ def test_continuity_brief_uses_current_identity_runtime_and_workflow() -> None:
 
     assert "Authority hierarchy" in output
     assert "Canonical source hierarchy" in output
+    assert "Strategic sources are context only" in output
     assert "qwen" not in output.lower()
     assert "Daily Coach async boundary" not in output
 
@@ -134,6 +156,18 @@ def test_generic_defaults_and_source_docs_are_current() -> None:
     assert "docs/project_memory/current_workflow_contract.md" in (
         dev_assistant.SOURCE_OF_TRUTH_DOCS
     )
+    assert "docs/project_memory/current_truth.json" in (
+        dev_assistant.SOURCE_OF_TRUTH_DOCS
+    )
+    assert "docs/project_memory/product_roadmap.md" in (
+        dev_assistant.SOURCE_OF_TRUTH_DOCS
+    )
+    assert "docs/project_memory/project_state.json" not in (
+        dev_assistant.SOURCE_OF_TRUTH_DOCS
+    )
+    assert "docs/project_memory/current_state.md" not in (
+        dev_assistant.SOURCE_OF_TRUTH_DOCS
+    )
     assert "docs/project_memory/project_continuity_bootstrap.md" not in (
         dev_assistant.SOURCE_OF_TRUTH_DOCS
     )
@@ -141,9 +175,8 @@ def test_generic_defaults_and_source_docs_are_current() -> None:
         path.startswith("docs/project_memory/handoffs/")
         for path in dev_assistant.SOURCE_OF_TRUTH_DOCS
     )
-    assert (
-        "docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md"
-        in dev_assistant.get_source_of_truth_docs()
+    assert "docs/project_memory/current_truth.json" in (
+        dev_assistant.get_source_of_truth_docs()
     )
 
 
@@ -227,42 +260,79 @@ def test_qa_plan_is_generic_and_risk_based() -> None:
     assert "pytest -q" not in output
 
 
-def test_next_milestone_requires_roadmap_and_fresh_architecture_selection() -> None:
-    text = Path("docs/project_memory/next_milestone.md").read_text(encoding="utf-8")
-    top = text.split("# Historical Next Milestone", maxsplit=1)[0]
+def test_kernel_owns_operations_while_ledgers_and_roadmap_are_demoted() -> None:
+    truth = json.loads(
+        Path("docs/project_memory/current_truth.json").read_text(encoding="utf-8")
+    )
+    assert set(truth["active_milestone"]) == {"id", "name", "status"}
+    assert set(truth["implementation_authorization"]) == {
+        "status",
+        "authority",
+        "scope",
+    }
 
-    assert "Project Memory + Developer Workflow Canonicalization v1" in top
-    assert "user provide the rough current product roadmap" in top
-    assert "fresh Architecture chat" in top
-    assert "select the next narrow product milestone" in top
-    assert "No next product milestone is authorized" in top
-    assert "candidate only after" in top
+    next_header = "\n".join(
+        Path("docs/project_memory/next_milestone.md")
+        .read_text(encoding="utf-8")
+        .splitlines()[:8]
+    )
+    roadmap_header = "\n".join(
+        Path("docs/project_memory/product_roadmap.md")
+        .read_text(encoding="utf-8")
+        .splitlines()[:8]
+    )
+    assert "not active-milestone or implementation authority" in next_header
+    assert "not active implementation authority" in roadmap_header
 
     state = json.loads(
         Path("docs/project_memory/project_state.json").read_text(encoding="utf-8")
     )
-    recommendation = state["active_roadmap"][
-        "recommended_next_milestone_after_acceptance"
-    ]
-    assert "rough current product roadmap" in recommendation
-    assert "fresh Architecture chat" in recommendation
-    assert "Exercise Instruction" not in recommendation
+    assert state["authority"] == {
+        "status": "historical_ledger_not_operational_authority",
+        "operational_truth_source": "docs/project_memory/current_truth.json",
+        "note": "Existing data is preserved as historical evidence; active consumers must not derive operational truth from this file.",
+    }
 
 
 def test_checker_no_longer_pins_obsolete_current_pointer_phrases() -> None:
     assert "docs/project_memory/project_continuity_bootstrap.md" not in (
         project_memory_check.REQUIRED_PHRASES
     )
-    for path in [
+    for path in (
         "docs/project_memory/handoffs/architecture_handoff_current.md",
         "docs/project_memory/handoffs/backend_handoff_current.md",
         "docs/project_memory/handoffs/qa_handoff_current.md",
-    ]:
+    ):
+        assert path not in project_memory_check.REQUIRED_FILES
         assert path not in project_memory_check.REQUIRED_PHRASES
 
     current_state_phrases = project_memory_check.REQUIRED_PHRASES[
         "docs/project_memory/current_state.md"
     ]
-    assert "Health & Fitness Platform" in current_state_phrases
-    assert "Linux is the canonical" not in current_state_phrases
-    assert "Local Command Menu App Runtime Correction v1" not in current_state_phrases
+    assert "Historical Milestone Chronology" in current_state_phrases
+    assert "docs/project_memory/current_truth.json" in current_state_phrases
+
+    project_state_phrases = project_memory_check.REQUIRED_PHRASES[
+        "docs/project_memory/project_state.json"
+    ]
+    assert project_state_phrases == [
+        '"status": "historical_ledger_not_operational_authority"',
+        '"operational_truth_source": "docs/project_memory/current_truth.json"',
+    ]
+
+
+def test_projectmem_policy_is_selective_and_high_signal() -> None:
+    contract = Path("docs/project_memory/projectmem_workflow_contract.md").read_text(
+        encoding="utf-8"
+    )
+    assert "Retrieve selectively. Write rarely." in contract
+    assert "recurring failure modes that are not obvious from Git or tests" in contract
+    assert (
+        "Do not log routine command failures, retries, successful retries" in contract
+    )
+
+    local_instructions = Path(".projectmem/AI_INSTRUCTIONS.md")
+    if local_instructions.is_file():
+        local_text = local_instructions.read_text(encoding="utf-8")
+        assert "Retrieve selectively. Write rarely." in local_text
+        assert "Do not log routine command failures" in local_text

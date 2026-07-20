@@ -25,10 +25,9 @@ DEFAULT_BASE_BRANCHES = [
 SOURCE_OF_TRUTH_DOCS = [
     "AGENTS.md",
     "docs/project_memory/README.md",
-    "docs/project_memory/current_state.md",
+    "docs/project_memory/current_truth.json",
     "docs/project_memory/current_workflow_contract.md",
-    "docs/project_memory/project_state.json",
-    "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
+    "docs/project_memory/product_roadmap.md",
     "docs/project_memory/architecture_principles.md",
     "docs/project_memory/open_questions.md",
     "docs/project_memory/team_routing_contract.md",
@@ -47,8 +46,8 @@ FOCUSED_SAFETY_TESTS = [
 
 def get_source_of_truth_docs() -> list[str]:
     docs = list(SOURCE_OF_TRUTH_DOCS)
-    state = load_project_state()
-    milestone = state.get("active_roadmap", {}).get("current_authorized_milestone")
+    truth = load_current_truth_kernel()
+    milestone = truth.get("active_milestone", {}).get("name")
     if milestone:
         milestone_slug = slugify(milestone).replace("-", "_")
         milestone_path = f"docs/project_memory/milestones/{milestone_slug}.md"
@@ -660,6 +659,12 @@ def build_session_brief(milestone: str | None = None) -> str:
     recent_commits = get_recent_commits_8()
     snapshot_name = generate_snapshot_name(latest_commit_hash, latest_commit_subject)
     next_action = recommend_next_action(short_status, upstream_status)
+    truth = load_current_truth_kernel()
+    initiative = truth.get("current_initiative", {})
+    active_milestone = truth.get("active_milestone", {})
+    authorization = truth.get("implementation_authorization", {})
+    next_priority = truth.get("immediate_next_priority", {})
+    strategic_sources = truth.get("strategic_source_paths", [])
 
     memory_check = get_project_memory_check_text()
     stale_doc_check = get_project_memory_check_text()
@@ -668,11 +673,16 @@ def build_session_brief(milestone: str | None = None) -> str:
         "Health & Fitness Platform - Developer Workflow Assistant",
         "=" * 72,
         f"Generated: {datetime.now().isoformat(timespec='seconds')}",
-        "Project: Health & Fitness Platform / health-fitness-platform",
+        f"Project: {truth.get('project_id', 'Unavailable')} / {truth.get('canonical_repository', 'Unavailable')}",
+        f"Current initiative: {initiative.get('name', 'Unavailable')} [{initiative.get('status', 'Unavailable')}]",
+        f"Active milestone: {active_milestone.get('name', 'Unavailable')} [{active_milestone.get('status', 'Unavailable')}]",
+        f"Implementation authorization: {authorization.get('status', 'Unavailable')} — {authorization.get('authority', 'Unavailable')}",
+        f"Immediate next priority: {next_priority.get('name', 'Unavailable')} [{next_priority.get('status', 'Unavailable')}]",
+        "Strategic context only: " + ", ".join(strategic_sources or ["Unavailable"]),
     ]
 
     if milestone:
-        lines.append(f"Milestone: {milestone}")
+        lines.append(f"Requested milestone override: {milestone}")
 
     lines.extend(
         [
@@ -862,6 +872,21 @@ def load_project_state(
         return {}
 
 
+def load_current_truth_kernel(
+    path: Path | str = "docs/project_memory/current_truth.json",
+) -> dict:
+    """Load the authoritative operational current-truth kernel."""
+    truth_path = Path(path)
+    if not truth_path.exists():
+        return {}
+
+    try:
+        value = json.loads(truth_path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
 def _format_list(values: list[str]) -> str:
     if not values:
         return "- Unavailable"
@@ -869,36 +894,50 @@ def _format_list(values: list[str]) -> str:
 
 
 def generate_continuity_brief() -> str:
-    """Generate a compact onboarding brief from project_state.json."""
+    """Generate a compact brief from current truth, live Git, and support facts."""
+    truth = load_current_truth_kernel()
     state = load_project_state()
 
     project = state.get("project", {})
-    baseline = state.get("current_baseline", {})
-    roadmap = state.get("active_roadmap", {})
     runtime = state.get("runtime_split", {})
     model_policy = state.get("model_provider_policy", {})
     async_boundary = state.get("daily_coach_async_boundary", {})
     workflow = state.get("workflow_rules", {})
-    first_files = state.get("first_files_to_read", {})
-
-    all_role_files = first_files.get("all_roles", [])
+    initiative = truth.get("current_initiative", {})
+    milestone = truth.get("active_milestone", {})
+    authorization = truth.get("implementation_authorization", {})
+    next_priority = truth.get("immediate_next_priority", {})
+    strategic_sources = truth.get("strategic_source_paths", [])
+    short_status = get_short_status()
 
     lines = [
         "Health & Fitness Platform Continuity Brief",
         "=" * 72,
         "",
-        f"Project: {project.get('name', 'Unavailable')} / {project.get('repo', 'Unavailable')}",
-        f"Canonical branch: {project.get('canonical_branch', 'Unavailable')}",
-        f"Latest accepted milestone: {baseline.get('latest_accepted_milestone', 'Unavailable')}",
-        f"Latest accepted status: {baseline.get('latest_final_status', 'Unavailable')}",
-        f"Latest accepted commit: {baseline.get('latest_accepted_commit', 'Unavailable')}",
-        f"Latest accepted snapshot: {baseline.get('latest_accepted_snapshot', 'Unavailable')}",
-        f"Current authorized milestone: {roadmap.get('current_authorized_milestone', 'Unavailable')}",
-        f"Recommended next milestone after acceptance: {roadmap.get('recommended_next_milestone_after_acceptance', 'Unavailable')}",
+        f"Project: {project.get('name', 'Health & Fitness Platform')} / {truth.get('canonical_repository', 'Unavailable')}",
+        f"Canonical branch: {truth.get('canonical_branch', 'Unavailable')}",
+        f"Current initiative: {initiative.get('name', 'Unavailable')}",
+        f"Initiative status: {initiative.get('status', 'Unavailable')}",
+        f"Active milestone: {milestone.get('name', 'Unavailable')}",
+        f"Milestone status: {milestone.get('status', 'Unavailable')}",
+        f"Implementation authorization: {authorization.get('status', 'Unavailable')}",
+        f"Authorization authority: {authorization.get('authority', 'Unavailable')}",
+        f"Authorized scope: {authorization.get('scope', 'Unavailable')}",
+        f"Immediate next priority: {next_priority.get('name', 'Unavailable')}",
+        f"Next-priority status: {next_priority.get('status', 'Unavailable')}",
         "",
-        "Canonical source hierarchy / first files to read",
+        "Live Git facts",
         "-" * 72,
-        _format_list(all_role_files),
+        f"Current branch: {get_current_branch()}",
+        f"Latest commit: {get_latest_commit()}",
+        "Working tree: " + (short_status or "Clean - no uncommitted changes."),
+        "",
+        "Canonical source hierarchy / strategic context",
+        "-" * 72,
+        _format_list(get_source_of_truth_docs()),
+        "",
+        "Strategic sources are context only, not implementation authority:",
+        _format_list(strategic_sources),
         "",
         "Authority hierarchy",
         "-" * 72,
@@ -950,7 +989,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser(
         "continuity-brief",
-        help="Print a compact role-aware onboarding brief from project_state.json.",
+        help="Print a compact onboarding brief from current_truth.json and live Git.",
     )
 
     agent_prompt = subparsers.add_parser(

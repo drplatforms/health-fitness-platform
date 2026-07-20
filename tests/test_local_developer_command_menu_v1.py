@@ -12,7 +12,7 @@ COMMANDS_PATH = ROOT / "scripts" / "fitness_commands.ps1"
 INSTALLER_PATH = ROOT / "scripts" / "install_fitness_commands_profile.ps1"
 MENU_DOC_PATH = ROOT / "docs" / "project_memory" / "local_developer_command_menu.md"
 WORKFLOW_PATH = ROOT / "docs" / "project_memory" / "current_workflow_contract.md"
-PROJECT_STATE_PATH = ROOT / "docs" / "project_memory" / "project_state.json"
+CURRENT_TRUTH_PATH = ROOT / "docs" / "project_memory" / "current_truth.json"
 
 
 @pytest.fixture(scope="module")
@@ -346,26 +346,29 @@ def test_current_docs_match_command_semantics() -> None:
     assert "3000" in menu and "3100" in menu
 
 
-def test_project_state_current_pointers_are_structurally_valid() -> None:
-    state = json.loads(PROJECT_STATE_PATH.read_text(encoding="utf-8"))
+def test_current_truth_kernel_owns_operational_pointers() -> None:
+    truth = json.loads(CURRENT_TRUTH_PATH.read_text(encoding="utf-8"))
 
-    assert state["project"]["name"] == "Health & Fitness Platform"
-    assert state["project"]["repo"] == "health-fitness-platform"
-    assert state["project"]["platform_repo"] == "health-fitness-platform"
+    assert truth["schema_version"] == 1
+    assert truth["project_id"] == "fitness_ai"
+    assert truth["canonical_repository"] == "drplatforms/health-fitness-platform"
+    assert truth["canonical_branch"] == "main"
+    assert set(truth["active_milestone"]) == {"id", "name", "status"}
+    assert set(truth["implementation_authorization"]) == {
+        "status",
+        "authority",
+        "scope",
+    }
+    assert set(truth["immediate_next_priority"]) == {"id", "name", "status"}
+    assert truth["strategic_source_paths"]
 
-    latest_commit = state["current_baseline"]["latest_accepted_commit"]
-    assert isinstance(latest_commit, str)
-    assert latest_commit
-
-    roadmap = state["active_roadmap"]
-    for field in (
-        "current_authorized_milestone",
-        "implementation_status",
-        "current_recommended_milestone",
-        "current_recommended_status",
+    for live_git_field in (
+        "current_head",
+        "working_branch",
+        "working_tree_status",
+        "merge_ancestry",
     ):
-        assert isinstance(roadmap[field], str)
-        assert roadmap[field]
+        assert live_git_field not in truth
 
 
 def test_current_command_layer_contains_no_secrets_or_external_citations(

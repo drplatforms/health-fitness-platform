@@ -1,3 +1,45 @@
+# Historical Milestone Chronology
+
+> This file preserves historical milestone chronology. It is not operational authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
+
+# Accepted Milestone - Current Truth Kernel + Fail-Closed Consistency v1
+
+Canonical implementation baseline before merge: main at 44b3754.
+
+Feature branch: feature/current-truth-kernel-v1.
+
+Status: CURRENT_TRUTH_KERNEL_FAIL_CLOSED_CONSISTENCY_V1_ARCHITECTURE_ACCEPTED
+
+Accepted behavior:
+
+- `docs/project_memory/current_truth.json` is the sole authoritative owner of operational current truth and implementation authorization.
+- `docs/project_memory/current_truth.md` is a deterministic generated view and is mechanically checked against the kernel.
+- `current_state.md`, `next_milestone.md`, and `project_state.json` are explicitly demoted to historical or planning roles without deleting their preserved history.
+- Persistent `*_handoff_current.md` files were retired as current authority and their original contents were preserved under historical names.
+- `dev_assistant.py` now derives operational state from the current-truth kernel while live Git owns branch, commit, and working-tree facts.
+- Projectmem policy is narrowed to "Retrieve selectively. Write rarely." with focused context retrieval only when justified.
+- Material kernel, generated-view, stale-handoff, authority, encoding, and consumer conflicts now fail closed through project-memory validation.
+- Repository-facing tests no longer pin transient real milestone names or commit hashes as permanent continuity truth.
+- The canonical Architecture command flow is preserved through the Operator Command Contract and hardened closeout command template.
+- The protected strategic product roadmap remains intact and separate from active implementation authority.
+- Focused validation passed with 79 tests, Ruff passed, project-memory validation reported 588 PASS / 23 WARN / 0 FAIL, and `git diff --check` passed.
+
+Architecture boundaries preserved:
+
+- No product runtime behavior changed.
+- No API, database, schema, frontend, health logic, workout-generation, nutrition, or recovery behavior changed.
+- No dependency was added.
+- Historical project knowledge and roadmap capabilities were preserved rather than broadly rewritten or deleted.
+- Snapshots remain recovery and audit artifacts.
+- Projectmem remains supplemental and non-authoritative.
+
+Roadmap status:
+
+Current Truth Kernel + Fail-Closed Consistency v1 is Architecture accepted.
+The immediate next Architecture priority is Project Memory Consolidation + North Star Preservation v1.
+That next milestone remains pending Architecture scoping and is not implementation-authorized.
+
+---
 # Current State - Exercise Catalog Expansion v2 Batch 1
 
 Canonical implementation baseline before merge: main at 9940d39.

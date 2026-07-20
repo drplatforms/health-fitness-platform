@@ -4,7 +4,7 @@
 
 ## Before editing
 
-- Read the user/Architecture handoff, `AGENTS.md`, `README.md` in this directory, `current_state.md`, `current_workflow_contract.md`, the active milestone, and affected contracts.
+- Read the user/Architecture handoff, `AGENTS.md`, `README.md` in this directory, `current_truth.json`, `current_workflow_contract.md`, the active milestone, and affected contracts. Use `current_state.md` only for historical chronology.
 - Verify the branch, exact starting commit, recent history, full status including untracked files, and relevant diffs.
 - Treat the working tree as authoritative. Preserve existing work and stop on a material branch/base/scope conflict.
 - Establish database safety before Python or runtime commands. Use temporary databases or copies; never allow automated work to initialize or mutate the real `fitness_ai.db`.
