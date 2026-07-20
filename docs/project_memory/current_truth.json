@@ -19,8 +19,8 @@
     "scope": "No implementation beyond the accepted milestone is authorized."
   },
   "immediate_next_priority": {
-    "id": "project-memory-consolidation-north-star-preservation-v1",
-    "name": "Project Memory Consolidation + North Star Preservation v1",
+    "id": "deterministic-grounding-context-compiler-v1",
+    "name": "Deterministic Grounding / Context Compiler v1",
     "status": "PENDING_ARCHITECTURE_SCOPING"
   },
   "active_correction_ids": [
@@ -29,6 +29,7 @@
     "CTK-PROJECTMEM-LOGGING-NOISE"
   ],
   "strategic_source_paths": [
+    "docs/project_memory/product_north_star.md",
     "docs/project_memory/product_roadmap.md"
   ]
 }

@@ -6,6 +6,7 @@ from pathlib import Path
 from tools import project_memory_check
 from tools.current_truth import render_current_truth
 from tools.project_memory_check import (
+    CANONICAL_STRATEGIC_SOURCE_PATHS,
     REQUIRED_FILES,
     has_failures,
     run_project_memory_check,
@@ -41,6 +42,7 @@ def valid_current_truth() -> dict:
         },
         "active_correction_ids": ["CTK-AUTHORITY-DUPLICATION"],
         "strategic_source_paths": [
+            "docs/project_memory/product_north_star.md",
             "docs/project_memory/product_roadmap.md",
         ],
     }
@@ -1375,3 +1377,185 @@ def test_canonical_closeout_template_preserves_phase_and_command_invariants() ->
     assert "project_state.json" not in "\n".join(
         line for line in phase_1.splitlines() if line.lstrip().startswith("$")
     )
+
+
+def test_current_truth_uses_exact_canonical_strategic_sources() -> None:
+    current_truth = json.loads(
+        Path("docs/project_memory/current_truth.json").read_text(encoding="utf-8")
+    )
+
+    assert tuple(current_truth["strategic_source_paths"]) == (
+        CANONICAL_STRATEGIC_SOURCE_PATHS
+    )
+
+
+def test_project_memory_check_fails_when_product_north_star_is_missing(
+    tmp_path: Path,
+) -> None:
+    write_required_project_memory(tmp_path)
+    north_star_path = tmp_path / "docs/project_memory/product_north_star.md"
+    north_star_path.unlink()
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "FAIL"
+        and result.path == "docs/project_memory/product_north_star.md"
+        for result in results
+    )
+
+
+def test_product_north_star_is_stable_and_contains_all_eight_pillars() -> None:
+    north_star = Path("docs/project_memory/product_north_star.md").read_text(
+        encoding="utf-8"
+    )
+
+    for pillar in (
+        "CAPTURE",
+        "PLAN",
+        "EXECUTE",
+        "UNDERSTAND",
+        "ADAPT",
+        "LEARN",
+        "PREDICT",
+        "ASSIST",
+    ):
+        assert f"### {pillar}" in north_star
+
+    for volatile_marker in (
+        "Current Strategic Priority",
+        "immediate next milestone",
+        "Current accepted state at this baseline",
+    ):
+        assert volatile_marker not in north_star
+
+
+def test_strategic_roadmap_preserves_dispositions_and_capability_anchors() -> None:
+    roadmap = Path("docs/project_memory/product_roadmap.md").read_text(encoding="utf-8")
+
+    for disposition in (
+        "COMPLETED",
+        "FOUNDATION EXISTS",
+        "ACTIVE",
+        "PLANNED",
+        "DEFERRED",
+        "SUPERSEDED",
+        "REJECTED",
+    ):
+        assert disposition in roadmap
+
+    capability_anchors = (
+        "Established Product Foundations",
+        "Theme System and Dark Mode v1",
+        "Barcode Scanning v1",
+        "Adaptive Progression Engine v1",
+        "Weekly Training Planner v1",
+        "Smart Exercise Substitutions v1",
+        "Exercise History & Progress Analytics v1",
+        "Daily Command Center",
+        "Frictionless Capture",
+        "World-Class Exercise Catalog and Visual Form Guidance",
+        "Adaptive Training That Works Around Real Life",
+        "Calendar-aware fitness planning",
+        "Workout duration intelligence",
+        "Environment-aware training",
+        "progression and volume decisions",
+        "progression forecasting",
+        "warm-up",
+        "workout review",
+        "training-load",
+        "periodization",
+        "movement-pattern balancing",
+        "Nutrition Decision Intelligence",
+        "Intelligent Meal Builder",
+        "Personal Food Graph",
+        "Pantry intelligence",
+        "Intelligent grocery lists",
+        "Budget-aware nutrition",
+        "Restaurant / Takeout Mode",
+        "Photo-assisted food logging",
+        "recipe",
+        "micronutrient",
+        "meal-timing",
+        "food swaps",
+        "What-If",
+        "Weight trend intelligence",
+        "Personal metabolic calibration",
+        "Body composition tracking",
+        "Personal Baseline Engine",
+        "Longitudinal Personal Intelligence",
+        "Change-point detection",
+        "What Changed?",
+        "Structured personal insights",
+        "Personal N-of-1 experiments",
+        "Predictive friction detection",
+        "Adherence intelligence",
+        "Weekly Intelligence Review",
+        "monthly review",
+        "report diffing",
+        "evidence links",
+        "audit trail",
+        "recommendation outcome",
+        "editable user facts",
+        "editable preferences",
+        "memory expiration",
+        "Recovery Intelligence and Wearable Integration",
+        "Explainable Conversational Assistance",
+        "Voice assistant",
+        "Selective RAG and contextual retrieval",
+        "user education mode",
+        "onboarding assistance",
+        "teach me this",
+        "recommendation feedback",
+        "Offline-first / PWA",
+        "Cross-device experience",
+        "Contextual notifications",
+        "Privacy controls",
+        "Professional export",
+        "Coach / Trainer Mode",
+        "SaaS Extensions",
+    )
+    for anchor in capability_anchors:
+        assert anchor.casefold() in roadmap.casefold()
+
+    disposition_heading = (
+        "## Horizon 1 — Daily Command Center and Frictionless Capture — "
+        "`FOUNDATION EXISTS`; deeper unification `PLANNED`"
+    )
+    plain_heading = "## Horizon 1 — Daily Command Center and Frictionless Capture"
+    assert f"{disposition_heading}\n\n{plain_heading}\n" not in roadmap
+
+
+def test_strategy_compatibility_paths_point_to_canonical_and_historical_sources() -> (
+    None
+):
+    compatibility_paths = {
+        "product_vision.md": "historical_strategy/product_vision_2026-06-20.md",
+        "premium_platform_blueprint.md": (
+            "historical_strategy/premium_platform_blueprint_2026-07-15.md"
+        ),
+        "future_architecture_ledger.md": (
+            "historical_strategy/future_architecture_ledger_2026-07-15.md"
+        ),
+    }
+
+    for filename, historical_path in compatibility_paths.items():
+        text = Path("docs/project_memory", filename).read_text(encoding="utf-8")
+        assert "Compatibility Pointer" in text
+        assert "product_north_star.md" in text
+        assert "product_roadmap.md" in text
+        assert historical_path in text
+
+
+def test_future_technical_architecture_is_non_authorizing_and_not_default() -> None:
+    technical_reference = Path(
+        "docs/project_memory/architecture/platform_north_star_and_future_stack.md"
+    ).read_text(encoding="utf-8")
+    readme = Path("docs/project_memory/README.md").read_text(encoding="utf-8")
+
+    assert "Future Technical Architecture Reference" in technical_reference
+    assert "stable, non-authorizing" in technical_reference
+    assert "not a default strategic source" in technical_reference
+    assert "Current accepted state at this baseline" not in technical_reference
+    assert "Immediate Continuation" not in technical_reference
+    assert "future architecture or stack decisions only" in readme

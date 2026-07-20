@@ -2,6 +2,26 @@
 
 > This file preserves historical milestone chronology. It is not operational authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
 
+## 2026-07-20 — Project Memory Consolidation + North Star Preservation v1 — ACCEPTED
+
+Acceptance token: `PROJECT_MEMORY_CONSOLIDATION_NORTH_STAR_PRESERVATION_V1_ARCHITECTURE_ACCEPTED`
+
+Architecture accepted the project-memory strategic consolidation.
+
+Accepted outcomes:
+
+- `product_north_star.md` is the protected, stable Product North Star.
+- `product_roadmap.md` is the canonical comprehensive strategic product capability inventory.
+- established foundational capabilities are explicitly protected from being reintroduced as unfinished first-version work;
+- planned product capabilities remain preserved across the strategic roadmap;
+- operational current truth remains owned by `current_truth.json`;
+- future technical architecture is separated from product strategy and remains non-authorizing;
+- superseded strategic source paths are compatibility pointers with original source material preserved as historical evidence;
+- default project grounding is smaller and explicitly separated by information class;
+- canonical strategic-source invariants and protected capability coverage are regression-tested.
+
+No product runtime behavior, schema, database, frontend, backend, or dependency behavior changed.
+
 # Accepted Milestone - Canonical Closeout Command Flow Hardening v1
 
 Canonical implementation baseline before merge: main at 728e478.

@@ -30,8 +30,8 @@ Do not edit manually.
 
 ## Immediate next priority
 
-- ID: `project-memory-consolidation-north-star-preservation-v1`
-- Name: Project Memory Consolidation + North Star Preservation v1
+- ID: `deterministic-grounding-context-compiler-v1`
+- Name: Deterministic Grounding / Context Compiler v1
 - Status: `PENDING_ARCHITECTURE_SCOPING`
 
 ## Active correction IDs
@@ -42,4 +42,5 @@ Do not edit manually.
 
 ## Strategic sources
 
+- `docs/project_memory/product_north_star.md`
 - `docs/project_memory/product_roadmap.md`
