@@ -15,7 +15,7 @@
 ## Before Editing
 
 1. Inspect the current branch, latest commit, `git status --short --untracked-files=all`, and relevant diffs.
-2. Read `docs/project_memory/current_state.md`, the active milestone file, and any architecture contracts the work affects.
+2. Read `docs/project_memory/current_truth.json`, the active milestone file, and any architecture contracts the work affects. Read `current_state.md` only when historical chronology is relevant.
 3. Compare the requested scope, non-goals, files, and validation commands with repository truth.
 4. Preserve all existing uncommitted work. Do not reset, restore, discard, or destructively clean without explicit instruction.
 
@@ -37,10 +37,22 @@ Stop and report conflicts when the branch, base, working tree, or project memory
 
 ## Projectmem
 
-- Projectmem is an optional supplemental context accelerator. Canonical repository instructions, the active handoff, project memory, and repository truth remain authoritative over Projectmem.
-- When Projectmem MCP tools are available, use summary, project map, and focused context before broad repository rereading, then read the current handoff and directly relevant canonical project-memory files.
-- Log only high-signal durable issues, failed attempts, confirmed fixes, decisions, and recurring gotchas.
+- Projectmem is an optional supplemental context accelerator. Explicit user authority, the active Architecture handoff, this file, canonical project memory, and repository truth outrank Projectmem-local instructions when they conflict.
+- Retrieve selectively. Write rarely.
+- When Projectmem MCP tools are available, start with `get_instructions`, `get_summary`, and `get_project_map`. Use focused `get_context` only when a specific unresolved question justifies it, then read the current handoff, `docs/project_memory/current_truth.json`, and directly relevant canonical project-memory files.
+- Write only durable cross-session negative knowledge, safety incidents, recurring non-obvious failure modes, or explicit supersessions. Do not log routine command failures, retries, attempts, fixes, successful edits, or test results already represented by Git or tests.
 - Do not run `pjm init`, install Projectmem hooks, or start the Projectmem watcher unless an authorized tooling milestone explicitly allows it.
+
+## Operator Command Contract
+
+- Dustin operates consequential repository phases through complete copy/paste Windows PowerShell blocks supplied by Architecture.
+- Reuse the canonical Architecture command template when one exists. Do not invent an alternate routine Git or closeout sequence without stating the technical reason.
+- Provide one complete phase at a time for consequential operations. Never split dependent PowerShell syntax across messages and never provide a detached `else`.
+- Any consequential paste block that depends on `throw`, `$LASTEXITCODE`, or another stop-on-failure guard must execute as one PowerShell script block such as `& { ... }`, so a failure terminates the entire pasted phase instead of allowing later commands to continue.
+- Use literal here-strings when writing Markdown that contains backticks.
+- Stage exact reviewed files only. Never use `git add .` or `git add -A`.
+- Stop and diagnose any failed validation, staging, commit, push, checkout, pull, merge, or safety check. Verify each consequential operation before continuing.
+- Codex does not perform Architecture Git closeout: no staging, committing, pushing, merging, or snapshot creation without separate explicit authority.
 
 ## Validation
 
@@ -70,7 +82,8 @@ Required initial sequence:
 1. `get_instructions`
 2. `get_summary`
 3. `get_project_map`
-4. focused `get_context` for the active milestone
+
+Use focused `get_context` only when a specific unresolved question justifies the additional read.
 
 After that, read only the active handoff and the minimum directly relevant canonical project-memory, implementation, and test files.
 

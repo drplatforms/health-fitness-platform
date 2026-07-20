@@ -10,12 +10,13 @@ When sources disagree, reconcile them in this order:
 2. The approved Architecture milestone or handoff, reconciled with repository truth.
 3. `AGENTS.md`.
 4. This entry point.
-5. `current_state.md`.
+5. `current_truth.json` for operational current truth and implementation authorization.
 6. `current_workflow_contract.md`.
-7. Strategic architecture and product-boundary documents.
+7. Strategic architecture and product-boundary documents, including `product_roadmap.md`.
 8. The active milestone, ADRs, and affected contracts.
-9. Historical milestone, review, and runtime-QA evidence.
-10. Current validated code/runtime evidence when a document is stale.
+9. Historical chronology in `current_state.md`, `next_milestone.md`, and `project_state.json`.
+10. Historical milestone, review, and runtime-QA evidence.
+11. Current validated code/runtime evidence when a document is stale.
 
 Code evidence can reveal stale documentation; it does not independently authorize new scope, a product-direction change, or acceptance.
 
@@ -23,14 +24,15 @@ Code evidence can reveal stale documentation; it does not independently authoriz
 
 Read the smallest relevant set, beginning with:
 
-1. `current_state.md`
+1. `current_truth.json`
 2. `current_workflow_contract.md`
-3. `product_vision.md`
-4. `architecture_principles.md`
-5. `backend_truth_contract.md`
-6. `ai_boundaries.md`
-7. the active milestone and affected architecture contracts
-8. `validation_matrix.md`
+3. `product_roadmap.md` for strategic direction only
+4. `product_vision.md`
+5. `architecture_principles.md`
+6. `backend_truth_contract.md`
+7. `ai_boundaries.md`
+8. the active milestone and affected architecture contracts
+9. `validation_matrix.md`
 
 Use `team_routing_contract.md`, `team_quickstarts.md`, and the applicable role bootstrap when preparing a specialist handoff.
 

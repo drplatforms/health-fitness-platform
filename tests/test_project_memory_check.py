@@ -1,14 +1,49 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tools import project_memory_check
+from tools.current_truth import render_current_truth
 from tools.project_memory_check import (
     REQUIRED_FILES,
     has_failures,
     run_project_memory_check,
     summarize_results,
 )
+
+
+def valid_current_truth() -> dict:
+    return {
+        "schema_version": 1,
+        "project_id": "fitness_ai",
+        "canonical_repository": "drplatforms/health-fitness-platform",
+        "canonical_branch": "main",
+        "current_initiative": {
+            "id": "anti-drift-and-hallucination-workflow",
+            "name": "Anti-Drift and Hallucination Workflow Initiative",
+            "status": "ACTIVE",
+        },
+        "active_milestone": {
+            "id": "fixture-milestone",
+            "name": "Fixture Milestone",
+            "status": "IMPLEMENTATION_AUTHORIZED",
+        },
+        "implementation_authorization": {
+            "status": "AUTHORIZED",
+            "authority": "Architecture handoff",
+            "scope": "Docs and tooling only",
+        },
+        "immediate_next_priority": {
+            "id": "review-fixture-milestone",
+            "name": "Review fixture milestone",
+            "status": "ACTIVE",
+        },
+        "active_correction_ids": ["CTK-AUTHORITY-DUPLICATION"],
+        "strategic_source_paths": [
+            "docs/project_memory/product_roadmap.md",
+        ],
+    }
 
 
 def write_required_project_memory(root: Path) -> None:
@@ -302,6 +337,7 @@ def write_required_project_memory(root: Path) -> None:
         elif relative_path == "docs/project_memory/project_state.json":
             text = (
                 "{\n"
+                '  "authority": {"status": "historical_ledger_not_operational_authority", "operational_truth_source": "docs/project_memory/current_truth.json"},\n'
                 '  "project": {"name": "AI Health Coach", "repo": "fitness_ai"},\n'
                 '  "current_baseline": {\n'
                 '    "latest_accepted_milestone": "Daily Coach Async Provider Runtime Design v1",\n'
@@ -326,6 +362,26 @@ def write_required_project_memory(root: Path) -> None:
                 '    "not_authorized": ["normal Today provider call", "public async narrative display"]\n'
                 "  }\n"
                 "}\n"
+            )
+
+        elif relative_path == "docs/project_memory/current_truth.json":
+            text = json.dumps(valid_current_truth(), indent=2) + "\n"
+
+        elif relative_path == "docs/project_memory/current_truth.md":
+            text = render_current_truth(valid_current_truth())
+
+        elif relative_path == "docs/project_memory/product_roadmap.md":
+            text = (
+                "# Product Roadmap\n\n"
+                "> Protected strategic roadmap. This file is not active implementation authority. "
+                "Current operational truth is owned by docs/project_memory/current_truth.json.\n"
+            )
+
+        elif relative_path == "docs/project_memory/next_milestone.md":
+            text = (
+                "# Historical and Planning Ledger\n\n"
+                "> This file is not active-milestone or implementation authority. "
+                "Current operational truth is owned by docs/project_memory/current_truth.json.\n"
             )
 
         elif relative_path == "docs/project_memory/project_continuity_bootstrap.md":
@@ -626,6 +682,8 @@ def write_required_project_memory(root: Path) -> None:
 
         elif relative_path == "docs/project_memory/current_state.md":
             text = (
+                "# Historical Milestone Chronology\n\n"
+                "> This file is not operational authority. Current operational truth is owned by docs/project_memory/current_truth.json.\n\n"
                 "Project Memory Alignment + North Star Architecture v1\n"
                 "feature/daily-coach-narrative-same-session-approved-preview-bridge-v1\n"
                 "reference-only\n"
@@ -694,11 +752,13 @@ def test_project_memory_check_fails_if_claude_file_exists(tmp_path: Path) -> Non
     )
 
 
-def test_project_memory_check_warns_on_stale_current_state_marker(
+def test_historical_current_state_content_is_not_treated_as_operational_truth(
     tmp_path: Path,
 ) -> None:
     write_required_project_memory(tmp_path)
     (tmp_path / "docs/project_memory/current_state.md").write_text(
+        "# Historical Milestone Chronology\n\n"
+        "> This file is not operational authority. Current operational truth is owned by docs/project_memory/current_truth.json.\n\n"
         "Latest accepted milestone\n\n"
         "`Daily Coach Narrative Developer Preview v1`\n",
         encoding="utf-8",
@@ -706,9 +766,8 @@ def test_project_memory_check_warns_on_stale_current_state_marker(
 
     results = run_project_memory_check(tmp_path)
 
-    assert any(
-        result.status == "WARN"
-        and result.path == "docs/project_memory/current_state.md"
+    assert not any(
+        result.path == "docs/project_memory/current_state.md"
         and "Possible stale milestone wording" in result.message
         for result in results
     )
@@ -730,11 +789,13 @@ def test_project_memory_check_requires_future_architecture_ledger(
     )
 
 
-def test_project_memory_check_fails_on_forbidden_provider_claim(
+def test_historical_provider_claim_is_not_treated_as_current_authority(
     tmp_path: Path,
 ) -> None:
     write_required_project_memory(tmp_path)
     (tmp_path / "docs/project_memory/current_state.md").write_text(
+        "# Historical Milestone Chronology\n\n"
+        "> This file is not operational authority. Current operational truth is owned by docs/project_memory/current_truth.json.\n\n"
         "Project Memory Alignment + North Star Architecture v1\n"
         "feature/daily-coach-narrative-same-session-approved-preview-bridge-v1\n"
         "reference-only\n"
@@ -745,10 +806,8 @@ def test_project_memory_check_fails_on_forbidden_provider_claim(
 
     results = run_project_memory_check(tmp_path)
 
-    assert has_failures(results)
-    assert any(
-        result.status == "FAIL"
-        and result.path == "docs/project_memory/current_state.md"
+    assert not any(
+        result.path == "docs/project_memory/current_state.md"
         and "Forbidden current-state claim" in result.message
         for result in results
     )
@@ -1065,8 +1124,7 @@ def test_daily_coach_async_approved_preview_bridge_qa_memory_is_required() -> No
         "daily_coach_async_approved_preview_bridge_qa_v1.md"
     )
     review_path = (
-        "docs/project_memory/reviews/"
-        "daily_coach_async_approved_preview_bridge_qa_v1.md"
+        "docs/project_memory/reviews/daily_coach_async_approved_preview_bridge_qa_v1.md"
     )
 
     assert milestone_path in project_memory_check.REQUIRED_FILES
@@ -1219,4 +1277,67 @@ def test_weekly_coach_summary_latency_investigation_memory_is_required() -> None
     assert (
         "Streamlit fragment reruns"
         in project_memory_check.REQUIRED_PHRASES[milestone_path]
+    )
+
+
+def test_stale_current_handoff_name_fails_closed(tmp_path: Path) -> None:
+    write_required_project_memory(tmp_path)
+    path = tmp_path / "docs/project_memory/handoffs/architecture_handoff_current.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("stale current handoff\n", encoding="utf-8")
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "FAIL"
+        and result.path.endswith("architecture_handoff_current.md")
+        and "*_handoff_current.md" in result.message
+        for result in results
+    )
+
+
+def test_current_facing_control_character_fails_closed(tmp_path: Path) -> None:
+    write_required_project_memory(tmp_path)
+    path = tmp_path / "docs/project_memory/current_workflow_contract.md"
+    path.write_text("workflow\x01contract\n", encoding="utf-8")
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "FAIL"
+        and result.path == "docs/project_memory/current_workflow_contract.md"
+        and "control character" in result.message
+        for result in results
+    )
+
+
+def test_current_facing_malformed_encoding_fails_closed(tmp_path: Path) -> None:
+    write_required_project_memory(tmp_path)
+    path = tmp_path / "docs/project_memory/current_workflow_contract.md"
+    path.write_text("malformed â€” marker\n", encoding="utf-8")
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "FAIL"
+        and result.path == "docs/project_memory/current_workflow_contract.md"
+        and "malformed-encoding" in result.message
+        for result in results
+    )
+
+
+def test_current_facing_malformed_arrow_encoding_fails_closed(
+    tmp_path: Path,
+) -> None:
+    write_required_project_memory(tmp_path)
+    path = tmp_path / "docs/project_memory/current_workflow_contract.md"
+    path.write_text("malformed â†’ marker\n", encoding="utf-8")
+
+    results = run_project_memory_check(tmp_path)
+
+    assert any(
+        result.status == "FAIL"
+        and result.path == "docs/project_memory/current_workflow_contract.md"
+        and "malformed-encoding" in result.message
+        for result in results
     )

@@ -7,6 +7,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+try:
+    from tools.current_truth import current_truth_errors
+except ModuleNotFoundError:  # Script execution from tools/.
+    from current_truth import current_truth_errors
+
 
 @dataclass(frozen=True)
 class MemoryCheckResult:
@@ -15,10 +20,66 @@ class MemoryCheckResult:
     message: str
 
 
+CURRENT_TRUTH_SOURCE = "docs/project_memory/current_truth.json"
+CURRENT_FACING_TEXT_FILES = (
+    "AGENTS.md",
+    "docs/project_memory/README.md",
+    "docs/project_memory/current_truth.json",
+    "docs/project_memory/current_truth.md",
+    "docs/project_memory/product_roadmap.md",
+    "docs/project_memory/current_workflow_contract.md",
+    "docs/project_memory/developer_delivery_workflow_contract.md",
+    "docs/project_memory/architecture_chat_bootstrap_template.md",
+    "docs/project_memory/architecture_milestone_closeout_command_template.md",
+    "docs/project_memory/projectmem_workflow_contract.md",
+    "docs/project_memory/handoffs/codex_handoff_rules.md",
+)
+DEMOTED_LEDGER_HEADERS = {
+    "docs/project_memory/current_state.md": (
+        "Historical Milestone Chronology",
+        "not operational authority",
+        CURRENT_TRUTH_SOURCE,
+    ),
+    "docs/project_memory/next_milestone.md": (
+        "Historical and Planning Ledger",
+        "not active-milestone or implementation authority",
+        CURRENT_TRUTH_SOURCE,
+    ),
+    "docs/project_memory/product_roadmap.md": (
+        "Protected strategic roadmap",
+        "not active implementation authority",
+        CURRENT_TRUTH_SOURCE,
+    ),
+}
+DEPRECATED_OPERATIONAL_CONSUMER_MARKERS = {
+    "tools/dev_assistant.py": (
+        'get("active_roadmap"',
+        'get("current_baseline"',
+    ),
+    "docs/project_memory/architecture_milestone_closeout_command_template.md": (
+        "$ProjectState.active_roadmap",
+        "update project_state.json",
+    ),
+}
+MALFORMED_ENCODING_MARKERS = (
+    "\ufffd",
+    "Ã",
+    "Â",
+    "â€",
+    "â†",
+    "â‰",
+    "ðŸ",
+)
+
+
 REQUIRED_FILES = [
     "AGENTS.md",
     ".github/copilot-instructions.md",
     "docs/project_memory/current_state.md",
+    "docs/project_memory/current_truth.json",
+    "docs/project_memory/current_truth.md",
+    "docs/project_memory/product_roadmap.md",
+    "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "docs/project_memory/project_continuity_bootstrap.md",
     "docs/project_memory/project_state.json",
     "docs/project_memory/role_bootstrap_architecture.md",
@@ -42,6 +103,7 @@ REQUIRED_FILES = [
     "docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md",
     "scripts/install_fitness_commands_profile.ps1",
     "scripts/fitness_commands.ps1",
+    "tools/current_truth.py",
     "docs/project_memory/reviews/local_developer_command_menu_v1.md",
     "docs/project_memory/milestones/local_developer_command_menu_v1.md",
     "docs/project_memory/local_developer_command_menu.md",
@@ -98,9 +160,6 @@ REQUIRED_FILES = [
     "tools/dev_weekly_coach_summary_latency_probe.py",
     "docs/project_memory/milestones/weekly_coach_summary_persistence_latency_investigation_v1.md",
     "docs/project_memory/reviews/weekly_coach_summary_persistence_latency_investigation_v1.md",
-    "docs/project_memory/handoffs/architecture_handoff_current.md",
-    "docs/project_memory/handoffs/backend_handoff_current.md",
-    "docs/project_memory/handoffs/qa_handoff_current.md",
     "docs/project_memory/open_questions.md",
     "docs/project_memory/milestones/provider_narrative_qa_matrix_v2.md",
     "docs/project_memory/reviews/provider_narrative_qa_matrix_v2.md",
@@ -124,33 +183,9 @@ REQUIRED_FILES = [
     "docs/project_memory/agent_workflow.md",
 ]
 
-STALE_MARKERS = {
-    "docs/project_memory/current_state.md": [
-        "Latest accepted milestone\n\n`Daily Coach Narrative Developer Preview v1`",
-        "Current implementation milestone\n\n`Daily Coach Narrative Async Today Preview Design v1`",
-        "`Exercise Catalog Import Batch v1` is accepted.\n\nFinal accepted status",
-        "feature/daily-coach-narrative-limited-today-ui-readiness-v1",
-        "Daily Coach Async Persistence Service Shell v1",
-        "DAILY_COACH_ASYNC_PERSISTENCE_SERVICE_SHELL_V1_ACCEPTED",
-        "Developer Mode Persistence Inspection v1",
-        "feature/developer-mode-persistence-inspection-v1",
-        "Developer Mode-only read-only inspection",
-        "raw provider output display",
-        "rejected provider output display",
-        "full prompt/raw context/scratchpad display",
-    ],
-}
+STALE_MARKERS: dict[str, list[str]] = {}
 
 FORBIDDEN_CURRENT_CLAIMS = {
-    "docs/project_memory/current_state.md": [
-        "DAILY_COACH_NARRATIVE_SAME_SESSION_APPROVED_PREVIEW_BRIDGE_V1_ACCEPTED",
-        "qwen3:32b is promoted",
-        "qwen3:32b is production",
-        "Daily Coach provider narrative persistence is approved",
-        "Daily Coach async persistence implementation is approved",
-        "raw provider output persistence is approved",
-        "rejected provider output persistence is approved",
-    ],
     "docs/project_memory/ai_boundaries.md": [
         "qwen3:32b is promoted",
         "same-session approved display is accepted",
@@ -165,25 +200,8 @@ FORBIDDEN_CURRENT_CLAIMS = {
 
 REQUIRED_PHRASES = {
     "docs/project_memory/project_state.json": [
-        "Health & Fitness Platform",
-        "health-fitness-platform",
-        "c8349e0",
-        "Public Project Rebrand and README Refresh v1",
-        "Project Memory + Developer Workflow Canonicalization v1",
-        "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
-        "C:\\\\projects\\\\fitness_ai",
-        "http://127.0.0.1:3100",
-        "~/projects/fitness-ai-platform",
-        "C:\\\\projects\\\\fitness_ai_external\\\\snapshots",
-        "Streamlit is legacy/developer-only",
-        "AI-written daily coaching prose is paused indefinitely",
-        "Provider/AI output is non-authoritative",
-        "Use medium phases",
-        "Linux sync is task-specific",
-        '"platform_repo": "health-fitness-platform"',
-        '"requested_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED"',
-        '"active_backend_status": "NO_APPLICATION_BACKEND_MILESTONE_AUTHORIZED"',
-        "fresh Architecture chat",
+        '"status": "historical_ledger_not_operational_authority"',
+        '"operational_truth_source": "docs/project_memory/current_truth.json"',
     ],
     "docs/project_memory/role_bootstrap_architecture.md": [
         "Health & Fitness Platform",
@@ -240,12 +258,9 @@ REQUIRED_PHRASES = {
         "AI-written daily prose is paused indefinitely",
     ],
     "docs/project_memory/next_milestone.md": [
-        "Roadmap Review and Fresh Architecture Selection",
-        "Complete the canonicalization cleanup and validation",
-        "user provide the rough current product roadmap",
-        "fresh Architecture chat",
-        "select the next narrow product milestone",
-        "No next product milestone is authorized by this file",
+        "Historical and Planning Ledger",
+        "not active-milestone or implementation authority",
+        "docs/project_memory/current_truth.json",
     ],
     "docs/project_memory/milestones/daily_coach_async_persistence_service_shell_v1.md": [
         "Daily Coach Async Persistence Service Shell v1",
@@ -418,16 +433,6 @@ REQUIRED_PHRASES = {
         "Architecture reviews the actual diff",
         "C:\\projects\\fitness_ai_external\\snapshots",
         "Linux sync is optional",
-    ],
-    "docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md": [
-        "Project Memory + Developer Workflow Canonicalization v1",
-        "c8349e0",
-        "Canonical source hierarchy",
-        "Authority boundaries",
-        "scripts/fitness_commands.ps1",
-        "ReplaceProfileWithThinLoader",
-        "C:\\projects\\fitness_ai_external\\snapshots",
-        "real `fitness_ai.db`",
     ],
     "docs/project_memory/milestones/developer_delivery_workflow_contract_v1.md": [
         "Developer Delivery Workflow Contract v1",
@@ -844,21 +849,9 @@ REQUIRED_PHRASES = {
         "Existing non-managed profile content was preserved",
     ],
     "docs/project_memory/current_state.md": [
-        "Project Memory + Developer Workflow Canonicalization v1",
-        "c8349e0 Merge public project rebrand and README refresh v1",
-        "PROJECT_MEMORY_DEVELOPER_WORKFLOW_CANONICALIZATION_V1_IN_PROGRESS",
-        "Health & Fitness Platform",
-        "health-fitness-platform",
-        "C:\\projects\\fitness_ai",
-        "FastAPI on port `8000`",
-        "production Next.js frontend on port `3100`",
-        "http://127.0.0.1:3100",
-        "Linux at `~/projects/fitness-ai-platform` is secondary",
-        "Streamlit is legacy/developer-only",
-        "Provider/AI output is non-authoritative",
-        "AI-written daily prose is paused indefinitely",
-        "scripts/fitness_commands.ps1",
-        "Architecture must review the actual diff",
+        "Historical Milestone Chronology",
+        "not operational authority",
+        "docs/project_memory/current_truth.json",
     ],
     "docs/project_memory/ai_boundaries.md": [
         "Deterministic fallback remains the default",
@@ -873,6 +866,14 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
         return path.read_text(encoding="utf-8", errors="replace")
+
+
+def _contains_disallowed_control_character(text: str) -> bool:
+    return any(
+        (ord(character) < 32 and character not in "\t\n\r")
+        or 127 <= ord(character) <= 159
+        for character in text
+    )
 
 
 def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheckResult]:
@@ -891,6 +892,21 @@ def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheck
                 MemoryCheckResult("FAIL", relative_path, "Required file is missing.")
             )
 
+    truth_errors = current_truth_errors(root)
+    if truth_errors:
+        results.extend(
+            MemoryCheckResult("FAIL", CURRENT_TRUTH_SOURCE, error)
+            for error in truth_errors
+        )
+    else:
+        results.append(
+            MemoryCheckResult(
+                "PASS",
+                CURRENT_TRUTH_SOURCE,
+                "Current-truth kernel and generated view are valid and synchronized.",
+            )
+        )
+
     project_state_path = root / "docs/project_memory/project_state.json"
     if project_state_path.exists():
         try:
@@ -903,6 +919,21 @@ def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheck
                         "Machine-readable project state JSON is valid.",
                     )
                 )
+                authority = state.get("authority")
+                if (
+                    not isinstance(authority, dict)
+                    or authority.get("status")
+                    != "historical_ledger_not_operational_authority"
+                    or authority.get("operational_truth_source") != CURRENT_TRUTH_SOURCE
+                ):
+                    results.append(
+                        MemoryCheckResult(
+                            "FAIL",
+                            "docs/project_memory/project_state.json",
+                            "Historical project-state ledger lacks the required authority "
+                            "marker and current-truth pointer.",
+                        )
+                    )
             else:
                 results.append(
                     MemoryCheckResult(
@@ -917,6 +948,88 @@ def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheck
                     "FAIL",
                     "docs/project_memory/project_state.json",
                     f"Project state JSON is invalid: {exc}",
+                )
+            )
+
+    handoff_root = root / "docs/project_memory/handoffs"
+    if handoff_root.is_dir():
+        stale_handoffs = sorted(handoff_root.rglob("*_handoff_current.md"))
+        if stale_handoffs:
+            for path in stale_handoffs:
+                results.append(
+                    MemoryCheckResult(
+                        "FAIL",
+                        path.relative_to(root).as_posix(),
+                        "Persistent *_handoff_current.md files are forbidden; preserve "
+                        "them under a clearly historical name instead.",
+                    )
+                )
+        else:
+            results.append(
+                MemoryCheckResult(
+                    "PASS",
+                    "docs/project_memory/handoffs",
+                    "No persistent *_handoff_current.md files remain.",
+                )
+            )
+
+    for (
+        relative_path,
+        forbidden_markers,
+    ) in DEPRECATED_OPERATIONAL_CONSUMER_MARKERS.items():
+        path = root / relative_path
+        if not path.is_file():
+            continue
+        text = _read_text(path)
+        for marker in forbidden_markers:
+            if marker in text:
+                results.append(
+                    MemoryCheckResult(
+                        "FAIL",
+                        relative_path,
+                        "Active consumer still derives operational truth from deprecated "
+                        f"project_state.json fields: {marker}",
+                    )
+                )
+
+    for relative_path, required_markers in DEMOTED_LEDGER_HEADERS.items():
+        path = root / relative_path
+        if not path.is_file():
+            continue
+        header = "\n".join(_read_text(path).splitlines()[:12])
+        missing = [marker for marker in required_markers if marker not in header]
+        if missing:
+            results.append(
+                MemoryCheckResult(
+                    "FAIL",
+                    relative_path,
+                    "Demoted ledger header does not declare its non-authoritative role: "
+                    + ", ".join(missing),
+                )
+            )
+
+    for relative_path in CURRENT_FACING_TEXT_FILES:
+        path = root / relative_path
+        if not path.is_file():
+            continue
+        text = _read_text(path)
+        if _contains_disallowed_control_character(text):
+            results.append(
+                MemoryCheckResult(
+                    "FAIL",
+                    relative_path,
+                    "Disallowed control character found in a current-facing file.",
+                )
+            )
+        marker = next(
+            (value for value in MALFORMED_ENCODING_MARKERS if value in text), None
+        )
+        if marker:
+            results.append(
+                MemoryCheckResult(
+                    "FAIL",
+                    relative_path,
+                    f"Targeted malformed-encoding marker found: {marker}",
                 )
             )
 

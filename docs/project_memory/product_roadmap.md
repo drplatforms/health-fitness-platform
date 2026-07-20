@@ -1,5 +1,7 @@
 # Health & Fitness Platform — Product Vision and Strategic Roadmap
 
+> Protected strategic roadmap. This file preserves product direction and is not active implementation authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
+
 ## Purpose
 
 This document preserves the durable product direction for `fitness_ai`.

@@ -2,7 +2,7 @@
 
 Every Codex handoff must identify the Health & Fitness Platform repository, exact expected branch/base, authoritative working-tree assumptions, authorized scope/non-goals, database/runtime/browser boundaries, required validation, allowed Git endpoint, and expected final evidence.
 
-Codex resolves context using this hierarchy: explicit user authority; approved Architecture handoff reconciled with repo truth; `AGENTS.md`; project-memory `README.md`; `current_state.md`; `current_workflow_contract.md`; strategic architecture; active milestone/contracts; historical evidence; then validated code/runtime evidence for stale documentation.
+Codex resolves context using this hierarchy: explicit user authority; approved Architecture handoff reconciled with repo truth; `AGENTS.md`; project-memory `README.md`; `current_truth.json`; `current_workflow_contract.md`; strategic architecture and `product_roadmap.md`; active milestone/contracts; historical chronology and evidence; then validated code/runtime evidence for stale documentation.
 
 Codex may implement, test, update memory, and report within the bounded milestone. It may not expand scope, set product direction, self-accept, or stage/commit/push/merge/snapshot without explicit authority. It must preserve all pre-existing work and stop on material branch/base/scope conflicts, validation failure, database risk, or missing consequential authority.
 

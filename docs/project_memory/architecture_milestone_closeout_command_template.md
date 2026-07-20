@@ -4,6 +4,10 @@ This is the canonical executable closeout ceremony for `fitness_ai` Architecture
 
 The bootstrap document defines authority. This document defines the exact operational sequence.
 
+Reuse this approved known-good template for routine closeout. Any deviation must state the technical reason before the alternate commands are supplied.
+
+Consequential PowerShell phases that depend on `throw`, `$LASTEXITCODE`, or other stop-on-failure guards must be issued as one executable script block, normally `& { ... }`. Do not assume a sequence of independently pasted top-level statements will stop executing after an earlier statement throws.
+
 ## 1. Mandatory Projectmem-first Codex orientation
 
 When Projectmem MCP is available, every new Codex milestone must begin with:
@@ -11,9 +15,8 @@ When Projectmem MCP is available, every new Codex milestone must begin with:
 1. `get_instructions`
 2. `get_summary`
 3. `get_project_map`
-4. focused `get_context` for the active milestone
 
-Only then should Codex read the active handoff and the minimum directly relevant canonical project-memory, implementation, and test files.
+Use focused `get_context` only when a specific unresolved question justifies it. Then Codex should read the active handoff and the minimum directly relevant canonical project-memory, implementation, and test files.
 
 Do not manually reread the broad `docs/project_memory` corpus by default.
 
@@ -46,8 +49,8 @@ Codex completion
 → trivial cleanup / status reconciliation
 → FEATURE-BRANCH USER PRODUCTION SMOKE
 → Architecture acceptance
-→ RECORD ACCEPTANCE STATE
-  current_state.md + project_state.json
+→ RECORD ACCEPTANCE HISTORY AND CURRENT TRUTH
+  current_state.md + current_truth.json + generated current_truth.md
 → validate project memory + diff-check
 → stage EXACT accepted files
 → verify staged set
@@ -131,42 +134,46 @@ cd C:\projects\fitness_ai
 
 $StatePath = "C:\projects\fitness_ai\docs\project_memory\current_state.md"
 $ExistingState = Get-Content -LiteralPath $StatePath -Raw
+$HeaderPattern = '(?s)\A# Historical Milestone Chronology\r?\n\r?\n> This file preserves historical milestone chronology\. It is not operational authority\. Current operational truth is owned by `docs/project_memory/current_truth\.json`\.\r?\n\r?\n'
+$HeaderMatch = [regex]::Match($ExistingState, $HeaderPattern)
 
-$StateLines = @(
-    "# Current State - {{MILESTONE_NAME}}",
-    "",
-    "Canonical implementation baseline: main at {{BASELINE_COMMIT}}.",
-    "",
-    "Feature branch: {{FEATURE_BRANCH}}.",
-    "",
-    "Status: {{ACCEPTANCE_TOKEN}}",
-    "",
-    "Implementation scope:",
-    "",
-    "- {{ACCEPTED_BEHAVIOR_1}}",
-    "- {{ACCEPTED_BEHAVIOR_2}}",
-    "- {{ACCEPTED_BEHAVIOR_3}}",
-    "- {{ACCEPTED_BEHAVIOR_4}}",
-    "- {{ACCEPTED_BEHAVIOR_5}}",
-    "- Required feature-branch validation and acceptance smoke passed.",
-    "- No unauthorized scope expansion was introduced.",
-    "",
-    "Roadmap status:",
-    "",
-    "{{MILESTONE_NAME}} is accepted.",
-    "The next recommended milestone is {{NEXT_MILESTONE}}.",
-    "The next milestone remains pending Architecture scoping and is not yet implementation-authorized.",
-    "",
-    "---",
-    ""
-)
+if (-not $HeaderMatch.Success) {
+    throw "current_state.md is missing its historical-ledger authority header."
+}
 
-$NewSection = ($StateLines -join [Environment]::NewLine)
+$NewSection = @'
+# Accepted Milestone - {{MILESTONE_NAME}}
+
+Canonical implementation baseline: main at {{BASELINE_COMMIT}}.
+
+Feature branch: {{FEATURE_BRANCH}}.
+
+Status: {{ACCEPTANCE_TOKEN}}
+
+Implementation scope:
+
+- {{ACCEPTED_BEHAVIOR_1}}
+- {{ACCEPTED_BEHAVIOR_2}}
+- {{ACCEPTED_BEHAVIOR_3}}
+- {{ACCEPTED_BEHAVIOR_4}}
+- {{ACCEPTED_BEHAVIOR_5}}
+- Required feature-branch validation and acceptance smoke passed.
+- No unauthorized scope expansion was introduced.
+
+Roadmap status:
+
+{{MILESTONE_NAME}} is accepted.
+The next recommended milestone is {{NEXT_MILESTONE}}.
+The next milestone remains pending Architecture scoping and is not yet implementation-authorized.
+
+---
+
+'@
 
 if ($ExistingState -notmatch [regex]::Escape("{{ACCEPTANCE_TOKEN}}")) {
     [System.IO.File]::WriteAllText(
         $StatePath,
-        $NewSection + $ExistingState,
+        $ExistingState.Insert($HeaderMatch.Length, $NewSection),
         [System.Text.UTF8Encoding]::new($false)
     )
 }
@@ -174,62 +181,39 @@ if ($ExistingState -notmatch [regex]::Escape("{{ACCEPTANCE_TOKEN}}")) {
 
 Architecture must replace all placeholders before giving this to the user.
 
-## 9. Phase E — update project_state.json
+## 9. Phase E — update current_truth.json and regenerate its view
 
-Use an absolute path. Never record a future merge hash before the merge exists.
+The accepted milestone stays in the historical chronology. Unless Architecture has separately authorized a next implementation milestone, the kernel must fail closed to no active implementation authorization. Never store a Git hash, working branch, or clean/dirty state in the kernel; live Git owns those facts.
 
 ```powershell
 cd C:\projects\fitness_ai
 
-$ProjectStatePath = "C:\projects\fitness_ai\docs\project_memory\project_state.json"
-$ProjectState = Get-Content -LiteralPath $ProjectStatePath -Raw | ConvertFrom-Json
+$TruthPath = "C:\projects\fitness_ai\docs\project_memory\current_truth.json"
+$Truth = Get-Content -LiteralPath $TruthPath -Raw | ConvertFrom-Json
 
-$MilestoneState = [pscustomobject]@{
-    baseline_commit = "{{BASELINE_COMMIT}}"
-    feature_branch = "{{FEATURE_BRANCH}}"
-    status = "{{ACCEPTANCE_TOKEN}}"
-    scope = "{{ONE_SENTENCE_ACCEPTED_SCOPE}}"
+$Truth.active_milestone.id = "none"
+$Truth.active_milestone.name = "No active implementation milestone"
+$Truth.active_milestone.status = "NO_IMPLEMENTATION_AUTHORIZED"
+$Truth.implementation_authorization.status = "NOT_AUTHORIZED"
+$Truth.implementation_authorization.authority = "Architecture"
+$Truth.implementation_authorization.scope = "No implementation beyond the accepted milestone is authorized."
+$Truth.immediate_next_priority.id = "{{NEXT_PRIORITY_ID}}"
+$Truth.immediate_next_priority.name = "{{NEXT_MILESTONE}}"
+$Truth.immediate_next_priority.status = "PENDING_ARCHITECTURE_SCOPING"
 
-    ui_change = {{TRUE_OR_FALSE}}
-    backend_change = {{TRUE_OR_FALSE}}
-    api_change = {{TRUE_OR_FALSE}}
-    database_change = {{TRUE_OR_FALSE}}
-    schema_change = {{TRUE_OR_FALSE}}
-    dependency_change = {{TRUE_OR_FALSE}}
-
-    feature_branch_smoke_passed = {{TRUE_OR_FALSE}}
-    mobile_behavior_validated = {{TRUE_OR_FALSE}}
-    desktop_behavior_validated = {{TRUE_OR_FALSE}}
-
-    next_recommended_milestone = "{{NEXT_MILESTONE}}"
-    next_milestone_implementation_authorized = $false
-}
-
-$ProjectState | Add-Member `
-    -NotePropertyName "{{PROJECT_STATE_PROPERTY_NAME}}" `
-    -NotePropertyValue $MilestoneState `
-    -Force
-
-$ProjectState.active_roadmap.current_authorized_milestone = "{{MILESTONE_NAME}}"
-$ProjectState.active_roadmap.implementation_status = "{{ACCEPTANCE_TOKEN}}"
-$ProjectState.active_roadmap.source_feature_branch = "{{FEATURE_BRANCH}}"
-$ProjectState.active_roadmap.source_feature_commit = "uncommitted accepted implementation"
-$ProjectState.active_roadmap.source_main_commit = "{{BASELINE_COMMIT}}"
-$ProjectState.active_roadmap.current_recommended_milestone = "{{NEXT_MILESTONE}}"
-$ProjectState.active_roadmap.current_recommended_status = "NOT_IMPLEMENTATION_AUTHORIZED"
-$ProjectState.active_roadmap.recommended_next_milestone_after_acceptance = "{{NEXT_MILESTONE}}"
-$ProjectState.active_roadmap.recommended_owner = "Architecture"
-
-$Json = $ProjectState | ConvertTo-Json -Depth 100
+$Json = $Truth | ConvertTo-Json -Depth 20
 
 [System.IO.File]::WriteAllText(
-    $ProjectStatePath,
+    $TruthPath,
     $Json + [Environment]::NewLine,
     [System.Text.UTF8Encoding]::new($false)
 )
+
+.\.venv\Scripts\python.exe tools\current_truth.py write --project-root .
+.\.venv\Scripts\python.exe tools\current_truth.py check --project-root .
 ```
 
-Use milestone-specific semantic fields where useful. Do not blindly copy irrelevant booleans.
+If Architecture has explicitly authorized the next milestone, replace the fail-closed values above with that exact authorization instead. Do not infer authorization from the roadmap or a planning ledger.
 
 ## 10. Phase F — validate acceptance state
 
@@ -262,12 +246,32 @@ cd C:\projects\fitness_ai
 git branch --show-current
 git status --short --untracked-files=all
 
-git add `
-  {{FILE_1}} `
-  {{FILE_2}} `
-  {{FILE_3}} `
-  docs/project_memory/current_state.md `
-  docs/project_memory/project_state.json
+$AddPaths = @(
+    "{{FILE_1}}"
+    "{{FILE_2}}"
+    "{{FILE_3}}"
+    "docs/project_memory/current_state.md"
+    "docs/project_memory/current_truth.json"
+    "docs/project_memory/current_truth.md"
+)
+
+$TrackedDeletionPaths = @(
+    # Add exact tracked deleted or moved source paths here when applicable.
+)
+
+git add -- $AddPaths
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Exact-file staging failed."
+}
+
+if ($TrackedDeletionPaths.Count -gt 0) {
+    git add -u -- $TrackedDeletionPaths
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "Tracked deletion or move-source staging failed."
+    }
+}
 
 git status --short --untracked-files=all
 git diff --cached --name-status
@@ -276,12 +280,20 @@ git diff --cached --check
 
 Confirm only the accepted milestone files are staged before committing.
 
+For moves or renames whose old tracked source lives beneath an ignored path, put the destination in `$AddPaths` and the old tracked source in `$TrackedDeletionPaths`. Do not use `-f` merely to stage a tracked deletion.
+
+Verify rename mappings with `git diff --cached --name-status -M`. For a detected rename, `git diff --cached --name-only` normally reports the destination path rather than both source and destination, so do not compare that output against a list containing both sides of the rename.
+
 ## 12. Phase H — feature commit
 
 ```powershell
 cd C:\projects\fitness_ai
 
 git commit -m "{{FEATURE_COMMIT_MESSAGE}}"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Feature commit failed."
+}
 
 git status --short
 git log --oneline -3
@@ -294,12 +306,29 @@ cd C:\projects\fitness_ai
 
 git push -u origin {{FEATURE_BRANCH}}
 
+if ($LASTEXITCODE -ne 0) {
+    throw "Feature push failed."
+}
+
 git checkout main
-git pull origin main
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Checkout of main failed."
+}
+
+git pull --ff-only origin main
+
+if ($LASTEXITCODE -ne 0) {
+    throw "Fast-forward pull of origin/main failed."
+}
 
 git merge --no-ff `
   {{FEATURE_BRANCH}} `
   -m "{{MERGE_MESSAGE}}"
+
+if ($LASTEXITCODE -ne 0) {
+    throw "No-ff merge failed."
+}
 
 $FeatureCommit = git rev-parse {{FEATURE_BRANCH}}
 
@@ -398,6 +427,10 @@ git log --oneline -8
 
 git push origin main
 
+if ($LASTEXITCODE -ne 0) {
+    throw "Final main push failed."
+}
+
 $commit = git rev-parse --short HEAD
 $date = Get-Date -Format "yyyy-MM-dd"
 $slug = "{{SNAPSHOT_SLUG}}"
@@ -408,6 +441,10 @@ git archive `
   --format zip `
   --output $zip `
   HEAD
+
+if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $zip)) {
+    throw "Snapshot creation failed."
+}
 
 Write-Host ""
 Write-Host "Snapshot created:"

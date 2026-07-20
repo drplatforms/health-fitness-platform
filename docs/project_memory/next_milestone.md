@@ -1,3 +1,7 @@
+# Historical and Planning Ledger
+
+> This file preserves historical and planning entries. It is not active-milestone or implementation authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
+
 # Next Milestone — Exercise Catalog Expansion Program v2
 
 Visualization v2 is Architecture accepted.
