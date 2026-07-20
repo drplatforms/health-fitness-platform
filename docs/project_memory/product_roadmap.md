@@ -1,205 +1,72 @@
-# Health & Fitness Platform — Product Vision and Strategic Roadmap
+# Health & Fitness Platform — Strategic Product Roadmap
 
 > Protected strategic roadmap. This file preserves product direction and is not active implementation authority. Current operational truth is owned by `docs/project_memory/current_truth.json`.
 
-## Purpose
+## Purpose and Authority
 
-This document preserves the durable product direction for `fitness_ai`.
+This is the comprehensive protected strategic capability inventory for `fitness_ai`. It records what the product may grow toward and why.
 
-It is the canonical strategic roadmap, not a commit log, milestone-closeout ledger, or implementation authorization document. `current_state.md` records where the repository is now; this file records where the product is headed and why.
+It is not a commit log, an accepted-state snapshot, a milestone queue, or implementation authorization. Operational truth, including any active milestone or immediate priority, is owned exclusively by `docs/project_memory/current_truth.json`.
 
-The roadmap is directional. Architecture may reorder bounded milestones when real daily use reveals higher-value friction, but changes should preserve the product north star, trust model, and sequencing principles below.
+The stable destination and doctrine live in `docs/project_memory/product_north_star.md`. This roadmap applies that direction to capability clusters and long-term sequencing.
 
-## Product North Star
+## Strategic Disposition Vocabulary
 
-Build a personal health intelligence system that combines excellent nutrition tracking, workout execution and programming, recovery awareness, longitudinal analysis, and moment-of-need coaching in one coherent product.
+- `COMPLETED` — the intended strategic capability is accepted in full for its defined scope; later refinement is a new scope.
+- `FOUNDATION EXISTS` — meaningful accepted capability exists, but the broader strategic destination remains open.
+- `ACTIVE` — Architecture has explicitly designated the initiative as active in operational truth; this label alone never authorizes work.
+- `PLANNED` — retained as a future capability for Architecture to scope when justified.
+- `DEFERRED` — intentionally postponed until prerequisites, evidence, or product value justify reconsideration.
+- `SUPERSEDED` — replaced by another direction with explicit decision evidence.
+- `REJECTED` — intentionally excluded with explicit decision evidence.
 
-The defining differentiator is not generic personalization. The system should become more valuable with continued use because it develops an increasingly accurate, evidence-backed model of the individual user:
+Roadmap disposition is strategic, not operational. `SUPERSEDED` and `REJECTED` require cited decision evidence. A partial implementation is `FOUNDATION EXISTS`, not `COMPLETED`.
 
-- what they actually do;
-- what they consistently avoid;
-- which exercises and routines work well for them;
-- how they respond to training volume, recovery, sleep, and nutrition;
-- which schedules and situations create friction;
-- what habits correlate with better or worse outcomes;
-- which recommendations they follow, reject, or repeatedly modify.
+Statuses apply at the initiative or capability-cluster level where they clarify disposition; they are not required on every bullet.
 
-The long-term product should be able to produce observations such as:
+## Cross-System Destination
 
-> Your strongest comparable lower-body sessions usually follow a substantial meal two to four hours before training, while several recent underperforming sessions followed unusually low daytime intake.
+The central product direction is to combine real-life constraints, recovery, training history, nutrition, and accumulated user history into increasingly personalized and explainable decisions.
 
-That level of personalization should emerge from accumulated grounded history, not from invented AI narrative.
+The capability horizons below preserve the route toward that destination. Their ordering expresses dependency and product leverage, not a live implementation sequence.
 
-The ultimate product should feel less like a collection of trackers and more like a personal operating system for everyday health, nutrition, recovery, and training.
+## World-Class Exercise Catalog and Visual Form Guidance — `FOUNDATION EXISTS`; continued depth `PLANNED`
 
-## True Product Pillars
+The product should maintain a broad, high-quality internal exercise catalog with useful visual form guidance and written fallback. Continued expansion remains a roadmap capability, not a standing implementation mandate.
 
-The platform should evolve around eight connected capabilities.
+The durable capability includes:
 
-### CAPTURE
+- canonical identity, deduplication, and physical variant relationships;
+- movement pattern, muscle, equipment, and unilateral/bilateral semantics;
+- loading, stability, difficulty, prescription, and measurement attributes where justified;
+- structured setup, execution, cues, common mistakes, and safety guidance;
+- visual identity and reviewed media relationships with rights and provenance;
+- workout-generation eligibility, reachability, utilization, and meaningful rotation;
+- provider media or knowledge only as supplemental input, never internal catalog truth;
+- text-only and local-media fallback when external media is absent or unsuitable.
 
-Make useful data effortless to record.
+Expansion quality is measured by correct ownership and useful product reachability, not row count. Commercial or SaaS use of external media requires renewed rights review.
 
-### PLAN
+## Established Product Foundations
 
-Turn goals, constraints, schedules, equipment, and current state into realistic actions.
+These accepted foundational scopes are protected from being reintroduced as unfinished first-version roadmap work:
 
-### EXECUTE
+- Theme System and Dark Mode v1 — `COMPLETED`
+- Mobile Daily-Driver Navigation and Compaction v1 — `COMPLETED`
+- Active Workout Mobile UX v1 — `COMPLETED`
+- Barcode Scanning v1 — `COMPLETED`
+- Meal Builder v1 — `COMPLETED`
+- Adaptive Progression Engine v1 — `COMPLETED`
+- Weekly Training Planner v1 — `COMPLETED`
+- Smart Exercise Substitutions v1 — `COMPLETED`
+- Injury / Temporary Limitation Mode v1 — `COMPLETED`
+- Exercise History & Progress Analytics v1 — `COMPLETED`
+- Deterministic Nutrition Gap Suggestions and Actions v1 — `COMPLETED`
+- Visualization v2 Provider-Media Integration — `COMPLETED`
 
-Help the user perform workouts and nutrition decisions correctly with minimal friction.
+Each `COMPLETED` label applies only to the accepted foundational scope. Deeper versions may remain `PLANNED`; this section records strategic disposition, not live operational truth or implementation authorization.
 
-### UNDERSTAND
-
-Explain current state, trends, and meaningful changes clearly.
-
-### ADAPT
-
-Change plans based on evidence, constraints, recovery, and actual outcomes.
-
-### LEARN
-
-Discover what works for the individual over time.
-
-### PREDICT
-
-Anticipate likely friction, meaningful deviations, and useful intervention windows without pretending to predict physiology perfectly.
-
-### ASSIST
-
-Help the user make a better decision at the moment they actually need one.
-
-These pillars should converge over time. A feature that captures data but never improves planning, execution, understanding, or personalization should be questioned.
-
-## Core Product Principles
-
-### Daily usefulness comes before feature count
-
-Prioritize work that saves time, reduces repetitive effort, improves a real daily decision, makes training or nutrition easier to execute, or increases the value of accumulated history.
-
-### The product should get better the longer it is used
-
-Recents, saved meals, exercise history, preferences, successful substitutions, training response, personal baselines, adherence patterns, food habits, and historical outcomes should progressively reduce friction and improve relevance.
-
-### Deterministic truth before generative interpretation
-
-Backend-owned data, calculations, constraints, validation, persistence, confidence, and provenance remain authoritative.
-
-AI may identify, summarize, explain, retrieve, or creatively assemble backend-approved options, but it must not silently replace grounded product truth.
-
-### Useful without AI
-
-The core platform must continue to function with cloud AI, local AI, and all generative providers disabled.
-
-AI provider independence is a product and architecture strength, not merely an implementation detail.
-
-### Frictionless capture is strategic infrastructure
-
-The best intelligence layer is useless if logging becomes annoying. Nutrition, workout, recovery, weight, and other high-frequency inputs should continually move toward fewer taps, stronger defaults, reusable history, voice or natural-language assistance where appropriate, and confirmation rather than repetitive manual reconstruction.
-
-### Explainability everywhere
-
-Every meaningful recommendation should eventually have a clear answer to “Why?”
-
-Examples include workout changes, exercise selection, substitutions, progression decisions, nutrition suggestions, readiness interpretations, and target adjustments.
-
-### Be honest about uncertainty
-
-Restaurant meals, photo-estimated portions, wearable values, metabolic calibration, body-composition estimates, and longitudinal correlations should expose assumptions and confidence instead of presenting false precision.
-
-### Mobile is the primary daily-use surface
-
-Mobile should optimize for one-handed use, low tap count, minimal scrolling, thumb reach, progressive disclosure, fast capture, and preservation of in-progress workflows.
-
-Desktop should support deeper review, analytics, planning, administration, and larger information surfaces.
-
-### Privacy and user ownership are product features
-
-Users should understand what is stored, what leaves the device, what AI can see, and how to export or delete their data. The project’s local-first roots should remain an architectural advantage as the product matures.
-
-## Current Product Foundation
-
-The repository has already moved well beyond a basic tracker. The following are foundations, not future roadmap promises.
-
-### Nutrition foundation
-
-The current product includes canonical and personal food workflows, serving-aware logging, barcode scanning, saved meals, nutrition targets and daily totals, historical logging behavior, deterministic catalog-driven food suggestions, and direct nutrition gap actions.
-
-### Training foundation
-
-The current product includes persistent workout execution and set history, equipment-aware workout generation, Quick / Standard / Extended sizing, adaptive progression, weekly training planning, smart exercise substitutions, temporary injury / limitation handling, exercise history and progress analytics, structured exercise instruction, and exercise visual-media resolution.
-
-### Recovery foundation
-
-The current product includes recovery check-ins, readiness-oriented state, sleep, energy, soreness, stress/fatigue, body weight, and longitudinal recovery intelligence foundations.
-
-### Daily-use and UX foundation
-
-The current product includes dedicated mobile daily-driver workspaces, compact workout execution surfaces, mobile navigation, a semantic theme system with dark-mode preference, and a growing emphasis on low-friction daily workflows.
-
-### Current exercise-system baseline
-
-At the accepted Visualization v2 closeout:
-
-- the internal catalog contains 240 canonical exercises;
-- there are 231 accepted visual identities;
-- 138 / 240 canonical exercises have configured visual guidance through direct local, accepted shared-local, or explicitly reviewed provider media;
-- the provider-neutral media architecture preserves local media authority and text-only fallback;
-- AscendAPI Free is a candidate and media source, not internal catalog truth.
-
-## Current Strategic Priority — Exercise Catalog and Visualization Expansion
-
-This is the active program now.
-
-The objective is to expand the internal canonical exercise catalog from 240 exercises to at least 450–500 high-quality canonical exercises before returning to unrelated major product milestones.
-
-AscendAPI Free is the primary candidate inventory for this expansion, but admission into the product must remain deliberate.
-
-Every accepted exercise should have appropriate internal ownership of:
-
-- canonical identity and deduplication;
-- exercise family and physical variant relationships where useful;
-- movement pattern;
-- primary and secondary muscles;
-- equipment requirements;
-- unilateral / bilateral semantics where relevant;
-- loading and stability characteristics where relevant;
-- prescription and measurement semantics;
-- difficulty and other useful structured attributes where justified;
-- structured setup and execution instructions;
-- cues, common mistakes, and safety guidance where appropriate;
-- visual identity and approved visual-media relationships;
-- workout-generation eligibility and reachability.
-
-The expansion program is not complete merely because more rows exist in the catalog. Catalog utilization and workout rotation must be audited as necessary so newly admitted exercises can produce meaningful training variety.
-
-Provider media and knowledge remain supplemental. The internal curated catalog and media layer remain the product source of truth, and provider rights must be revisited before monetized or SaaS use.
-
-Until this program is substantially complete and Architecture explicitly closes it, unrelated major roadmap milestones are not the primary implementation focus.
-
-## Completed Foundations That Must Not Reappear as Future Milestones
-
-The following capabilities already exist in accepted form and should be treated as foundations for deeper future iterations rather than as unfinished first versions:
-
-- Theme System and Dark Mode;
-- Mobile Daily-Driver Navigation and Compaction;
-- Active Workout Mobile UX;
-- Barcode Scanning v1;
-- Meal Builder v1;
-- Adaptive Progression Engine v1;
-- Weekly Training Planner v1;
-- Smart Exercise Substitutions v1;
-- Injury / Temporary Limitation Mode v1;
-- Exercise History & Progress Analytics v1;
-- deterministic nutrition gap suggestions and actions;
-- Visualization v2 provider-media integration.
-
-Future roadmap work may deepen these systems without pretending their foundational milestones are still pending.
-
-# Strategic Roadmap After the Current Exercise Expansion Program
-
-The horizons below are ordered by product leverage and dependency, not by rigid release dates. Architecture should continue authorizing bounded milestones rather than attempting entire horizons at once.
-
-## Horizon 1 — Daily Command Center and Frictionless Capture
+## Horizon 1 — Daily Command Center and Frictionless Capture — `FOUNDATION EXISTS`; deeper unification `PLANNED`
 
 The Today experience should become the primary reason the user opens the app each day.
 
@@ -256,7 +123,7 @@ Workout opportunities include:
 
 Recovery should move toward an approximately five-second confirmation workflow, with future integrations prefilling signals when available.
 
-## Horizon 2 — Adaptive Training That Works Around Real Life
+## Horizon 2 — Adaptive Training That Works Around Real Life — `FOUNDATION EXISTS`; broader adaptation `PLANNED`
 
 The existing weekly planner, progression engine, substitutions, recovery intelligence, and limitation mode provide the foundation. The next generation should make the system more realistic and personally adaptive.
 
@@ -279,9 +146,21 @@ Future capabilities include:
 
 - dynamic set, rep, RIR, and load recommendations;
 - more nuanced progression than automatic fixed load increases;
+- progression forecasting grounded in comparable performance evidence;
 - training-volume response analysis;
 - fatigue-aware deload and workload decisions where sufficiently supported;
 - preserving the highest-value work when time is limited.
+
+### Training depth
+
+Longer-term training intelligence may include:
+
+- warm-up generation and support, plus cooldown support where useful;
+- workout review with performance evidence and post-session coaching feedback;
+- training-load modeling and longer-term periodization;
+- movement-pattern balancing and exercise variety controls;
+- explicit exercise preference and avoidance controls;
+- progression explanations tied to comparable history, workload, and recovery evidence.
 
 ### Minimum Viable Workout Mode
 
@@ -316,7 +195,11 @@ Travel Mode should temporarily adapt planning and available exercises, then rest
 
 A user who feels terrible should be able to choose among a normal session, reduced session, mobility/recovery option, or rest without guilt-driven product behavior.
 
-## Horizon 3 — Nutrition Decision Intelligence
+### What-If simulator and scenario planning — `PLANNED`
+
+A deterministic-first, evidence-bounded scenario planner may compare approved options before anything changes. It could show what happens to the week if a workout moves, which training option fits a reduced time window, or how a proposed nutrition or schedule change affects an approved plan.
+
+## Horizon 3 — Nutrition Decision Intelligence — `FOUNDATION EXISTS`; broader decision support `PLANNED`
 
 The product should progress from “what are my numbers?” toward “what should I actually eat?” while keeping nutritional calculations deterministic.
 
@@ -375,7 +258,19 @@ Handle uncertain meals honestly with ranges, confidence, assumptions, and user c
 
 Computer vision may propose likely foods and estimated portions, but the user confirms the structured result and the backend maps confirmed items to grounded food records and calculations.
 
-## Horizon 4 — Personal Measurement, Metabolic Calibration, and Baselines
+### Nutrition planning depth — `PLANNED`
+
+Future nutrition support may include:
+
+- recipe parsing and reusable recipe workflows;
+- meal planning and meal-prep support beyond the existing meal builder;
+- micronutrient awareness with appropriate completeness and confidence boundaries;
+- meal-timing context where it materially improves a decision;
+- grounded food swaps under the same nutritional and preference constraints;
+- trend-aware nutrition-target review;
+- cautious macro-target adaptation only when sufficient intake, weight-trend, activity, and data-quality evidence supports it.
+
+## Horizon 4 — Personal Measurement, Metabolic Calibration, and Baselines — `FOUNDATION EXISTS`; calibration depth `PLANNED`
 
 The platform should help users understand change without overreacting to noisy individual measurements.
 
@@ -420,7 +315,7 @@ Learn what “normal” means for the individual across signals such as:
 
 Personal deviation should eventually matter more than generic thresholds alone.
 
-## Horizon 5 — Longitudinal Personal Intelligence
+## Horizon 5 — Longitudinal Personal Intelligence — `FOUNDATION EXISTS`; advanced analysis `PLANNED`
 
 This is where the platform begins to become a genuine personal analyst rather than a tracker.
 
@@ -486,6 +381,33 @@ Provide one high-quality weekly review covering:
 
 Avoid constant low-value AI chatter.
 
+### Reporting and evidence experience — `PLANNED`
+
+The longitudinal product experience should also support:
+
+- monthly review in addition to weekly review;
+- report diffing and change comparison;
+- user-facing evidence links;
+- structured claim and evidence tracking;
+- a report audit trail;
+- recommendation outcome tracking;
+- training evidence summaries;
+- nutrition target-vs-actual summaries;
+- data-quality summaries that expose gaps and confidence limits.
+
+### Inspectable personal memory and feedback — `PLANNED`
+
+The user should be able to inspect and correct the durable context that improves future relevance, including:
+
+- editable user facts and editable preferences;
+- goals and constraints;
+- typed distinctions among facts, preferences, goals, constraints, observations, and model suggestions;
+- trend memory and structured observations;
+- explicit memory expiration or staleness behavior;
+- user correction and recommendation feedback that can influence future relevance.
+
+There is no hidden model memory. Generated prose is not persistent truth, and personal memory remains inspectable, correctable, exportable, and bounded by provenance.
+
 ### Meaningful personal records
 
 Recognize more than maximal weight lifted:
@@ -499,7 +421,7 @@ Recognize more than maximal weight lifted:
 - body-measurement progress;
 - meaningful recovery or fitness trends.
 
-## Horizon 6 — Recovery Intelligence and Wearable Integration
+## Horizon 6 — Recovery Intelligence and Wearable Integration — recovery foundation `FOUNDATION EXISTS`; wearables `DEFERRED`
 
 Recovery should become a real decision-support system, not another dashboard score.
 
@@ -530,7 +452,7 @@ Wearable values should be treated as signals with source-specific uncertainty, n
 
 Manual entry must remain first-class.
 
-## Horizon 7 — Explainable Conversational Assistance
+## Horizon 7 — Explainable Conversational Assistance — explainability `FOUNDATION EXISTS`; generative assistance `DEFERRED`
 
 The conversational layer should sit on top of grounded product intelligence rather than replace it.
 
@@ -581,7 +503,15 @@ grounded product data
 
 Do not restart broad AI-generated daily filler prose.
 
-## Horizon 8 — Platform Maturity, Portability, and SaaS Extensions
+### Education, help, and explanation — `PLANNED`
+
+Future assistance may provide a user education mode, app help and onboarding assistance, “teach me this” explanations, and evidence tracing for “why did the system say or change this?” The experience may later use selective retrieval, but its product promise is grounded explanation rather than a specific retrieval technology.
+
+### Recommendation and coaching feedback — `PLANNED`
+
+The product may collect user feedback on recommendations, track recommendation outcomes, offer context-aware nudges, and support same-day plan adjustments when grounded evidence and approved constraints justify them. Optional tone preferences may shape presentation but remain subordinate to factual content, safety, and deterministic decisions.
+
+## Horizon 8 — Platform Maturity, Portability, and SaaS Extensions — `PLANNED`; SaaS extensions carefully `DEFERRED`
 
 These capabilities matter as the product grows but should not distract from daily personal usefulness prematurely.
 
@@ -593,7 +523,7 @@ Core daily workflows should eventually remain usable with poor connectivity and 
 
 Support phone, desktop, and tablet coherently, with potential smartwatch execution surfaces later.
 
-### Smart notifications
+### Contextual notifications
 
 Notifications should be contextual and learn what the user actually responds to rather than becoming generic nagging.
 
@@ -669,31 +599,18 @@ After enough high-quality history, the product should be capable of observations
 
 That is the transition from tracker to personal health intelligence system.
 
-## Strategic Priority Sequence
+## Strategic Sequencing Principles
 
-The current ordering is:
+Architecture may reorder bounded milestones when evidence from real daily use reveals a higher-value problem. Strategic sequencing should generally:
 
-```text
-Exercise Catalog + Visualization Expansion to at least 450–500 canonical exercises
-        ↓
-Daily Command Center + Frictionless Capture
-        ↓
-Adaptive Real-Life Training and Calendar/Duration Intelligence
-        ↓
-Nutrition Decision Intelligence
-        ↓
-Personal Baselines, Weight Trends, and Metabolic Calibration
-        ↓
-Longitudinal Insight, Change Detection, and Personal Experiments
-        ↓
-Recovery Intelligence + Wearable Integration
-        ↓
-Explainable Conversational Coach + Voice + Selective RAG
-        ↓
-Offline/Cross-Device Maturity + Privacy/Export + Carefully Chosen SaaS Extensions
-```
+- protect low-friction daily capture and execution;
+- strengthen deterministic cross-system evidence before adding interpretation layers;
+- deepen adaptive training and nutrition decision support before relying on conversational presentation;
+- establish personal baselines before making longitudinal or predictive claims;
+- introduce wearables, retrieval, voice, providers, or SaaS infrastructure only for a concrete, separately authorized need;
+- preserve portability, privacy, explainability, and deterministic fallback as the platform matures.
 
-This sequence is directional, not sacred. Daily use may reveal a smaller friction fix that deserves to move ahead of a larger planned initiative.
+The roadmap does not select the next implementation milestone. That decision belongs to operational truth.
 
 The governing question remains:
 

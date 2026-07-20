@@ -1,419 +1,285 @@
-# Platform North Star + Future Stack
+# Future Technical Architecture Reference
 
-**Status:** Strategic architecture compass / non-authorizing future-stack reference
-**Baseline:** `14b09db Close personal custom foods UI v1`
-**Baseline snapshot:** `fitness_ai_snapshot_2026-07-15_14b09db_main_personal-custom-foods-ui-closed.zip`
-**Milestone:** Platform North Star + Future Stack Canonicalization v1
-**Accepted in:** `187e433 main_merge-platform-north-star-future-stack-canonicalization-v1`
+> Canonical technical future-architecture reference. This file is stable, non-authorizing, and not a default strategic source. Load it only when a task specifically concerns future architecture or stack decisions. Product direction lives in `docs/project_memory/product_north_star.md`; operational truth and implementation authority live in `docs/project_memory/current_truth.json`.
 
-This file is the durable strategic north star for the Health & Fitness Platform. It preserves the long-term platform vision while keeping implementation sequencing disciplined.
+## Purpose
 
-This file records direction. It does not authorize implementation by itself.
+This reference preserves plausible long-term technical directions, dependencies, and safety boundaries without turning technology options into product commitments.
 
-## One-Sentence North Star
+Every item here requires a separately authorized, bounded milestone before implementation. Candidate technologies are examples to evaluate, not defaults or approved dependencies.
 
-Health & Fitness Platform is a local-first, data-grounded product for managing nutrition, training, recovery, and progress through trustworthy data, deterministic services, practical workflows, and optional non-authoritative generative capabilities.
+## Architectural Doctrine
 
-## What This Platform Is Not
+- Backend services own facts, calculations, constraints, validation, provenance, confidence, decisions, persistence, and deterministic fallback.
+- Core workflows remain useful with all providers and generative systems disabled.
+- Provider output may propose or explain only within backend-approved context and never becomes truth by fluency.
+- Retrieved content and vector matches are evidence candidates, not facts or decisions.
+- Model routing and tool permissions are backend-owned and inspectable.
+- Consequential writes require explicit backend policy and user approval.
+- Personal data and inferred memory must be inspectable, correctable, exportable, and deletable.
+- Safety, privacy, observability, cost, rollback, and provenance are architecture concerns from the beginning.
 
-Health & Fitness Platform is not:
+## Foundation Before Advanced Systems
 
-- just a workout tracker
-- just a macro tracker
-- just a chatbot
-- just a report generator
-- a prompt demo
-- a provider-wrapper
-- an agent demo
+Advanced retrieval, model routing, or orchestration is useful only after the product has stable, inspectable source-data contracts.
 
-The goal is a serious health and fitness platform where structured facts, deterministic intelligence, and useful product workflows stand on their own. Optional provider synthesis may enhance those workflows only inside backend-approved boundaries.
+Potential foundation layers include:
 
-## Architecture Doctrine
+- a deterministic unified health-state projection;
+- stable nutrition, workout, recovery, and history contracts;
+- user profile, preference, goal, and constraint models;
+- provenance, confidence, and data-quality indicators;
+- deterministic recommendation and policy services;
+- scenario-based quality evaluation;
+- structured decision and observation outputs.
 
-- Backend owns truth.
-- Deterministic logic comes first.
-- AI/provider output is optional, gated, audited, and never truth.
-- Retrieved/RAG content is context, not truth.
-- Agents may assist later, but cannot own authority.
-- Docs/project memory are part of Definition of Done.
-- Cost, safety, provenance, confidence, and rollback paths are architecture concerns.
-- Provider-written language is an optional product capability, not the product's identity or source of authority.
+No advanced system should compensate for weak product behavior or unclear backend ownership.
 
-## Sequencing Doctrine
+## Local-First Evolution
 
-Huge dream. Strong sequencing. No random feature explosion.
+The local-first foundation should remain a product and privacy advantage as deployment matures.
 
-Build and validate the core product first. Consider advanced retrieval, provider, or orchestration systems only when a scoped product need justifies them.
+Possible evolution includes:
 
-Do not use RAG, vector search, agents, frontier-model workflows, or fancy orchestration to compensate for weak backend intelligence.
+- local server and LAN deployment;
+- offline-capable clients with conflict-safe synchronization;
+- service-managed application processes;
+- containerized development or deployment when it improves reliability;
+- deliberate migration from SQLite only when multi-user or operational needs justify it;
+- backup, restore, import, export, and retention tooling;
+- clear environment and configuration profiles.
 
-Every future platform move still needs:
+Local-first evolution does not require discarding deterministic services or forcing cloud dependence into core workflows.
 
-- Architecture-scoped milestone
-- team handoff
-- explicit non-goals
-- tests
-- validation
-- project-memory update
-- QA classification
-- Architecture acceptance
-- merge, push, and snapshot when authorized
+## Provider Abstraction
 
-## Backend Intelligence Foundation
+A future provider layer may support multiple local or remote systems behind one validated backend contract.
 
-Backend Intelligence Foundation is the prerequisite for advanced AI.
+Potential capabilities include:
 
-Core layers:
+- explicit provider adapters;
+- a model capability registry;
+- latency, cost, parse, validation, and fallback telemetry;
+- manual preview and evaluation lanes;
+- async or precomputed explanation where product value justifies it;
+- per-capability provider policies;
+- sanitized audit trails;
+- deterministic renderers and fallback.
 
-- Recovery Intelligence
-- Workout Set Intelligence
-- Cross-Domain Trend Engine
-- Six-Month Seed Data
-- Food Knowledge Expansion
-- Unified Daily Coach Intelligence Snapshot
-- user profile / preferences / constraints
-- provenance and confidence models
-- data-quality indicators
-- scenario QA framework
-- deterministic recommendation engine
-- rules / policy layer
+Provider systems must not own normal product truth, silently change decisions, persist hidden memory, expose rejected output, or become mandatory for daily use.
 
-These layers must provide stable, inspectable source-data contracts before advanced retrieval, orchestration, or multi-model systems become useful.
+## Curated Knowledge and Selective RAG
 
-Current accepted state at this baseline:
+Retrieval may support a specific grounding or explanation need using trusted, source-tagged material.
 
-- Next.js, React, and TypeScript provide the active product frontend; it runs on the project-standard production port `3100`.
-- FastAPI, SQLite, and deterministic backend services remain the product truth layer.
-- Canonical food search and logging are implemented.
-- Formula-derived nutrition targets and Target-vs-Actual are implemented.
-- Personal Custom Foods contract, persistence, logging, and UI milestones are accepted, merged, and closed.
-- Recovery workflows are implemented.
-- Deterministic workout planning, execution, substitution, history, and progression context are implemented.
-- Provider-written daily coaching narrative is paused after failing human product-quality acceptance. Provider infrastructure remains optional experimental capability outside the core product identity.
-- The immediate next milestone is Public Project Rebrand and README Refresh v1.
+Potential sources include:
 
-## Product Intelligence Vision
+- curated exercise knowledge;
+- curated nutrition and recovery references;
+- approved product help and education;
+- backend-approved recommendations;
+- bounded user-specific history and evidence.
 
-Future product capabilities may include:
-
-- Daily Command Center
-- adaptive training
-- progression forecasting
-- recovery-aware training adjustment
-- nutrition adherence trends
-- macro target adaptation
-- meal planning / meal prep
-- grocery list generation
-- What-If simulator
-- weekly/monthly coach review
-- coach memory
-- preference learning
-- schedule-aware recommendations
-- friction/adherence modeling
-- confidence/provenance everywhere
-
-These are product architecture goals, not automatic implementation approval.
-
-## Core App / Backend Stack
-
-Candidate technologies:
-
-- Python
-- FastAPI
-- Pydantic
-- SQLAlchemy / SQLModel
-- Alembic
-- PostgreSQL
-- SQLite for local/dev
-- Pytest
-- Ruff
-- Black
-- Mypy or Pyright
-- Pre-commit
-- GitHub Actions
-- Docker
-- Docker Compose
-
-## Data / Analytics Stack
-
-Candidate technologies:
-
-- PostgreSQL
-- pgvector
-- Redis
-- DuckDB
-- Parquet
-- Polars
-- Pandas
-- dbt later if analytics grows
-- Great Expectations or Pandera for data validation
-- S3-compatible object storage / MinIO
-- structured event/audit tables
-
-## Retrieval / RAG / Knowledge Systems
-
-Candidate future technologies and patterns:
-
-- embeddings
-- hybrid retrieval: keyword + vector
-- BM25 / full-text search
-- pgvector for integrated Postgres retrieval
-- Qdrant if a dedicated vector DB becomes justified
-- rerankers
-- RAG over exercise knowledge
-- RAG over food knowledge
-- RAG over user history
-- RAG over project docs
-- RAG over coaching rules
-- RAG over wearable explanations
-- RAG over product education content
-
-Boundary:
+Preferred flow:
 
 ```text
-RAG does not decide.
-Retrieved content is context, not truth.
-Backend facts and deterministic policy remain authoritative.
+grounded product data
+-> deterministic analysis
+-> targeted source-tagged retrieval
+-> optional interpretation
+-> validation and safe presentation
 ```
 
-## Optional Provider / Generative Stack
+RAG does not decide, prescribe, create truth, or override backend calculations. Broader retrieval is justified only by a concrete product need and source-trust model.
 
-Candidate future technologies and practices:
+## Vector Retrieval and Embeddings
 
-- OpenAI provider adapter
-- Anthropic provider adapter
-- Gemini provider adapter
-- local Ollama provider adapter
-- vLLM or llama.cpp later for local serving
-- LiteLLM-style model routing
-- Prompt Lab
-- model capability registry
-- cost-aware model routing
-- structured output validation
-- provider fallback rules
-- token/cost telemetry
-- model comparison harness
-- golden-output evals
-- coach voice evals
+Vector retrieval may eventually support semantic discovery across curated knowledge or bounded personal history.
 
-## Agent / Orchestration Stack
+Candidate approaches include integrated relational extensions or a dedicated local retrieval store. Technology selection should follow measured use cases, metadata quality, deletion semantics, privacy boundaries, and operational cost.
 
-Candidate future technologies and practices:
+Required boundaries include:
 
-- LangGraph
-- state-machine orchestration
-- LlamaIndex workflows
-- CrewAI as experimental/limited-use reference only
-- custom job table first
-- background job scheduler
-- human-in-the-loop review
-- agent audit logs
-- agent trace artifacts
-- tool permission boundaries
-- policy-gated tool execution
+- stable document and evidence identities;
+- source, user, date, and confidence metadata;
+- inspectable retrieval results;
+- deterministic filtering before semantic ranking;
+- safe deletion and rebuild paths;
+- no conversion of similarity into factual authority.
 
-Boundary:
+## Model Routing
 
-```text
-Multi-agent coaching waits until backend intelligence and service contracts are stable enough to give agents real evidence.
-```
+A future model router may assign narrowly defined tasks to deterministic services, small structured-output models, larger explanation models, perception models, or fallback renderers.
 
-## Frontend / UX Stack
+Routing must remain:
 
-Current technologies and direction:
+- backend-owned;
+- policy-gated;
+- quality- and cost-aware;
+- logged and inspectable;
+- covered by capability-specific evaluations;
+- unable to expand a model's authority.
 
-- React
-- Next.js
-- TypeScript
-- Tailwind
-- production frontend on project port `3100`
-- Streamlit retained only for legacy/developer-only surfaces where still needed
+No model chooses its own tools, data scope, persistence rights, or decision authority.
 
-Candidate future technologies and direction:
+## Agents and Orchestration
 
-- shadcn/ui
-- TanStack Query
-- Recharts / ECharts / Plotly
-- PWA
-- React Native / Expo later
-- mobile-first Daily Command Center
-- offline-friendly logging
-- push notifications
-- voice input later
-- photo capture flows
-- barcode scanning UX
+Agents or workflow orchestration may be useful for bounded, auditable tasks after domain services expose reliable evidence and permissions.
+
+Potential patterns include:
+
+- explicit state machines;
+- human-in-the-loop review;
+- policy-gated tool execution;
+- durable job states and retry rules;
+- trace artifacts;
+- structured specialist handoffs;
+- cancellation and recovery.
+
+Agent tools should call approved backend APIs rather than receive raw database freedom. Autonomous consequential writes are outside this reference unless a later milestone explicitly designs and authorizes them.
+
+## Background Jobs
+
+Recoverable async work may support long-running or scheduled workflows such as imports, reports, evaluations, backups, or approved retrieval indexing.
+
+A job system should provide:
+
+- explicit pending, running, succeeded, failed, retrying, and cancelled states;
+- idempotency or clear duplicate policy;
+- bounded retries and timeouts;
+- observable progress and sanitized failure details;
+- safe cancellation and replay;
+- deterministic fallback for user-facing paths.
+
+Start with the simplest durable mechanism that satisfies the approved use case.
+
+## Data and Storage Maturity
+
+Possible future capabilities include:
+
+- disciplined schema migrations;
+- relational storage suited to multi-user operation;
+- structured event and audit records;
+- data-quality validation;
+- job, report, observation, and memory ledgers;
+- embedding metadata where retrieval is approved;
+- encrypted backup and restore;
+- import, export, deletion, and retention controls;
+- analytical projections or columnar stores when evidence volume justifies them.
+
+Schema and storage changes require explicit migration, rollback, compatibility, and canonical-database safety plans.
+
+## Inspectable Personal Memory
+
+Long-term personal context may include facts, preferences, goals, constraints, schedule patterns, recurring barriers, and structured observations.
+
+Memory must be:
+
+- typed by meaning and source;
+- separated from generated prose;
+- confidence- and staleness-aware;
+- inspectable and correctable by the user;
+- exportable and deletable;
+- written only through explicit backend and user-approved rules.
+
+Hidden model memory is not an acceptable product architecture.
 
 ## Multimodal Input
 
-Future possibilities:
+Potential input modes include:
 
-- barcode scanning
-- nutrition label OCR
-- photo-assisted food logging
-- restaurant/menu parsing
-- receipt/grocery import
-- voice check-ins
-- workout form video review eventually
-- document parsing for plans/reports
+- barcode and nutrition-label capture;
+- food, menu, or receipt images;
+- voice-assisted check-ins and logging;
+- document parsing;
+- future movement or form media analysis.
 
-## Wearables / Integrations
+Perception systems may propose structured candidates. The user confirms consequential interpretation, and backend services resolve candidates to grounded identities and validated calculations.
 
-Future possibilities:
+## Wearables and External Integrations
 
-- Apple HealthKit
-- Google Health Connect
-- Fitbit
-- Garmin
-- Oura
-- Whoop
-- Strava
-- smart scales
-- calendar integration
-- notification integrations
-- grocery/recipe APIs later
-- USDA FoodData Central
-- Open Food Facts
+Potential integrations include health platforms, wearables, smart scales, calendars, notifications, recipe or grocery services, and trusted public catalogs.
 
-## Observability / Operations
+Integration architecture should preserve:
 
-Candidate technologies:
+- explicit source provenance;
+- source-specific uncertainty;
+- permission minimization;
+- revocation and deletion behavior;
+- manual entry as a first-class path;
+- graceful operation when an external system is unavailable.
 
-- OpenTelemetry
-- Prometheus
-- Grafana
-- Loki
-- Sentry
-- structured logs
-- trace IDs
-- provider telemetry
-- token/cost dashboards
-- usage dashboards
-- model latency tracking
-- background job monitoring
-- data-quality dashboards
+External signals support decisions; they do not become unquestioned truth.
 
-## SaaS / Platform Infrastructure
+## Frontend and Cross-Device Maturity
 
-Future platform possibilities:
+Possible evolution includes:
 
-- auth
-- OAuth/OIDC
-- passkeys
-- RBAC
-- user accounts
-- subscriptions
-- Stripe
-- billing portal
-- rate limits
-- quota limits
-- data export
-- data deletion
-- audit logs
-- secrets management
-- encryption at rest/in transit
-- backups/restore
-- cloud deployment
-- Docker Compose first
-- AWS/GCP/Azure later
-- Terraform/OpenTofu later
-- Kubernetes only if truly needed
+- a shared design system;
+- generated or strongly typed API clients;
+- mobile-first responsive workflows;
+- offline/PWA capabilities;
+- accessible charts and longitudinal analysis;
+- stronger end-to-end automation;
+- phone, desktop, tablet, and carefully chosen wearable surfaces.
 
-## SaaS Viability / Model Cost Doctrine
+Frontend evolution should preserve backend authority and avoid duplicating decision logic in clients.
 
-Frontier-model multi-call workflows are not the default SaaS path.
+## Observability and Quality
 
-Default SaaS architecture should bias toward deterministic backend intelligence plus smaller/cost-efficient model phrasing.
+Future operational maturity may include:
 
-Big models are better reserved for:
+- structured logs and trace identifiers;
+- health endpoints and service-level signals;
+- metrics for errors, latency, fallback, validation, and data quality;
+- distributed tracing where multiple services justify it;
+- provider and retrieval evaluation dashboards;
+- reproducible QA artifacts;
+- contract, integration, regression, and end-to-end test layers;
+- release and rollback evidence.
 
-- evals
-- premium flows
-- hard cases
-- internal QA
-- limited high-value analysis
+Diagnostics must be useful without leaking sensitive health-adjacent data or unsafe raw provider output.
 
-Provider-written voice is optional and subordinate to the core product. The product/user owner must be involved in any future prompt and tone decisions, and human product-quality acceptance is required before promotion.
+## Security and Privacy
 
-## Team Routing
+Possible platform controls include:
 
-Canonical visible team lanes:
+- authentication and role boundaries;
+- least-privilege tool and service permissions;
+- encryption in transit and at rest where appropriate;
+- secret and dependency scanning;
+- audit logging;
+- prompt-injection and unsafe-tool defenses;
+- provider-visible-data controls;
+- user export and deletion;
+- backup and restore drills;
+- explicit medical, nutrition, and exercise safety boundaries.
 
-- Architecture
-- Backend Development
-- QA
-- Agent Engineering
-- Frontend UI / UX
-- Portfolio Packaging
-- DevOps & Tooling
+Privacy, correction rights, and data ownership must remain visible product capabilities rather than hidden infrastructure details.
 
-Project Memory / All Future Agents is not a visible team lane. It is a repo continuity concern that every team must respect.
+## Deployment and SaaS Maturity
 
-## What This File Does Not Authorize
+Deployment may evolve through measured stages such as local services, containers, reverse proxies, TLS, managed databases, cloud hosting, infrastructure as code, and horizontally scalable components only when justified.
 
-This file does not authorize immediate implementation of:
+Carefully bounded SaaS possibilities include:
 
-- RAG
-- embeddings
-- pgvector
-- Qdrant
-- vector DB setup
-- LangGraph
-- CrewAI
-- LlamaIndex
-- multi-agent runtime
-- custom GPT build
-- OpenAI/default provider changes
-- production provider coach
-- replacement of the accepted Next.js product frontend
-- mobile app
-- wearable integration
-- billing/SaaS infrastructure
-- schema migration
-- cloud deployment
+- user accounts and tenancy isolation;
+- consent-based trainer or coach workflows;
+- subscriptions, quotas, and billing controls;
+- rate limits and abuse protection;
+- reliable backups and regional data policies;
+- operational support and auditability.
 
-All future work still requires:
+Kubernetes, distributed services, frontier-model multi-call workflows, and other expensive infrastructure are not default maturity goals. They require a concrete scale, reliability, or product need.
 
-```text
-Architecture-scoped milestone
-team handoff
-tests
-validation
-project-memory update
-QA classification
-Architecture acceptance
-merge/push/snapshot
-```
+## Technology Selection Rule
 
-## Suggested ChatGPT Project Instructions
+Select technology only after the approved milestone defines the user problem, ownership boundary, data and safety model, failure behavior, migration path, validation, and operational cost.
 
-```text
-You are operating inside the Health & Fitness Platform project.
+Prefer the smallest architecture that preserves deterministic behavior, local-first value, explainability, privacy, and future replacement paths.
 
-This project is building a local-first, data-grounded health and fitness platform. Its core value comes from trustworthy nutrition, training, recovery, and progress data; deterministic backend services; and practical user workflows. Provider or generative systems are optional experimental capabilities, not product identity or authority.
+## Non-Authorization Boundary
 
-Use the seven team lanes correctly: Architecture, Backend Development, QA, Agent Engineering, Frontend UI / UX, Portfolio Packaging, and DevOps & Tooling.
+This reference does not authorize RAG, embeddings, vector databases, provider changes, model routing, agents, tool runtimes, multimodal inference, wearable integrations, schema migration, frontend replacement, cloud deployment, billing, or SaaS infrastructure.
 
-Repo documentation is the canonical source of truth. Chat memory is helpful but not authoritative. When project state, architecture direction, team routing, or milestone status is unclear, inspect the latest snapshot/docs before steering.
-
-Core doctrine: Backend owns facts, validation, persistence, provenance, confidence, safety boundaries, and deterministic behavior. Provider output may explain, summarize, or propose only inside backend-approved contracts. It is optional and is never truth.
-
-Keep the broad future vision available without turning it into authorization: stronger deterministic intelligence, adaptive workflows, long-term user context, multimodal input, wearables, mobile-first UX, rich dashboards, observability, cloud deployment, and SaaS-grade engineering may all be explored through scoped milestones. Retrieval, model routing, and agent orchestration remain optional deferred possibilities.
-
-Sequence hard. Do not use RAG, vector search, agents, frontier-model workflows, or orchestration to compensate for weak core product behavior. Build and validate the product foundation first.
-
-Push back when the project drifts, skips foundation work, overuses the wrong team, chases shiny technology too early, or lets stale docs/chat memory override current repo truth.
-
-For major milestones, prefer team-specific handoffs, explicit non-goals, validation requirements, project-memory updates, and post-merge snapshots.
-```
-
-## Immediate Continuation
-
-After this strategic project-memory sync is accepted, the next milestone is:
-
-```text
-Public Project Rebrand and README Refresh v1
-```
-
-That separate milestone owns README, repository naming and metadata, and public presentation changes.
-
-## End
+Those possibilities remain available for separate Architecture scoping. Their presence here is preservation of technical direction, not approval to implement them.

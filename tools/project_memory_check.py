@@ -21,12 +21,21 @@ class MemoryCheckResult:
 
 
 CURRENT_TRUTH_SOURCE = "docs/project_memory/current_truth.json"
+CANONICAL_STRATEGIC_SOURCE_PATHS = (
+    "docs/project_memory/product_north_star.md",
+    "docs/project_memory/product_roadmap.md",
+)
 CURRENT_FACING_TEXT_FILES = (
     "AGENTS.md",
     "docs/project_memory/README.md",
     "docs/project_memory/current_truth.json",
     "docs/project_memory/current_truth.md",
+    "docs/project_memory/product_north_star.md",
     "docs/project_memory/product_roadmap.md",
+    "docs/project_memory/product_vision.md",
+    "docs/project_memory/premium_platform_blueprint.md",
+    "docs/project_memory/future_architecture_ledger.md",
+    "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "docs/project_memory/current_workflow_contract.md",
     "docs/project_memory/developer_delivery_workflow_contract.md",
     "docs/project_memory/architecture_chat_bootstrap_template.md",
@@ -78,6 +87,7 @@ REQUIRED_FILES = [
     "docs/project_memory/current_state.md",
     "docs/project_memory/current_truth.json",
     "docs/project_memory/current_truth.md",
+    "docs/project_memory/product_north_star.md",
     "docs/project_memory/product_roadmap.md",
     "docs/project_memory/architecture/platform_north_star_and_future_stack.md",
     "docs/project_memory/project_continuity_bootstrap.md",
@@ -98,6 +108,10 @@ REQUIRED_FILES = [
     "docs/project_memory/section_registry_summary.md",
     "docs/project_memory/future_architecture_ledger.md",
     "docs/project_memory/premium_platform_blueprint.md",
+    "docs/project_memory/historical_strategy/product_vision_2026-06-20.md",
+    "docs/project_memory/historical_strategy/premium_platform_blueprint_2026-07-15.md",
+    "docs/project_memory/historical_strategy/future_architecture_ledger_2026-07-15.md",
+    "docs/project_memory/historical_strategy/platform_north_star_and_future_stack_2026-07-15.md",
     "docs/project_memory/developer_delivery_workflow_contract.md",
     "docs/project_memory/developer_delivery_workflow_script_safety_addendum_v1.md",
     "docs/project_memory/milestones/project_memory_developer_workflow_canonicalization_v1.md",
@@ -408,22 +422,47 @@ REQUIRED_PHRASES = {
         "Linux does not own routine runtime QA",
         "Streamlit is legacy/developer-only",
     ],
+    "docs/project_memory/product_north_star.md": [
+        "personal health intelligence system",
+        "CAPTURE",
+        "PLAN",
+        "EXECUTE",
+        "UNDERSTAND",
+        "ADAPT",
+        "LEARN",
+        "PREDICT",
+        "ASSIST",
+        "Backend owns truth",
+        "Useful without generative AI",
+    ],
+    "docs/project_memory/product_vision.md": [
+        "Compatibility Pointer",
+        "product_north_star.md",
+        "product_roadmap.md",
+        "historical_strategy/product_vision_2026-06-20.md",
+    ],
     "docs/project_memory/future_architecture_ledger.md": [
-        "RAG",
-        "Vector",
-        "MoE",
-        "MCP",
-        "frontend",
-        "This ledger records direction. It does not authorize implementation.",
+        "Compatibility Pointer",
+        "not a current technical authority",
+        "architecture/platform_north_star_and_future_stack.md",
+        "historical_strategy/future_architecture_ledger_2026-07-15.md",
     ],
     "docs/project_memory/premium_platform_blueprint.md": [
-        "premium",
-        "RAG",
-        "vector",
-        "MoE",
-        "MCP",
-        "qwen3:32b",
-        "This document is aspirational. It does not authorize implementation of all features.",
+        "Compatibility Pointer",
+        "product_north_star.md",
+        "product_roadmap.md",
+        "historical_strategy/premium_platform_blueprint_2026-07-15.md",
+    ],
+    "docs/project_memory/architecture/platform_north_star_and_future_stack.md": [
+        "Future Technical Architecture Reference",
+        "stable, non-authorizing",
+        "not a default strategic source",
+        "Local-First Evolution",
+        "Curated Knowledge and Selective RAG",
+        "Vector Retrieval and Embeddings",
+        "Agents and Orchestration",
+        "Security and Privacy",
+        "Deployment and SaaS Maturity",
     ],
     "docs/project_memory/developer_delivery_workflow_contract.md": [
         "current_workflow_contract.md",
@@ -906,6 +945,25 @@ def run_project_memory_check(project_root: Path | str = ".") -> list[MemoryCheck
                 "Current-truth kernel and generated view are valid and synchronized.",
             )
         )
+        current_truth = json.loads(_read_text(root / CURRENT_TRUTH_SOURCE))
+        strategic_sources = current_truth.get("strategic_source_paths")
+        if strategic_sources == list(CANONICAL_STRATEGIC_SOURCE_PATHS):
+            results.append(
+                MemoryCheckResult(
+                    "PASS",
+                    CURRENT_TRUTH_SOURCE,
+                    "Canonical strategic source paths are exact and ordered.",
+                )
+            )
+        else:
+            results.append(
+                MemoryCheckResult(
+                    "FAIL",
+                    CURRENT_TRUTH_SOURCE,
+                    "Strategic source paths must be exactly: "
+                    + ", ".join(CANONICAL_STRATEGIC_SOURCE_PATHS),
+                )
+            )
 
     project_state_path = root / "docs/project_memory/project_state.json"
     if project_state_path.exists():
