@@ -54,12 +54,11 @@
 
 .tabLabel {
   display: block;
-  overflow: hidden;
-  font-size: 1rem;
+  font-size: clamp(0.72rem, 3.35vw, 0.9rem);
   font-weight: 700;
   letter-spacing: -0.015em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  line-height: 1.05rem;
+  white-space: normal;
 }
 
 .tabHint {
@@ -132,6 +131,14 @@
 
   .tabHint {
     display: block;
+  }
+
+  .tabLabel {
+    overflow: hidden;
+    font-size: 1rem;
+    line-height: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .surface {

@@ -49,6 +49,103 @@ def test_search_endpoint_returns_seeded_canonical_chicken_match(tmp_path, monkey
     assert "source_payload_json" not in payload["results"][0]
 
 
+def test_browse_endpoint_pages_filters_and_applies_user_display_names(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    first_added = create_canonical_food(
+        "ZZZ Scanned Product",
+        food_type="branded",
+        default_grams=100,
+    )
+    second_added = create_canonical_food(
+        "Bee Added Product",
+        food_type="branded",
+        default_grams=75,
+    )
+    renamed = _client().put(
+        f"/nutrition/1/canonical-food-names/{first_added.id}",
+        json={"display_name": "AAA My Scan"},
+    )
+    assert renamed.status_code == 200
+
+    first_page = _client().get(
+        "/foods/canonical/browse",
+        params={"scope": "added", "limit": 1, "user_id": 1},
+    )
+    assert first_page.status_code == 200
+    first_payload = first_page.json()
+    assert first_payload["has_more"] is True
+    assert first_payload["next_offset"] == 1
+    assert first_payload["results"][0]["canonical_food_id"] == first_added.id
+    assert first_payload["results"][0]["display_name"] == "AAA My Scan"
+    assert first_payload["results"][0]["original_display_name"] == (
+        "ZZZ Scanned Product"
+    )
+
+    second_page = (
+        _client()
+        .get(
+            "/foods/canonical/browse",
+            params={
+                "scope": "added",
+                "limit": 1,
+                "offset": first_payload["next_offset"],
+                "user_id": 1,
+            },
+        )
+        .json()
+    )
+    assert second_page["results"][0]["canonical_food_id"] == second_added.id
+    assert second_page["has_more"] is False
+    assert second_page["next_offset"] is None
+
+    letter_page = (
+        _client()
+        .get(
+            "/foods/canonical/browse",
+            params={"scope": "added", "start_letter": "B", "user_id": 1},
+        )
+        .json()
+    )
+    assert letter_page["start_letter"] == "B"
+    assert letter_page["results"][0]["canonical_food_id"] == second_added.id
+
+    custom_name_search = (
+        _client()
+        .get(
+            "/foods/canonical/browse",
+            params={"scope": "added", "q": "my scan", "user_id": 1},
+        )
+        .json()
+    )
+    assert custom_name_search["query"] == "my scan"
+    assert custom_name_search["results"][0]["canonical_food_id"] == first_added.id
+
+    catalog_foods = (
+        _client()
+        .get(
+            "/foods/canonical/browse",
+            params={"scope": "catalog", "limit": 25, "user_id": 1},
+        )
+        .json()["results"]
+    )
+    assert catalog_foods
+    assert all(food["food_type"] != "branded" for food in catalog_foods)
+
+
+def test_browse_endpoint_rejects_unknown_scope(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().get(
+        "/foods/canonical/browse",
+        params={"scope": "new-taxonomy"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "scope must be one of: all, catalog, added."
+
+
 def test_search_endpoint_returns_common_seeded_foods(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
 

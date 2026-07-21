@@ -141,6 +141,71 @@ def get_user_canonical_food_names(
     return {int(row["canonical_food_id"]): str(row["display_name"]) for row in rows}
 
 
+def browse_user_canonical_foods(
+    *,
+    user_id: int,
+    offset: int = 0,
+    limit: int = 20,
+    catalog_scope: str = "all",
+    query: str = "",
+    start_letter: str = "",
+) -> list[CanonicalFoodSearchResult]:
+    """Browse active foods ordered and filtered by the user's visible names."""
+
+    ensure_user_canonical_food_name_schema()
+    _assert_user_exists(user_id)
+    clauses = ["foods.active = 1"]
+    params: list[Any] = [user_id]
+    if catalog_scope == "catalog":
+        clauses.append("foods.food_type != 'branded'")
+    elif catalog_scope == "added":
+        clauses.append("foods.food_type = 'branded'")
+    normalized_query = normalize_food_name(query)
+    if normalized_query:
+        clauses.append("(foods.normalized_name LIKE ? OR names.normalized_name LIKE ?)")
+        like_query = f"%{normalized_query}%"
+        params.extend((like_query, like_query))
+    if start_letter:
+        clauses.append(
+            "COALESCE(names.display_name, foods.display_name) " "COLLATE NOCASE >= ?"
+        )
+        params.append(start_letter)
+    params.extend((max(1, int(limit)), max(0, int(offset))))
+
+    conn = get_connection()
+    rows = conn.execute(
+        f"""
+        SELECT foods.id,
+               COALESCE(names.display_name, foods.display_name) AS browse_name
+        FROM canonical_foods AS foods
+        LEFT JOIN {USER_CANONICAL_FOOD_NAMES_TABLE_NAME} AS names
+          ON names.canonical_food_id = foods.id AND names.user_id = ?
+        WHERE {' AND '.join(clauses)}
+        ORDER BY browse_name COLLATE NOCASE, foods.id
+        LIMIT ? OFFSET ?
+        """,
+        params,
+    ).fetchall()
+    conn.close()
+
+    results: list[CanonicalFoodSearchResult] = []
+    for row in rows:
+        food = get_canonical_food(int(row["id"]))
+        if food is None:
+            continue
+        visible_name = str(row["browse_name"])
+        results.append(
+            CanonicalFoodSearchResult(
+                canonical_food=replace(food, display_name=visible_name),
+                matched_on="browse",
+                matched_value=visible_name,
+                rank_score=food.search_priority,
+                aliases=[],
+            )
+        )
+    return results
+
+
 def search_user_canonical_foods(
     search_term: str,
     *,

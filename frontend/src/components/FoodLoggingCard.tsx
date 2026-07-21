@@ -11,6 +11,10 @@ import {
 import Link from "next/link";
 
 import { BarcodeScannerDialog } from "@/components/BarcodeScannerDialog";
+import {
+  FoodCatalogBrowseChoice,
+  FoodCatalogBrowseDialog,
+} from "@/components/FoodCatalogBrowseDialog";
 import { TodayCard } from "@/components/TodayCard";
 import type { BarcodeCanonicalFood } from "@/lib/barcodeFood";
 import {
@@ -202,6 +206,74 @@ function PinIcon({ active }: { active: boolean }) {
   );
 }
 
+function FoodResultList({
+  foods,
+  selectedKey,
+  pinnedKeys,
+  updatingPinnedKey,
+  onSelect,
+  onTogglePinned,
+}: {
+  foods: LoggingFoodResult[];
+  selectedKey?: string;
+  pinnedKeys: Set<string>;
+  updatingPinnedKey: string | null;
+  onSelect: (food: LoggingFoodResult) => void;
+  onTogglePinned: (food: LoggingFoodResult) => void;
+}) {
+  return (
+    <div className="max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-border bg-surface p-1">
+      {foods.map((food) => {
+        const isSelected = selectedKey === food.key;
+        const isPinned = pinnedKeys.has(food.key);
+
+        return (
+          <div
+            key={food.key}
+            className={`flex items-stretch overflow-hidden rounded-xl transition ${
+              isSelected ? "bg-surface-highlighted" : "hover:bg-surface-subtle"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => onSelect(food)}
+              className="min-w-0 flex-1 px-3 py-2.5 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-semibold text-text-strong">
+                  {food.displayName}
+                </p>
+                {food.foodType === "personal" ? (
+                  <span className="rounded-full bg-positive-surface px-2 py-0.5 text-[0.68rem] font-semibold text-positive-foreground">
+                    My food
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 text-xs leading-4 text-text-secondary">
+                {formatMacroLine(food.nutrientSummary)}
+              </p>
+            </button>
+            <button
+              type="button"
+              aria-label={`${isPinned ? "Unpin" : "Pin"} ${food.displayName}`}
+              title={`${isPinned ? "Unpin" : "Pin"} ${food.displayName}`}
+              disabled={updatingPinnedKey === food.key}
+              onClick={() => onTogglePinned(food)}
+              className={`flex min-w-11 items-center justify-center transition disabled:opacity-50 ${
+                isPinned
+                  ? "text-accent-text"
+                  : "text-text-muted hover:text-accent-text"
+              }`}
+            >
+              <PinIcon active={isPinned} />
+            </button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FoodLoggingCard({
   userId,
   targetDate,
@@ -210,6 +282,7 @@ export function FoodLoggingCard({
   variant = "card",
 }: FoodLoggingCardProps) {
   const [query, setQuery] = useState("");
+  const [isBrowseOpen, setIsBrowseOpen] = useState(false);
   const [results, setResults] = useState<LoggingFoodResult[]>([]);
   const [pinnedFoods, setPinnedFoods] = useState<PinnedFood[]>([]);
   const [recentFoods, setRecentFoods] = useState<RecentCanonicalFood[]>([]);
@@ -252,6 +325,8 @@ export function FoodLoggingCard({
       setIsLoadingRecentFoods(false);
     }
   }, [userId]);
+
+  const closeBrowse = useCallback(() => setIsBrowseOpen(false), []);
 
   useEffect(() => {
     let isActive = true;
@@ -494,6 +569,46 @@ export function FoodLoggingCard({
     setSearchMessage(null);
     setErrorMessage(null);
     setIsRenaming(false);
+  }
+
+  function handleSelectFoodResult(food: LoggingFoodResult) {
+    const isSameSelection = selectedFood?.key === food.key;
+    if (!isSameSelection) {
+      pendingRecentContextRef.current = null;
+      setServingUnits([]);
+      if (food.foodType === "personal") {
+        setSelectedUnitKey(food.servingGrams ? "personal-serving" : "grams");
+        setAmount(food.servingGrams ? "1" : String(food.defaultGrams ?? 50));
+        setIsLoadingServingUnits(false);
+      } else {
+        setSelectedUnitKey("grams");
+        setAmount("50");
+        setIsLoadingServingUnits(true);
+      }
+    }
+    setSelectedFood(food);
+    setIsRenaming(false);
+    setSelectedSearchQuery(food.displayName);
+    setQuery(food.displayName);
+    setResults([]);
+    setErrorMessage(null);
+  }
+
+  function handleSelectBrowseChoice(choice: FoodCatalogBrowseChoice) {
+    if (choice.kind === "catalog") {
+      handleSelectFoodResult(canonicalFoodToLoggingResult(choice.food));
+    } else {
+      handleSelectPinnedFood(choice.food);
+    }
+    closeBrowse();
+  }
+
+  function handleToggleBrowseChoice(choice: FoodCatalogBrowseChoice) {
+    void handleTogglePinned(
+      choice.kind === "catalog"
+        ? canonicalFoodToLoggingResult(choice.food)
+        : choice.food,
+    );
   }
 
   async function handleTogglePinned(food: LoggingFoodResult | PinnedFood) {
@@ -858,9 +973,21 @@ export function FoodLoggingCard({
         ) : null}
 
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-text-primary" htmlFor="food-search">
-            Search foods
-          </label>
+          <div className="flex items-center justify-between gap-3">
+            <label className="text-sm font-semibold text-text-primary" htmlFor="food-search">
+              Search foods
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setIsBrowseOpen(true);
+                setSearchMessage(null);
+              }}
+              className="min-h-10 rounded-xl border border-border-accent bg-surface px-3 py-2 text-sm font-semibold text-accent-text transition hover:bg-surface-highlighted"
+            >
+              Browse foods
+            </button>
+          </div>
           <div className="flex items-center gap-2">
             <input
               ref={searchInputRef}
@@ -913,80 +1040,14 @@ export function FoodLoggingCard({
         ) : null}
 
         {shouldShowResults ? (
-          <div className="max-h-64 space-y-1 overflow-y-auto rounded-2xl border border-border bg-surface p-1">
-            {results.map((food) => {
-              const isSelected = selectedFood?.key === food.key;
-              const isPinned = pinnedKeys.has(food.key);
-
-              return (
-                <div
-                  key={food.key}
-                  className={`flex items-stretch overflow-hidden rounded-xl transition ${
-                    isSelected ? "bg-surface-highlighted" : "hover:bg-surface-subtle"
-                  }`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const isSameSelection = selectedFood?.key === food.key;
-                      if (!isSameSelection) {
-                        pendingRecentContextRef.current = null;
-                        setServingUnits([]);
-                        if (food.foodType === "personal") {
-                          setSelectedUnitKey(
-                            food.servingGrams ? "personal-serving" : "grams",
-                          );
-                          setAmount(
-                            food.servingGrams
-                              ? "1"
-                              : String(food.defaultGrams ?? 50),
-                          );
-                          setIsLoadingServingUnits(false);
-                        } else {
-                          setSelectedUnitKey("grams");
-                          setAmount("50");
-                          setIsLoadingServingUnits(true);
-                        }
-                      }
-                      setSelectedFood(food);
-                      setIsRenaming(false);
-                      setSelectedSearchQuery(query.trim());
-                      setErrorMessage(null);
-                    }}
-                    className="min-w-0 flex-1 px-3 py-2 text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-text-strong">
-                        {food.displayName}
-                      </p>
-                      {food.foodType === "personal" ? (
-                        <span className="rounded-full bg-positive-surface px-2 py-0.5 text-[0.68rem] font-semibold text-positive-foreground">
-                          My food
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 text-xs leading-4 text-text-secondary">
-                      {formatMacroLine(food.nutrientSummary)}
-                    </p>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${isPinned ? "Unpin" : "Pin"} ${food.displayName}`}
-                    title={`${isPinned ? "Unpin" : "Pin"} ${food.displayName}`}
-                    disabled={updatingPinnedKey === food.key}
-                    onClick={() => void handleTogglePinned(food)}
-                    className={`flex min-w-11 items-center justify-center transition disabled:opacity-50 ${
-                      isPinned
-                        ? "text-accent-text"
-                        : "text-text-muted hover:text-accent-text"
-                    }`}
-                  >
-                    <PinIcon active={isPinned} />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+          <FoodResultList
+            foods={results}
+            selectedKey={selectedFood?.key}
+            pinnedKeys={pinnedKeys}
+            updatingPinnedKey={updatingPinnedKey}
+            onSelect={handleSelectFoodResult}
+            onTogglePinned={(food) => void handleTogglePinned(food)}
+          />
         ) : null}
 
         {selectedFood ? (
@@ -1130,6 +1191,16 @@ export function FoodLoggingCard({
             </button>
           </div>
         ) : null}
+        <FoodCatalogBrowseDialog
+          open={isBrowseOpen}
+          userId={userId}
+          pinnedFoods={pinnedFoods}
+          pinnedKeys={pinnedKeys}
+          updatingPinnedKey={updatingPinnedKey}
+          onClose={closeBrowse}
+          onSelect={handleSelectBrowseChoice}
+          onTogglePinned={handleToggleBrowseChoice}
+        />
         {isBarcodeScannerOpen ? (
           <BarcodeScannerDialog
             open

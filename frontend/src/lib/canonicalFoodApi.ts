@@ -8,6 +8,8 @@ import {
   CanonicalFoodLogResponse,
   CanonicalFoodLogUpdateRequest,
   CanonicalFoodLogUpdateResponse,
+  CanonicalFoodBrowseResponse,
+  CanonicalFoodBrowseScope,
   CanonicalFoodNameMutationResponse,
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
@@ -190,6 +192,50 @@ export async function searchCanonicalFoods(
   }
 
   return (await response.json()) as CanonicalFoodSearchResponse;
+}
+
+export async function browseCanonicalFoods({
+  userId,
+  scope = "all",
+  offset = 0,
+  limit = 20,
+  query = "",
+  startLetter = "",
+}: {
+  userId: number;
+  scope?: CanonicalFoodBrowseScope;
+  offset?: number;
+  limit?: number;
+  query?: string;
+  startLetter?: string;
+}): Promise<CanonicalFoodBrowseResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    scope,
+    offset: String(offset),
+    limit: String(limit),
+  });
+  if (query.trim()) {
+    params.set("q", query.trim());
+  }
+  if (startLetter) {
+    params.set("start_letter", startLetter);
+  }
+  const response = await fetch(
+    `/api/foods-canonical-browse?${params.toString()}`,
+    {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to browse foods right now."),
+    );
+  }
+
+  return (await response.json()) as CanonicalFoodBrowseResponse;
 }
 
 export async function setCanonicalFoodDisplayName({
