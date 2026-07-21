@@ -79,6 +79,18 @@ def test_search_endpoint_returns_common_seeded_foods(tmp_path, monkeypatch):
         assert "nutrient_summary" in results[0]
 
 
+def test_steak_search_preserves_tuna_steak_identity(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+
+    response = _client().get("/foods/canonical/search?q=steak")
+
+    assert response.status_code == 200
+    results = response.json()["results"]
+    assert results[0]["display_name"] == "Sirloin Steak, Cooked"
+    assert any(result["display_name"] == "Tuna steak" for result in results)
+    assert all(result["display_name"] != "Tuna" for result in results)
+
+
 def test_search_endpoint_returns_alias_match(tmp_path, monkeypatch):
     _seed_test_db(tmp_path, monkeypatch)
     food = create_canonical_food("Chicken Breast, Cooked, Skinless", "cooked")

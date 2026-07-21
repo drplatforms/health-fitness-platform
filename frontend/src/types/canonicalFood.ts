@@ -118,6 +118,44 @@ export interface PinnedFoodMutationResponse {
   food_id?: number;
 }
 
+export interface AvailableIngredient {
+  canonical_food_id: number;
+  display_name: string;
+  food_type: string;
+  added_at: string;
+}
+
+export interface AvailableIngredientsResponse {
+  success: boolean;
+  user_id: number;
+  results: AvailableIngredient[];
+}
+
+export interface AvailableIngredientMutationResponse {
+  success: boolean;
+  user_id: number;
+  available_ingredient?: AvailableIngredient;
+  deleted?: boolean;
+  canonical_food_id?: number;
+}
+
+export interface AvailableIngredientStarterItem {
+  canonical_food_id: number;
+  display_name: string;
+  food_type: string;
+}
+
+export interface AvailableIngredientStarterGroup {
+  key: string;
+  title: string;
+  items: AvailableIngredientStarterItem[];
+}
+
+export interface AvailableIngredientStarterGroupsResponse {
+  success: boolean;
+  groups: AvailableIngredientStarterGroup[];
+}
+
 export interface CanonicalFoodLogResponse {
   success: boolean;
   user_id: number;

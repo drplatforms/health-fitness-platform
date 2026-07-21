@@ -13,6 +13,13 @@ from models.saved_meal_models import (
     SavedMealItemInput,
     SavedMealMutationInput,
 )
+from services.available_ingredient_service import (
+    AvailableIngredientError,
+    AvailableIngredientNotFoundError,
+    add_available_ingredient,
+    list_available_ingredients,
+    remove_available_ingredient,
+)
 from services.food_logging_recents_service import get_recent_canonical_foods
 from services.nutrition_actuals_confidence_service import (
     build_public_nutrition_actuals_confidence_for_date,
@@ -406,6 +413,58 @@ def unpin_owned_food(user_id: int, food_type: str, food_id: int):
         "deleted": deleted,
         "food_type": food_type,
         "food_id": food_id,
+    }
+
+
+@router.get("/nutrition/{user_id}/available-ingredients")
+def available_ingredients(user_id: int):
+    try:
+        results = list_available_ingredients(user_id=user_id)
+    except AvailableIngredientNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": results,
+    }
+
+
+@router.put("/nutrition/{user_id}/available-ingredients/canonical/{canonical_food_id}")
+def add_owned_available_ingredient(user_id: int, canonical_food_id: int):
+    try:
+        ingredient = add_available_ingredient(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+        )
+    except AvailableIngredientNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AvailableIngredientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "available_ingredient": ingredient,
+    }
+
+
+@router.delete(
+    "/nutrition/{user_id}/available-ingredients/canonical/{canonical_food_id}"
+)
+def remove_owned_available_ingredient(user_id: int, canonical_food_id: int):
+    try:
+        deleted = remove_available_ingredient(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+        )
+    except AvailableIngredientNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AvailableIngredientError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "deleted": deleted,
+        "canonical_food_id": canonical_food_id,
     }
 
 

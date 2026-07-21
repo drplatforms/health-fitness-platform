@@ -340,6 +340,28 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # Available Ingredients
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_available_ingredients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        canonical_food_id INTEGER NOT NULL,
+        added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(user_id, canonical_food_id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (canonical_food_id) REFERENCES canonical_foods(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_user_available_ingredients_user_food
+    ON user_available_ingredients(user_id, canonical_food_id)
+    """)
+
+    # -----------------------------
     # Saved Meal Templates
     # -----------------------------
 

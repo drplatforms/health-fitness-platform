@@ -2,6 +2,7 @@
 
 import { KeyboardEvent, PointerEvent, useId, useRef, useState } from "react";
 
+import { AvailableIngredientsPanel } from "@/components/AvailableIngredientsPanel";
 import { FoodLoggingCard } from "@/components/FoodLoggingCard";
 import { PersonalFoodsList } from "@/components/PersonalFoodsList";
 import { SavedMealsPanel } from "@/components/SavedMealsPanel";
@@ -14,7 +15,7 @@ interface FoodWorkspaceDeckProps {
   requestedDate?: string;
 }
 
-type FoodWorkspacePanel = "log" | "meals" | "personal";
+type FoodWorkspacePanel = "log" | "meals" | "available" | "personal";
 
 interface PointerStart {
   pointerId: number;
@@ -24,7 +25,12 @@ interface PointerStart {
 }
 
 const SWIPE_THRESHOLD_PX = 48;
-const PANEL_ORDER: FoodWorkspacePanel[] = ["log", "meals", "personal"];
+const PANEL_ORDER: FoodWorkspacePanel[] = [
+  "log",
+  "meals",
+  "available",
+  "personal",
+];
 
 export function FoodWorkspaceDeck({
   userId,
@@ -35,6 +41,7 @@ export function FoodWorkspaceDeck({
   const id = useId();
   const logTabRef = useRef<HTMLButtonElement>(null);
   const mealsTabRef = useRef<HTMLButtonElement>(null);
+  const availableTabRef = useRef<HTMLButtonElement>(null);
   const personalTabRef = useRef<HTMLButtonElement>(null);
   const pointerStartRef = useRef<PointerStart | null>(null);
   const suppressClickRef = useRef(false);
@@ -46,6 +53,7 @@ export function FoodWorkspaceDeck({
         ({
           log: logTabRef,
           meals: mealsTabRef,
+          available: availableTabRef,
           personal: personalTabRef,
         })[panel].current?.focus();
       });
@@ -198,6 +206,23 @@ export function FoodWorkspaceDeck({
           <span className={styles.tabHint}>Build and reuse</span>
         </button>
         <button
+          ref={availableTabRef}
+          id={`${id}-available-tab`}
+          type="button"
+          role="tab"
+          aria-selected={activePanel === "available"}
+          aria-controls={`${id}-available-panel`}
+          tabIndex={activePanel === "available" ? 0 : -1}
+          onClick={() => activatePanel("available")}
+          onKeyDown={handleTabKeyDown}
+          className={`${styles.tab} ${
+            activePanel === "available" ? styles.activeTab : styles.inactiveTab
+          }`}
+        >
+          <span className={styles.tabLabel}>Available</span>
+          <span className={styles.tabHint}>Foods on hand</span>
+        </button>
+        <button
           ref={personalTabRef}
           id={`${id}-personal-tab`}
           type="button"
@@ -239,6 +264,15 @@ export function FoodWorkspaceDeck({
           className={styles.panel}
         >
           <SavedMealsPanel userId={userId} targetDate={targetDate} />
+        </div>
+        <div
+          id={`${id}-available-panel`}
+          role="tabpanel"
+          aria-labelledby={`${id}-available-tab`}
+          hidden={activePanel !== "available"}
+          className={styles.panel}
+        >
+          <AvailableIngredientsPanel userId={userId} />
         </div>
         <div
           id={`${id}-personal-panel`}

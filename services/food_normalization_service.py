@@ -3868,6 +3868,8 @@ def curate_canonical_display_name(
             return "Turkey breast"
         if "salmon" in normalized.split():
             return "Salmon"
+        if "tuna" in normalized.split() and "steak" in normalized.split():
+            return "Tuna steak"
         if "tuna" in normalized.split():
             return "Tuna"
         if "ribeye" in normalized.split() and "steak" in normalized.split():
