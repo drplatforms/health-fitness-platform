@@ -95,6 +95,7 @@ export interface PlannedWorkoutExerciseSummary {
   exercise_order: number;
   name: string;
   sets: number;
+  rest_seconds?: number | null;
   measurement_type: WorkoutMeasurementType;
   reps_min: number | null;
   reps_max: number | null;
