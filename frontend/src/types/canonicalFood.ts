@@ -88,6 +88,36 @@ export interface RecentCanonicalFoodsResponse {
   results: RecentCanonicalFood[];
 }
 
+export type PinnedFoodType = "canonical" | "personal";
+
+export interface PinnedFood {
+  food_type: PinnedFoodType;
+  food_id: number;
+  canonical_food_id?: number;
+  personal_food_id?: number;
+  display_name: string;
+  default_grams: number | null;
+  serving_name?: string | null;
+  serving_grams?: number | null;
+  pinned_at: string;
+  nutrient_summary?: CanonicalFoodNutrientSummary;
+}
+
+export interface PinnedFoodsResponse {
+  success: boolean;
+  user_id: number;
+  results: PinnedFood[];
+}
+
+export interface PinnedFoodMutationResponse {
+  success: boolean;
+  user_id: number;
+  pinned_food?: PinnedFood;
+  deleted?: boolean;
+  food_type?: PinnedFoodType;
+  food_id?: number;
+}
+
 export interface CanonicalFoodLogResponse {
   success: boolean;
   user_id: number;

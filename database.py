@@ -318,6 +318,28 @@ def initialize_database():
     """)
 
     # -----------------------------
+    # Pinned Foods
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_pinned_foods (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        food_type TEXT NOT NULL CHECK (food_type IN ('canonical', 'personal')),
+        food_id INTEGER NOT NULL CHECK (food_id > 0),
+        pinned_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        UNIQUE(user_id, food_type, food_id),
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_user_pinned_foods_user_order
+    ON user_pinned_foods(user_id, id)
+    """)
+
+    # -----------------------------
     # Saved Meal Templates
     # -----------------------------
 

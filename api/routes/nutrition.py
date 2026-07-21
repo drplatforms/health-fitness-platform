@@ -59,6 +59,13 @@ from services.personal_food_service import (
     revise_personal_food,
     search_personal_foods,
 )
+from services.pinned_food_service import (
+    PinnedFoodError,
+    PinnedFoodNotFoundError,
+    list_pinned_foods,
+    pin_food,
+    unpin_food,
+)
 from services.saved_meal_logging_service import log_saved_meal
 from services.saved_meal_service import (
     SavedMealArchivedError,
@@ -346,6 +353,59 @@ def recent_canonical_foods(user_id: int, limit: str = "10"):
         "success": True,
         "user_id": user_id,
         "results": get_recent_canonical_foods(user_id=user_id, limit=limit),
+    }
+
+
+@router.get("/nutrition/{user_id}/pinned-foods")
+def pinned_foods(user_id: int):
+    try:
+        results = list_pinned_foods(user_id=user_id)
+    except PinnedFoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "results": results,
+    }
+
+
+@router.put("/nutrition/{user_id}/pinned-foods/{food_type}/{food_id}")
+def pin_owned_food(user_id: int, food_type: str, food_id: int):
+    try:
+        pinned_food = pin_food(
+            user_id=user_id,
+            food_type=food_type,
+            food_id=food_id,
+        )
+    except PinnedFoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PinnedFoodError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "pinned_food": pinned_food,
+    }
+
+
+@router.delete("/nutrition/{user_id}/pinned-foods/{food_type}/{food_id}")
+def unpin_owned_food(user_id: int, food_type: str, food_id: int):
+    try:
+        deleted = unpin_food(
+            user_id=user_id,
+            food_type=food_type,
+            food_id=food_id,
+        )
+    except PinnedFoodNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PinnedFoodError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "deleted": deleted,
+        "food_type": food_type,
+        "food_id": food_id,
     }
 
 
