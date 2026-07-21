@@ -1,53 +1,32 @@
 ---
 name: fitness-ai-milestone
-description: Execute authorized Fitness AI repository milestones from handoff through validation and clean closeout. Use when implementing, resuming, or verifying scoped work in the fitness_ai repository, especially when branch safety, project memory, targeted tests, safe browser smoke, database protection, and exact completion reporting are required.
+description: Implement and validate scoped work in the Health & Fitness Platform repository with lightweight safety rails.
 ---
 
 # Fitness AI Milestone
 
-Read `docs/project_memory/current_state.md`, the active milestone memory, and `docs/project_memory/validation_matrix.md` before editing.
+Work from the user's request and the repository itself.
 
-## Standard Loop
+## Workflow
 
-Follow this sequence:
+1. Read the applicable `AGENTS.md`.
+2. Inspect the current branch, Git status, and only the code needed for the task.
+3. Briefly state what you found and your intended approach, then proceed unless there is a meaningful conflict.
+4. Implement the smallest sound solution.
+5. Run targeted validation based on actual risk.
+6. Inspect the final diff, clean temporary artifacts, and report the result.
 
-```text
-inspect
-→ compare current work to milestone scope
-→ implement only approved scope
-→ run targeted validation
-→ run lint/build where relevant
-→ run browser smoke using safe data
-→ clean temporary artifacts
-→ inspect diff
-→ report exact results
-→ stop without staging or committing
-```
+## Rules
 
-1. Inspect the branch, latest commit, status including untracked files, staged files, and relevant diffs.
-2. Confirm the handoff matches current project memory, expected files, boundaries, and base branch.
-3. Preserve existing work and reuse current services, contracts, and helpers.
-4. Implement only the authorized behavior and files. Avoid broad refactors.
-5. Select the narrowest credible targeted checks from `docs/project_memory/validation_matrix.md`; add tests required by the milestone's actual risk. Never run the full repository suite unless the Architecture handoff explicitly authorizes it and states the concrete cross-cutting risk justification. Milestone closeout alone is not justification.
-6. Run lint/build for touched areas. Run production browser smoke for UI work and for milestones that explicitly require runtime confidence.
-7. Use a temporary database or copy for automated smoke. Never mutate the real `fitness_ai.db`.
-8. Remove temporary scripts, databases, logs, reports, and fixtures.
-9. Run `git diff --check`, inspect exact changed and staged files, and confirm database safety.
-10. Report exact commands, counts, smoke coverage, cleanup, Git status, and anything not validated. Do not stage or commit unless separately authorized.
-
-## Interrupted Session Recovery
-
-- Resume from the existing working tree; do not restart blindly.
-- Inspect branch, status, staged files, and diff before taking action.
-- Do not overwrite, restore, reset, discard, or clean partial work.
-- Compare completed requirements and validation evidence with the milestone checklist.
-- Finish only missing, broken, or unverified work.
-- Treat unexpected overlapping changes or branch conflicts as reportable conditions. Work around unrelated changes when safe; stop when the milestone cannot be isolated.
-
-Never claim completion while required validation is missing or temporary artifacts remain.
-
-## Validation Cost Guardrail
-
-Targeted, risk-based validation is the default for every milestone, correction, and closeout. Mechanical data/content work should stay on focused affected-feature checks; frontend-only work should use affected frontend tests plus lint/build and required smoke; bounded backend work should use affected service/API tests plus nearest regression slices. Broaden only for shared contracts or genuinely cross-cutting behavior.
-
-A full repository test-suite run requires explicit Architecture authorization with a concrete recorded risk justification. If a broad/full suite is useful but agent reasoning is not needed during execution, prefer running it outside the expensive Codex implementation session where practical.
+- Do not read project memory, validation matrices, milestone history, or Projectmem by default. Use them only when explicitly requested or when a concrete ambiguity/conflict requires them.
+- Do not perform routine Projectmem orientation or logging for ordinary feature work.
+- Let repository exploration determine which files need to change. Avoid broad scans and unrelated refactors.
+- Preserve unrelated and uncommitted work. Never reset, restore, discard, or clean work you did not create.
+- Reuse existing components, services, contracts, helpers, and data shapes where practical.
+- Treat an explicit implementation request from the user as authorization for that scoped work unless stated otherwise.
+- Use focused tests for affected behavior. Run lint/build and browser smoke only when relevant to the changed surface and risk.
+- Do not run project-memory checks unless project-memory files changed. Do not run the full repository suite unless the change is genuinely cross-cutting or explicitly requested.
+- Never mutate, restore, or replace the user's real `fitness_ai.db`; use disposable data for automated mutation.
+- Do not merge to `main`. Stage, commit, or push only when explicitly requested. Never force-push or rewrite history without explicit authorization.
+- Report what changed, validation performed, any real unresolved issue, and relevant Git status. Do not dump exhaustive command logs unless asked.
+- Never claim validation that was not actually performed.
