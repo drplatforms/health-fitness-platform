@@ -180,6 +180,60 @@ def test_counts_only_completed_user_scoped_history_inside_lookback(
     assert [item.exercise_name for item in analytics.exercises] == ["Bench Press"]
 
 
+def test_recent_sessions_expose_only_completed_non_skipped_set_performance(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _insert_plan(
+        actual_reps=[12, 9, 8],
+        actual_weights=[45.0, 45.0, 45.0],
+        actual_rirs=[2, 1, 0],
+        completed_flags=[1, 1, 0],
+        skipped_flags=[0, 1, 0],
+    )
+
+    exercise = build_workout_exercise_history_analytics(user_id=1).exercises[0]
+
+    assert exercise.recent_sessions[0].completed_set_count == 1
+    assert [asdict(item) for item in exercise.recent_sessions[0].completed_sets] == [
+        {
+            "set_number": 1,
+            "actual_reps": 12,
+            "actual_weight": 45.0,
+            "actual_rir": 2,
+        }
+    ]
+
+
+def test_progression_recommendation_reuses_engine_and_stays_user_scoped(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _insert_plan(
+        user_id=1,
+        actual_reps=[10, 10, 10],
+        actual_weights=[45.0, 45.0, 45.0],
+        actual_rirs=[2, 2, 2],
+    )
+    _insert_plan(
+        user_id=2,
+        actual_reps=[12, 12, 12],
+        actual_weights=[45.0, 45.0, 45.0],
+        actual_rirs=[2, 2, 2],
+    )
+
+    recommendation = (
+        build_workout_exercise_history_analytics(user_id=1)
+        .exercises[0]
+        .progression_recommendation
+    )
+
+    assert recommendation.decision == "increase_reps"
+    assert recommendation.headline == "Increase reps"
+    assert recommendation.target_guidance == "45 lb × 8–12"
+    assert recommendation.evidence_session_count == 1
+
+
 def test_exercises_are_recent_first_and_response_limits_do_not_change_overview(
     tmp_path, monkeypatch
 ) -> None:
@@ -335,3 +389,5 @@ def test_public_contract_excludes_raw_rows_notes_and_internal_ids(
     assert "workout_plan_instance_id" not in serialized
     assert "workout_execution_session_id" not in serialized
     assert "planned_exercise_id" not in serialized
+    assert "why_this_recommendation" not in serialized
+    assert "reason_codes" not in serialized

@@ -27,6 +27,27 @@ export interface ExerciseHistoryRecentSession {
   summary: string;
   comparable_working_weight: number | null;
   average_actual_rir: number | null;
+  completed_sets: ExerciseHistoryCompletedSet[];
+}
+
+export interface ExerciseHistoryCompletedSet {
+  set_number: number;
+  actual_reps: number | null;
+  actual_weight: number | null;
+  actual_rir: number | null;
+}
+
+export interface ExerciseHistoryProgressionRecommendation {
+  decision:
+    | "increase_load"
+    | "increase_reps"
+    | "hold"
+    | "decrease_load"
+    | "build_baseline";
+  headline: string;
+  target_guidance: string;
+  evidence_session_count: number;
+  confidence: string;
 }
 
 export interface RecentWorkingLoadTrend {
@@ -44,6 +65,7 @@ export interface ExerciseHistoryAnalyticsSummary {
   last_performed_at: string | null;
   latest_completed_session_summary: string;
   recent_best_set: ExerciseHistoryBestSet | null;
+  progression_recommendation: ExerciseHistoryProgressionRecommendation;
   logging_quality: "none" | "limited" | "incomplete" | "complete";
   limitation: string | null;
   recent_working_load_trend: RecentWorkingLoadTrend;
