@@ -14,6 +14,9 @@ import {
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
   CanonicalFoodServingUnitsResponse,
+  FoodPreferenceMutationResponse,
+  FoodPreferencesResponse,
+  FoodPreferenceState,
   PinnedFoodMutationResponse,
   PinnedFoodsResponse,
   PinnedFoodType,
@@ -265,6 +268,58 @@ export async function setCanonicalFoodDisplayName({
     );
   }
   return (await response.json()) as CanonicalFoodNameMutationResponse;
+}
+
+export async function fetchFoodPreferences(
+  userId: number,
+): Promise<FoodPreferencesResponse> {
+  const params = new URLSearchParams({ user_id: String(userId) });
+  const response = await fetch(
+    `/api/nutrition-food-preferences?${params.toString()}`,
+    { cache: "no-store", headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to load food preferences right now."),
+    );
+  }
+  return (await response.json()) as FoodPreferencesResponse;
+}
+
+export async function setFoodPreference({
+  userId,
+  canonicalFoodId,
+  preference,
+}: {
+  userId: number;
+  canonicalFoodId: number;
+  preference: FoodPreferenceState;
+}): Promise<FoodPreferenceMutationResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    canonical_food_id: String(canonicalFoodId),
+  });
+  const response = await fetch(
+    `/api/nutrition-food-preferences?${params.toString()}`,
+    {
+      method: preference === "neutral" ? "DELETE" : "PUT",
+      headers: {
+        Accept: "application/json",
+        ...(preference === "neutral"
+          ? {}
+          : { "Content-Type": "application/json" }),
+      },
+      ...(preference === "neutral"
+        ? {}
+        : { body: JSON.stringify({ preference }) }),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to update this food preference."),
+    );
+  }
+  return (await response.json()) as FoodPreferenceMutationResponse;
 }
 
 export async function resolveFoodBarcode(

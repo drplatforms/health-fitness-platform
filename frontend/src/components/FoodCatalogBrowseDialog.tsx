@@ -10,11 +10,17 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { browseCanonicalFoods } from "@/lib/canonicalFoodApi";
+import {
+  browseCanonicalFoods,
+  fetchFoodPreferences,
+  setFoodPreference,
+} from "@/lib/canonicalFoodApi";
 import {
   CanonicalFoodBrowseScope,
   CanonicalFoodNutrientSummary,
   CanonicalFoodSearchResult,
+  FoodPreference,
+  FoodPreferenceState,
   PinnedFood,
 } from "@/types/canonicalFood";
 
@@ -22,7 +28,18 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 const BROWSE_PAGE_SIZE = 25;
 const MAX_RENDERED_FOODS = 100;
 
-type BrowseFilter = CanonicalFoodBrowseScope | "pinned";
+type BrowseFilter = CanonicalFoodBrowseScope | "pinned" | "rated";
+
+const PREFERENCE_OPTIONS: ReadonlyArray<{
+  value: FoodPreferenceState;
+  label: string;
+}> = [
+  { value: "neutral", label: "Neutral" },
+  { value: "love", label: "Love" },
+  { value: "like", label: "Like" },
+  { value: "dislike", label: "Dislike" },
+  { value: "never_suggest", label: "Never suggest" },
+];
 
 export type FoodCatalogBrowseChoice =
   | { kind: "catalog"; food: CanonicalFoodSearchResult }
@@ -51,6 +68,31 @@ function choiceName(choice: FoodCatalogBrowseChoice) {
 
 function choiceNutrients(choice: FoodCatalogBrowseChoice) {
   return choice.food.nutrient_summary;
+}
+
+function choiceCanonicalFoodId(choice: FoodCatalogBrowseChoice) {
+  return choice.kind === "catalog"
+    ? choice.food.canonical_food_id
+    : choice.food.food_type === "canonical"
+      ? choice.food.canonical_food_id ?? choice.food.food_id
+      : null;
+}
+
+function preferenceToCatalogFood(
+  food: FoodPreference,
+): CanonicalFoodSearchResult {
+  return {
+    canonical_food_id: food.canonical_food_id,
+    display_name: food.display_name,
+    original_display_name: food.original_display_name,
+    custom_display_name: food.custom_display_name,
+    food_type: food.food_type,
+    default_unit: food.default_unit,
+    default_grams: food.default_grams,
+    search_priority: food.search_priority,
+    matched_on: "food_preference",
+    aliases: [],
+  };
 }
 
 function formatCompactNumber(value: number): string {
@@ -118,8 +160,12 @@ export function FoodCatalogBrowseDialog({
   const [query, setQuery] = useState("");
   const [startLetter, setStartLetter] = useState("");
   const [catalogFoods, setCatalogFoods] = useState<CanonicalFoodSearchResult[]>([]);
+  const [preferenceFoods, setPreferenceFoods] = useState<FoodPreference[]>([]);
   const [nextOffset, setNextOffset] = useState<number | null>(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [updatingPreferenceFoodId, setUpdatingPreferenceFoodId] = useState<
+    number | null
+  >(null);
   const [message, setMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
   const requestIdRef = useRef(0);
@@ -130,7 +176,7 @@ export function FoodCatalogBrowseDialog({
 
   const loadPage = useCallback(
     async (offset: number) => {
-      if (filter === "pinned") {
+      if (filter === "pinned" || filter === "rated") {
         return;
       }
       const requestId = ++requestIdRef.current;
@@ -179,12 +225,37 @@ export function FoodCatalogBrowseDialog({
   );
 
   useEffect(() => {
-    if (!open || filter === "pinned") {
+    if (!open || filter === "pinned" || filter === "rated") {
       return;
     }
     const timeoutId = window.setTimeout(() => void loadPage(0), 180);
     return () => window.clearTimeout(timeoutId);
   }, [filter, loadPage, open]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    let cancelled = false;
+    void fetchFoodPreferences(userId)
+      .then((response) => {
+        if (!cancelled) {
+          setPreferenceFoods(response.results);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setMessage(
+            error instanceof Error
+              ? error.message
+              : "Unable to load food preferences right now.",
+          );
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, userId]);
 
   useEffect(() => {
     if (!open) {
@@ -229,6 +300,7 @@ export function FoodCatalogBrowseDialog({
     if (
       !open ||
       filter === "pinned" ||
+      filter === "rated" ||
       nextOffset === null ||
       isLoading ||
       catalogFoods.length >= MAX_RENDERED_FOODS
@@ -253,17 +325,36 @@ export function FoodCatalogBrowseDialog({
   }, [catalogFoods.length, filter, isLoading, loadPage, nextOffset, open]);
 
   const visibleChoices = useMemo<FoodCatalogBrowseChoice[]>(() => {
-    if (filter !== "pinned") {
+    if (filter !== "pinned" && filter !== "rated") {
       return catalogFoods.map((food) => ({ kind: "catalog", food }));
     }
     const normalizedQuery = deferredQuery.toLocaleLowerCase();
+    const matchesBrowseControls = (name: string) => {
+      const trimmedName = name.trim();
+      return (
+        (!normalizedQuery ||
+          trimmedName.toLocaleLowerCase().includes(normalizedQuery)) &&
+        (!startLetter ||
+          trimmedName.localeCompare(startLetter, undefined, {
+            sensitivity: "base",
+          }) >= 0)
+      );
+    };
+    if (filter === "rated") {
+      return preferenceFoods
+        .map(preferenceToCatalogFood)
+        .filter((food) => matchesBrowseControls(food.display_name))
+        .sort((left, right) =>
+          left.display_name.localeCompare(right.display_name, undefined, {
+            sensitivity: "base",
+          }),
+        )
+        .map((food) => ({ kind: "catalog", food }));
+    }
     return pinnedFoods
       .filter((food) => {
         const name = food.display_name.trim();
-        return (
-          (!normalizedQuery || name.toLocaleLowerCase().includes(normalizedQuery)) &&
-          (!startLetter || name.localeCompare(startLetter, undefined, { sensitivity: "base" }) >= 0)
-        );
+        return matchesBrowseControls(name);
       })
       .sort((left, right) =>
         left.display_name.localeCompare(right.display_name, undefined, {
@@ -271,7 +362,69 @@ export function FoodCatalogBrowseDialog({
         }),
       )
       .map((food) => ({ kind: "pinned", food }));
-  }, [catalogFoods, deferredQuery, filter, pinnedFoods, startLetter]);
+  }, [catalogFoods, deferredQuery, filter, pinnedFoods, preferenceFoods, startLetter]);
+
+  const preferenceByFoodId = useMemo(
+    () =>
+      new Map<number, FoodPreferenceState>(
+        preferenceFoods.map((food) => [food.canonical_food_id, food.preference]),
+      ),
+    [preferenceFoods],
+  );
+
+  async function handlePreferenceChange(
+    choice: FoodCatalogBrowseChoice,
+    preference: FoodPreferenceState,
+  ) {
+    const canonicalFoodId = choiceCanonicalFoodId(choice);
+    if (canonicalFoodId === null) {
+      return;
+    }
+    setUpdatingPreferenceFoodId(canonicalFoodId);
+    setMessage(null);
+    try {
+      await setFoodPreference({ userId, canonicalFoodId, preference });
+      setPreferenceFoods((current) => {
+        if (preference === "neutral") {
+          return current.filter(
+            (food) => food.canonical_food_id !== canonicalFoodId,
+          );
+        }
+        const existing = current.find(
+          (food) => food.canonical_food_id === canonicalFoodId,
+        );
+        const source = choice.food;
+        const next: FoodPreference = {
+          canonical_food_id: canonicalFoodId,
+          display_name: source.display_name,
+          original_display_name:
+            source.original_display_name ?? source.display_name,
+          custom_display_name: source.custom_display_name ?? null,
+          food_type:
+            choice.kind === "catalog" ? choice.food.food_type : "canonical",
+          default_unit:
+            choice.kind === "catalog" ? choice.food.default_unit : null,
+          default_grams: source.default_grams,
+          search_priority:
+            choice.kind === "catalog" ? choice.food.search_priority : 0,
+          ...existing,
+          preference,
+          is_hard_exclusion: preference === "never_suggest",
+          updated_at: new Date().toISOString(),
+        };
+        return [...current.filter((food) => food.canonical_food_id !== canonicalFoodId), next]
+          .sort((left, right) => left.display_name.localeCompare(right.display_name));
+      });
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to update this food preference.",
+      );
+    } finally {
+      setUpdatingPreferenceFoodId(null);
+    }
+  }
 
   const sections = useMemo(() => {
     const grouped = new Map<string, FoodCatalogBrowseChoice[]>();
@@ -336,6 +489,7 @@ export function FoodCatalogBrowseDialog({
                 ["all", "All"],
                 ["catalog", "Catalog"],
                 ["added", "Scanned / added"],
+                ["rated", "Rated"],
                 ["pinned", "Pinned"],
               ] as const
             ).map(([value, label]) => (
@@ -411,6 +565,11 @@ export function FoodCatalogBrowseDialog({
                   const key = choiceKey(choice);
                   const name = choiceName(choice);
                   const isPinned = pinnedKeys.has(key);
+                  const canonicalFoodId = choiceCanonicalFoodId(choice);
+                  const preference =
+                    canonicalFoodId === null
+                      ? "neutral"
+                      : preferenceByFoodId.get(canonicalFoodId) ?? "neutral";
                   return (
                     <div key={key} className="flex min-h-[4.25rem] items-stretch">
                       <button
@@ -423,6 +582,29 @@ export function FoodCatalogBrowseDialog({
                           {formatMacroLine(choiceNutrients(choice))}
                         </span>
                       </button>
+                      {canonicalFoodId !== null ? (
+                        <label className="flex shrink-0 items-center px-1">
+                          <span className="sr-only">Preference for {name}</span>
+                          <select
+                            aria-label={`Preference for ${name}`}
+                            value={preference}
+                            disabled={updatingPreferenceFoodId === canonicalFoodId}
+                            onChange={(event) =>
+                              void handlePreferenceChange(
+                                choice,
+                                event.target.value as FoodPreferenceState,
+                              )
+                            }
+                            className="min-h-9 max-w-[7.5rem] rounded-lg border border-border bg-surface px-2 text-xs font-semibold text-text-secondary outline-none focus:border-focus disabled:opacity-50"
+                          >
+                            {PREFERENCE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
                       <button
                         type="button"
                         aria-label={`${isPinned ? "Unpin" : "Pin"} ${name}`}
@@ -445,11 +627,15 @@ export function FoodCatalogBrowseDialog({
           {isLoading ? (
             <p className="px-2 py-5 text-center text-sm text-text-secondary">Loading foods...</p>
           ) : null}
-          {!isLoading && filter === "pinned" && visibleChoices.length === 0 ? (
+          {!isLoading && (filter === "pinned" || filter === "rated") && visibleChoices.length === 0 ? (
             <p className="mx-auto max-w-md px-4 py-10 text-center text-sm leading-6 text-text-secondary">
-              {pinnedFoods.length === 0
-                ? "Pin foods from search or browse to keep them here."
-                : "No pinned foods match these browse controls."}
+              {filter === "rated"
+                ? preferenceFoods.length === 0
+                  ? "Foods you rate will appear here."
+                  : "No rated foods match these browse controls."
+                : pinnedFoods.length === 0
+                  ? "Pin foods from search or browse to keep them here."
+                  : "No pinned foods match these browse controls."}
             </p>
           ) : null}
           {message ? (
