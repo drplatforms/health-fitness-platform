@@ -19,6 +19,12 @@ import {
   isHistoricalRequestedDate,
 } from "@/lib/dateFormatting";
 import {
+  extendWorkoutRestTimer,
+  formatWorkoutRestCountdown,
+  remainingWorkoutRestSeconds,
+  startWorkoutRestTimer,
+} from "@/lib/workoutRestTimer";
+import {
   applyWorkoutSubstitution,
   completeWorkout,
   deleteWorkoutActualSet,
@@ -1119,6 +1125,9 @@ export function WorkoutPreviewExperience({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [restTimerEndAtMs, setRestTimerEndAtMs] = useState<number | null>(null);
+  const [restTimerPlanId, setRestTimerPlanId] = useState<number | null>(null);
+  const [restTimerNowMs, setRestTimerNowMs] = useState(0);
   const isHydrated = useSyncExternalStore(
     subscribeToHydration,
     () => true,
@@ -1134,6 +1143,45 @@ export function WorkoutPreviewExperience({
   const isPersistedState = viewMode === "persisted";
   const isCompletedState = viewMode === "completed";
   const summaryStatus = executionSession?.status ?? selectedPlan?.status ?? null;
+  const selectedPlanId = selectedPlan?.id ?? null;
+  const activeRestTimerEndAtMs =
+    restTimerPlanId === selectedPlanId ? restTimerEndAtMs : null;
+  const restSecondsRemaining =
+    activeRestTimerEndAtMs === null
+      ? 0
+      : remainingWorkoutRestSeconds(activeRestTimerEndAtMs, restTimerNowMs);
+  const isRestComplete =
+    activeRestTimerEndAtMs !== null && restSecondsRemaining === 0;
+
+  useEffect(() => {
+    if (activeRestTimerEndAtMs === null) {
+      return;
+    }
+
+    let intervalId: number | null = null;
+    const refreshNow = () => {
+      const nowMs = Date.now();
+      setRestTimerNowMs(nowMs);
+      if (nowMs >= activeRestTimerEndAtMs && intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    refreshNow();
+    if (Date.now() < activeRestTimerEndAtMs) {
+      intervalId = window.setInterval(refreshNow, 1_000);
+    }
+    document.addEventListener("visibilitychange", refreshNow);
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+      }
+      document.removeEventListener("visibilitychange", refreshNow);
+    };
+  }, [activeRestTimerEndAtMs]);
+
   const statusLabel =
     isCompletedState
       ? "completed"
@@ -2036,6 +2084,15 @@ export function WorkoutPreviewExperience({
         return;
       }
 
+      if (result.data?.actual_set.completed && !result.data.actual_set.skipped) {
+        const restStartedAtMs = Date.now();
+        setRestTimerNowMs(restStartedAtMs);
+        setRestTimerPlanId(selectedPlan.id);
+        setRestTimerEndAtMs(
+          startWorkoutRestTimer(restStartedAtMs, exercise.rest_seconds),
+        );
+      }
+
       const latestPlan = result.data?.workout_plan_instance ?? selectedPlan;
       const latestExecution = result.data?.execution_session ?? executionSession;
       setSelectedPlan(latestPlan);
@@ -2208,6 +2265,21 @@ export function WorkoutPreviewExperience({
 
   function handleCancelCompletionReview() {
     setIsCompletionReviewOpen(false);
+  }
+
+  function handleExtendRestTimer() {
+    const nowMs = Date.now();
+    setRestTimerNowMs(nowMs);
+    setRestTimerEndAtMs((currentEndAtMs) =>
+      currentEndAtMs === null
+        ? null
+        : extendWorkoutRestTimer(currentEndAtMs, nowMs),
+    );
+  }
+
+  function handleSkipRestTimer() {
+    setRestTimerEndAtMs(null);
+    setRestTimerPlanId(null);
   }
 
   async function handleCompleteWorkout() {
@@ -2396,6 +2468,57 @@ export function WorkoutPreviewExperience({
             </div>
           ) : null}
         </div>
+      ) : null}
+
+      {canLogWorkout && activeRestTimerEndAtMs !== null ? (
+        <section
+          className={`min-w-0 rounded-2xl px-3 py-2.5 ring-1 lg:col-span-2 ${
+            isRestComplete
+              ? "bg-positive-surface text-positive-foreground-strong ring-positive-surface"
+              : "bg-surface text-text-strong ring-border"
+          }`}
+          aria-label="Workout rest timer"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                Rest
+              </p>
+              <p
+                role="timer"
+                aria-label={
+                  isRestComplete
+                    ? "Rest complete"
+                    : `${restSecondsRemaining} seconds of rest remaining`
+                }
+                className="mt-0.5 text-2xl font-bold tabular-nums"
+              >
+                {isRestComplete
+                  ? "Rest complete"
+                  : formatWorkoutRestCountdown(restSecondsRemaining)}
+              </p>
+              <span className="sr-only" aria-live="polite">
+                {isRestComplete ? "Rest complete." : ""}
+              </span>
+            </div>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={handleExtendRestTimer}
+                className="min-h-10 rounded-xl bg-surface-muted px-3 py-2 text-sm font-semibold text-text-body transition hover:bg-surface-interactive-hover"
+              >
+                +30 sec
+              </button>
+              <button
+                type="button"
+                onClick={handleSkipRestTimer}
+                className="min-h-10 rounded-xl px-3 py-2 text-sm font-semibold text-text-secondary transition hover:bg-surface-muted hover:text-text-strong"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        </section>
       ) : null}
 
       {!canLogWorkout ? (
