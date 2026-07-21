@@ -58,6 +58,18 @@ export interface DailyDriverNutritionSummary {
   carbs_logged_g: number | null;
   fat_logged_g: number | null;
   today_mission: string;
+  calorie_target_min: number | null;
+  calorie_target_max: number | null;
+  protein_target_min_g: number | null;
+  protein_target_max_g: number | null;
+  carbohydrate_target_min_g: number | null;
+  carbohydrate_target_max_g: number | null;
+  fat_target_min_g: number | null;
+  fat_target_max_g: number | null;
+  calories_logged_complete: boolean;
+  protein_logged_complete: boolean;
+  carbs_logged_complete: boolean;
+  fat_logged_complete: boolean;
 }
 
 export interface DailyDriverNextAction {

@@ -21,6 +21,11 @@ from services.nutrition_food_suggestion_service import (
     rank_food_suggestion_candidates,
 )
 from services.nutrition_service import add_canonical_food_entry
+from services.nutrition_serving_unit_service import (
+    create_or_update_serving_unit,
+    ensure_serving_unit_schema,
+    seed_canonical_food_serving_units,
+)
 from services.nutrition_target_vs_actual_service import (
     build_target_vs_actual_nutrition_summary,
 )
@@ -31,6 +36,8 @@ def _seed_test_db(tmp_path, monkeypatch) -> None:
     database.initialize_database()
     ensure_food_normalization_tables()
     seed_starter_canonical_foods()
+    ensure_serving_unit_schema()
+    seed_canonical_food_serving_units()
 
 
 def _approved_targets(
@@ -107,25 +114,54 @@ def _candidate_for_food(candidates, display_name: str, macro_name: str):
     )
 
 
+def _create_complete_canonical_food(
+    display_name: str,
+    *,
+    food_type: str = "branded",
+    calories: float,
+    protein_g: float,
+    carbohydrate_g: float,
+    fat_g: float,
+):
+    food = create_canonical_food(display_name, food_type, search_priority=100)
+    create_canonical_food_nutrient(food.id, "Calories", "kcal", calories)
+    create_canonical_food_nutrient(food.id, "Protein", "g", protein_g)
+    create_canonical_food_nutrient(
+        food.id,
+        "Carbohydrate",
+        "g",
+        carbohydrate_g,
+    )
+    create_canonical_food_nutrient(food.id, "Fat", "g", fat_g)
+    return food
+
+
 def _ranked_candidate(
     canonical_food_id: int,
     macro_gap_addressed: str,
     *,
     score: float,
     serving_grams: float = 100,
+    display_name: str | None = None,
+    calories: float = 100,
+    protein_g: float = 10,
+    carbohydrate_g: float = 10,
+    fat_g: float = 5,
+    reason_codes: list[str] | None = None,
 ) -> CanonicalFoodSuggestionCandidate:
     return CanonicalFoodSuggestionCandidate(
         canonical_food_id=canonical_food_id,
-        display_name=f"Food {canonical_food_id}",
+        display_name=display_name or f"Food {canonical_food_id}",
         food_type="cooked",
         serving_grams=serving_grams,
-        calories=100,
-        protein_g=10,
-        carbohydrate_g=10,
-        fat_g=5,
+        calories=calories,
+        protein_g=protein_g,
+        carbohydrate_g=carbohydrate_g,
+        fat_g=fat_g,
         macro_gap_addressed=macro_gap_addressed,
         score=score,
         confidence="Moderate",
+        reason_codes=reason_codes or [],
     )
 
 
@@ -141,6 +177,37 @@ def _protein_gap_macro_gaps(gap_value: float = 40) -> list[NutritionMacroGap]:
         _macro_gap("carbohydrate_g", target_status="near_target", gap_value=None),
         _macro_gap("fat_g", target_status="near_target", gap_value=None),
     ]
+
+
+def _remaining_state_macro_gaps(
+    *,
+    calories: float,
+    protein_g: float,
+    carbohydrate_g: float,
+    fat_g: float,
+) -> list[NutritionMacroGap]:
+    values = {
+        "calories": (2200.0, calories),
+        "protein_g": (150.0, protein_g),
+        "carbohydrate_g": (240.0, carbohydrate_g),
+        "fat_g": (70.0, fat_g),
+    }
+    gaps: list[NutritionMacroGap] = []
+    for macro_name, (target, remaining) in values.items():
+        unit = "kcal" if macro_name == "calories" else "g"
+        gaps.append(
+            NutritionMacroGap(
+                macro_name=macro_name,
+                target_value=target,
+                actual_value=target - remaining,
+                gap_value=remaining,
+                unit=unit,
+                target_status="below_target",
+                display_allowed=True,
+                confidence="Moderate",
+            )
+        )
+    return gaps
 
 
 def _protein_gap_summary(tmp_path, monkeypatch):
@@ -360,11 +427,11 @@ def test_approved_carbohydrate_gap_produces_canonical_suggestions(
         summary_confidence="Moderate",
     )
 
-    assert approved.primary_gap == "carbohydrate_g"
+    assert approved.primary_gap == "calories"
     assert approved.suggestions
     assert "carbohydrate_gap_available" in approved.reason_codes
     assert "carbohydrate_suggestion_available" in approved.reason_codes
-    assert approved.suggestions[0].macro_gap_addressed == "carbohydrate_g"
+    assert approved.suggestions[0].macro_gap_addressed == "calories"
     assert {suggestion.macro_gap_addressed for suggestion in approved.suggestions} <= {
         "carbohydrate_g",
         "calories",
@@ -762,24 +829,22 @@ def test_incomplete_logging_adds_cautious_limitations(tmp_path, monkeypatch):
 
 
 def test_suggestions_use_canonical_nutrient_data(tmp_path, monkeypatch):
-    summary = _protein_gap_summary(tmp_path, monkeypatch)
-
-    approved = build_approved_nutrition_food_suggestions(
-        1,
-        "2026-06-06",
-        target_vs_actual_summary=summary,
+    _seed_test_db(tmp_path, monkeypatch)
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(),
+        logging_incomplete=False,
     )
-    chicken = next(
-        suggestion
-        for suggestion in approved.suggestions
-        if suggestion.display_name == "Chicken Breast, Cooked, Skinless"
+    chicken = _candidate_for_food(
+        candidates,
+        "Chicken Breast, Cooked, Skinless",
+        "protein_g",
     )
 
-    assert chicken.suggested_grams == 200.0
-    assert chicken.estimated_calories == 330.0
-    assert chicken.estimated_protein_g == 62.0
-    assert chicken.estimated_carbohydrate_g == 0.0
-    assert chicken.estimated_fat_g == 7.2
+    assert chicken.calories == round(165 * chicken.serving_grams / 100, 1)
+    assert chicken.protein_g == round(31 * chicken.serving_grams / 100, 1)
+    assert chicken.carbohydrate_g == 0.0
+    assert chicken.fat_g == round(3.6 * chicken.serving_grams / 100, 1)
+    assert "serving_unit_metadata_available" in chicken.reason_codes
 
 
 def test_suggested_grams_are_positive_and_within_practical_bounds(
@@ -1012,7 +1077,7 @@ def test_nonzero_but_unsuitable_macro_sources_are_not_candidates(tmp_path, monke
     )
 
 
-def test_non_curated_food_requiring_impractical_protein_serving_is_rejected(
+def test_non_curated_food_uses_bounded_partial_protein_improvement(
     tmp_path, monkeypatch
 ):
     _seed_test_db(tmp_path, monkeypatch)
@@ -1022,11 +1087,241 @@ def test_non_curated_food_requiring_impractical_protein_serving_is_rejected(
         logging_incomplete=False,
     )
 
+    edamame = _candidate_for_food(candidates, "Edamame", "protein_g")
+
+    assert 75 <= edamame.serving_grams <= 150
+    assert "practical_serving_bounds_used" in edamame.reason_codes
+
+
+def test_recent_log_quantity_is_used_when_serving_metadata_is_unavailable(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    recent_food = _create_complete_canonical_food(
+        "Recent Lean Protein",
+        food_type="cooked",
+        calories=160,
+        protein_g=25,
+        carbohydrate_g=2,
+        fat_g=5,
+    )
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(gap_value=80),
+        logging_incomplete=False,
+        recent_quantity_rows=[
+            {
+                "canonical_food_id": recent_food.id,
+                "recent_grams": 125,
+                "usage_count": 3,
+            }
+        ],
+    )
+    recent_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.canonical_food_id == recent_food.id
+        and candidate.macro_gap_addressed == "protein_g"
+    )
+
+    assert recent_candidate.serving_grams in {62.5, 125.0, 187.5, 250.0}
+    assert "recent_log_quantity_reference" in recent_candidate.reason_codes
+
+
+def test_heavily_consumed_food_drops_out_of_same_day_suggestions(tmp_path, monkeypatch):
+    summary = _protein_gap_summary(tmp_path, monkeypatch)
+    tuna_id = _canonical_id_for_query("tuna")
+    add_canonical_food_entry(
+        user_id=1,
+        canonical_food_id=tuna_id,
+        grams=300,
+        entry_date="2026-06-06",
+    )
+
+    approved = build_approved_nutrition_food_suggestions(
+        1,
+        "2026-06-06",
+        target_vs_actual_summary=summary,
+        limit=8,
+    )
+
+    assert all(
+        suggestion.canonical_food_id != tuna_id for suggestion in approved.suggestions
+    )
+
+
+def test_low_confidence_serving_metadata_does_not_anchor_a_suggestion(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    low_confidence_food = _create_complete_canonical_food(
+        "Low Confidence Lean Protein",
+        food_type="cooked",
+        calories=160,
+        protein_g=25,
+        carbohydrate_g=2,
+        fat_g=5,
+    )
+    create_or_update_serving_unit(
+        canonical_food_id=low_confidence_food.id,
+        unit_name="serving",
+        unit_quantity=1,
+        display_name="1 estimated portion",
+        grams_default=40,
+        grams_min=20,
+        grams_max=80,
+        confidence="Low",
+        source="unit_test",
+        source_note="Intentionally unreliable serving metadata fixture.",
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(gap_value=80),
+        logging_incomplete=False,
+    )
+    candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.canonical_food_id == low_confidence_food.id
+        and candidate.macro_gap_addressed == "protein_g"
+    )
+
+    assert candidate.serving_grams >= 75
+    assert "practical_serving_bounds_used" in candidate.reason_codes
+    assert "serving_unit_metadata_available" not in candidate.reason_codes
+
+
+def test_concentrated_protein_forms_use_bounded_serving_options_not_gap_scaling(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    collagen = _create_complete_canonical_food(
+        "Collagen Peptides + Probiotics",
+        calories=313.7,
+        protein_g=90.5,
+        carbohydrate_g=0,
+        fat_g=0,
+    )
+    protein_powder = _create_complete_canonical_food(
+        "Custom Protein Powder",
+        calories=390,
+        protein_g=80,
+        carbohydrate_g=8,
+        fat_g=4,
+    )
+    create_or_update_serving_unit(
+        canonical_food_id=collagen.id,
+        unit_name="serving",
+        unit_quantity=1,
+        display_name="1 portion (21 g)",
+        grams_default=21,
+        grams_min=21,
+        grams_max=21,
+        confidence="High",
+        source="unit_test",
+        source_note="Barcode serving metadata fixture.",
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(gap_value=119),
+        logging_incomplete=False,
+    )
+    collagen_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.canonical_food_id == collagen.id
+        and candidate.macro_gap_addressed == "protein_g"
+    )
+    powder_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.canonical_food_id == protein_powder.id
+        and candidate.macro_gap_addressed == "protein_g"
+    )
+
+    assert collagen_candidate.serving_grams == 21.0
+    assert powder_candidate.serving_grams <= 35
+    assert "serving_unit_metadata_available" in collagen_candidate.reason_codes
+    assert "concentrated_food_form_deprioritized" in collagen_candidate.reason_codes
+
+
+def test_practical_concentrated_protein_form_is_deprioritized_to_ordinary_food(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    powder = _create_complete_canonical_food(
+        "Custom Protein Powder",
+        calories=390,
+        protein_g=80,
+        carbohydrate_g=8,
+        fat_g=4,
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        _protein_gap_macro_gaps(gap_value=20),
+        logging_incomplete=False,
+    )
+    powder_candidate = next(
+        candidate
+        for candidate in candidates
+        if candidate.canonical_food_id == powder.id
+        and candidate.macro_gap_addressed == "protein_g"
+    )
+    chicken_candidate = _candidate_for_food(
+        candidates,
+        "Chicken Breast, Cooked, Skinless",
+        "protein_g",
+    )
+
+    assert 25 <= powder_candidate.serving_grams <= 35
+    assert "concentrated_food_form_deprioritized" in powder_candidate.reason_codes
+    assert powder_candidate.score < chicken_candidate.score
+
+
+def test_protein_candidates_use_available_remaining_calorie_and_macro_context(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    dense_food = _create_complete_canonical_food(
+        "Dense Protein Bite",
+        calories=700,
+        protein_g=70,
+        carbohydrate_g=10,
+        fat_g=40,
+    )
+    macro_gaps = [
+        _macro_gap(
+            "protein_g",
+            target_status="below_target",
+            gap_value=40,
+            reason_codes=["protein_gap_available"],
+        ),
+        _macro_gap(
+            "calories",
+            target_status="below_target",
+            gap_value=100,
+            reason_codes=["calorie_gap_available"],
+        ),
+        _macro_gap("carbohydrate_g", target_status="near_target"),
+        _macro_gap("fat_g", target_status="above_target"),
+    ]
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+    chicken_candidate = _candidate_for_food(
+        candidates,
+        "Chicken Breast, Cooked, Skinless",
+        "protein_g",
+    )
+
     assert not any(
-        candidate.display_name == "Edamame"
+        candidate.canonical_food_id == dense_food.id
         and candidate.macro_gap_addressed == "protein_g"
         for candidate in candidates
     )
+    assert "remaining_macro_context_checked" in chicken_candidate.reason_codes
+    assert "multi_gap_context_fit" in chicken_candidate.reason_codes
 
 
 def test_ketchup_is_not_a_catalog_carbohydrate_action_for_representative_gap(
@@ -1088,6 +1383,86 @@ def test_impractical_chia_and_protein_bar_servings_are_not_default_calorie_actio
     assert any(candidate.display_name == "Granola" for candidate in candidates)
 
 
+def test_curated_portion_ceiling_applies_across_macro_roles(tmp_path, monkeypatch):
+    _seed_test_db(tmp_path, monkeypatch)
+    candidates = get_canonical_food_suggestion_candidates(
+        _calorie_gap_macro_gaps(),
+        logging_incomplete=False,
+    )
+    almond_butter = _candidate_for_food(candidates, "Almond Butter", "calories")
+
+    assert almond_butter.serving_grams <= 32
+
+
+def test_small_remaining_macro_roles_drop_out_of_candidate_generation(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    macro_gaps = _remaining_state_macro_gaps(
+        calories=800,
+        protein_g=12,
+        carbohydrate_g=20,
+        fat_g=5,
+    )
+
+    candidates = get_canonical_food_suggestion_candidates(
+        macro_gaps,
+        logging_incomplete=False,
+    )
+
+    candidate_roles = {candidate.macro_gap_addressed for candidate in candidates}
+    assert candidate_roles == {"calories"}
+
+
+def test_recommendation_roster_evolves_with_remaining_nutrition_state(
+    tmp_path, monkeypatch
+):
+    _seed_test_db(tmp_path, monkeypatch)
+    early_gaps = _remaining_state_macro_gaps(
+        calories=1800,
+        protein_g=120,
+        carbohydrate_g=200,
+        fat_g=50,
+    )
+    protein_dominant_gaps = _remaining_state_macro_gaps(
+        calories=500,
+        protein_g=70,
+        carbohydrate_g=20,
+        fat_g=5,
+    )
+
+    early = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=early_gaps,
+        candidates=get_canonical_food_suggestion_candidates(
+            early_gaps,
+            logging_incomplete=False,
+        ),
+        summary_confidence="Moderate",
+        limit=8,
+    )
+    protein_dominant = approve_food_suggestions(
+        user_id=1,
+        suggestion_date="2026-06-06",
+        macro_gaps=protein_dominant_gaps,
+        candidates=get_canonical_food_suggestion_candidates(
+            protein_dominant_gaps,
+            logging_incomplete=False,
+        ),
+        summary_confidence="Moderate",
+        limit=8,
+    )
+
+    early_ids = {suggestion.canonical_food_id for suggestion in early.suggestions}
+    protein_ids = {
+        suggestion.canonical_food_id for suggestion in protein_dominant.suggestions
+    }
+    assert early.suggestions[0].macro_gap_addressed == "carbohydrate_g"
+    assert protein_dominant.suggestions[0].macro_gap_addressed == "protein_g"
+    assert len(early_ids.symmetric_difference(protein_ids)) >= 4
+
+
 def test_blocked_calorie_carb_fat_targets_do_not_generate_hard_suggestions(
     tmp_path, monkeypatch
 ):
@@ -1143,6 +1518,254 @@ def test_ranking_diversifies_macro_roles_before_second_role_choices():
         "fat_g",
         "protein_g",
         "carbohydrate_g",
+    ]
+
+
+def test_ranking_prefers_lexically_distinct_foods_within_a_macro_role():
+    candidates = [
+        _ranked_candidate(
+            1,
+            "protein_g",
+            score=100,
+            display_name="Chicken Breast, Cooked",
+        ),
+        _ranked_candidate(
+            2,
+            "protein_g",
+            score=99,
+            display_name="Chicken Thigh, Cooked",
+        ),
+        _ranked_candidate(
+            3,
+            "protein_g",
+            score=98,
+            display_name="Greek Yogurt, Plain",
+        ),
+        _ranked_candidate(
+            4,
+            "protein_g",
+            score=97,
+            display_name="Tuna, Canned in Water",
+        ),
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=3)
+
+    assert [candidate.canonical_food_id for candidate in ranked] == [1, 3, 4]
+
+
+def test_ranking_prefers_distinct_nutrition_profiles_within_fit_window():
+    candidates = [
+        _ranked_candidate(
+            1,
+            "protein_g",
+            score=100,
+            display_name="Lean Protein One",
+            calories=120,
+            protein_g=25,
+            carbohydrate_g=0,
+            fat_g=1,
+        ),
+        _ranked_candidate(
+            2,
+            "protein_g",
+            score=99,
+            display_name="Lean Protein Two",
+            calories=115,
+            protein_g=24,
+            carbohydrate_g=0,
+            fat_g=1,
+        ),
+        _ranked_candidate(
+            3,
+            "protein_g",
+            score=98,
+            display_name="Mixed Protein Option",
+            calories=180,
+            protein_g=20,
+            carbohydrate_g=8,
+            fat_g=8,
+        ),
+    ]
+
+    ranked = rank_food_suggestion_candidates(candidates, limit=2)
+
+    assert [candidate.canonical_food_id for candidate in ranked] == [1, 3]
+
+
+def test_state_relative_fit_expands_beyond_the_old_leader_score_window():
+    macro_gaps = _protein_gap_macro_gaps(gap_value=40)
+    candidates = [
+        _ranked_candidate(
+            1,
+            "protein_g",
+            score=180,
+            display_name="Static Leader Protein",
+            calories=130,
+            protein_g=30,
+            carbohydrate_g=0,
+            fat_g=1,
+        ),
+        _ranked_candidate(
+            2,
+            "protein_g",
+            score=110,
+            display_name="Broader Mixed Protein",
+            calories=210,
+            protein_g=22,
+            carbohydrate_g=12,
+            fat_g=8,
+        ),
+    ]
+
+    ranked = rank_food_suggestion_candidates(
+        candidates,
+        limit=2,
+        macro_gaps=macro_gaps,
+        rotation_key="state-relative-fit",
+    )
+
+    assert {candidate.canonical_food_id for candidate in ranked} == {1, 2}
+    assert candidates[0].score - candidates[1].score > 12
+
+
+def test_state_relative_quality_floor_rejects_nutritionally_weak_novelty():
+    macro_gaps = _protein_gap_macro_gaps(gap_value=40)
+    candidates = [
+        _ranked_candidate(
+            1,
+            "protein_g",
+            score=150,
+            protein_g=25,
+        ),
+        _ranked_candidate(
+            2,
+            "protein_g",
+            score=140,
+            display_name="Novel But Weak",
+            calories=300,
+            protein_g=2,
+            carbohydrate_g=40,
+            fat_g=12,
+        ),
+        _ranked_candidate(
+            3,
+            "protein_g",
+            score=30,
+            display_name="Below Quality Floor",
+            protein_g=30,
+        ),
+    ]
+
+    ranked = rank_food_suggestion_candidates(
+        candidates,
+        limit=3,
+        macro_gaps=macro_gaps,
+        rotation_key="quality-floor",
+    )
+
+    assert [candidate.canonical_food_id for candidate in ranked] == [1]
+
+
+def test_catalog_fallback_requires_stronger_absolute_quality_than_curated_food():
+    macro_gaps = _remaining_state_macro_gaps(
+        calories=700,
+        protein_g=20,
+        carbohydrate_g=30,
+        fat_g=8,
+    )
+    candidates = [
+        _ranked_candidate(
+            1,
+            "calories",
+            score=140,
+            calories=220,
+            display_name="Strong Catalog Energy Option",
+            reason_codes=["catalog_fallback_serving_bounds"],
+        ),
+        _ranked_candidate(
+            2,
+            "calories",
+            score=120,
+            calories=220,
+            display_name="Weak Catalog Novelty",
+            reason_codes=["catalog_fallback_serving_bounds"],
+        ),
+        _ranked_candidate(
+            3,
+            "calories",
+            score=90,
+            calories=220,
+            display_name="Curated Practical Option",
+        ),
+    ]
+
+    ranked = rank_food_suggestion_candidates(
+        candidates,
+        limit=3,
+        macro_gaps=macro_gaps,
+        rotation_key="fallback-quality-floor",
+    )
+
+    assert {candidate.canonical_food_id for candidate in ranked} == {1, 3}
+
+
+def test_normalized_remaining_gap_pressure_controls_macro_role_order():
+    macro_gaps = _remaining_state_macro_gaps(
+        calories=1500,
+        protein_g=30,
+        carbohydrate_g=80,
+        fat_g=10,
+    )
+    candidates = [
+        _ranked_candidate(1, "protein_g", score=100),
+        _ranked_candidate(2, "carbohydrate_g", score=100),
+        _ranked_candidate(3, "calories", score=100, calories=250),
+        _ranked_candidate(4, "fat_g", score=100),
+    ]
+
+    ranked = rank_food_suggestion_candidates(
+        candidates,
+        limit=4,
+        macro_gaps=macro_gaps,
+        rotation_key="state-order-test",
+    )
+
+    assert [candidate.macro_gap_addressed for candidate in ranked] == [
+        "calories",
+        "carbohydrate_g",
+        "protein_g",
+        "fat_g",
+    ]
+
+
+def test_rotation_key_varies_equally_suitable_candidates_deterministically():
+    candidates = [
+        _ranked_candidate(candidate_id, "protein_g", score=100)
+        for candidate_id in range(1, 7)
+    ]
+
+    first = rank_food_suggestion_candidates(
+        candidates,
+        limit=3,
+        rotation_key="user-1|2026-06-06|state-a",
+    )
+    repeat = rank_food_suggestion_candidates(
+        list(reversed(candidates)),
+        limit=3,
+        rotation_key="user-1|2026-06-06|state-a",
+    )
+    changed_state = rank_food_suggestion_candidates(
+        candidates,
+        limit=3,
+        rotation_key="user-1|2026-06-07|state-b",
+    )
+
+    assert [candidate.canonical_food_id for candidate in first] == [
+        candidate.canonical_food_id for candidate in repeat
+    ]
+    assert [candidate.canonical_food_id for candidate in first] != [
+        candidate.canonical_food_id for candidate in changed_state
     ]
 
 
