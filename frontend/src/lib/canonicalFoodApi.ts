@@ -8,6 +8,9 @@ import {
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
   CanonicalFoodServingUnitsResponse,
+  PinnedFoodMutationResponse,
+  PinnedFoodsResponse,
+  PinnedFoodType,
   RecentCanonicalFoodsResponse,
 } from "@/types/canonicalFood";
 import type {
@@ -21,6 +24,52 @@ async function readErrorMessage(response: Response, fallbackMessage: string) {
     | null;
 
   return typeof payload?.detail === "string" ? payload.detail : fallbackMessage;
+}
+
+export async function fetchPinnedFoods(
+  userId: number,
+): Promise<PinnedFoodsResponse> {
+  const params = new URLSearchParams({ user_id: String(userId) });
+  const response = await fetch(`/api/nutrition-pinned-foods?${params.toString()}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to load pinned foods right now."),
+    );
+  }
+  return (await response.json()) as PinnedFoodsResponse;
+}
+
+export async function setFoodPinned({
+  userId,
+  foodType,
+  foodId,
+  pinned,
+}: {
+  userId: number;
+  foodType: PinnedFoodType;
+  foodId: number;
+  pinned: boolean;
+}): Promise<PinnedFoodMutationResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    food_type: foodType,
+    food_id: String(foodId),
+  });
+  const response = await fetch(`/api/nutrition-pinned-foods?${params.toString()}`, {
+    method: pinned ? "PUT" : "DELETE",
+    headers: { Accept: "application/json" },
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to update this pinned food."),
+    );
+  }
+  return (await response.json()) as PinnedFoodMutationResponse;
 }
 
 export async function searchCanonicalFoods(

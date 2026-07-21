@@ -7,6 +7,10 @@ from services.nutrition_serving_unit_logging_service import (
     SERVING_UNIT_LOG_METADATA_TABLE_NAME,
     ensure_serving_unit_log_metadata_schema,
 )
+from services.pinned_food_service import (
+    PINNED_FOODS_TABLE_NAME,
+    ensure_pinned_food_schema,
+)
 
 DEFAULT_RECENT_CANONICAL_FOODS_LIMIT = 10
 MAX_RECENT_CANONICAL_FOODS_LIMIT = 25
@@ -71,6 +75,7 @@ def get_recent_canonical_foods(
     """
 
     ensure_serving_unit_log_metadata_schema()
+    ensure_pinned_food_schema()
     resolved_limit = _bounded_limit(limit)
 
     conn = get_connection()
@@ -109,6 +114,13 @@ def get_recent_canonical_foods(
             WHERE food_entries.user_id = ?
               AND food_entries.canonical_food_id IS NOT NULL
               AND canonical_foods.active = 1
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM {PINNED_FOODS_TABLE_NAME} AS pinned_foods
+                  WHERE pinned_foods.user_id = food_entries.user_id
+                    AND pinned_foods.food_type = 'canonical'
+                    AND pinned_foods.food_id = food_entries.canonical_food_id
+              )
         )
         SELECT *
         FROM ranked_entries
