@@ -794,9 +794,9 @@ def test_non_rep_progression_is_neutral_without_history_query(
             measurement_type="duration",
             target_duration_seconds=30,
         ),
-        recovery=None,
     )
-    assert decision.decision == "insufficient_data"
+    assert decision.decision == "build_baseline"
+    assert decision.headline == "Build baseline"
     assert decision.reason_codes == ["unsupported_measurement_type_for_progression_v1"]
     assert decision.evidence_session_count == 0
 

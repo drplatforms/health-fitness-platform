@@ -13,9 +13,6 @@ from services.post_workout_review_service import (
     build_configured_post_workout_review_summary_with_metadata,
     build_post_workout_review_context,
 )
-from services.recovery_intelligence_v2_service import (
-    build_recovery_intelligence_v2,
-)
 from services.temporary_workout_limitation_service import (
     MAX_AFFECTED_REGIONS,
     MAX_EXCLUDED_CATALOG_EXERCISES,
@@ -606,7 +603,6 @@ def workout_progression_decisions(
     payload: WorkoutProgressionDecisionPayload,
 ):
     target_date = payload.target_date.isoformat()
-    recovery = build_recovery_intelligence_v2(user_id, target_date)
     decisions = build_workout_progression_decisions(
         user_id=user_id,
         current_exercises=[
@@ -624,7 +620,6 @@ def workout_progression_decisions(
             )
             for exercise in payload.exercises
         ],
-        recovery=recovery,
     )
 
     return {

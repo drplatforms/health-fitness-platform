@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 from fastapi.testclient import TestClient
 
 from api.main import app
@@ -53,7 +51,7 @@ def test_progression_decision_endpoint_returns_bounded_user_scoped_guidance(
     assert payload["user_id"] == 1
     assert payload["target_date"] == "2026-07-16"
     decision = payload["progression_decisions"][0]
-    assert decision["decision"] == "progress_reps"
+    assert decision["decision"] == "increase_reps"
     assert decision["reference_weight"] == 25.0
     assert set(decision) == {
         "exercise_name",
@@ -66,31 +64,17 @@ def test_progression_decision_endpoint_returns_bounded_user_scoped_guidance(
         "evidence_session_count",
         "confidence",
         "reference_weight",
-        "recovery_brake_applied",
     }
     serialized = str(payload).lower()
     assert "private progression note" not in serialized
     assert "actual_rows" not in serialized
 
 
-def test_progression_decision_endpoint_builds_recovery_once_and_applies_brake(
+def test_progression_decision_endpoint_is_independent_of_recovery(
     tmp_path, monkeypatch
 ) -> None:
     _seed_test_db(tmp_path, monkeypatch)
     _insert_completed_plan(actual_reps=[10, 10, 10], actual_rirs=[2, 2, 2])
-    calls: list[tuple[int, str]] = []
-
-    def fake_recovery(user_id: int, target_date: str):
-        calls.append((user_id, target_date))
-        return SimpleNamespace(
-            readiness_classification="recovery_limited",
-            fatigue_support="unknown",
-        )
-
-    monkeypatch.setattr(
-        "api.routes.workout_plans.build_recovery_intelligence_v2",
-        fake_recovery,
-    )
     client = TestClient(app)
 
     response = client.post(
@@ -108,10 +92,9 @@ def test_progression_decision_endpoint_builds_recovery_once_and_applies_brake(
     )
 
     assert response.status_code == 200
-    assert calls == [(1, "2026-07-16")]
     decision = response.json()["progression_decisions"][0]
-    assert decision["decision"] == "hold"
-    assert decision["recovery_brake_applied"] is True
+    assert decision["decision"] == "increase_reps"
+    assert "recovery_brake_applied" not in decision
 
 
 def test_progression_decision_endpoint_requires_structured_current_exercises(

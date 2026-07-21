@@ -829,27 +829,21 @@ function NextTargetBlock({
 }: {
   decision: WorkoutProgressionDecision | undefined;
 }) {
-  if (!decision || decision.decision === "insufficient_data") {
+  if (!decision) {
     return null;
   }
 
   return (
-    <div className="py-2 text-xs text-text-body">
+    <div className="py-2 text-xs text-text-body" aria-label="Next target">
       <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
         Next target
       </p>
-      <p className="mt-1 font-semibold text-text-primary">
+      <p className="mt-1 text-sm font-semibold text-text-primary">
+        {decision.target_guidance}
+      </p>
+      <p className="mt-0.5 font-semibold text-positive-foreground-strong">
         {decision.headline}
       </p>
-      <p className="mt-0.5 leading-5">{decision.target_guidance}</p>
-      <details className="mt-1.5">
-        <summary className="cursor-pointer font-semibold text-text-secondary">
-          Why?
-        </summary>
-        <p className="mt-1 leading-5 text-text-secondary">
-          {decision.why_this_recommendation}
-        </p>
-      </details>
     </div>
   );
 }
@@ -3032,8 +3026,7 @@ export function WorkoutPreviewExperience({
                 const shouldShowNextTarget =
                   isHistoricalReadOnly === false &&
                   !isCompletedState &&
-                  progressionDecision !== undefined &&
-                  progressionDecision.decision !== "insufficient_data";
+                  progressionDecision !== undefined;
                 const instructionKey = `persisted-${exercise.id}-${
                   displayedCatalogExerciseId ?? "legacy"
                 }`;
@@ -3228,11 +3221,11 @@ export function WorkoutPreviewExperience({
                         {shouldShowPreviousPerformance ||
                         shouldShowNextTarget ? (
                           <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
-                            {shouldShowPreviousPerformance ? (
-                              <PreviousPerformanceLine history={history} />
-                            ) : null}
                             {shouldShowNextTarget ? (
                               <NextTargetBlock decision={progressionDecision} />
+                            ) : null}
+                            {shouldShowPreviousPerformance ? (
+                              <PreviousPerformanceLine history={history} />
                             ) : null}
                           </div>
                         ) : null}
@@ -3714,8 +3707,7 @@ export function WorkoutPreviewExperience({
                   history?.has_history === true;
                 const shouldShowNextTarget =
                   isHistoricalReadOnly === false &&
-                  progressionDecision !== undefined &&
-                  progressionDecision.decision !== "insufficient_data";
+                  progressionDecision !== undefined;
                 const instructionKey = `preview-${workoutSizePreference}-${previewVariationIndex}-${index}-${
                   exercise.catalog_exercise_id ?? "legacy"
                 }`;
@@ -3811,11 +3803,11 @@ export function WorkoutPreviewExperience({
                         {shouldShowPreviousPerformance ||
                         shouldShowNextTarget ? (
                           <div className="divide-y divide-border-subtle rounded-xl bg-surface/65 px-3 ring-1 ring-border">
-                            {shouldShowPreviousPerformance ? (
-                              <PreviousPerformanceLine history={history} />
-                            ) : null}
                             {shouldShowNextTarget ? (
                               <NextTargetBlock decision={progressionDecision} />
+                            ) : null}
+                            {shouldShowPreviousPerformance ? (
+                              <PreviousPerformanceLine history={history} />
                             ) : null}
                           </div>
                         ) : null}
