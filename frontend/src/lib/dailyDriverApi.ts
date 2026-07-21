@@ -60,7 +60,10 @@ export async function fetchDailyDriverToday(
     params.set("date", options.date);
   }
 
-  const endpoint = `${getApiBaseUrl()}/api/today?${params.toString()}`;
+  const endpoint =
+    typeof window === "undefined"
+      ? `${getApiBaseUrl()}/api/today?${params.toString()}`
+      : `/api/daily-driver-today?${params.toString()}`;
 
   try {
     const response = await fetch(endpoint, {

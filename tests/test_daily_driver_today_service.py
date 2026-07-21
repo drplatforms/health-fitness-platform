@@ -8,6 +8,7 @@ from models.daily_next_action_models import DailyNextAction
 from models.nutrition_target_models import NutritionTargets
 from models.nutrition_target_vs_actual_models import (
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
+    LOGGING_COMPLETENESS_LIKELY_INCOMPLETE,
     LOGGING_COMPLETENESS_NO_LOGS,
     TARGET_STATUS_BELOW,
     TARGET_STATUS_NEAR,
@@ -24,7 +25,10 @@ from models.user_state_models import (
 )
 from models.workout_plan_models import ApprovedWorkoutExercise, ApprovedWorkoutPlan
 from scripts.seed_qa_scenarios import seed_qa_scenarios
-from services.daily_driver_today_service import build_daily_driver_today_response
+from services.daily_driver_today_service import (
+    _build_nutrition_summary,
+    build_daily_driver_today_response,
+)
 from services.food_normalization_service import (
     create_canonical_food,
     create_canonical_food_nutrient,
@@ -57,6 +61,17 @@ def _create_today_test_canonical_food() -> int:
     create_canonical_food_nutrient(canonical_food.id, "Protein", "g", 25)
     create_canonical_food_nutrient(canonical_food.id, "Carbohydrate", "g", 30)
     create_canonical_food_nutrient(canonical_food.id, "Fat", "g", 10)
+    return canonical_food.id
+
+
+def _create_today_test_food_without_calories() -> int:
+    canonical_food = create_canonical_food(
+        "Today Incomplete Calorie Test Food",
+        "generic",
+    )
+    create_canonical_food_nutrient(canonical_food.id, "Protein", "g", 12)
+    create_canonical_food_nutrient(canonical_food.id, "Carbohydrate", "g", 65)
+    create_canonical_food_nutrient(canonical_food.id, "Fat", "g", 6)
     return canonical_food.id
 
 
@@ -118,6 +133,10 @@ def _nutrition_summary(
     completeness: str = LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
     protein_status: str = TARGET_STATUS_NEAR,
     calorie_status: str = TARGET_STATUS_NEAR,
+    missing_calorie_entries: int = 0,
+    missing_protein_entries: int = 0,
+    missing_carb_entries: int = 0,
+    missing_fat_entries: int = 0,
 ) -> TargetVsActualNutritionSummary:
     actuals = NutritionActuals(
         user_id=102,
@@ -132,6 +151,10 @@ def _nutrition_summary(
         logged_meal_count=3 if completeness != LOGGING_COMPLETENESS_NO_LOGS else 0,
         entry_count=3 if completeness != LOGGING_COMPLETENESS_NO_LOGS else 0,
         source_count=3 if completeness != LOGGING_COMPLETENESS_NO_LOGS else 0,
+        missing_calorie_entries=missing_calorie_entries,
+        missing_protein_entries=missing_protein_entries,
+        missing_carb_entries=missing_carb_entries,
+        missing_fat_entries=missing_fat_entries,
         reason_codes=["unit_test_actuals"],
     )
     logging_summary = NutritionLoggingSummary(
@@ -329,13 +352,53 @@ def test_service_returns_contract_sections(monkeypatch) -> None:
     assert payload["nutrition"]["status"] == "complete"
     assert payload["nutrition"]["carbohydrate_target_g"] == 230
     assert payload["nutrition"]["fat_target_g"] == 70
+    assert payload["nutrition"]["calorie_target_min"] == 2200
+    assert payload["nutrition"]["calorie_target_max"] == 2400
+    assert payload["nutrition"]["protein_target_min_g"] == 170
+    assert payload["nutrition"]["protein_target_max_g"] == 190
     assert payload["nutrition"]["carbs_logged_g"] == 220
     assert payload["nutrition"]["fat_logged_g"] == 70
+    assert payload["nutrition"]["calories_logged_complete"] is True
+    assert payload["nutrition"]["protein_logged_complete"] is True
     assert payload["next_action"]["type"] == "start_workout"
     assert payload["coach_note"] == {"enabled": False, "text": None}
     payload_text = str(payload).lower()
     assert "provider_output" not in payload_text
     assert "source_services" not in payload_text
+
+
+def test_nutrition_summary_marks_only_affected_known_totals_incomplete(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        "services.daily_driver_today_service.build_target_vs_actual_nutrition_summary",
+        lambda user_id, target_date, health_state=None: _nutrition_summary(
+            completeness=LOGGING_COMPLETENESS_LIKELY_INCOMPLETE,
+            missing_calorie_entries=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "services.daily_driver_today_service.build_formula_derived_nutrition_targets",
+        lambda health_state, calculation_date=None: _nutrition_targets(),
+    )
+
+    nutrition = _build_nutrition_summary(
+        user_id=102,
+        target_date="2026-07-04",
+        health_state=_health_state(user_id=102),
+        data_gaps=[],
+        limitations=[],
+    )
+
+    assert nutrition.calories_logged == 2200
+    assert nutrition.calories_logged_complete is False
+    assert nutrition.protein_logged_complete is True
+    assert nutrition.carbs_logged_complete is True
+    assert nutrition.fat_logged_complete is True
+    assert (nutrition.calorie_target_min, nutrition.calorie_target_max) == (
+        2200,
+        2400,
+    )
 
 
 def test_service_produces_safe_fallback_when_data_is_sparse(monkeypatch) -> None:
@@ -439,6 +502,37 @@ def test_today_service_nutrition_actuals_include_canonical_logged_foods(
     assert after.nutrition.protein_logged_g == before.nutrition.protein_logged_g + 25
     assert after.nutrition.carbs_logged_g == before.nutrition.carbs_logged_g + 30
     assert after.nutrition.fat_logged_g == before.nutrition.fat_logged_g + 10
+
+
+def test_today_service_preserves_known_calorie_subtotal_but_marks_it_incomplete(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_today_integration_db(tmp_path, monkeypatch)
+    complete_food_id = _create_today_test_canonical_food()
+    incomplete_food_id = _create_today_test_food_without_calories()
+    target_date = _tomorrow()
+
+    add_canonical_food_entry(
+        user_id=102,
+        canonical_food_id=complete_food_id,
+        grams=100,
+        entry_date=target_date,
+    )
+    add_canonical_food_entry(
+        user_id=102,
+        canonical_food_id=incomplete_food_id,
+        grams=100,
+        entry_date=target_date,
+    )
+
+    response = build_daily_driver_today_response(102, target_date)
+
+    assert response.nutrition.calories_logged == 200
+    assert response.nutrition.calories_logged_complete is False
+    assert response.nutrition.protein_logged_g == 37
+    assert response.nutrition.protein_logged_complete is True
+    assert response.nutrition.carbs_logged_complete is True
+    assert response.nutrition.fat_logged_complete is True
 
 
 def test_today_service_canonical_logged_foods_respect_user_and_date_separation(

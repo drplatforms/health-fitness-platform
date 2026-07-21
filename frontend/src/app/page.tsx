@@ -4,6 +4,7 @@ import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { NutritionGapActionsCard } from "@/components/NutritionGapActionsCard";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -18,6 +19,9 @@ import {
 } from "@/lib/dailyDriverApi";
 import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
+import {
+  fetchNutritionFoodSuggestionsFromBackend,
+} from "@/lib/nutritionFoodSuggestionApi";
 import {
   buildTodayWorkoutHref,
   fetchTodayWorkout,
@@ -295,7 +299,11 @@ export default async function Home({
     todayWorkoutResult.data,
     currentWorkoutResult.data,
   );
-  const [canonicalLoggedFoodsResult, personalLoggedFoodsResult] = data
+  const [
+    canonicalLoggedFoodsResult,
+    personalLoggedFoodsResult,
+    nutritionFoodSuggestionsResult,
+  ] = data
     ? await Promise.all([
         fetchCanonicalFoodLogsFromBackend({
           userId: currentUserId,
@@ -305,8 +313,13 @@ export default async function Home({
           userId: currentUserId,
           date: data.target_date,
         }),
+        fetchNutritionFoodSuggestionsFromBackend({
+          userId: currentUserId,
+          date: data.target_date,
+        }),
       ])
     : [
+        { data: null, error: null },
         { data: null, error: null },
         { data: null, error: null },
       ];
@@ -379,7 +392,11 @@ export default async function Home({
         {data ? (
           <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.9fr)] lg:items-start lg:gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.95fr)]">
             <div className="min-w-0 space-y-3 lg:space-y-4">
-              <NutritionMacroCard nutrition={data.nutrition} />
+              <NutritionMacroCard
+                nutrition={data.nutrition}
+                userId={currentUserId}
+                targetDate={data.target_date}
+              />
               <div
                 id="food-workspace"
                 className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
@@ -391,6 +408,16 @@ export default async function Home({
                   requestedDate={todayQuery.date}
                 />
               </div>
+              {nutritionFoodSuggestionsResult.data ? (
+                <div className="hidden md:block">
+                  <NutritionGapActionsCard
+                    key={`nutrition-gap-actions:${currentUserId}:${data.target_date}`}
+                    userId={currentUserId}
+                    targetDate={data.target_date}
+                    response={nutritionFoodSuggestionsResult.data}
+                  />
+                </div>
+              ) : null}
               <div className="grid gap-3 xl:grid-cols-2">
                 <LoggedFoodsList
                   key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}

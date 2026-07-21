@@ -124,19 +124,23 @@ export async function DailyWorkspacePage({
 
         {data && workspace === "food" ? (
           <div className="space-y-3 sm:space-y-4">
-            <NutritionMacroCard nutrition={data.nutrition} />
+            <NutritionMacroCard
+              nutrition={data.nutrition}
+              userId={userId}
+              targetDate={data.target_date}
+            />
             <FoodWorkspaceDeck
               key={`${userId}:${data.target_date}`}
               userId={userId}
               targetDate={data.target_date}
               requestedDate={todayQuery.date}
             />
-            {nutritionFoodSuggestionsResult.data?.suggestions.length ? (
+            {nutritionFoodSuggestionsResult.data ? (
               <NutritionGapActionsCard
                 key={`nutrition-gap-actions:${userId}:${data.target_date}`}
                 userId={userId}
                 targetDate={data.target_date}
-                suggestions={nutritionFoodSuggestionsResult.data.suggestions}
+                response={nutritionFoodSuggestionsResult.data}
               />
             ) : null}
             <LoggedFoodsList

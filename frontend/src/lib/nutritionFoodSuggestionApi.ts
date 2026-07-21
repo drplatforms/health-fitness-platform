@@ -13,8 +13,16 @@ export async function fetchNutritionFoodSuggestionsFromBackend({
   userId: number;
   date: string;
 }): Promise<NutritionFoodSuggestionsApiResult> {
-  const params = new URLSearchParams({ date, limit: "8" });
-  const endpoint = `${getApiBaseUrl()}/nutrition/${userId}/food-suggestions?${params.toString()}`;
+  const backendParams = new URLSearchParams({ date, limit: "8" });
+  const clientParams = new URLSearchParams({
+    user_id: String(userId),
+    date,
+    limit: "8",
+  });
+  const endpoint =
+    typeof window === "undefined"
+      ? `${getApiBaseUrl()}/nutrition/${userId}/food-suggestions?${backendParams.toString()}`
+      : `/api/nutrition-food-suggestions?${clientParams.toString()}`;
 
   try {
     const response = await fetch(endpoint, {

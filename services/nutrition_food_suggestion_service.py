@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
+from collections.abc import Callable
 from datetime import date
-from typing import Any
+from typing import Any, NamedTuple
 
 from database import get_connection
 from models.nutrition_food_suggestion_models import (
@@ -9,6 +11,10 @@ from models.nutrition_food_suggestion_models import (
     ApprovedNutritionFoodSuggestions,
     CanonicalFoodSuggestionCandidate,
     NutritionMacroGap,
+)
+from models.nutrition_serving_unit_models import (
+    SERVING_UNIT_CONFIDENCE_HIGH,
+    SERVING_UNIT_CONFIDENCE_MODERATE,
 )
 from models.nutrition_target_vs_actual_models import (
     LOGGING_COMPLETENESS_LIKELY_INCOMPLETE,
@@ -26,6 +32,7 @@ from services.food_normalization_service import (
     ensure_starter_canonical_foods_seeded,
     normalize_food_name,
 )
+from services.nutrition_serving_unit_service import SERVING_UNIT_TABLE_NAME
 from services.nutrition_target_vs_actual_service import (
     build_target_vs_actual_nutrition_summary,
 )
@@ -166,6 +173,85 @@ _SMALL_PORTION_FALLBACK_TERMS = {
 }
 _SMALL_PORTION_FALLBACK_MAX_GRAMS = 40.0
 _BAR_FALLBACK_MAX_GRAMS = 75.0
+_CONCENTRATED_FOOD_FORM_TERMS = {"isolate", "peptide", "peptides", "powder"}
+_CONCENTRATED_FOOD_FORM_MIN_GRAMS = float(
+    _PROTEIN_SUGGESTION_NAMES["Whey Protein Powder, Generic"][0]
+)
+_CONCENTRATED_FOOD_FORM_MAX_GRAMS = float(
+    _PROTEIN_SUGGESTION_NAMES["Whey Protein Powder, Generic"][1]
+)
+_CONCENTRATED_FOOD_FORM_SCORE_PENALTY = 80.0
+_REASONABLE_SERVING_MULTIPLES = (0.5, 1.0, 1.5, 2.0)
+_SERVING_MULTIPLE_DISTANCE_PENALTY = 25.0
+_MIN_ACTIONABLE_GAP_FRACTION = 0.12
+_STATIC_CANDIDATE_SCORE_WEIGHT = 0.35
+_OTHER_GAP_FIT_MAX_SCORE = 50.0
+_TODAY_CONSUMPTION_PENALTY_PER_PORTION = 40.0
+_TODAY_HEAVY_CONSUMPTION_MULTIPLE = 2.0
+_MAX_ENERGY_DENSE_PORTION_CALORIES = 300.0
+_ENERGY_DENSE_CALORIES_PER_100G = 350.0
+_MIN_STATE_FIT_SCORE = 10.0
+_MIN_CANDIDATE_QUALITY_SCORE = 35.0
+_CATALOG_FALLBACK_QUALITY_FLOOR = {
+    "protein_g": 80.0,
+    "carbohydrate_g": 110.0,
+    "calories": 140.0,
+    "fat_g": 110.0,
+}
+_UNANCHORED_PORTION_SCALE_PENALTY = 50.0
+# These are single-suggestion conflict guardrails, not inferred daily targets.
+# They are consulted only when the backend already approved the matching context.
+_CONTEXT_BELOW_SOFT_TOLERANCE = {
+    "calories": 125.0,
+    "protein_g": 15.0,
+    "carbohydrate_g": 20.0,
+    "fat_g": 7.0,
+}
+_CONTEXT_BELOW_HARD_TOLERANCE = {
+    "calories": 250.0,
+    "protein_g": 30.0,
+    "carbohydrate_g": 40.0,
+    "fat_g": 14.0,
+}
+_CONTEXT_NEAR_SOFT_LIMIT = {
+    "calories": 250.0,
+    "protein_g": 25.0,
+    "carbohydrate_g": 35.0,
+    "fat_g": 10.0,
+}
+_CONTEXT_NEAR_HARD_LIMIT = {
+    "calories": 450.0,
+    "protein_g": 45.0,
+    "carbohydrate_g": 80.0,
+    "fat_g": 25.0,
+}
+_CONTEXT_ABOVE_SOFT_LIMIT = {
+    "calories": 150.0,
+    "protein_g": 15.0,
+    "carbohydrate_g": 20.0,
+    "fat_g": 6.0,
+}
+_CONTEXT_ABOVE_HARD_LIMIT = {
+    "calories": 300.0,
+    "protein_g": 30.0,
+    "carbohydrate_g": 40.0,
+    "fat_g": 10.0,
+}
+_VARIETY_IGNORED_TERMS = {
+    "baked",
+    "canned",
+    "cooked",
+    "dry",
+    "generic",
+    "in",
+    "low",
+    "nonfat",
+    "plain",
+    "prepared",
+    "raw",
+    "skinless",
+    "water",
+}
 _RAW_FISH_AND_SEAFOOD_TERMS = {
     "catfish",
     "cod",
@@ -206,6 +292,12 @@ _FORBIDDEN_SUGGESTION_TERMS = {
 _SAFE_DEFAULT_LIMITATION = "Food suggestions are limited to approved canonical foods with usable nutrient data."
 _UNSUPPORTED_SUGGESTION_GAP_REASON_CODES: dict[str, str] = {}
 _UNSUPPORTED_SUGGESTION_GAP_LABELS: dict[str, str] = {}
+
+
+class _PortionOption(NamedTuple):
+    grams: float
+    serving_multiple: float | None
+    reference_source: str
 
 
 def _today_iso() -> str:
@@ -361,6 +453,24 @@ def _macro_gap_by_name(
     return None
 
 
+def _gap_pressure(gap: NutritionMacroGap | None) -> float:
+    if (
+        gap is None
+        or not gap.display_allowed
+        or gap.target_status != TARGET_STATUS_BELOW
+        or gap.gap_value is None
+        or gap.gap_value <= 0
+    ):
+        return 0.0
+    if gap.target_value is None or gap.target_value <= 0:
+        return 1.0
+    return min(float(gap.gap_value) / float(gap.target_value), 1.0)
+
+
+def _is_actionable_suggestion_gap(gap: NutritionMacroGap | None) -> bool:
+    return _gap_pressure(gap) >= _MIN_ACTIONABLE_GAP_FRACTION
+
+
 def _normalized_nutrient_key(nutrient_name: str) -> str | None:
     normalized = " ".join(nutrient_name.strip().lower().replace("_", " ").split())
     return _NUTRIENT_NAME_TO_FIELD.get(normalized)
@@ -390,7 +500,84 @@ def _canonical_food_rows() -> list[dict[str, Any]]:
     return rows
 
 
-def _canonical_food_nutrient_maps() -> list[dict[str, Any]]:
+def _canonical_food_serving_unit_rows() -> list[dict[str, Any]]:
+    """Read existing active serving metadata without manufacturing missing rows."""
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (SERVING_UNIT_TABLE_NAME,),
+    )
+    if cursor.fetchone() is None:
+        conn.close()
+        return []
+    cursor.execute(
+        f"""
+        SELECT
+            canonical_food_id,
+            grams_default,
+            confidence,
+            sort_order,
+            id
+        FROM {SERVING_UNIT_TABLE_NAME}
+        WHERE active = 1
+          AND grams_default > 0
+          AND confidence IN (?, ?)
+        ORDER BY canonical_food_id, sort_order, id
+        """,
+        (SERVING_UNIT_CONFIDENCE_MODERATE, SERVING_UNIT_CONFIDENCE_HIGH),
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def _recent_canonical_food_quantity_rows(
+    *,
+    user_id: int,
+    through_date: str,
+) -> list[dict[str, Any]]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        WITH ranked_entries AS (
+            SELECT
+                canonical_food_id,
+                grams AS recent_grams,
+                COUNT(*) OVER (
+                    PARTITION BY canonical_food_id
+                ) AS usage_count,
+                SUM(
+                    CASE WHEN entry_date = ? THEN grams ELSE 0 END
+                ) OVER (
+                    PARTITION BY canonical_food_id
+                ) AS today_grams,
+                ROW_NUMBER() OVER (
+                    PARTITION BY canonical_food_id
+                    ORDER BY entry_date DESC, created_at DESC, id DESC
+                ) AS row_rank
+            FROM food_entries
+            WHERE user_id = ?
+              AND canonical_food_id IS NOT NULL
+              AND grams > 0
+              AND entry_date <= ?
+        )
+        SELECT canonical_food_id, recent_grams, usage_count, today_grams
+        FROM ranked_entries
+        WHERE row_rank = 1
+        """,
+        (through_date, int(user_id), through_date),
+    )
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return rows
+
+
+def _canonical_food_nutrient_maps(
+    recent_quantity_rows: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
     grouped: dict[int, dict[str, Any]] = {}
     for row in _canonical_food_rows():
         canonical_food_id = int(row["canonical_food_id"])
@@ -402,6 +589,10 @@ def _canonical_food_nutrient_maps() -> list[dict[str, Any]]:
                 "food_type": row["food_type"],
                 "search_priority": int(row["search_priority"] or 100),
                 "nutrients": {},
+                "serving_units": [],
+                "recent_grams": None,
+                "recent_usage_count": 0,
+                "today_grams": 0.0,
             },
         )
         nutrient_name = row.get("nutrient_name")
@@ -410,7 +601,42 @@ def _canonical_food_nutrient_maps() -> list[dict[str, Any]]:
         nutrient_key = _normalized_nutrient_key(str(nutrient_name))
         if nutrient_key is not None:
             food["nutrients"][nutrient_key] = float(row["amount_per_100g"])
+
+    for row in _canonical_food_serving_unit_rows():
+        food = grouped.get(int(row["canonical_food_id"]))
+        if food is None:
+            continue
+        food["serving_units"].append(
+            {
+                "grams_default": float(row["grams_default"]),
+                "confidence": str(row["confidence"]),
+            }
+        )
+
+    for row in recent_quantity_rows or []:
+        food = grouped.get(int(row["canonical_food_id"]))
+        if food is None:
+            continue
+        food["recent_grams"] = float(row["recent_grams"])
+        food["recent_usage_count"] = int(row["usage_count"])
+        food["today_grams"] = float(row.get("today_grams") or 0.0)
     return list(grouped.values())
+
+
+def _global_curated_max_grams(display_name: str) -> float | None:
+    curated_bounds = [
+        bounds
+        for source in (
+            _PROTEIN_SUGGESTION_NAMES,
+            _CARBOHYDRATE_SUGGESTION_NAMES,
+            _CALORIE_SUPPORT_SUGGESTION_NAMES,
+            _FAT_SUPPORT_SUGGESTION_NAMES,
+        )
+        if (bounds := source.get(display_name)) is not None
+    ]
+    if not curated_bounds:
+        return None
+    return float(min(bounds[1] for bounds in curated_bounds))
 
 
 def _serving_bounds_for_food(
@@ -426,18 +652,26 @@ def _serving_bounds_for_food(
     source = sources.get(macro_gap_addressed, {})
     if display_name in source:
         min_grams, max_grams, preference_rank = source[display_name]
-        return float(min_grams), float(max_grams), int(preference_rank)
-    fallback_bounds = _CATALOG_FALLBACK_SERVING_BOUNDS.get(macro_gap_addressed)
-    if fallback_bounds is None:
-        return None
-    min_grams, max_grams = fallback_bounds
-    normalized_terms = set(normalize_food_name(display_name).split())
-    if normalized_terms & _SMALL_PORTION_FALLBACK_TERMS:
-        max_grams = min(max_grams, _SMALL_PORTION_FALLBACK_MAX_GRAMS)
-    elif "bar" in normalized_terms:
-        max_grams = min(max_grams, _BAR_FALLBACK_MAX_GRAMS)
+    else:
+        fallback_bounds = _CATALOG_FALLBACK_SERVING_BOUNDS.get(macro_gap_addressed)
+        if fallback_bounds is None:
+            return None
+        min_grams, max_grams = fallback_bounds
+        preference_rank = _CATALOG_FALLBACK_PREFERENCE_RANK
+        normalized_terms = set(normalize_food_name(display_name).split())
+        if normalized_terms & _CONCENTRATED_FOOD_FORM_TERMS:
+            min_grams = _CONCENTRATED_FOOD_FORM_MIN_GRAMS
+            max_grams = _CONCENTRATED_FOOD_FORM_MAX_GRAMS
+        elif normalized_terms & _SMALL_PORTION_FALLBACK_TERMS:
+            max_grams = min(max_grams, _SMALL_PORTION_FALLBACK_MAX_GRAMS)
+        elif "bar" in normalized_terms:
+            max_grams = min(max_grams, _BAR_FALLBACK_MAX_GRAMS)
+
+    global_curated_max = _global_curated_max_grams(display_name)
+    if global_curated_max is not None:
+        max_grams = min(max_grams, global_curated_max)
     min_grams = min(min_grams, max_grams)
-    return float(min_grams), float(max_grams), _CATALOG_FALLBACK_PREFERENCE_RANK
+    return float(min_grams), float(max_grams), int(preference_rank)
 
 
 def _has_curated_serving_bounds(
@@ -451,6 +685,11 @@ def _has_curated_serving_bounds(
         "fat_g": _FAT_SUPPORT_SUGGESTION_NAMES,
     }
     return display_name in sources.get(macro_gap_addressed, {})
+
+
+def _has_concentrated_food_form(display_name: str) -> bool:
+    normalized_terms = set(normalize_food_name(display_name).split())
+    return bool(normalized_terms & _CONCENTRATED_FOOD_FORM_TERMS)
 
 
 def _is_raw_animal_food(*, display_name: str, food_type: str) -> bool:
@@ -503,33 +742,6 @@ def _is_catalog_food_suitable_for_macro(
     return False
 
 
-def _fallback_serving_is_impractical(
-    *,
-    curated: bool,
-    was_bounded: bool,
-    serving_grams: float,
-    max_grams: float,
-) -> bool:
-    return not curated and was_bounded and serving_grams >= max_grams
-
-
-def _serving_grams_for_gap(
-    *,
-    gap_value: float,
-    nutrient_per_100g: float,
-    min_grams: float,
-    max_grams: float,
-) -> tuple[float, bool]:
-    if nutrient_per_100g <= 0:
-        return min_grams, True
-    desired_grams = gap_value * 100.0 / nutrient_per_100g
-    bounded_grams = min(max(desired_grams, min_grams), max_grams)
-    rounded_grams = _round_to_nearest_5(bounded_grams)
-    bounded_again = min(max(rounded_grams, min_grams), max_grams)
-    was_bounded = desired_grams < min_grams or desired_grams > max_grams
-    return float(bounded_again), was_bounded
-
-
 def _nutrient_at_serving(
     nutrients: dict[str, float], nutrient_key: str, serving_grams: float
 ) -> float | None:
@@ -537,6 +749,347 @@ def _nutrient_at_serving(
     if value is None:
         return None
     return round(value * serving_grams / 100.0, 1)
+
+
+def _practical_portion_max_grams(food: dict[str, Any], max_grams: float) -> float:
+    calories_per_100g = float(food["nutrients"].get("calories") or 0.0)
+    if calories_per_100g < _ENERGY_DENSE_CALORIES_PER_100G:
+        return max_grams
+    calorie_based_max = _MAX_ENERGY_DENSE_PORTION_CALORIES * 100.0 / calories_per_100g
+    return min(max_grams, round(calorie_based_max, 1))
+
+
+def _portion_options_for_food(
+    *,
+    food: dict[str, Any],
+    min_grams: float,
+    max_grams: float,
+    curated: bool,
+) -> list[_PortionOption]:
+    """Build a small practical portion set without scaling to exact gap closure."""
+
+    max_grams = _practical_portion_max_grams(food, max_grams)
+    if max_grams < 5.0:
+        return []
+
+    serving_units = food.get("serving_units") or []
+    options_by_grams: dict[float, _PortionOption] = {}
+    if serving_units:
+        for serving_unit in serving_units:
+            anchor_grams = float(serving_unit["grams_default"])
+            for multiple in _REASONABLE_SERVING_MULTIPLES:
+                grams = round(anchor_grams * multiple, 1)
+                if grams < 5.0 or grams > max_grams:
+                    continue
+                option = _PortionOption(
+                    grams=grams,
+                    serving_multiple=multiple,
+                    reference_source="serving_metadata",
+                )
+                existing = options_by_grams.get(grams)
+                if existing is None or abs(multiple - 1.0) < abs(
+                    (existing.serving_multiple or 1.0) - 1.0
+                ):
+                    options_by_grams[grams] = option
+        return list(options_by_grams.values())
+
+    recent_grams = food.get("recent_grams")
+    if recent_grams is not None and float(recent_grams) > 0:
+        for multiple in _REASONABLE_SERVING_MULTIPLES:
+            grams = round(float(recent_grams) * multiple, 1)
+            if grams < max(5.0, min_grams * 0.5) or grams > max_grams:
+                continue
+            options_by_grams[grams] = _PortionOption(
+                grams=grams,
+                serving_multiple=multiple,
+                reference_source="recent_history",
+            )
+        if options_by_grams:
+            return list(options_by_grams.values())
+
+    if curated:
+        gram_options = {
+            min_grams,
+            _round_to_nearest_5((min_grams + max_grams) / 2.0),
+            max_grams,
+        }
+    else:
+        gram_options = {
+            min_grams,
+            _round_to_nearest_5(min_grams * 1.5),
+            _round_to_nearest_5(min_grams * 2.0),
+        }
+    return [
+        _PortionOption(
+            grams=float(grams),
+            serving_multiple=None,
+            reference_source="practical_bounds",
+        )
+        for grams in sorted(gram_options)
+        if 5.0 <= grams <= max_grams
+    ]
+
+
+def _remaining_context_evaluation(
+    *,
+    macro_gaps: list[NutritionMacroGap],
+    nutrients: dict[str, float],
+    serving_grams: float,
+    macro_gap_addressed: str,
+) -> tuple[bool, float, list[str]]:
+    """Reject bad cross-macro conflicts and score useful remaining-gap fit.
+
+    Only approved/displayable target context participates. Missing targets stay
+    missing and never become inferred constraints.
+    """
+
+    score_adjustment = 0.0
+    context_checked = False
+    supports_another_gap = False
+    context_penalized = False
+
+    for gap in macro_gaps:
+        if gap.macro_name == macro_gap_addressed or not gap.display_allowed:
+            continue
+        serving_value = _nutrient_at_serving(
+            nutrients,
+            gap.macro_name,
+            serving_grams,
+        )
+        if serving_value is None:
+            continue
+
+        context_checked = True
+        soft_limit: float | None = None
+        hard_limit: float | None = None
+
+        if (
+            gap.target_status == TARGET_STATUS_BELOW
+            and gap.gap_value is not None
+            and gap.gap_value > 0
+        ):
+            remaining_gap = float(gap.gap_value)
+            soft_limit = max(
+                remaining_gap * 1.25,
+                remaining_gap + _CONTEXT_BELOW_SOFT_TOLERANCE[gap.macro_name],
+            )
+            hard_limit = max(
+                remaining_gap * 1.75,
+                remaining_gap + _CONTEXT_BELOW_HARD_TOLERANCE[gap.macro_name],
+            )
+            if serving_value <= soft_limit:
+                coverage_ratio = min(serving_value / max(remaining_gap, 1.0), 1.0)
+                gap_pressure = _gap_pressure(gap)
+                score_adjustment += (
+                    coverage_ratio * _OTHER_GAP_FIT_MAX_SCORE * (0.5 + gap_pressure)
+                )
+                supports_another_gap = serving_value > 0
+        elif gap.target_status == TARGET_STATUS_NEAR:
+            soft_limit = _CONTEXT_NEAR_SOFT_LIMIT[gap.macro_name]
+            hard_limit = _CONTEXT_NEAR_HARD_LIMIT[gap.macro_name]
+        elif gap.target_status == TARGET_STATUS_ABOVE:
+            soft_limit = _CONTEXT_ABOVE_SOFT_LIMIT[gap.macro_name]
+            hard_limit = _CONTEXT_ABOVE_HARD_LIMIT[gap.macro_name]
+
+        if soft_limit is None or hard_limit is None:
+            continue
+        if serving_value > hard_limit:
+            return True, 0.0, ["remaining_macro_context_conflict"]
+        if serving_value > soft_limit:
+            conflict_range = max(hard_limit - soft_limit, 1.0)
+            score_adjustment -= min(
+                60.0,
+                (serving_value - soft_limit) / conflict_range * 60.0,
+            )
+            context_penalized = True
+
+    reason_codes: list[str] = []
+    if context_checked:
+        reason_codes.append("remaining_macro_context_checked")
+    if supports_another_gap:
+        reason_codes.append("multi_gap_context_fit")
+    if context_penalized:
+        reason_codes.append("remaining_macro_context_penalized")
+    return False, score_adjustment, reason_codes
+
+
+def _target_gap_score_adjustment(
+    *,
+    gap_value: float,
+    nutrient_at_portion: float,
+) -> float:
+    coverage_ratio = nutrient_at_portion / max(gap_value, 1.0)
+    adjustment = min(coverage_ratio, 1.0) * 100.0
+    if coverage_ratio > 1.0:
+        adjustment -= min(80.0, (coverage_ratio - 1.0) * 40.0)
+    elif coverage_ratio < 0.1:
+        adjustment -= (0.1 - coverage_ratio) / 0.1 * 40.0
+    return adjustment
+
+
+def _quality_score_adjustment(
+    *,
+    food: dict[str, Any],
+    portion_option: _PortionOption,
+    min_grams: float,
+    curated: bool,
+) -> tuple[float, list[str]]:
+    adjustment = 0.0
+    reason_codes: list[str] = []
+    if portion_option.reference_source == "serving_metadata":
+        reason_codes.extend(
+            [
+                "serving_unit_metadata_available",
+                "reasonable_serving_multiple_selected",
+            ]
+        )
+        multiple = portion_option.serving_multiple or 1.0
+        multiple_penalty = abs(multiple - 1.0) * _SERVING_MULTIPLE_DISTANCE_PENALTY
+        adjustment -= multiple_penalty
+        if multiple_penalty > 0:
+            reason_codes.append("serving_multiple_deprioritized")
+    elif portion_option.reference_source == "recent_history":
+        reason_codes.extend(
+            [
+                "recent_log_quantity_reference",
+                "reasonable_serving_multiple_selected",
+            ]
+        )
+        multiple = portion_option.serving_multiple or 1.0
+        multiple_penalty = abs(multiple - 1.0) * _SERVING_MULTIPLE_DISTANCE_PENALTY
+        adjustment -= multiple_penalty
+        if multiple_penalty > 0:
+            reason_codes.append("serving_multiple_deprioritized")
+    else:
+        reason_codes.append("practical_serving_bounds_used")
+        if not curated:
+            scale_above_minimum = max(
+                portion_option.grams / max(min_grams, 1.0) - 1.0, 0.0
+            )
+            if scale_above_minimum > 0:
+                adjustment -= min(
+                    75.0,
+                    scale_above_minimum * _UNANCHORED_PORTION_SCALE_PENALTY,
+                )
+                reason_codes.append("unanchored_portion_scale_deprioritized")
+    if _has_concentrated_food_form(food["display_name"]):
+        adjustment -= _CONCENTRATED_FOOD_FORM_SCORE_PENALTY
+        reason_codes.append("concentrated_food_form_deprioritized")
+    recent_usage_count = float(food.get("recent_usage_count") or 0)
+    if recent_usage_count > 0:
+        adjustment += min(recent_usage_count, 5.0) * 2.0
+        reason_codes.append("personal_log_history_fit")
+    today_grams = float(food.get("today_grams") or 0.0)
+    if today_grams > 0:
+        portion_equivalents = today_grams / max(portion_option.grams, 1.0)
+        adjustment -= min(
+            120.0,
+            portion_equivalents * _TODAY_CONSUMPTION_PENALTY_PER_PORTION,
+        )
+        reason_codes.append("logged_today_deprioritized")
+    return adjustment, reason_codes
+
+
+def _adjusted_candidate_score(
+    base_score: float,
+    *,
+    context_adjustment: float,
+    quality_adjustment: float,
+) -> float:
+    return round(
+        max(
+            base_score * _STATIC_CANDIDATE_SCORE_WEIGHT
+            + context_adjustment
+            + quality_adjustment,
+            0.0,
+        ),
+        2,
+    )
+
+
+def _select_best_portion(
+    *,
+    food: dict[str, Any],
+    macro_gaps: list[NutritionMacroGap],
+    macro_gap_addressed: str,
+    gap_value: float,
+    min_grams: float,
+    max_grams: float,
+    curated: bool,
+    base_score: Callable[[float], float],
+    additional_conflict: Callable[[float], bool] | None = None,
+) -> tuple[_PortionOption, float, list[str]] | None:
+    best: tuple[_PortionOption, float, list[str]] | None = None
+    best_key: tuple[float, int, float, float] | None = None
+    nutrients = food["nutrients"]
+
+    if float(food.get("today_grams") or 0.0) >= max(
+        min_grams * _TODAY_HEAVY_CONSUMPTION_MULTIPLE,
+        10.0,
+    ):
+        return None
+
+    for portion_option in _portion_options_for_food(
+        food=food,
+        min_grams=min_grams,
+        max_grams=max_grams,
+        curated=curated,
+    ):
+        serving_grams = portion_option.grams
+        if additional_conflict and additional_conflict(serving_grams):
+            continue
+        context_conflict, context_adjustment, context_reason_codes = (
+            _remaining_context_evaluation(
+                macro_gaps=macro_gaps,
+                nutrients=nutrients,
+                serving_grams=serving_grams,
+                macro_gap_addressed=macro_gap_addressed,
+            )
+        )
+        if context_conflict:
+            continue
+        nutrient_at_portion = (
+            _nutrient_at_serving(
+                nutrients,
+                macro_gap_addressed,
+                serving_grams,
+            )
+            or 0.0
+        )
+        context_adjustment += _target_gap_score_adjustment(
+            gap_value=gap_value,
+            nutrient_at_portion=nutrient_at_portion,
+        )
+        quality_adjustment, quality_reason_codes = _quality_score_adjustment(
+            food=food,
+            portion_option=portion_option,
+            min_grams=min_grams,
+            curated=curated,
+        )
+        score = _adjusted_candidate_score(
+            base_score(serving_grams),
+            context_adjustment=context_adjustment,
+            quality_adjustment=quality_adjustment,
+        )
+        multiple_distance = abs((portion_option.serving_multiple or 1.0) - 1.0)
+        selection_key = (
+            score,
+            {
+                "serving_metadata": 2,
+                "recent_history": 1,
+                "practical_bounds": 0,
+            }[portion_option.reference_source],
+            -multiple_distance,
+            -serving_grams,
+        )
+        if best_key is None or selection_key > best_key:
+            best_key = selection_key
+            best = (
+                portion_option,
+                score,
+                _unique([*context_reason_codes, *quality_reason_codes]),
+            )
+    return best
 
 
 def _protein_candidate_score(
@@ -862,13 +1415,14 @@ def _protein_suggestion_candidates(
     macro_gaps: list[NutritionMacroGap],
     *,
     logging_incomplete: bool,
+    foods: list[dict[str, Any]] | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     protein_gap = _macro_gap_by_name(macro_gaps, "protein_g")
-    if protein_gap is None or not _is_displayable_macro_gap(protein_gap):
+    if not _is_actionable_suggestion_gap(protein_gap):
         return []
 
     candidates: list[CanonicalFoodSuggestionCandidate] = []
-    for food in _canonical_food_nutrient_maps():
+    for food in foods if foods is not None else _canonical_food_nutrient_maps():
         curated = _has_curated_serving_bounds(food["display_name"], "protein_g")
         bounds = _serving_bounds_for_food(food["display_name"], "protein_g")
         if bounds is None:
@@ -886,28 +1440,38 @@ def _protein_suggestion_candidates(
             continue
 
         min_grams, max_grams, preference_rank = bounds
-        serving_grams, was_bounded = _serving_grams_for_gap(
+        selected_portion = _select_best_portion(
+            food=food,
+            macro_gaps=macro_gaps,
+            macro_gap_addressed="protein_g",
             gap_value=float(protein_gap.gap_value),
-            nutrient_per_100g=nutrients["protein_g"],
             min_grams=min_grams,
             max_grams=max_grams,
-        )
-        if _fallback_serving_is_impractical(
             curated=curated,
-            was_bounded=was_bounded,
-            serving_grams=serving_grams,
-            max_grams=max_grams,
-        ):
+            base_score=lambda serving_grams,
+            nutrients=nutrients,
+            search_priority=food["search_priority"],
+            preference_rank=preference_rank: (
+                _protein_candidate_score(
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                    search_priority=search_priority,
+                    preference_rank=preference_rank,
+                )
+            ),
+        )
+        if selected_portion is None:
             continue
+        portion_option, selected_score, portion_reason_codes = selected_portion
+        serving_grams = portion_option.grams
         reason_codes = [
             "canonical_food_catalog_available",
             "canonical_food_nutrients_available",
             "practical_serving_selected",
             "protein_suggestion_available",
+            *portion_reason_codes,
         ]
         limitations: list[str] = []
-        if was_bounded:
-            reason_codes.append("serving_limited_by_practical_bounds")
         if not curated:
             reason_codes.append("catalog_fallback_serving_bounds")
         if logging_incomplete:
@@ -928,12 +1492,7 @@ def _protein_suggestion_candidates(
                 ),
                 fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
                 macro_gap_addressed="protein_g",
-                score=_protein_candidate_score(
-                    nutrients=nutrients,
-                    serving_grams=serving_grams,
-                    search_priority=food["search_priority"],
-                    preference_rank=preference_rank,
-                ),
+                score=selected_score,
                 confidence=protein_gap.confidence,
                 reason_codes=_unique(reason_codes),
                 limitations=limitations,
@@ -946,10 +1505,11 @@ def _carbohydrate_suggestion_candidates(
     macro_gaps: list[NutritionMacroGap],
     *,
     logging_incomplete: bool,
+    foods: list[dict[str, Any]] | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     carbohydrate_gap = _macro_gap_by_name(macro_gaps, "carbohydrate_g")
     calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
-    if carbohydrate_gap is None or not _is_displayable_macro_gap(carbohydrate_gap):
+    if not _is_actionable_suggestion_gap(carbohydrate_gap):
         return []
     if logging_incomplete:
         return []
@@ -960,7 +1520,7 @@ def _carbohydrate_suggestion_candidates(
         calorie_gap.gap_value if calorie_gap and calorie_gap.gap_value else None
     )
     candidates: list[CanonicalFoodSuggestionCandidate] = []
-    for food in _canonical_food_nutrient_maps():
+    for food in foods if foods is not None else _canonical_food_nutrient_maps():
         curated = _has_curated_serving_bounds(food["display_name"], "carbohydrate_g")
         bounds = _serving_bounds_for_food(food["display_name"], "carbohydrate_g")
         if bounds is None:
@@ -980,33 +1540,53 @@ def _carbohydrate_suggestion_candidates(
             continue
 
         min_grams, max_grams, preference_rank = bounds
-        serving_grams, was_bounded = _serving_grams_for_gap(
+        selected_portion = _select_best_portion(
+            food=food,
+            macro_gaps=macro_gaps,
+            macro_gap_addressed="carbohydrate_g",
             gap_value=float(carbohydrate_gap.gap_value),
-            nutrient_per_100g=nutrients["carbohydrate_g"],
             min_grams=min_grams,
             max_grams=max_grams,
-        )
-        if _fallback_serving_is_impractical(
             curated=curated,
-            was_bounded=was_bounded,
-            serving_grams=serving_grams,
-            max_grams=max_grams,
-        ):
+            base_score=lambda serving_grams,
+            nutrients=nutrients,
+            search_priority=food["search_priority"],
+            preference_rank=preference_rank: (
+                _carbohydrate_candidate_score(
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                    search_priority=search_priority,
+                    preference_rank=preference_rank,
+                    calorie_gap=calorie_room,
+                )
+            ),
+            additional_conflict=lambda serving_grams,
+            nutrients=nutrients,
+            calorie_room=calorie_room: (
+                bool(
+                    calorie_room is not None
+                    and (
+                        _nutrient_at_serving(nutrients, "calories", serving_grams)
+                        or 0.0
+                    )
+                    > max(calorie_room * 1.25, calorie_room + 150.0)
+                )
+            ),
+        )
+        if selected_portion is None:
             continue
+        portion_option, selected_score, portion_reason_codes = selected_portion
+        serving_grams = portion_option.grams
         serving_calories = _nutrient_at_serving(nutrients, "calories", serving_grams)
-        if calorie_room is not None and serving_calories is not None:
-            if serving_calories > max(calorie_room * 1.25, calorie_room + 150.0):
-                continue
 
         reason_codes = [
             "canonical_food_catalog_available",
             "canonical_food_nutrients_available",
             "practical_serving_selected",
             "carbohydrate_suggestion_available",
+            *portion_reason_codes,
         ]
         limitations: list[str] = []
-        if was_bounded:
-            reason_codes.append("serving_limited_by_practical_bounds")
         if not curated:
             reason_codes.append("catalog_fallback_serving_bounds")
 
@@ -1023,13 +1603,7 @@ def _carbohydrate_suggestion_candidates(
                 ),
                 fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
                 macro_gap_addressed="carbohydrate_g",
-                score=_carbohydrate_candidate_score(
-                    nutrients=nutrients,
-                    serving_grams=serving_grams,
-                    search_priority=food["search_priority"],
-                    preference_rank=preference_rank,
-                    calorie_gap=calorie_room,
-                ),
+                score=selected_score,
                 confidence=carbohydrate_gap.confidence,
                 reason_codes=_unique(reason_codes),
                 limitations=limitations,
@@ -1042,9 +1616,10 @@ def _calorie_support_suggestion_candidates(
     macro_gaps: list[NutritionMacroGap],
     *,
     logging_incomplete: bool,
+    foods: list[dict[str, Any]] | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
-    if calorie_gap is None or not _is_displayable_macro_gap(calorie_gap):
+    if not _is_actionable_suggestion_gap(calorie_gap):
         return []
     if logging_incomplete:
         return []
@@ -1058,7 +1633,7 @@ def _calorie_support_suggestion_candidates(
     )
     fat_above_target = _displayable_gap_status(macro_gaps, "fat_g", TARGET_STATUS_ABOVE)
 
-    for food in _canonical_food_nutrient_maps():
+    for food in foods if foods is not None else _canonical_food_nutrient_maps():
         curated = _has_curated_serving_bounds(food["display_name"], "calories")
         bounds = _serving_bounds_for_food(food["display_name"], "calories")
         if bounds is None:
@@ -1076,35 +1651,49 @@ def _calorie_support_suggestion_candidates(
             continue
 
         min_grams, max_grams, preference_rank = bounds
-        serving_grams, was_bounded = _serving_grams_for_gap(
+        selected_portion = _select_best_portion(
+            food=food,
+            macro_gaps=macro_gaps,
+            macro_gap_addressed="calories",
             gap_value=float(calorie_gap.gap_value),
-            nutrient_per_100g=nutrients["calories"],
             min_grams=min_grams,
             max_grams=max_grams,
-        )
-        if _fallback_serving_is_impractical(
             curated=curated,
-            was_bounded=was_bounded,
-            serving_grams=serving_grams,
-            max_grams=max_grams,
-        ):
-            continue
-        if _calorie_support_conflicts_with_above_macros(
-            macro_gaps=macro_gaps,
+            base_score=lambda serving_grams,
             nutrients=nutrients,
-            serving_grams=serving_grams,
-        ):
+            search_priority=food["search_priority"],
+            preference_rank=preference_rank: (
+                _calorie_support_candidate_score(
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                    search_priority=search_priority,
+                    preference_rank=preference_rank,
+                    protein_above_target=protein_above_target,
+                    carbohydrate_above_target=carbohydrate_above_target,
+                    fat_above_target=fat_above_target,
+                )
+            ),
+            additional_conflict=lambda serving_grams, nutrients=nutrients: (
+                _calorie_support_conflicts_with_above_macros(
+                    macro_gaps=macro_gaps,
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                )
+            ),
+        )
+        if selected_portion is None:
             continue
+        portion_option, selected_score, portion_reason_codes = selected_portion
+        serving_grams = portion_option.grams
 
         reason_codes = [
             "canonical_food_catalog_available",
             "canonical_food_nutrients_available",
             "practical_serving_selected",
             "calorie_support_suggestion_available",
+            *portion_reason_codes,
         ]
         limitations: list[str] = []
-        if was_bounded:
-            reason_codes.append("serving_limited_by_practical_bounds")
         if not curated:
             reason_codes.append("catalog_fallback_serving_bounds")
         if protein_above_target or carbohydrate_above_target or fat_above_target:
@@ -1123,15 +1712,7 @@ def _calorie_support_suggestion_candidates(
                 ),
                 fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
                 macro_gap_addressed="calories",
-                score=_calorie_support_candidate_score(
-                    nutrients=nutrients,
-                    serving_grams=serving_grams,
-                    search_priority=food["search_priority"],
-                    preference_rank=preference_rank,
-                    protein_above_target=protein_above_target,
-                    carbohydrate_above_target=carbohydrate_above_target,
-                    fat_above_target=fat_above_target,
-                ),
+                score=selected_score,
                 confidence=calorie_gap.confidence,
                 reason_codes=_unique(reason_codes),
                 limitations=limitations,
@@ -1144,10 +1725,11 @@ def _fat_support_suggestion_candidates(
     macro_gaps: list[NutritionMacroGap],
     *,
     logging_incomplete: bool,
+    foods: list[dict[str, Any]] | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     fat_gap = _macro_gap_by_name(macro_gaps, "fat_g")
     calorie_gap = _macro_gap_by_name(macro_gaps, "calories")
-    if fat_gap is None or not _is_displayable_macro_gap(fat_gap):
+    if not _is_actionable_suggestion_gap(fat_gap):
         return []
     if calorie_gap is None or not calorie_gap.display_allowed:
         return []
@@ -1164,7 +1746,7 @@ def _fat_support_suggestion_candidates(
         macro_gaps, "carbohydrate_g", TARGET_STATUS_ABOVE
     )
 
-    for food in _canonical_food_nutrient_maps():
+    for food in foods if foods is not None else _canonical_food_nutrient_maps():
         curated = _has_curated_serving_bounds(food["display_name"], "fat_g")
         bounds = _serving_bounds_for_food(food["display_name"], "fat_g")
         if bounds is None:
@@ -1182,35 +1764,48 @@ def _fat_support_suggestion_candidates(
             continue
 
         min_grams, max_grams, preference_rank = bounds
-        serving_grams, was_bounded = _serving_grams_for_gap(
+        selected_portion = _select_best_portion(
+            food=food,
+            macro_gaps=macro_gaps,
+            macro_gap_addressed="fat_g",
             gap_value=float(fat_gap.gap_value),
-            nutrient_per_100g=nutrients["fat_g"],
             min_grams=min_grams,
             max_grams=max_grams,
-        )
-        if _fallback_serving_is_impractical(
             curated=curated,
-            was_bounded=was_bounded,
-            serving_grams=serving_grams,
-            max_grams=max_grams,
-        ):
-            continue
-        if _fat_support_conflicts_with_above_macros(
-            macro_gaps=macro_gaps,
+            base_score=lambda serving_grams,
             nutrients=nutrients,
-            serving_grams=serving_grams,
-        ):
+            search_priority=food["search_priority"],
+            preference_rank=preference_rank: (
+                _fat_support_candidate_score(
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                    search_priority=search_priority,
+                    preference_rank=preference_rank,
+                    protein_above_target=protein_above_target,
+                    carbohydrate_above_target=carbohydrate_above_target,
+                )
+            ),
+            additional_conflict=lambda serving_grams, nutrients=nutrients: (
+                _fat_support_conflicts_with_above_macros(
+                    macro_gaps=macro_gaps,
+                    nutrients=nutrients,
+                    serving_grams=serving_grams,
+                )
+            ),
+        )
+        if selected_portion is None:
             continue
+        portion_option, selected_score, portion_reason_codes = selected_portion
+        serving_grams = portion_option.grams
 
         reason_codes = [
             "canonical_food_catalog_available",
             "canonical_food_nutrients_available",
             "practical_serving_selected",
             "fat_support_suggestion_available",
+            *portion_reason_codes,
         ]
         limitations: list[str] = []
-        if was_bounded:
-            reason_codes.append("serving_limited_by_practical_bounds")
         if not curated:
             reason_codes.append("catalog_fallback_serving_bounds")
         if protein_above_target or carbohydrate_above_target:
@@ -1229,14 +1824,7 @@ def _fat_support_suggestion_candidates(
                 ),
                 fat_g=_nutrient_at_serving(nutrients, "fat_g", serving_grams),
                 macro_gap_addressed="fat_g",
-                score=_fat_support_candidate_score(
-                    nutrients=nutrients,
-                    serving_grams=serving_grams,
-                    search_priority=food["search_priority"],
-                    preference_rank=preference_rank,
-                    protein_above_target=protein_above_target,
-                    carbohydrate_above_target=carbohydrate_above_target,
-                ),
+                score=selected_score,
                 confidence=fat_gap.confidence,
                 reason_codes=_unique(reason_codes),
                 limitations=limitations,
@@ -1249,63 +1837,291 @@ def get_canonical_food_suggestion_candidates(
     macro_gaps: list[NutritionMacroGap],
     *,
     logging_incomplete: bool = False,
+    recent_quantity_rows: list[dict[str, Any]] | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     """Build deterministic suggestion candidates from canonical foods only."""
 
+    foods = _canonical_food_nutrient_maps(recent_quantity_rows)
     return [
         *_protein_suggestion_candidates(
             macro_gaps,
             logging_incomplete=logging_incomplete,
+            foods=foods,
         ),
         *_carbohydrate_suggestion_candidates(
             macro_gaps,
             logging_incomplete=logging_incomplete,
+            foods=foods,
         ),
         *_calorie_support_suggestion_candidates(
             macro_gaps,
             logging_incomplete=logging_incomplete,
+            foods=foods,
         ),
         *_fat_support_suggestion_candidates(
             macro_gaps,
             logging_incomplete=logging_incomplete,
+            foods=foods,
         ),
     ]
+
+
+def _candidate_variety_terms(
+    candidate: CanonicalFoodSuggestionCandidate,
+) -> set[str]:
+    normalized_terms = set(normalize_food_name(candidate.display_name).split())
+    useful_terms = normalized_terms - _VARIETY_IGNORED_TERMS
+    return useful_terms or normalized_terms
+
+
+def _candidate_nutrition_profile(
+    candidate: CanonicalFoodSuggestionCandidate,
+) -> tuple[str, str]:
+    protein_calories = float(candidate.protein_g or 0.0) * 4.0
+    carbohydrate_calories = float(candidate.carbohydrate_g or 0.0) * 4.0
+    fat_calories = float(candidate.fat_g or 0.0) * 9.0
+    macro_calories = protein_calories + carbohydrate_calories + fat_calories
+    shares = {
+        "protein": protein_calories / max(macro_calories, 1.0),
+        "carbohydrate": carbohydrate_calories / max(macro_calories, 1.0),
+        "fat": fat_calories / max(macro_calories, 1.0),
+    }
+    dominant_macro, dominant_share = max(shares.items(), key=lambda item: item[1])
+    macro_profile = dominant_macro if dominant_share >= 0.65 else "mixed"
+
+    calorie_density = float(candidate.calories or 0.0) / max(
+        float(candidate.serving_grams),
+        1.0,
+    )
+    if calorie_density < 1.0:
+        density_profile = "very_low_density"
+    elif calorie_density < 2.0:
+        density_profile = "low_density"
+    elif calorie_density < 4.0:
+        density_profile = "moderate_density"
+    else:
+        density_profile = "high_density"
+    return macro_profile, density_profile
+
+
+def _stable_rotation_rank(
+    candidate: CanonicalFoodSuggestionCandidate,
+    rotation_key: str,
+) -> int:
+    value = (
+        f"{rotation_key}|{candidate.macro_gap_addressed}|{candidate.canonical_food_id}"
+    )
+    return int(hashlib.sha256(value.encode("utf-8")).hexdigest()[:16], 16)
+
+
+def _candidate_macro_value(
+    candidate: CanonicalFoodSuggestionCandidate,
+) -> float | None:
+    values = {
+        "calories": candidate.calories,
+        "protein_g": candidate.protein_g,
+        "carbohydrate_g": candidate.carbohydrate_g,
+        "fat_g": candidate.fat_g,
+    }
+    value = values.get(candidate.macro_gap_addressed)
+    return float(value) if value is not None else None
+
+
+def _candidate_state_fit_score(
+    candidate: CanonicalFoodSuggestionCandidate,
+    macro_gap: NutritionMacroGap | None,
+) -> float | None:
+    """Score meaningful partial improvement against the current approved gap.
+
+    This is an absolute state-relative measure rather than a distance from the
+    current role leader. Candidate construction has already applied practical
+    portion and cross-macro conflict checks.
+    """
+
+    contribution = _candidate_macro_value(candidate)
+    if (
+        macro_gap is None
+        or not _is_actionable_suggestion_gap(macro_gap)
+        or macro_gap.gap_value is None
+        or macro_gap.gap_value <= 0
+        or contribution is None
+        or contribution <= 0
+    ):
+        return None
+
+    coverage_ratio = contribution / float(macro_gap.gap_value)
+    if coverage_ratio <= 1.0:
+        fit_score = coverage_ratio * 100.0
+    else:
+        fit_score = max(0.0, 100.0 - (coverage_ratio - 1.0) * 50.0)
+
+    if "multi_gap_context_fit" in candidate.reason_codes:
+        fit_score += 5.0
+    if "remaining_macro_context_penalized" in candidate.reason_codes:
+        fit_score -= 15.0
+    return round(min(max(fit_score, 0.0), 100.0), 2)
+
+
+def _state_fit_tier(fit_score: float) -> int:
+    if fit_score >= 75.0:
+        return 0
+    if fit_score >= 50.0:
+        return 1
+    if fit_score >= 25.0:
+        return 2
+    return 3
+
+
+def _absolute_quality_tier(score: float) -> int:
+    if score >= 160.0:
+        return 0
+    if score >= 120.0:
+        return 1
+    if score >= 80.0:
+        return 2
+    return 3
+
+
+def _meets_state_relative_quality_floor(
+    candidate: CanonicalFoodSuggestionCandidate,
+    macro_gap: NutritionMacroGap | None,
+) -> bool:
+    quality_floor = _MIN_CANDIDATE_QUALITY_SCORE
+    if "catalog_fallback_serving_bounds" in candidate.reason_codes:
+        quality_floor = max(
+            quality_floor,
+            _CATALOG_FALLBACK_QUALITY_FLOOR[candidate.macro_gap_addressed],
+        )
+    if candidate.score < quality_floor:
+        return False
+    fit_score = _candidate_state_fit_score(candidate, macro_gap)
+    return fit_score is not None and fit_score >= _MIN_STATE_FIT_SCORE
+
+
+def _state_relative_selection_tier(
+    candidate: CanonicalFoodSuggestionCandidate,
+    macro_gap: NutritionMacroGap | None,
+) -> tuple[int, int]:
+    fit_score = _candidate_state_fit_score(candidate, macro_gap)
+    return (
+        _state_fit_tier(fit_score or 0.0),
+        _absolute_quality_tier(candidate.score),
+    )
+
+
+def _ordered_candidate_bucket(
+    candidates: list[CanonicalFoodSuggestionCandidate],
+    *,
+    rotation_key: str | None,
+    macro_gap: NutritionMacroGap | None,
+) -> list[CanonicalFoodSuggestionCandidate]:
+    if macro_gap is not None:
+        candidates = [
+            candidate
+            for candidate in candidates
+            if _meets_state_relative_quality_floor(candidate, macro_gap)
+        ]
+    baseline = sorted(
+        candidates,
+        key=lambda candidate: (
+            -(_candidate_state_fit_score(candidate, macro_gap) or 0.0),
+            -candidate.score,
+            candidate.serving_grams,
+            candidate.display_name,
+            candidate.canonical_food_id,
+        ),
+    )
+    if not baseline or not rotation_key:
+        return baseline
+
+    return sorted(
+        baseline,
+        key=lambda candidate: (
+            _state_fit_tier(_candidate_state_fit_score(candidate, macro_gap) or 0.0),
+            _absolute_quality_tier(candidate.score),
+            _stable_rotation_rank(candidate, rotation_key),
+            -(_candidate_state_fit_score(candidate, macro_gap) or 0.0),
+            -candidate.score,
+            candidate.serving_grams,
+            candidate.display_name,
+            candidate.canonical_food_id,
+        ),
+    )
+
+
+def _macro_order_for_state(
+    macro_gaps: list[NutritionMacroGap] | None,
+) -> list[str]:
+    if macro_gaps is None:
+        return sorted(_MACRO_PRIORITY, key=_MACRO_PRIORITY.get)
+    pressure_by_macro = {
+        macro_name: _gap_pressure(_macro_gap_by_name(macro_gaps, macro_name))
+        for macro_name in _MACRO_PRIORITY
+    }
+    return sorted(
+        (
+            macro_name
+            for macro_name, pressure in pressure_by_macro.items()
+            if pressure >= _MIN_ACTIONABLE_GAP_FRACTION
+        ),
+        key=lambda macro_name: (
+            -pressure_by_macro[macro_name],
+            _MACRO_PRIORITY[macro_name],
+        ),
+    )
+
+
+def _nutrition_state_rotation_key(
+    *,
+    user_id: int,
+    suggestion_date: str,
+    macro_gaps: list[NutritionMacroGap],
+) -> str:
+    state_buckets = [
+        f"{macro_name}:{round(_gap_pressure(_macro_gap_by_name(macro_gaps, macro_name)) * 20)}"
+        for macro_name in sorted(_MACRO_PRIORITY, key=_MACRO_PRIORITY.get)
+    ]
+    return "|".join([str(user_id), suggestion_date, *state_buckets])
 
 
 def rank_food_suggestion_candidates(
     candidates: list[CanonicalFoodSuggestionCandidate],
     *,
     limit: int = 3,
+    macro_gaps: list[NutritionMacroGap] | None = None,
+    rotation_key: str | None = None,
 ) -> list[CanonicalFoodSuggestionCandidate]:
     """Select a deterministic, diverse pool from approved candidates.
 
-    Candidates retain their existing deterministic ranking within a macro role.
-    Selection then takes one distinct food from each actionable role per round,
-    following the established macro priority order.
+    Candidates must clear fixed state-relative contribution and quality floors.
+    State-derived deterministic rotation and nutrition-profile diversity then
+    operate across that useful pool, while normalized remaining-gap pressure
+    controls macro-role order.
     """
 
     requested_limit = max(0, int(limit))
     if requested_limit == 0:
         return []
 
-    macro_order = sorted(_MACRO_PRIORITY, key=_MACRO_PRIORITY.get)
+    macro_order = _macro_order_for_state(macro_gaps)
     candidates_by_macro = {
-        macro_name: sorted(
-            (
+        macro_name: _ordered_candidate_bucket(
+            [
                 candidate
                 for candidate in candidates
                 if candidate.macro_gap_addressed == macro_name
-            ),
-            key=lambda candidate: (
-                -candidate.score,
-                candidate.serving_grams,
-                candidate.display_name,
-                candidate.canonical_food_id,
+            ],
+            rotation_key=rotation_key,
+            macro_gap=(
+                _macro_gap_by_name(macro_gaps, macro_name)
+                if macro_gaps is not None
+                else None
             ),
         )
         for macro_name in macro_order
     }
-    next_candidate_index = {macro_name: 0 for macro_name in macro_order}
+    selected_variety_terms = {macro_name: set() for macro_name in macro_order}
+    selected_nutrition_profiles = {macro_name: set() for macro_name in macro_order}
     selected_food_ids: set[int] = set()
     selected_candidates: list[CanonicalFoodSuggestionCandidate] = []
 
@@ -1313,20 +2129,72 @@ def rank_food_suggestion_candidates(
         selected_in_round = False
         for macro_name in macro_order:
             bucket = candidates_by_macro[macro_name]
-            candidate_index = next_candidate_index[macro_name]
+            eligible = [
+                candidate
+                for candidate in bucket
+                if candidate.canonical_food_id not in selected_food_ids
+            ]
+            if not eligible:
+                continue
 
-            while candidate_index < len(bucket):
-                candidate = bucket[candidate_index]
-                candidate_index += 1
-                if candidate.canonical_food_id in selected_food_ids:
-                    continue
-
-                selected_candidates.append(candidate)
-                selected_food_ids.add(candidate.canonical_food_id)
-                selected_in_round = True
-                break
-
-            next_candidate_index[macro_name] = candidate_index
+            macro_gap = (
+                _macro_gap_by_name(macro_gaps, macro_name)
+                if macro_gaps is not None
+                else None
+            )
+            if macro_gap is None:
+                competitive = eligible
+            else:
+                best_absolute_tier = min(
+                    _state_relative_selection_tier(option, macro_gap)
+                    for option in eligible
+                )
+                competitive = [
+                    option
+                    for option in eligible
+                    if _state_relative_selection_tier(option, macro_gap)
+                    == best_absolute_tier
+                ]
+            candidate = next(
+                (
+                    option
+                    for option in competitive
+                    if _candidate_nutrition_profile(option)
+                    not in selected_nutrition_profiles[macro_name]
+                    and not (
+                        _candidate_variety_terms(option)
+                        & selected_variety_terms[macro_name]
+                    )
+                ),
+                next(
+                    (
+                        option
+                        for option in competitive
+                        if _candidate_nutrition_profile(option)
+                        not in selected_nutrition_profiles[macro_name]
+                    ),
+                    next(
+                        (
+                            option
+                            for option in competitive
+                            if not (
+                                _candidate_variety_terms(option)
+                                & selected_variety_terms[macro_name]
+                            )
+                        ),
+                        competitive[0],
+                    ),
+                ),
+            )
+            selected_candidates.append(candidate)
+            selected_food_ids.add(candidate.canonical_food_id)
+            selected_variety_terms[macro_name].update(
+                _candidate_variety_terms(candidate)
+            )
+            selected_nutrition_profiles[macro_name].add(
+                _candidate_nutrition_profile(candidate)
+            )
+            selected_in_round = True
             if len(selected_candidates) == requested_limit:
                 break
 
@@ -1435,12 +2303,16 @@ def _approved_suggestion_macros(
 
 def _primary_gap_for_suggestions(
     approved_suggestions: list[ApprovedFoodSuggestion],
+    macro_gaps: list[NutritionMacroGap],
 ) -> str | None:
     if not approved_suggestions:
         return None
     return min(
         (suggestion.macro_gap_addressed for suggestion in approved_suggestions),
-        key=lambda macro_name: _MACRO_PRIORITY.get(macro_name, 99),
+        key=lambda macro_name: (
+            -_gap_pressure(_macro_gap_by_name(macro_gaps, macro_name)),
+            _MACRO_PRIORITY.get(macro_name, 99),
+        ),
     )
 
 
@@ -1480,7 +2352,16 @@ def approve_food_suggestions(
     logging_incomplete: bool = False,
     limit: int = 3,
 ) -> ApprovedNutritionFoodSuggestions:
-    ranked_candidates = rank_food_suggestion_candidates(candidates, limit=limit)
+    ranked_candidates = rank_food_suggestion_candidates(
+        candidates,
+        limit=limit,
+        macro_gaps=macro_gaps,
+        rotation_key=_nutrition_state_rotation_key(
+            user_id=user_id,
+            suggestion_date=suggestion_date,
+            macro_gaps=macro_gaps,
+        ),
+    )
     approved_suggestions = [
         _approved_suggestion_from_candidate(candidate)
         for candidate in ranked_candidates
@@ -1624,7 +2505,7 @@ def approve_food_suggestions(
     return ApprovedNutritionFoodSuggestions(
         user_id=user_id,
         suggestion_date=suggestion_date,
-        primary_gap=_primary_gap_for_suggestions(approved_suggestions),
+        primary_gap=_primary_gap_for_suggestions(approved_suggestions, macro_gaps),
         macro_gaps=macro_gaps,
         suggestions=approved_suggestions,
         confidence=confidence,
@@ -1654,9 +2535,14 @@ def build_approved_nutrition_food_suggestions(
     )
     macro_gaps = build_nutrition_macro_gaps(summary)
     logging_incomplete = _is_logging_incomplete(summary)
+    recent_quantity_rows = _recent_canonical_food_quantity_rows(
+        user_id=user_id,
+        through_date=suggestion_date,
+    )
     candidates = get_canonical_food_suggestion_candidates(
         macro_gaps,
         logging_incomplete=logging_incomplete,
+        recent_quantity_rows=recent_quantity_rows,
     )
     return approve_food_suggestions(
         user_id=user_id,

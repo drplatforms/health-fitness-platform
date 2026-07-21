@@ -1,11 +1,16 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { TodayCard } from "@/components/TodayCard";
 import { logCanonicalFood } from "@/lib/canonicalFoodApi";
-import { NutritionFoodSuggestion } from "@/types/nutritionFoodSuggestion";
+import { fetchNutritionFoodSuggestionsFromBackend } from "@/lib/nutritionFoodSuggestionApi";
+import {
+  NutritionFoodSuggestion,
+  NutritionFoodSuggestionsResponse,
+} from "@/types/nutritionFoodSuggestion";
 import { CANONICAL_FOOD_LOGGED_EVENT } from "@/types/canonicalFood";
+import { PERSONAL_FOOD_LOGGED_EVENT } from "@/types/personalFood";
 
 const MACRO_LABELS: Record<NutritionFoodSuggestion["macro_gap_addressed"], string> = {
   protein_g: "Protein",
@@ -21,22 +26,84 @@ function formatGrams(grams: number): string {
 export function NutritionGapActionsCard({
   userId,
   targetDate,
-  suggestions,
+  response,
 }: {
   userId: number;
   targetDate: string;
-  suggestions: NutritionFoodSuggestion[];
+  response: NutritionFoodSuggestionsResponse;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const suggestionIdentity = `${userId}:${targetDate}`;
+  const [suggestionState, setSuggestionState] = useState({
+    identity: suggestionIdentity,
+    sourceResponse: response,
+    response,
+  });
   const [loggingFoodId, setLoggingFoodId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [messageTone, setMessageTone] = useState<"success" | "error" | null>(
     null,
   );
   const isLoggingRef = useRef(false);
+  const refreshRequestIdRef = useRef(0);
 
-  if (suggestions.length === 0) {
-    return null;
+  const currentResponse =
+    suggestionState.identity === suggestionIdentity &&
+    suggestionState.sourceResponse === response
+      ? suggestionState.response
+      : response;
+  const currentSuggestions = currentResponse.suggestions;
+  const loggingIncomplete = currentResponse.reason_codes.includes(
+    "logging_incomplete_limits_suggestions",
+  );
+
+  const refreshSuggestions = useCallback(async () => {
+    const requestId = refreshRequestIdRef.current + 1;
+    refreshRequestIdRef.current = requestId;
+    const refreshedSuggestions =
+      await fetchNutritionFoodSuggestionsFromBackend({
+        userId,
+        date: targetDate,
+      });
+
+    if (
+      requestId !== refreshRequestIdRef.current ||
+      !refreshedSuggestions.data
+    ) {
+      return;
+    }
+    setSuggestionState({
+      identity: suggestionIdentity,
+      sourceResponse: response,
+      response: refreshedSuggestions.data,
+    });
+    setIsExpanded(false);
+  }, [response, suggestionIdentity, targetDate, userId]);
+
+  useEffect(() => {
+    const handleFoodLogged = () => void refreshSuggestions();
+
+    window.addEventListener(CANONICAL_FOOD_LOGGED_EVENT, handleFoodLogged);
+    window.addEventListener(PERSONAL_FOOD_LOGGED_EVENT, handleFoodLogged);
+
+    return () => {
+      window.removeEventListener(CANONICAL_FOOD_LOGGED_EVENT, handleFoodLogged);
+      window.removeEventListener(PERSONAL_FOOD_LOGGED_EVENT, handleFoodLogged);
+    };
+  }, [refreshSuggestions]);
+
+  if (currentSuggestions.length === 0) {
+    if (!loggingIncomplete) {
+      return null;
+    }
+    return (
+      <TodayCard title="Close the gap">
+        <p className="text-sm leading-6 text-text-body">
+          Some logged foods are missing calorie or macro data. Suggestions are
+          paused until today&apos;s remaining nutrition can be calculated reliably.
+        </p>
+      </TodayCard>
+    );
   }
 
   async function handleLogSuggestion(suggestion: NutritionFoodSuggestion) {
@@ -72,8 +139,10 @@ export function NutritionGapActionsCard({
     }
   }
 
-  const visibleSuggestions = isExpanded ? suggestions : suggestions.slice(0, 1);
-  const additionalSuggestionCount = suggestions.length - 1;
+  const visibleSuggestions = isExpanded
+    ? currentSuggestions
+    : currentSuggestions.slice(0, 1);
+  const additionalSuggestionCount = currentSuggestions.length - 1;
 
   return (
     <TodayCard title="Close the gap">

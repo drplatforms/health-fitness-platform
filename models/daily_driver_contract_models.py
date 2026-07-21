@@ -187,6 +187,18 @@ class DailyDriverNutritionSummary:
     carbs_logged_g: int | None
     fat_logged_g: int | None
     today_mission: str
+    calorie_target_min: int | None = None
+    calorie_target_max: int | None = None
+    protein_target_min_g: int | None = None
+    protein_target_max_g: int | None = None
+    carbohydrate_target_min_g: int | None = None
+    carbohydrate_target_max_g: int | None = None
+    fat_target_min_g: int | None = None
+    fat_target_max_g: int | None = None
+    calories_logged_complete: bool = False
+    protein_logged_complete: bool = False
+    carbs_logged_complete: bool = False
+    fat_logged_complete: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(

@@ -273,6 +273,34 @@ def _build_nutrition_summary(
         carbs_logged_g=_rounded_int(target_summary.nutrition_actuals.logged_carbs),
         fat_logged_g=_rounded_int(target_summary.nutrition_actuals.logged_fat),
         today_mission=mission,
+        calorie_target_min=nutrition_targets.calorie_target_min,
+        calorie_target_max=nutrition_targets.calorie_target_max,
+        protein_target_min_g=nutrition_targets.protein_grams_min,
+        protein_target_max_g=nutrition_targets.protein_grams_max,
+        carbohydrate_target_min_g=nutrition_targets.carbohydrate_grams_min,
+        carbohydrate_target_max_g=nutrition_targets.carbohydrate_grams_max,
+        fat_target_min_g=nutrition_targets.fat_grams_min,
+        fat_target_max_g=nutrition_targets.fat_grams_max,
+        calories_logged_complete=_nutrient_total_is_complete(
+            target_summary.nutrition_actuals.logged_calories,
+            target_summary.nutrition_actuals.entry_count,
+            target_summary.nutrition_actuals.missing_calorie_entries,
+        ),
+        protein_logged_complete=_nutrient_total_is_complete(
+            target_summary.nutrition_actuals.logged_protein,
+            target_summary.nutrition_actuals.entry_count,
+            target_summary.nutrition_actuals.missing_protein_entries,
+        ),
+        carbs_logged_complete=_nutrient_total_is_complete(
+            target_summary.nutrition_actuals.logged_carbs,
+            target_summary.nutrition_actuals.entry_count,
+            target_summary.nutrition_actuals.missing_carb_entries,
+        ),
+        fat_logged_complete=_nutrient_total_is_complete(
+            target_summary.nutrition_actuals.logged_fat,
+            target_summary.nutrition_actuals.entry_count,
+            target_summary.nutrition_actuals.missing_fat_entries,
+        ),
     )
 
 
@@ -355,6 +383,14 @@ def _rounded_int(value: float | None) -> int | None:
     if value is None:
         return None
     return int(round(value))
+
+
+def _nutrient_total_is_complete(
+    value: float | None,
+    entry_count: int,
+    missing_entry_count: int,
+) -> bool:
+    return value is not None and entry_count > 0 and missing_entry_count == 0
 
 
 def _nutrition_status(summary: TargetVsActualNutritionSummary) -> str:
