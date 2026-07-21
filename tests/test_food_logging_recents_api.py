@@ -74,6 +74,8 @@ def test_recent_canonical_foods_endpoint_returns_user_scoped_results(
         {
             "canonical_food_id": chicken_id,
             "display_name": "Chicken Breast, Cooked, Skinless",
+            "original_display_name": "Chicken Breast, Cooked, Skinless",
+            "custom_display_name": None,
             "last_logged_at": payload["results"][0]["last_logged_at"],
             "last_logged_date": "2026-07-08",
             "last_meal_type": "lunch",

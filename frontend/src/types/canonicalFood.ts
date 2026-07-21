@@ -8,6 +8,8 @@ export interface CanonicalFoodNutrientSummary {
 export interface CanonicalFoodSearchResult {
   canonical_food_id: number;
   display_name: string;
+  original_display_name?: string;
+  custom_display_name?: string | null;
   food_type: string;
   default_unit: string | null;
   default_grams: number | null;
@@ -25,6 +27,19 @@ export interface CanonicalFoodSearchResponse {
   success: boolean;
   query: string;
   results: CanonicalFoodSearchResult[];
+}
+
+export interface CanonicalFoodNameMutationResponse {
+  success: boolean;
+  user_id: number;
+  food_name?: {
+    canonical_food_id: number;
+    display_name: string;
+    custom_display_name: string;
+    original_display_name: string;
+  };
+  canonical_food_id?: number;
+  deleted?: boolean;
 }
 
 export interface CanonicalFoodLogRequest {
@@ -66,6 +81,8 @@ export interface CanonicalFoodServingUnitsResponse {
 export interface RecentCanonicalFood {
   canonical_food_id: number;
   display_name: string;
+  original_display_name: string;
+  custom_display_name: string | null;
   last_logged_at: string;
   last_logged_date: string;
   last_meal_type: string | null;
@@ -96,6 +113,8 @@ export interface PinnedFood {
   canonical_food_id?: number;
   personal_food_id?: number;
   display_name: string;
+  original_display_name?: string;
+  custom_display_name?: string | null;
   default_grams: number | null;
   serving_name?: string | null;
   serving_grams?: number | null;
@@ -121,6 +140,8 @@ export interface PinnedFoodMutationResponse {
 export interface AvailableIngredient {
   canonical_food_id: number;
   display_name: string;
+  original_display_name?: string;
+  custom_display_name?: string | null;
   food_type: string;
   added_at: string;
 }

@@ -113,7 +113,7 @@ export function SavedMealEditor({
     setError(null);
     try {
       const [canonical, personal] = await Promise.all([
-        searchCanonicalFoods(query, 6),
+        searchCanonicalFoods(query, 6, userId),
         searchPersonalFoods(userId, query, 6),
       ]);
       setCanonicalResults(canonical.results);

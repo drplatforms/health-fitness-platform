@@ -5,6 +5,7 @@ import { getApiBaseUrl } from "@/lib/dailyDriverApi";
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   const limit = request.nextUrl.searchParams.get("limit")?.trim();
+  const userId = request.nextUrl.searchParams.get("user_id")?.trim();
 
   if (!query) {
     return NextResponse.json({
@@ -17,6 +18,9 @@ export async function GET(request: NextRequest) {
   const params = new URLSearchParams({ q: query });
   if (limit) {
     params.set("limit", limit);
+  }
+  if (userId) {
+    params.set("user_id", userId);
   }
 
   const endpoint = `${getApiBaseUrl()}/foods/canonical/search?${params.toString()}`;

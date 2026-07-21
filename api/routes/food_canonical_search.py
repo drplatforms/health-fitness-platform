@@ -18,6 +18,11 @@ from services.nutrition_serving_unit_service import (
     get_active_serving_units_for_canonical_food,
     seed_canonical_food_serving_units,
 )
+from services.user_canonical_food_name_service import (
+    UserCanonicalFoodNameNotFoundError,
+    get_user_canonical_food_names,
+    search_user_canonical_foods,
+)
 
 router = APIRouter()
 
@@ -125,20 +130,29 @@ def _canonical_search_result_to_public_dict(
     result,
     *,
     include_source_links: bool,
+    custom_display_name: str | None = None,
 ) -> dict:
     food = result.canonical_food
+    original_food = get_canonical_food(food.id)
+    original_display_name = (
+        curate_canonical_display_name(
+            original_food.display_name, original_food.food_type
+        )
+        if original_food is not None
+        else food.display_name
+    )
     payload = {
         "canonical_food_id": food.id,
-        "display_name": curate_canonical_display_name(
-            food.display_name,
-            food.food_type,
-        ),
+        "display_name": custom_display_name
+        or curate_canonical_display_name(food.display_name, food.food_type),
         "food_type": food.food_type,
         "default_unit": food.default_unit,
         "default_grams": food.default_grams,
         "search_priority": food.search_priority,
         "matched_on": result.matched_on,
         "aliases": list(result.aliases),
+        "original_display_name": original_display_name,
+        "custom_display_name": custom_display_name,
     }
 
     nutrient_summary = _build_nutrient_summary(food.id)
@@ -161,6 +175,7 @@ def canonical_food_search_endpoint(
     limit: int = Query(default=_CANONICAL_SEARCH_DEFAULT_LIMIT),
     include_inactive: bool = False,
     include_source_links: bool = False,
+    user_id: int | None = None,
 ):
     """Return public-safe canonical food search results for user-facing food picks."""
 
@@ -179,10 +194,30 @@ def canonical_food_search_endpoint(
         )
 
     ensure_starter_canonical_foods_seeded()
-    results = search_canonical_foods(
-        query,
-        limit=_bounded_limit(limit),
-        include_inactive=include_inactive,
+    try:
+        results = (
+            search_user_canonical_foods(
+                query,
+                user_id=user_id,
+                limit=_bounded_limit(limit),
+                include_inactive=include_inactive,
+            )
+            if user_id is not None
+            else search_canonical_foods(
+                query,
+                limit=_bounded_limit(limit),
+                include_inactive=include_inactive,
+            )
+        )
+    except UserCanonicalFoodNameNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    custom_names = (
+        get_user_canonical_food_names(
+            user_id=user_id,
+            canonical_food_ids=[result.canonical_food.id for result in results],
+        )
+        if user_id is not None
+        else {}
     )
 
     return {
@@ -192,6 +227,7 @@ def canonical_food_search_endpoint(
             _canonical_search_result_to_public_dict(
                 result,
                 include_source_links=include_source_links,
+                custom_display_name=custom_names.get(result.canonical_food.id),
             )
             for result in results
         ],
@@ -199,10 +235,22 @@ def canonical_food_search_endpoint(
 
 
 @router.get("/foods/canonical/available-ingredient-starters")
-def available_ingredient_starter_groups_endpoint():
+def available_ingredient_starter_groups_endpoint(user_id: int | None = None):
+    groups = list_available_ingredient_starter_groups()
+    if user_id is not None:
+        items = [item for group in groups for item in group["items"]]
+        custom_names = get_user_canonical_food_names(
+            user_id=user_id,
+            canonical_food_ids=[item["canonical_food_id"] for item in items],
+        )
+        for group in groups:
+            for item in group["items"]:
+                custom_name = custom_names.get(item["canonical_food_id"])
+                if custom_name is not None:
+                    item["display_name"] = custom_name
     return {
         "success": True,
-        "groups": list_available_ingredient_starter_groups(),
+        "groups": groups,
     }
 
 

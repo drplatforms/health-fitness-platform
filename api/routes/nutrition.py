@@ -86,6 +86,12 @@ from services.saved_meal_service import (
     restore_saved_meal,
     update_saved_meal,
 )
+from services.user_canonical_food_name_service import (
+    UserCanonicalFoodNameError,
+    UserCanonicalFoodNameNotFoundError,
+    remove_user_canonical_food_name,
+    set_user_canonical_food_name,
+)
 
 # =====================================
 # Router Initialization
@@ -204,6 +210,10 @@ class SavedMealMutationRequest(BaseModel):
 class SavedMealLogRequest(BaseModel):
     entry_date: str
     meal_type: str | None = None
+
+
+class CanonicalFoodDisplayNameRequest(BaseModel):
+    display_name: str
 
 
 # =====================================
@@ -360,6 +370,44 @@ def recent_canonical_foods(user_id: int, limit: str = "10"):
         "success": True,
         "user_id": user_id,
         "results": get_recent_canonical_foods(user_id=user_id, limit=limit),
+    }
+
+
+@router.put("/nutrition/{user_id}/canonical-food-names/{canonical_food_id}")
+def set_owned_canonical_food_name(
+    user_id: int,
+    canonical_food_id: int,
+    request: CanonicalFoodDisplayNameRequest,
+):
+    try:
+        food_name = set_user_canonical_food_name(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+            display_name=request.display_name,
+        )
+    except UserCanonicalFoodNameNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except UserCanonicalFoodNameError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "user_id": user_id, "food_name": food_name}
+
+
+@router.delete("/nutrition/{user_id}/canonical-food-names/{canonical_food_id}")
+def reset_owned_canonical_food_name(user_id: int, canonical_food_id: int):
+    try:
+        deleted = remove_user_canonical_food_name(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+        )
+    except UserCanonicalFoodNameNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except UserCanonicalFoodNameError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "canonical_food_id": canonical_food_id,
+        "deleted": deleted,
     }
 
 
