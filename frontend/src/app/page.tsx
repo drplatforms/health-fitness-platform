@@ -4,7 +4,6 @@ import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
-import { NutritionGapActionsCard } from "@/components/NutritionGapActionsCard";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -19,9 +18,6 @@ import {
 } from "@/lib/dailyDriverApi";
 import { fetchCanonicalFoodLogsFromBackend } from "@/lib/canonicalFoodLogsApi";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
-import {
-  fetchNutritionFoodSuggestionsFromBackend,
-} from "@/lib/nutritionFoodSuggestionApi";
 import {
   buildTodayWorkoutHref,
   fetchTodayWorkout,
@@ -299,11 +295,7 @@ export default async function Home({
     todayWorkoutResult.data,
     currentWorkoutResult.data,
   );
-  const [
-    canonicalLoggedFoodsResult,
-    personalLoggedFoodsResult,
-    nutritionFoodSuggestionsResult,
-  ] = data
+  const [canonicalLoggedFoodsResult, personalLoggedFoodsResult] = data
     ? await Promise.all([
         fetchCanonicalFoodLogsFromBackend({
           userId: currentUserId,
@@ -313,13 +305,8 @@ export default async function Home({
           userId: currentUserId,
           date: data.target_date,
         }),
-        fetchNutritionFoodSuggestionsFromBackend({
-          userId: currentUserId,
-          date: data.target_date,
-        }),
       ])
     : [
-        { data: null, error: null },
         { data: null, error: null },
         { data: null, error: null },
       ];
@@ -408,16 +395,6 @@ export default async function Home({
                   requestedDate={todayQuery.date}
                 />
               </div>
-              {nutritionFoodSuggestionsResult.data ? (
-                <div className="hidden md:block">
-                  <NutritionGapActionsCard
-                    key={`nutrition-gap-actions:${currentUserId}:${data.target_date}`}
-                    userId={currentUserId}
-                    targetDate={data.target_date}
-                    response={nutritionFoodSuggestionsResult.data}
-                  />
-                </div>
-              ) : null}
               <div className="grid gap-3 xl:grid-cols-2">
                 <LoggedFoodsList
                   key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}

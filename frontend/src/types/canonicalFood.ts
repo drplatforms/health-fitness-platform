@@ -29,6 +29,19 @@ export interface CanonicalFoodSearchResponse {
   results: CanonicalFoodSearchResult[];
 }
 
+export type CanonicalFoodBrowseScope = "all" | "catalog" | "added";
+
+export interface CanonicalFoodBrowseResponse {
+  success: boolean;
+  scope: CanonicalFoodBrowseScope;
+  query: string;
+  start_letter: string;
+  offset: number;
+  next_offset: number | null;
+  has_more: boolean;
+  results: CanonicalFoodSearchResult[];
+}
+
 export interface CanonicalFoodNameMutationResponse {
   success: boolean;
   user_id: number;

@@ -6,6 +6,7 @@ from services.available_ingredient_starter_service import (
     list_available_ingredient_starter_groups,
 )
 from services.food_normalization_service import (
+    browse_canonical_foods,
     curate_canonical_display_name,
     ensure_starter_canonical_foods_seeded,
     get_canonical_food,
@@ -20,6 +21,7 @@ from services.nutrition_serving_unit_service import (
 )
 from services.user_canonical_food_name_service import (
     UserCanonicalFoodNameNotFoundError,
+    browse_user_canonical_foods,
     get_user_canonical_food_names,
     search_user_canonical_foods,
 )
@@ -29,6 +31,7 @@ router = APIRouter()
 _CANONICAL_SEARCH_MIN_QUERY_LENGTH = 2
 _CANONICAL_SEARCH_DEFAULT_LIMIT = 20
 _CANONICAL_SEARCH_MAX_LIMIT = 25
+_CANONICAL_BROWSE_SCOPES = {"all", "catalog", "added"}
 
 _NUTRIENT_SUMMARY_KEYS = {
     "calories": "calories_per_100g",
@@ -230,6 +233,81 @@ def canonical_food_search_endpoint(
                 custom_display_name=custom_names.get(result.canonical_food.id),
             )
             for result in results
+        ],
+    }
+
+
+@router.get("/foods/canonical/browse")
+def canonical_food_browse_endpoint(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=_CANONICAL_SEARCH_DEFAULT_LIMIT),
+    scope: str = Query(default="all"),
+    q: str = Query(default="", max_length=120),
+    start_letter: str = Query(default="", max_length=1),
+    user_id: int | None = None,
+):
+    """Return one bounded, stable page of active foods for catalog discovery."""
+
+    normalized_scope = scope.strip().lower()
+    if normalized_scope not in _CANONICAL_BROWSE_SCOPES:
+        raise HTTPException(
+            status_code=400,
+            detail="scope must be one of: all, catalog, added.",
+        )
+    normalized_start_letter = start_letter.strip().upper()
+    if normalized_start_letter and not normalized_start_letter.isascii():
+        raise HTTPException(status_code=400, detail="start_letter must be A-Z.")
+    if normalized_start_letter and not normalized_start_letter.isalpha():
+        raise HTTPException(status_code=400, detail="start_letter must be A-Z.")
+
+    ensure_starter_canonical_foods_seeded()
+    page_limit = _bounded_limit(limit)
+    try:
+        results = (
+            browse_user_canonical_foods(
+                user_id=user_id,
+                offset=offset,
+                limit=page_limit + 1,
+                catalog_scope=normalized_scope,
+                query=q,
+                start_letter=normalized_start_letter,
+            )
+            if user_id is not None
+            else browse_canonical_foods(
+                offset=offset,
+                limit=page_limit + 1,
+                catalog_scope=normalized_scope,
+                query=q,
+                start_letter=normalized_start_letter,
+            )
+        )
+    except UserCanonicalFoodNameNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    page_results = results[:page_limit]
+    custom_names = (
+        get_user_canonical_food_names(
+            user_id=user_id,
+            canonical_food_ids=[result.canonical_food.id for result in page_results],
+        )
+        if user_id is not None
+        else {}
+    )
+    has_more = len(results) > page_limit
+    return {
+        "success": True,
+        "scope": normalized_scope,
+        "query": q.strip(),
+        "start_letter": normalized_start_letter,
+        "offset": offset,
+        "next_offset": offset + page_limit if has_more else None,
+        "has_more": has_more,
+        "results": [
+            _canonical_search_result_to_public_dict(
+                result,
+                include_source_links=False,
+                custom_display_name=custom_names.get(result.canonical_food.id),
+            )
+            for result in page_results
         ],
     }
 

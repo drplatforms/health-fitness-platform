@@ -4591,6 +4591,57 @@ def _build_search_result(row) -> CanonicalFoodSearchResult:
     )
 
 
+def browse_canonical_foods(
+    *,
+    offset: int = 0,
+    limit: int = 20,
+    catalog_scope: str = "all",
+    query: str = "",
+    start_letter: str = "",
+) -> list[CanonicalFoodSearchResult]:
+    """Return a stable page of active canonical foods for catalog browsing."""
+
+    ensure_food_normalization_tables()
+    resolved_offset = max(0, int(offset))
+    resolved_limit = max(1, int(limit))
+    clauses = ["active = 1"]
+    params: list[Any] = []
+    if catalog_scope == "catalog":
+        clauses.append("food_type != 'branded'")
+    elif catalog_scope == "added":
+        clauses.append("food_type = 'branded'")
+    normalized_query = normalize_food_name(query)
+    if normalized_query:
+        clauses.append("normalized_name LIKE ?")
+        params.append(f"%{normalized_query}%")
+    if start_letter:
+        clauses.append("display_name COLLATE NOCASE >= ?")
+        params.append(start_letter)
+
+    conn = get_connection()
+    rows = conn.execute(
+        f"""
+        SELECT *
+        FROM canonical_foods
+        WHERE {' AND '.join(clauses)}
+        ORDER BY display_name COLLATE NOCASE, id
+        LIMIT ? OFFSET ?
+        """,
+        (*params, resolved_limit, resolved_offset),
+    ).fetchall()
+    conn.close()
+    return [
+        CanonicalFoodSearchResult(
+            canonical_food=_row_to_canonical_food(row),
+            matched_on="browse",
+            matched_value=str(row["display_name"]),
+            rank_score=int(row["search_priority"]),
+            aliases=[],
+        )
+        for row in rows
+    ]
+
+
 def search_canonical_foods(
     search_term: str,
     limit: int = 20,
