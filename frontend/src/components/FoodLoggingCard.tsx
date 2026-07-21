@@ -19,6 +19,7 @@ import {
   fetchRecentCanonicalFoods,
   logCanonicalFood,
   searchCanonicalFoods,
+  setCanonicalFoodDisplayName,
   setFoodPinned,
 } from "@/lib/canonicalFoodApi";
 import { logPersonalFood, searchPersonalFoods } from "@/lib/personalFoodApi";
@@ -67,6 +68,8 @@ interface LoggingFoodResult {
   key: string;
   foodType: "canonical" | "personal";
   displayName: string;
+  originalDisplayName?: string;
+  customDisplayName?: string | null;
   nutrientSummary?: CanonicalFoodNutrientSummary;
   defaultGrams: number | null;
   canonicalFoodId?: number;
@@ -132,6 +135,8 @@ function canonicalFoodToLoggingResult(
     key: `canonical:${food.canonical_food_id}`,
     foodType: "canonical",
     displayName: food.display_name,
+    originalDisplayName: food.original_display_name ?? food.display_name,
+    customDisplayName: food.custom_display_name,
     nutrientSummary: food.nutrient_summary,
     defaultGrams: food.default_grams,
     canonicalFoodId: food.canonical_food_id,
@@ -156,6 +161,8 @@ function recentFoodToLoggingResult(food: RecentCanonicalFood): LoggingFoodResult
     key: `canonical:${food.canonical_food_id}`,
     foodType: "canonical",
     displayName: food.display_name,
+    originalDisplayName: food.original_display_name,
+    customDisplayName: food.custom_display_name,
     defaultGrams: food.last_grams,
     canonicalFoodId: food.canonical_food_id,
   };
@@ -166,6 +173,8 @@ function pinnedFoodToLoggingResult(food: PinnedFood): LoggingFoodResult {
     key: `${food.food_type}:${food.food_id}`,
     foodType: food.food_type,
     displayName: food.display_name,
+    originalDisplayName: food.original_display_name,
+    customDisplayName: food.custom_display_name,
     nutrientSummary: food.nutrient_summary,
     defaultGrams: food.default_grams,
     canonicalFoodId: food.canonical_food_id,
@@ -218,6 +227,9 @@ export function FoodLoggingCard({
   const [showAllPinnedFoods, setShowAllPinnedFoods] = useState(false);
   const [isLoadingServingUnits, setIsLoadingServingUnits] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
   const [isBarcodeScannerOpen, setIsBarcodeScannerOpen] = useState(false);
   const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -294,7 +306,7 @@ export function FoodLoggingCard({
 
       try {
         const [canonicalResult, personalResult] = await Promise.allSettled([
-          searchCanonicalFoods(deferredQuery, 8),
+          searchCanonicalFoods(deferredQuery, 8, userId),
           searchPersonalFoods(userId, deferredQuery, 8),
         ]);
 
@@ -458,6 +470,7 @@ export function FoodLoggingCard({
     setResults([]);
     setSearchMessage(null);
     setErrorMessage(null);
+    setIsRenaming(false);
   }
 
   function handleSelectPinnedFood(food: PinnedFood) {
@@ -480,6 +493,7 @@ export function FoodLoggingCard({
     setResults([]);
     setSearchMessage(null);
     setErrorMessage(null);
+    setIsRenaming(false);
   }
 
   async function handleTogglePinned(food: LoggingFoodResult | PinnedFood) {
@@ -515,6 +529,60 @@ export function FoodLoggingCard({
     }
   }
 
+  async function handleSaveDisplayName(reset = false) {
+    if (!selectedFood?.canonicalFoodId) {
+      return;
+    }
+    const trimmedName = renameValue.trim();
+    if (!reset && !trimmedName) {
+      setErrorMessage("Enter a friendly food name or choose Reset.");
+      return;
+    }
+
+    setIsSavingName(true);
+    setErrorMessage(null);
+    try {
+      const response = await setCanonicalFoodDisplayName({
+        userId,
+        canonicalFoodId: selectedFood.canonicalFoodId,
+        displayName: reset ? null : trimmedName,
+      });
+      const nextName = reset
+        ? selectedFood.originalDisplayName ?? selectedFood.displayName
+        : response.food_name?.display_name ?? trimmedName;
+      setSelectedFood((current) =>
+        current
+          ? {
+              ...current,
+              displayName: nextName,
+              customDisplayName: reset ? null : nextName,
+            }
+          : current,
+      );
+      setQuery(nextName);
+      setSelectedSearchQuery(nextName);
+      setResults((current) =>
+        current.map((food) =>
+          food.key === selectedFood.key
+            ? {
+                ...food,
+                displayName: nextName,
+                customDisplayName: reset ? null : nextName,
+              }
+            : food,
+        ),
+      );
+      await Promise.all([refreshPinnedFoods(), refreshRecentFoods()]);
+      setIsRenaming(false);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "Unable to update this food name.",
+      );
+    } finally {
+      setIsSavingName(false);
+    }
+  }
+
   function handleBarcodeFoodSelected(food: BarcodeCanonicalFood) {
     pendingRecentContextRef.current = null;
     setServingUnits([]);
@@ -527,6 +595,7 @@ export function FoodLoggingCard({
     setResults([]);
     setSearchMessage(null);
     setErrorMessage(null);
+    setIsRenaming(false);
   }
 
   const amountValue = Number.parseFloat(amount);
@@ -880,6 +949,7 @@ export function FoodLoggingCard({
                         }
                       }
                       setSelectedFood(food);
+                      setIsRenaming(false);
                       setSelectedSearchQuery(query.trim());
                       setErrorMessage(null);
                     }}
@@ -922,9 +992,52 @@ export function FoodLoggingCard({
         {selectedFood ? (
           <div className="space-y-2.5 rounded-[20px] bg-surface-subtle px-3 py-3 sm:px-4">
             <div className="grid gap-1">
-              <p className="text-sm font-semibold text-text-strong">
-                {selectedFood.displayName}
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-semibold text-text-strong">
+                  {selectedFood.displayName}
+                </p>
+                {selectedFood.foodType === "canonical" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRenameValue(selectedFood.displayName);
+                      setIsRenaming((current) => !current);
+                      setErrorMessage(null);
+                    }}
+                    className="text-xs font-semibold text-accent-text transition hover:text-accent-text-hover"
+                  >
+                    {isRenaming ? "Cancel" : "Rename"}
+                  </button>
+                ) : null}
+              </div>
+              {isRenaming && selectedFood.foodType === "canonical" ? (
+                <div className="flex flex-wrap items-center gap-2 py-1">
+                  <input
+                    type="text"
+                    maxLength={120}
+                    value={renameValue}
+                    onChange={(event) => setRenameValue(event.target.value)}
+                    aria-label="Friendly food name"
+                    className="min-h-10 min-w-0 flex-1 rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
+                  />
+                  <button
+                    type="button"
+                    disabled={isSavingName}
+                    onClick={() => void handleSaveDisplayName(false)}
+                    className="min-h-10 rounded-xl bg-action-primary px-3 py-2 text-xs font-semibold text-action-primary-foreground disabled:opacity-60"
+                  >
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isSavingName}
+                    onClick={() => void handleSaveDisplayName(true)}
+                    className="min-h-10 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-text-body disabled:opacity-60"
+                  >
+                    Reset
+                  </button>
+                </div>
+              ) : null}
               <p className="text-xs leading-4 text-text-secondary">
                 {preview ?? "Enter an amount to preview this food."}
               </p>

@@ -106,7 +106,7 @@ export function AvailableIngredientsPanel({
 
   useEffect(() => {
     let isActive = true;
-    fetchAvailableIngredientStarterGroups()
+    fetchAvailableIngredientStarterGroups(userId)
       .then((response) => {
         if (isActive) {
           setStarterGroups(response.groups);
@@ -132,7 +132,7 @@ export function AvailableIngredientsPanel({
     return () => {
       isActive = false;
     };
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     if (deferredQuery.length < 2) {
@@ -144,7 +144,7 @@ export function AvailableIngredientsPanel({
       setIsSearching(true);
       setMessage(null);
       try {
-        const response = await searchCanonicalFoods(deferredQuery, 20);
+        const response = await searchCanonicalFoods(deferredQuery, 20, userId);
         if (!isActive) {
           return;
         }
@@ -171,7 +171,7 @@ export function AvailableIngredientsPanel({
       isActive = false;
       window.clearTimeout(timeoutId);
     };
-  }, [deferredQuery]);
+  }, [deferredQuery, userId]);
 
   const availableIds = useMemo(
     () => new Set(ingredients.map((item) => item.canonical_food_id)),

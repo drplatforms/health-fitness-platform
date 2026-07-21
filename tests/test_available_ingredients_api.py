@@ -75,6 +75,8 @@ def test_available_ingredients_support_large_alphabetized_collections(
         == {
             "canonical_food_id",
             "display_name",
+            "original_display_name",
+            "custom_display_name",
             "food_type",
             "added_at",
         }

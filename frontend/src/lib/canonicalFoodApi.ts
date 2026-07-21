@@ -8,6 +8,7 @@ import {
   CanonicalFoodLogResponse,
   CanonicalFoodLogUpdateRequest,
   CanonicalFoodLogUpdateResponse,
+  CanonicalFoodNameMutationResponse,
   CanonicalFoodLogsResponse,
   CanonicalFoodSearchResponse,
   CanonicalFoodServingUnitsResponse,
@@ -29,9 +30,12 @@ async function readErrorMessage(response: Response, fallbackMessage: string) {
   return typeof payload?.detail === "string" ? payload.detail : fallbackMessage;
 }
 
-export async function fetchAvailableIngredientStarterGroups(): Promise<AvailableIngredientStarterGroupsResponse> {
+export async function fetchAvailableIngredientStarterGroups(
+  userId: number,
+): Promise<AvailableIngredientStarterGroupsResponse> {
+  const params = new URLSearchParams({ user_id: String(userId) });
   const response = await fetch(
-    "/api/foods-canonical-available-ingredient-starters",
+    `/api/foods-canonical-available-ingredient-starters?${params.toString()}`,
     {
       cache: "no-store",
       headers: { Accept: "application/json" },
@@ -153,6 +157,7 @@ export async function setFoodPinned({
 export async function searchCanonicalFoods(
   query: string,
   limit = 8,
+  userId?: number,
 ): Promise<CanonicalFoodSearchResponse> {
   const trimmedQuery = query.trim();
 
@@ -168,6 +173,9 @@ export async function searchCanonicalFoods(
     q: trimmedQuery,
     limit: String(limit),
   });
+  if (userId !== undefined) {
+    params.set("user_id", String(userId));
+  }
   const response = await fetch(`/api/foods-canonical-search?${params.toString()}`, {
     cache: "no-store",
     headers: {
@@ -182,6 +190,35 @@ export async function searchCanonicalFoods(
   }
 
   return (await response.json()) as CanonicalFoodSearchResponse;
+}
+
+export async function setCanonicalFoodDisplayName({
+  userId,
+  canonicalFoodId,
+  displayName,
+}: {
+  userId: number;
+  canonicalFoodId: number;
+  displayName: string | null;
+}): Promise<CanonicalFoodNameMutationResponse> {
+  const response = await fetch("/api/canonical-food-display-name", {
+    method: displayName === null ? "DELETE" : "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      user_id: userId,
+      canonical_food_id: canonicalFoodId,
+      ...(displayName === null ? {} : { display_name: displayName }),
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(response, "Unable to update this food name."),
+    );
+  }
+  return (await response.json()) as CanonicalFoodNameMutationResponse;
 }
 
 export async function resolveFoodBarcode(

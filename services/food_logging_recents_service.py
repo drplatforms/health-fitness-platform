@@ -11,6 +11,10 @@ from services.pinned_food_service import (
     PINNED_FOODS_TABLE_NAME,
     ensure_pinned_food_schema,
 )
+from services.user_canonical_food_name_service import (
+    USER_CANONICAL_FOOD_NAMES_TABLE_NAME,
+    ensure_user_canonical_food_name_schema,
+)
 
 DEFAULT_RECENT_CANONICAL_FOODS_LIMIT = 10
 MAX_RECENT_CANONICAL_FOODS_LIMIT = 25
@@ -44,6 +48,8 @@ def _recent_food_from_row(row: Any) -> dict[str, Any]:
     item: dict[str, Any] = {
         "canonical_food_id": int(row["canonical_food_id"]),
         "display_name": row["display_name"],
+        "original_display_name": row["original_display_name"],
+        "custom_display_name": row["custom_display_name"],
         "last_logged_at": row["last_logged_at"],
         "last_logged_date": row["last_logged_date"],
         "last_meal_type": row["last_meal_type"],
@@ -76,6 +82,7 @@ def get_recent_canonical_foods(
 
     ensure_serving_unit_log_metadata_schema()
     ensure_pinned_food_schema()
+    ensure_user_canonical_food_name_schema()
     resolved_limit = _bounded_limit(limit)
 
     conn = get_connection()
@@ -86,7 +93,10 @@ def get_recent_canonical_foods(
             SELECT
                 food_entries.id AS entry_id,
                 food_entries.canonical_food_id,
-                canonical_foods.display_name,
+                COALESCE(user_names.display_name, canonical_foods.display_name)
+                    AS display_name,
+                canonical_foods.display_name AS original_display_name,
+                user_names.display_name AS custom_display_name,
                 food_entries.created_at AS last_logged_at,
                 food_entries.entry_date AS last_logged_date,
                 food_entries.meal_type AS last_meal_type,
@@ -111,6 +121,9 @@ def get_recent_canonical_foods(
                 ON canonical_foods.id = food_entries.canonical_food_id
             LEFT JOIN {SERVING_UNIT_LOG_METADATA_TABLE_NAME} AS serving_metadata
                 ON serving_metadata.food_entry_id = food_entries.id
+            LEFT JOIN {USER_CANONICAL_FOOD_NAMES_TABLE_NAME} AS user_names
+                ON user_names.user_id = food_entries.user_id
+               AND user_names.canonical_food_id = food_entries.canonical_food_id
             WHERE food_entries.user_id = ?
               AND food_entries.canonical_food_id IS NOT NULL
               AND canonical_foods.active = 1

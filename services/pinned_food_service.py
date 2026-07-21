@@ -13,6 +13,7 @@ from services.personal_food_service import (
     PersonalFoodNotFoundError,
     get_personal_food,
 )
+from services.user_canonical_food_name_service import get_user_canonical_food_name
 
 PINNED_FOODS_TABLE_NAME = "user_pinned_foods"
 PinnedFoodType = Literal["canonical", "personal"]
@@ -186,14 +187,19 @@ def _public_pinned_food(
             summary_key = _NUTRIENT_SUMMARY_KEYS.get(normalized_name)
             if summary_key is not None:
                 nutrient_summary[summary_key] = float(nutrient.amount_per_100g)
+        custom_display_name = get_user_canonical_food_name(
+            user_id=user_id, canonical_food_id=food.id
+        )
+        original_display_name = curate_canonical_display_name(
+            food.display_name, food.food_type
+        )
         return {
             "food_type": "canonical",
             "food_id": food.id,
             "canonical_food_id": food.id,
-            "display_name": curate_canonical_display_name(
-                food.display_name,
-                food.food_type,
-            ),
+            "display_name": custom_display_name or original_display_name,
+            "original_display_name": original_display_name,
+            "custom_display_name": custom_display_name,
             "default_grams": food.default_grams,
             "pinned_at": pinned_at,
             **({"nutrient_summary": nutrient_summary} if nutrient_summary else {}),

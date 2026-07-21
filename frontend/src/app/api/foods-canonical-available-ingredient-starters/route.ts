@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const userId = request.nextUrl.searchParams.get("user_id")?.trim();
+  const params = new URLSearchParams();
+  if (userId) {
+    params.set("user_id", userId);
+  }
   try {
     const response = await fetch(
-      `${getApiBaseUrl()}/foods/canonical/available-ingredient-starters`,
+      `${getApiBaseUrl()}/foods/canonical/available-ingredient-starters?${params.toString()}`,
       {
         cache: "no-store",
         headers: { Accept: "application/json" },

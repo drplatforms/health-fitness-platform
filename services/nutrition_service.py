@@ -229,6 +229,7 @@ def _nutrient_summary_for_logged_grams(
 
 def _canonical_food_log_response(
     *,
+    user_id: int,
     food_entry_id: int,
     canonical_food: CanonicalFood,
     grams: float,
@@ -238,10 +239,18 @@ def _canonical_food_log_response(
     meal_type: str | None = None,
     notes: str | None = None,
 ) -> dict[str, Any]:
+    from services.user_canonical_food_name_service import (
+        get_user_canonical_food_name,
+    )
+
     response: dict[str, Any] = {
         "logged_food_entry_id": food_entry_id,
         "canonical_food_id": canonical_food.id,
-        "display_name": canonical_food.display_name,
+        "display_name": get_user_canonical_food_name(
+            user_id=user_id,
+            canonical_food_id=canonical_food.id,
+        )
+        or canonical_food.display_name,
         "grams": grams,
         "logged_date": logged_date,
     }
@@ -304,8 +313,12 @@ def _fetch_owned_canonical_food_entry(
     from services.nutrition_serving_unit_logging_service import (
         ensure_serving_unit_log_metadata_schema,
     )
+    from services.user_canonical_food_name_service import (
+        ensure_user_canonical_food_name_schema,
+    )
 
     ensure_serving_unit_log_metadata_schema()
+    ensure_user_canonical_food_name_schema()
     cursor.execute(
         f"""
         SELECT
@@ -314,6 +327,7 @@ def _fetch_owned_canonical_food_entry(
             food_entries.food_id,
             food_entries.canonical_food_id,
             COALESCE(
+                user_names.display_name,
                 canonical_foods.display_name,
                 REPLACE(foods.name, 'Canonical: ', '')
             ) AS food_name,
@@ -333,6 +347,9 @@ def _fetch_owned_canonical_food_entry(
         FROM food_entries
         LEFT JOIN canonical_foods
             ON canonical_foods.id = food_entries.canonical_food_id
+        LEFT JOIN user_canonical_food_names AS user_names
+            ON user_names.user_id = food_entries.user_id
+           AND user_names.canonical_food_id = food_entries.canonical_food_id
         LEFT JOIN foods
             ON foods.id = food_entries.food_id
         LEFT JOIN nutrition_serving_unit_log_metadata AS serving_metadata
@@ -589,6 +606,7 @@ def add_canonical_food_entry(
     )
 
     return _canonical_food_log_response(
+        user_id=user_id,
         food_entry_id=food_entry_id,
         canonical_food=canonical_food,
         grams=resolved_grams,
@@ -870,8 +888,12 @@ def get_daily_canonical_food_logs(
     from services.nutrition_serving_unit_logging_service import (
         ensure_serving_unit_log_metadata_schema,
     )
+    from services.user_canonical_food_name_service import (
+        ensure_user_canonical_food_name_schema,
+    )
 
     ensure_serving_unit_log_metadata_schema()
+    ensure_user_canonical_food_name_schema()
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(
@@ -880,6 +902,7 @@ def get_daily_canonical_food_logs(
             food_entries.id AS entry_id,
             food_entries.canonical_food_id,
             COALESCE(
+                user_names.display_name,
                 canonical_foods.display_name,
                 REPLACE(foods.name, 'Canonical: ', '')
             ) AS food_name,
@@ -898,6 +921,9 @@ def get_daily_canonical_food_logs(
         FROM food_entries
         LEFT JOIN canonical_foods
             ON canonical_foods.id = food_entries.canonical_food_id
+        LEFT JOIN user_canonical_food_names AS user_names
+            ON user_names.user_id = food_entries.user_id
+           AND user_names.canonical_food_id = food_entries.canonical_food_id
         LEFT JOIN foods
             ON foods.id = food_entries.food_id
         LEFT JOIN nutrition_serving_unit_log_metadata AS serving_metadata
