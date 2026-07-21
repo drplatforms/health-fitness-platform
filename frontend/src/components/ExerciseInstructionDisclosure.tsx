@@ -6,6 +6,7 @@ import Image from "next/image";
 import styles from "@/components/ExerciseInstructionDisclosure.module.css";
 import { fetchExerciseInstruction } from "@/lib/exerciseInstructionApi";
 import { selectCurrentExerciseInstructionResponse } from "@/lib/exerciseVisualMedia";
+import type { ExerciseGuidanceMobilePresentation } from "@/lib/exerciseGuidanceDuringWorkout";
 import {
   exerciseInstructionAffordance,
   saveWorkoutExerciseProfile,
@@ -27,6 +28,8 @@ interface ExerciseInstructionDisclosureProps {
   userId: number;
   profile: WorkoutExerciseProfile | null | undefined;
   canEditProfile: boolean;
+  mobilePresentation?: ExerciseGuidanceMobilePresentation;
+  triggerLabel?: string;
   onExpandedChange: (isExpanded: boolean) => void;
   onProfileChanged: (profile: WorkoutExerciseProfile | null) => void;
 }
@@ -130,12 +133,19 @@ export function ExerciseInstructionDisclosure({
   userId,
   profile,
   canEditProfile,
+  mobilePresentation = "inline",
+  triggerLabel,
   onExpandedChange,
   onProfileChanged,
 }: ExerciseInstructionDisclosureProps) {
   const disclosureId = useId();
   const mobilePanelId = `${disclosureId}-mobile`;
   const desktopPanelId = `${disclosureId}-desktop`;
+  const mobileDialogTitleId = `${disclosureId}-mobile-title`;
+  const triggerButtonRef = useRef<HTMLButtonElement>(null);
+  const mobilePanelRef = useRef<HTMLDivElement>(null);
+  const dialogCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const onExpandedChangeRef = useRef(onExpandedChange);
   const [instructionResponse, setInstructionResponse] =
     useState<ExerciseInstructionResponse | null>(null);
   const requestVersionRef = useRef(0);
@@ -154,6 +164,75 @@ export function ExerciseInstructionDisclosure({
   useEffect(() => {
     requestVersionRef.current += 1;
   }, [catalogExerciseId]);
+
+  useEffect(() => {
+    onExpandedChangeRef.current = onExpandedChange;
+  }, [onExpandedChange]);
+
+  useEffect(() => {
+    if (
+      !isExpanded ||
+      mobilePresentation !== "dialog" ||
+      !window.matchMedia("(max-width: 767px)").matches
+    ) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previouslyFocusedElement = document.activeElement;
+    const triggerButton = triggerButtonRef.current;
+    const focusFrame = window.requestAnimationFrame(() => {
+      dialogCloseButtonRef.current?.focus();
+    });
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onExpandedChangeRef.current(false);
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        mobilePanelRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+      const firstFocusableElement = focusableElements[0];
+      const lastFocusableElement = focusableElements.at(-1);
+      if (!firstFocusableElement || !lastFocusableElement) {
+        return;
+      }
+      if (event.shiftKey && document.activeElement === firstFocusableElement) {
+        event.preventDefault();
+        lastFocusableElement.focus();
+      } else if (
+        !event.shiftKey &&
+        document.activeElement === lastFocusableElement
+      ) {
+        event.preventDefault();
+        firstFocusableElement.focus();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      if (
+        previouslyFocusedElement instanceof HTMLElement &&
+        previouslyFocusedElement.isConnected
+      ) {
+        previouslyFocusedElement.focus();
+      } else {
+        triggerButton?.focus();
+      }
+    };
+  }, [isExpanded, mobilePresentation]);
 
   if (catalogExerciseId === null) {
     return null;
@@ -363,6 +442,7 @@ export function ExerciseInstructionDisclosure({
   return (
     <>
       <button
+        ref={triggerButtonRef}
         type="button"
         aria-expanded={isExpanded}
         aria-controls={`${mobilePanelId} ${desktopPanelId}`}
@@ -370,22 +450,64 @@ export function ExerciseInstructionDisclosure({
         className="shrink-0 rounded-full px-2 py-1 text-sm font-semibold text-accent-text transition hover:bg-surface-highlighted hover:text-accent-text-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         <span className="md:hidden">
-          {isExpanded ? "Hide" : instructionAffordance}
+          {isExpanded ? "Hide" : (triggerLabel ?? instructionAffordance)}
         </span>
         <span className="hidden md:inline">
-          {isExpanded ? "Back to workout" : instructionAffordance}
+          {isExpanded
+            ? "Back to workout"
+            : (triggerLabel ?? instructionAffordance)}
         </span>
       </button>
 
       {isExpanded ? (
         <>
           <div
+            ref={mobilePanelRef}
             id={mobilePanelId}
-            role="region"
-            aria-label={`${exerciseName} instructions`}
-            className="basis-full rounded-xl border border-positive-surface bg-surface/80 px-3 py-3 md:hidden"
+            role={mobilePresentation === "dialog" ? "dialog" : "region"}
+            aria-modal={mobilePresentation === "dialog" ? true : undefined}
+            aria-labelledby={
+              mobilePresentation === "dialog" ? mobileDialogTitleId : undefined
+            }
+            aria-label={
+              mobilePresentation === "inline"
+                ? `${exerciseName} instructions`
+                : undefined
+            }
+            className={
+              mobilePresentation === "dialog"
+                ? "fixed inset-0 z-[60] overflow-y-auto bg-surface px-4 pb-8 pt-[max(1rem,env(safe-area-inset-top))] md:hidden"
+                : "basis-full rounded-xl border border-positive-surface bg-surface/80 px-3 py-3 md:hidden"
+            }
           >
-            {renderInstructionContent(false)}
+            {mobilePresentation === "dialog" ? (
+              <div className="mx-auto max-w-xl space-y-4">
+                <header className="sticky top-0 z-10 -mx-1 flex items-start justify-between gap-4 border-b border-border-subtle bg-surface/95 px-1 pb-3 pt-1 backdrop-blur">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
+                      Form guide
+                    </p>
+                    <h2
+                      id={mobileDialogTitleId}
+                      className="mt-1 text-lg font-semibold text-text-strong"
+                    >
+                      {exerciseName}
+                    </h2>
+                  </div>
+                  <button
+                    ref={dialogCloseButtonRef}
+                    type="button"
+                    onClick={() => onExpandedChange(false)}
+                    className="min-h-11 shrink-0 rounded-xl bg-surface-muted px-4 py-2 text-sm font-semibold text-text-body transition hover:bg-surface-interactive-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  >
+                    Close
+                  </button>
+                </header>
+                {renderInstructionContent(false)}
+              </div>
+            ) : (
+              renderInstructionContent(false)
+            )}
           </div>
           <div
             id={desktopPanelId}

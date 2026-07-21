@@ -18,6 +18,7 @@ import {
   getBrowserLocalDateString,
   isHistoricalRequestedDate,
 } from "@/lib/dateFormatting";
+import { exerciseGuidancePresentation } from "@/lib/exerciseGuidanceDuringWorkout";
 import {
   extendWorkoutRestTimer,
   formatWorkoutRestCountdown,
@@ -2336,6 +2337,7 @@ export function WorkoutPreviewExperience({
     executionSession !== null &&
     (selectedPlan.status === "in_progress" ||
       executionSession.status === "in_progress");
+  const guidancePresentation = exerciseGuidancePresentation(canLogWorkout);
   const effectiveFocusedExerciseId =
     canLogWorkout &&
     focusedExerciseId !== null &&
@@ -3099,7 +3101,16 @@ export function WorkoutPreviewExperience({
                                   displayedCatalogExerciseId
                                 ]
                           }
-                          canEditProfile={isHistoricalReadOnly === false}
+                          canEditProfile={
+                            isHistoricalReadOnly === false &&
+                            guidancePresentation.showProfileControls
+                          }
+                          mobilePresentation={
+                            guidancePresentation.mobilePresentation
+                          }
+                          triggerLabel={
+                            guidancePresentation.triggerLabel ?? undefined
+                          }
                           onExpandedChange={(nextIsExpanded) =>
                             setExpandedInstructionKey((current) =>
                               nextIsExpanded
