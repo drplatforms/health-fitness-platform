@@ -1,4 +1,7 @@
 import {
+  AvailableIngredientMutationResponse,
+  AvailableIngredientStarterGroupsResponse,
+  AvailableIngredientsResponse,
   CanonicalFoodLogDeleteRequest,
   CanonicalFoodLogDeleteResponse,
   CanonicalFoodLogRequest,
@@ -24,6 +27,81 @@ async function readErrorMessage(response: Response, fallbackMessage: string) {
     | null;
 
   return typeof payload?.detail === "string" ? payload.detail : fallbackMessage;
+}
+
+export async function fetchAvailableIngredientStarterGroups(): Promise<AvailableIngredientStarterGroupsResponse> {
+  const response = await fetch(
+    "/api/foods-canonical-available-ingredient-starters",
+    {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(
+        response,
+        "Unable to load quick-start ingredients right now.",
+      ),
+    );
+  }
+  return (await response.json()) as AvailableIngredientStarterGroupsResponse;
+}
+
+export async function fetchAvailableIngredients(
+  userId: number,
+): Promise<AvailableIngredientsResponse> {
+  const params = new URLSearchParams({ user_id: String(userId) });
+  const response = await fetch(
+    `/api/nutrition-available-ingredients?${params.toString()}`,
+    {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(
+        response,
+        "Unable to load available ingredients right now.",
+      ),
+    );
+  }
+  return (await response.json()) as AvailableIngredientsResponse;
+}
+
+export async function setIngredientAvailable({
+  userId,
+  canonicalFoodId,
+  available,
+}: {
+  userId: number;
+  canonicalFoodId: number;
+  available: boolean;
+}): Promise<AvailableIngredientMutationResponse> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    canonical_food_id: String(canonicalFoodId),
+  });
+  const response = await fetch(
+    `/api/nutrition-available-ingredients?${params.toString()}`,
+    {
+      method: available ? "PUT" : "DELETE",
+      headers: { Accept: "application/json" },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      await readErrorMessage(
+        response,
+        "Unable to update available ingredients.",
+      ),
+    );
+  }
+  return (await response.json()) as AvailableIngredientMutationResponse;
 }
 
 export async function fetchPinnedFoods(

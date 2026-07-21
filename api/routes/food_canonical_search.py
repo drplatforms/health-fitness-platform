@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
+from services.available_ingredient_starter_service import (
+    list_available_ingredient_starter_groups,
+)
 from services.food_normalization_service import (
     curate_canonical_display_name,
     ensure_starter_canonical_foods_seeded,
@@ -192,6 +195,14 @@ def canonical_food_search_endpoint(
             )
             for result in results
         ],
+    }
+
+
+@router.get("/foods/canonical/available-ingredient-starters")
+def available_ingredient_starter_groups_endpoint():
+    return {
+        "success": True,
+        "groups": list_available_ingredient_starter_groups(),
     }
 
 
