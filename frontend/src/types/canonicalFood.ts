@@ -55,6 +55,50 @@ export interface CanonicalFoodNameMutationResponse {
   deleted?: boolean;
 }
 
+export type FoodPreferenceState =
+  | "love"
+  | "like"
+  | "neutral"
+  | "dislike"
+  | "never_suggest";
+
+export interface FoodPreference {
+  canonical_food_id: number;
+  preference: Exclude<FoodPreferenceState, "neutral">;
+  is_hard_exclusion: boolean;
+  display_name: string;
+  original_display_name: string;
+  custom_display_name: string | null;
+  food_type: string;
+  default_unit: string | null;
+  default_grams: number | null;
+  search_priority: number;
+  updated_at: string;
+}
+
+export interface FoodPreferencesResponse {
+  success: boolean;
+  user_id: number;
+  results: FoodPreference[];
+}
+
+export interface FoodPreferenceMutationResponse {
+  success: boolean;
+  user_id: number;
+  food_preference?: Pick<
+    FoodPreference,
+    "canonical_food_id" | "preference" | "is_hard_exclusion"
+  > | {
+    canonical_food_id: number;
+    preference: "neutral";
+    is_hard_exclusion: false;
+  };
+  canonical_food_id?: number;
+  preference?: "neutral";
+  is_hard_exclusion?: false;
+  deleted?: boolean;
+}
+
 export interface CanonicalFoodLogRequest {
   user_id: number;
   entry_date?: string;

@@ -21,6 +21,13 @@ from services.available_ingredient_service import (
     remove_available_ingredient,
 )
 from services.food_logging_recents_service import get_recent_canonical_foods
+from services.food_preference_service import (
+    FoodPreferenceError,
+    FoodPreferenceNotFoundError,
+    list_food_preferences,
+    remove_food_preference,
+    set_food_preference,
+)
 from services.nutrition_actuals_confidence_service import (
     build_public_nutrition_actuals_confidence_for_date,
 )
@@ -216,6 +223,10 @@ class CanonicalFoodDisplayNameRequest(BaseModel):
     display_name: str
 
 
+class FoodPreferenceRequest(BaseModel):
+    preference: str
+
+
 # =====================================
 # Food Search Endpoint
 # =====================================
@@ -407,6 +418,59 @@ def reset_owned_canonical_food_name(user_id: int, canonical_food_id: int):
         "success": True,
         "user_id": user_id,
         "canonical_food_id": canonical_food_id,
+        "deleted": deleted,
+    }
+
+
+@router.get("/nutrition/{user_id}/food-preferences")
+def owned_food_preferences(user_id: int):
+    try:
+        results = list_food_preferences(user_id=user_id)
+    except FoodPreferenceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"success": True, "user_id": user_id, "results": results}
+
+
+@router.put("/nutrition/{user_id}/food-preferences/canonical/{canonical_food_id}")
+def set_owned_food_preference(
+    user_id: int,
+    canonical_food_id: int,
+    request: FoodPreferenceRequest,
+):
+    try:
+        food_preference = set_food_preference(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+            preference=request.preference,
+        )
+    except FoodPreferenceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FoodPreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "food_preference": food_preference,
+    }
+
+
+@router.delete("/nutrition/{user_id}/food-preferences/canonical/{canonical_food_id}")
+def reset_owned_food_preference(user_id: int, canonical_food_id: int):
+    try:
+        deleted = remove_food_preference(
+            user_id=user_id,
+            canonical_food_id=canonical_food_id,
+        )
+    except FoodPreferenceNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FoodPreferenceError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "canonical_food_id": canonical_food_id,
+        "preference": "neutral",
+        "is_hard_exclusion": False,
         "deleted": deleted,
     }
 
