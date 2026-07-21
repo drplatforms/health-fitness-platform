@@ -4,7 +4,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 
-from models.recovery_intelligence_v2_models import RecoveryIntelligenceV2Summary
 from services.workout_progression_history_service import (
     DEFAULT_LOOKBACK_DAYS,
     ExerciseProgressionSession,
@@ -12,18 +11,20 @@ from services.workout_progression_history_service import (
 )
 
 ProgressionDecisionCode = Literal[
-    "progress_reps",
     "increase_load",
+    "increase_reps",
     "hold",
-    "ease_back",
-    "insufficient_data",
+    "decrease_load",
+    "build_baseline",
 ]
 SessionClassification = Literal[
     "top_range",
     "within_range",
-    "underperformance",
+    "regression",
     "mixed",
 ]
+
+PROGRESSION_HISTORY_LIMIT = 6
 
 
 @dataclass(frozen=True)
@@ -52,29 +53,27 @@ class WorkoutProgressionDecision:
     evidence_session_count: int
     confidence: str
     reference_weight: float | None
-    recovery_brake_applied: bool
 
 
 @dataclass(frozen=True)
 class _ClassifiedSession:
     classification: SessionClassification
     required_rows: list[dict[str, Any]]
+    reference_weight: float
 
 
 def build_workout_progression_decisions(
     *,
     user_id: int,
     current_exercises: Iterable[CurrentExercisePrescription | dict[str, Any]],
-    recovery: RecoveryIntelligenceV2Summary,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> list[WorkoutProgressionDecision]:
-    """Build bounded advisory decisions without mutating workout state."""
+    """Build deterministic advisory targets without mutating workout state."""
 
     return [
         build_exercise_progression_decision(
             user_id=user_id,
             current_exercise=_coerce_current_exercise(exercise),
-            recovery=recovery,
             lookback_days=lookback_days,
         )
         for exercise in current_exercises
@@ -85,22 +84,20 @@ def build_exercise_progression_decision(
     *,
     user_id: int,
     current_exercise: CurrentExercisePrescription,
-    recovery: RecoveryIntelligenceV2Summary,
     lookback_days: int = DEFAULT_LOOKBACK_DAYS,
 ) -> WorkoutProgressionDecision:
-    if current_exercise.measurement_type in {"duration", "distance"}:
-        return _decision(
+    if current_exercise.measurement_type != "reps":
+        return _build_baseline_decision(
             current_exercise,
-            decision="insufficient_data",
-            headline="Follow the plan",
-            target_guidance=("Follow the planned primary measurement target today."),
-            why=(
-                "Automated duration and distance progression is not supported "
-                "in this version."
-            ),
             reason_codes=["unsupported_measurement_type_for_progression_v1"],
-            evidence_session_count=0,
-            confidence="Limited",
+            why="Load-based progression is not available for this measurement type.",
+        )
+
+    if not _has_complete_rep_prescription(current_exercise):
+        return _build_baseline_decision(
+            current_exercise,
+            reason_codes=["incomplete_current_prescription"],
+            why="A complete rep and RIR prescription is needed for progression.",
         )
 
     sessions = load_completed_exercise_progression_sessions(
@@ -108,208 +105,175 @@ def build_exercise_progression_decision(
         exercise_name=current_exercise.exercise_name,
         catalog_exercise_id=current_exercise.catalog_exercise_id,
         lookback_days=lookback_days,
-        limit=2,
+        limit=PROGRESSION_HISTORY_LIMIT,
     )
     if not sessions:
-        return _decision(
+        return _build_baseline_decision(
             current_exercise,
-            decision="insufficient_data",
-            headline="Follow the plan",
-            target_guidance=("Follow the planned rep and effort targets today."),
-            why=(
-                "More complete recent set history is needed before progression "
-                "guidance is available."
-            ),
-            reason_codes=["no_completed_history", "reference_weight_unavailable"],
-            evidence_session_count=0,
-            confidence="Limited",
+            reason_codes=["no_completed_history"],
+            why="There is not enough completed set history for this exercise yet.",
         )
 
-    latest = _classify_session(sessions[0])
-    if latest is None:
-        return _decision(
+    # An incomplete or skipped exercise is not a failed exposure. Ignore it and
+    # use only completed, consistently loaded working-set evidence.
+    classified_sessions = [
+        classified
+        for session in sessions
+        if (classified := _classify_session(session, current_exercise)) is not None
+    ]
+    if not classified_sessions:
+        return _build_baseline_decision(
             current_exercise,
-            decision="insufficient_data",
-            headline="Follow the plan",
-            target_guidance=("Follow the planned rep and effort targets today."),
+            reason_codes=["no_trustworthy_completed_exposure"],
             why=(
-                "The most recent completed session does not have complete rep "
-                "and effort evidence for every required working set."
+                "Complete load, rep, set, and RIR history is needed before "
+                "progression can be recommended."
             ),
-            reason_codes=[
-                "latest_history_incomplete",
-                "reference_weight_unavailable",
-            ],
-            evidence_session_count=0,
-            confidence="Limited",
         )
 
-    second = _classify_session(sessions[1]) if len(sessions) > 1 else None
-    reference_weight = comparable_working_weight(sessions[0])
-    reference_reason = (
-        "consistent_reference_weight_available"
-        if reference_weight is not None
-        else "reference_weight_unavailable"
-    )
+    latest = classified_sessions[0]
+    second = classified_sessions[1] if len(classified_sessions) > 1 else None
+    reference_weight = latest.reference_weight
 
     if latest.classification == "top_range":
-        if second is not None and second.classification == "top_range":
-            decision_code: ProgressionDecisionCode = "increase_load"
-            headline = "Increase difficulty"
-            target_guidance = _increase_load_guidance(reference_weight)
-            why = (
-                "You reached the top of the prescribed rep range at the target "
-                "effort in the last two qualifying sessions."
-            )
-            reason_codes = [
-                "two_consecutive_top_range_sessions",
-                reference_reason,
-            ]
-            evidence_count = 2
-            confidence = "Moderate"
-        else:
-            decision_code = "progress_reps"
-            headline = "Repeat the top range"
-            target_guidance = _repeat_top_range_guidance(reference_weight)
-            why = (
-                "The latest session is the first recent top-range confirmation; "
-                "repeat it once more before increasing resistance."
-            )
-            reason_codes = [
-                "latest_session_top_range_first_confirmation",
-                reference_reason,
-            ]
-            evidence_count = 1
-            confidence = "Low"
-    elif latest.classification == "within_range":
-        decision_code = "progress_reps"
-        headline = "Add reps"
-        target_guidance = _progress_reps_guidance(reference_weight)
-        why = (
-            "Last time you completed the planned work inside the target rep and "
-            "effort ranges."
+        return _decision(
+            current_exercise,
+            decision="increase_load",
+            headline="Increase load",
+            target_guidance=_target_line(
+                current_exercise,
+                decision="increase_load",
+                reference_weight=reference_weight,
+            ),
+            why=(
+                "The most recent completed exposure reached the top of the rep "
+                "range across every working set while preserving the RIR target."
+            ),
+            reason_codes=["latest_completed_exposure_top_range"],
+            evidence_session_count=1,
+            confidence="Moderate",
+            reference_weight=reference_weight,
         )
-        reason_codes = ["latest_session_within_range", reference_reason]
-        evidence_count = 1
-        confidence = "Low"
-    elif latest.classification == "underperformance":
-        if second is not None and second.classification == "underperformance":
-            decision_code = "ease_back"
-            headline = "Ease back"
-            target_guidance = (
-                "Use a slightly easier load, resistance, or setup today and "
-                "rebuild clean reps inside the target range."
-            )
-            why = (
-                "The two most recent qualifying sessions both fell below the "
-                "planned rep and effort floors on at least half of the required sets."
-            )
-            reason_codes = [
-                "two_consecutive_underperformance_sessions",
-                reference_reason,
-            ]
-            evidence_count = 2
-            confidence = "Moderate"
-        else:
-            decision_code = "hold"
-            headline = "Hold steady"
-            target_guidance = (
-                "Keep the load and rep target steady today. Focus on clean "
-                "execution inside the planned effort range."
-            )
-            why = (
-                "The latest session was harder than planned, but one difficult "
-                "session is not enough to recommend easing back."
-            )
-            reason_codes = ["latest_session_underperformed_once", reference_reason]
-            evidence_count = 1
-            confidence = "Low"
-    else:
-        decision_code = "hold"
-        headline = "Hold steady"
-        target_guidance = (
-            "Keep the load and rep target steady today. Focus on clean execution "
-            "inside the planned effort range."
-        )
-        why = (
-            "The latest complete session was mixed and does not justify an upward "
-            "or downward progression."
-        )
-        reason_codes = ["latest_session_mixed", reference_reason]
-        evidence_count = 1
-        confidence = "Low"
 
-    recovery_brake_applied = False
-    if decision_code in {"progress_reps", "increase_load"} and _recovery_brakes(
-        recovery
-    ):
-        decision_code = "hold"
-        headline = "Hold progression"
-        target_guidance = (
-            "Hold progression today and work within the current planned rep and "
-            "effort targets."
+    if latest.classification == "within_range":
+        return _decision(
+            current_exercise,
+            decision="increase_reps",
+            headline="Increase reps",
+            target_guidance=_target_line(
+                current_exercise,
+                decision="increase_reps",
+                reference_weight=reference_weight,
+            ),
+            why=(
+                "The most recent completed exposure was inside the prescribed "
+                "rep and RIR ranges, with room to build toward the top."
+            ),
+            reason_codes=["latest_completed_exposure_within_range"],
+            evidence_session_count=1,
+            confidence="Moderate",
+            reference_weight=reference_weight,
         )
-        why = (
-            "Recent performance supports moving forward, but current recovery is "
-            "explicitly limiting."
+
+    if latest.classification == "regression":
+        if second is not None and second.classification == "regression":
+            return _decision(
+                current_exercise,
+                decision="decrease_load",
+                headline="Decrease load",
+                target_guidance=_target_line(
+                    current_exercise,
+                    decision="decrease_load",
+                    reference_weight=reference_weight,
+                ),
+                why=(
+                    "The last two trustworthy completed exposures both fell "
+                    "below the rep and RIR floors across multiple working sets."
+                ),
+                reason_codes=["two_consecutive_completed_regressions"],
+                evidence_session_count=2,
+                confidence="Moderate",
+                reference_weight=reference_weight,
+            )
+        return _decision(
+            current_exercise,
+            decision="hold",
+            headline="Hold",
+            target_guidance=_target_line(
+                current_exercise,
+                decision="hold",
+                reference_weight=reference_weight,
+            ),
+            why="One difficult completed exposure is not enough to reduce the load.",
+            reason_codes=["single_completed_regression"],
+            evidence_session_count=1,
+            confidence="Low",
+            reference_weight=reference_weight,
         )
-        reason_codes = [
-            *reason_codes,
-            "recovery_limited_progression_brake",
-        ]
-        recovery_brake_applied = True
 
     return _decision(
         current_exercise,
-        decision=decision_code,
-        headline=headline,
-        target_guidance=target_guidance,
-        why=why,
-        reason_codes=reason_codes,
-        evidence_session_count=evidence_count,
-        confidence=confidence,
+        decision="hold",
+        headline="Hold",
+        target_guidance=_target_line(
+            current_exercise,
+            decision="hold",
+            reference_weight=reference_weight,
+        ),
+        why="The most recent completed exposure was mixed and does not earn a change.",
+        reason_codes=["latest_completed_exposure_mixed"],
+        evidence_session_count=1,
+        confidence="Low",
         reference_weight=reference_weight,
-        recovery_brake_applied=recovery_brake_applied,
     )
 
 
 def _classify_session(
     session: ExerciseProgressionSession,
+    current_exercise: CurrentExercisePrescription,
 ) -> _ClassifiedSession | None:
-    required_rows = _required_working_rows(session)
+    required_rows = _required_working_rows(session, current_exercise.sets)
     if required_rows is None:
         return None
 
+    reference_weight = _consistent_reference_weight(required_rows)
+    if reference_weight is None:
+        return None
+
+    reps_min = int(current_exercise.reps_min)  # guarded by prescription validation
+    reps_max = int(current_exercise.reps_max)
+    rir_min = int(current_exercise.rir_min)
+
+    # RIR is treated as a safety floor: more reps in reserve never invalidates
+    # otherwise complete evidence or forces a load increase by itself.
     if all(
-        int(row["actual_reps"]) >= int(row["planned_reps_max"])
-        and int(row["actual_rir"]) >= int(row["planned_rir_min"])
+        int(row["actual_reps"]) >= reps_max and int(row["actual_rir"]) >= rir_min
         for row in required_rows
     ):
-        return _ClassifiedSession("top_range", required_rows)
-
-    if all(
-        int(row["actual_reps"]) >= int(row["planned_reps_min"])
-        and int(row["actual_rir"]) >= int(row["planned_rir_min"])
+        classification: SessionClassification = "top_range"
+    elif all(
+        int(row["actual_reps"]) >= reps_min and int(row["actual_rir"]) >= rir_min
         for row in required_rows
     ):
-        return _ClassifiedSession("within_range", required_rows)
+        classification = "within_range"
+    else:
+        regressed_sets = sum(
+            1
+            for row in required_rows
+            if int(row["actual_reps"]) < reps_min and int(row["actual_rir"]) < rir_min
+        )
+        classification = (
+            "regression" if regressed_sets * 2 >= len(required_rows) else "mixed"
+        )
 
-    underperforming_sets = sum(
-        1
-        for row in required_rows
-        if int(row["actual_reps"]) < int(row["planned_reps_min"])
-        and int(row["actual_rir"]) < int(row["planned_rir_min"])
-    )
-    if underperforming_sets * 2 >= len(required_rows):
-        return _ClassifiedSession("underperformance", required_rows)
-
-    return _ClassifiedSession("mixed", required_rows)
+    return _ClassifiedSession(classification, required_rows, reference_weight)
 
 
 def _required_working_rows(
     session: ExerciseProgressionSession,
+    prescribed_set_count: int,
 ) -> list[dict[str, Any]] | None:
-    if session.planned_set_count <= 0:
+    if prescribed_set_count <= 0:
         return None
 
     rows_by_set_number: dict[int, dict[str, Any]] = {}
@@ -318,29 +282,22 @@ def _required_working_rows(
             set_number = int(row.get("set_number"))
         except (TypeError, ValueError):
             continue
-        if 1 <= set_number <= session.planned_set_count:
+        if 1 <= set_number <= prescribed_set_count:
             rows_by_set_number.setdefault(set_number, row)
 
     required_rows = [
         rows_by_set_number.get(set_number)
-        for set_number in range(1, session.planned_set_count + 1)
+        for set_number in range(1, prescribed_set_count + 1)
     ]
     if any(row is None for row in required_rows):
         return None
 
     typed_rows = [row for row in required_rows if row is not None]
-    required_fields = (
-        "actual_reps",
-        "actual_rir",
-        "planned_reps_min",
-        "planned_reps_max",
-        "planned_rir_min",
-        "planned_rir_max",
-    )
     if any(
         not _is_truthy(row.get("completed"))
         or _is_truthy(row.get("skipped"))
-        or any(row.get(field) is None for field in required_fields)
+        or row.get("actual_reps") is None
+        or row.get("actual_rir") is None
         for row in typed_rows
     ):
         return None
@@ -367,57 +324,73 @@ def _consistent_reference_weight(rows: list[dict[str, Any]]) -> float | None:
 
 def comparable_working_weight(
     session: ExerciseProgressionSession,
+    current_exercise: CurrentExercisePrescription | None = None,
 ) -> float | None:
-    """Return one conservative comparable load using progression eligibility."""
+    """Return one conservative comparable load for a complete exposure."""
 
-    classified = _classify_session(session)
-    if classified is None:
-        return None
-    return _consistent_reference_weight(classified.required_rows)
-
-
-def _recovery_brakes(recovery: RecoveryIntelligenceV2Summary) -> bool:
-    return (
-        recovery.readiness_classification == "recovery_limited"
-        or recovery.fatigue_support == "limiting"
-    )
-
-
-def _progress_reps_guidance(reference_weight: float | None) -> str:
-    load = (
-        f"Keep {_format_weight(reference_weight)} lb"
-        if reference_weight is not None
-        else "Keep the load or resistance similar"
-    )
-    return (
-        f"{load} and add a rep where you can while staying inside the target "
-        "effort range."
-    )
-
-
-def _repeat_top_range_guidance(reference_weight: float | None) -> str:
-    load = (
-        f"Keep {_format_weight(reference_weight)} lb"
-        if reference_weight is not None
-        else "Keep the load or resistance similar"
-    )
-    return (
-        f"{load} and repeat the top of the rep range with the target effort once "
-        "more before increasing resistance."
-    )
-
-
-def _increase_load_guidance(reference_weight: float | None) -> str:
-    if reference_weight is not None:
+    if current_exercise is None:
+        required_rows = _required_working_rows(session, session.planned_set_count)
         return (
-            f"Move up from {_format_weight(reference_weight)} lb to the next "
-            "practical load, then work back toward the lower end of the current "
-            "rep range."
+            None
+            if required_rows is None
+            else _consistent_reference_weight(required_rows)
         )
-    return (
-        "Increase resistance or difficulty by the next practical step, then work "
-        "back toward the lower end of the current rep range."
+    classified = _classify_session(session, current_exercise)
+    return None if classified is None else classified.reference_weight
+
+
+def _build_baseline_decision(
+    current_exercise: CurrentExercisePrescription,
+    *,
+    reason_codes: list[str],
+    why: str,
+) -> WorkoutProgressionDecision:
+    return _decision(
+        current_exercise,
+        decision="build_baseline",
+        headline="Build baseline",
+        target_guidance=_baseline_target_line(current_exercise),
+        why=why,
+        reason_codes=reason_codes,
+        evidence_session_count=0,
+        confidence="Limited",
     )
+
+
+def _target_line(
+    current_exercise: CurrentExercisePrescription,
+    *,
+    decision: ProgressionDecisionCode,
+    reference_weight: float,
+) -> str:
+    rep_range = _format_range(current_exercise.reps_min, current_exercise.reps_max)
+    if decision == "increase_load":
+        load = "Next practical load"
+    elif decision == "decrease_load":
+        load = f"Lighter than {_format_weight(reference_weight)} lb"
+    else:
+        load = f"{_format_weight(reference_weight)} lb"
+    return f"{load} × {rep_range}"
+
+
+def _baseline_target_line(current_exercise: CurrentExercisePrescription) -> str:
+    if current_exercise.measurement_type == "duration":
+        seconds = current_exercise.target_duration_seconds
+        if seconds is None:
+            return "Follow the current prescription"
+        return f"{seconds // 60} min" if seconds % 60 == 0 else f"{seconds} sec"
+    if current_exercise.measurement_type == "distance":
+        meters = current_exercise.target_distance_meters
+        if meters is None:
+            return "Follow the current prescription"
+        display = str(int(meters)) if float(meters).is_integer() else f"{meters:.1f}"
+        return f"{display} m"
+
+    rep_range = _format_range(current_exercise.reps_min, current_exercise.reps_max)
+    if current_exercise.rir_min is None or current_exercise.rir_max is None:
+        return f"{rep_range} reps"
+    rir_range = _format_range(current_exercise.rir_min, current_exercise.rir_max)
+    return f"{rep_range} reps · RIR {rir_range}"
 
 
 def _decision(
@@ -431,7 +404,6 @@ def _decision(
     evidence_session_count: int,
     confidence: str,
     reference_weight: float | None = None,
-    recovery_brake_applied: bool = False,
 ) -> WorkoutProgressionDecision:
     return WorkoutProgressionDecision(
         exercise_name=current_exercise.exercise_name,
@@ -444,7 +416,20 @@ def _decision(
         evidence_session_count=evidence_session_count,
         confidence=confidence,
         reference_weight=reference_weight,
-        recovery_brake_applied=recovery_brake_applied,
+    )
+
+
+def _has_complete_rep_prescription(
+    current_exercise: CurrentExercisePrescription,
+) -> bool:
+    return (
+        current_exercise.sets > 0
+        and current_exercise.reps_min is not None
+        and current_exercise.reps_max is not None
+        and current_exercise.reps_max >= current_exercise.reps_min
+        and current_exercise.rir_min is not None
+        and current_exercise.rir_max is not None
+        and current_exercise.rir_max >= current_exercise.rir_min
     )
 
 
@@ -477,6 +462,16 @@ def _coerce_current_exercise(
             else float(value["target_distance_meters"])
         ),
     )
+
+
+def _format_range(minimum: int | None, maximum: int | None) -> str:
+    if minimum is None and maximum is None:
+        return "current target"
+    if minimum is None:
+        return str(maximum)
+    if maximum is None or minimum == maximum:
+        return str(minimum)
+    return f"{minimum}–{maximum}"
 
 
 def _format_weight(value: float) -> str:

@@ -399,11 +399,11 @@ export interface WorkoutProgressionHistoryResponse {
 }
 
 export type WorkoutProgressionDecisionCode =
-  | "progress_reps"
   | "increase_load"
+  | "increase_reps"
   | "hold"
-  | "ease_back"
-  | "insufficient_data";
+  | "decrease_load"
+  | "build_baseline";
 
 export interface WorkoutProgressionDecisionRequestExercise {
   exercise_name: string;
@@ -429,7 +429,6 @@ export interface WorkoutProgressionDecision {
   evidence_session_count: number;
   confidence: "Limited" | "Low" | "Moderate" | "High";
   reference_weight: number | null;
-  recovery_brake_applied: boolean;
 }
 
 export interface WorkoutProgressionDecisionResponse {

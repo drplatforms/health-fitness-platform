@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
+from dataclasses import replace
 
 import database
 from services.exercise_catalog_service import (
@@ -35,30 +35,21 @@ def _current(
     )
 
 
-def _recovery(
-    readiness_classification: str = "unknown",
-    fatigue_support: str = "unknown",
-):
-    return SimpleNamespace(
-        readiness_classification=readiness_classification,
-        fatigue_support=fatigue_support,
-    )
-
-
-def _decision(current: CurrentExercisePrescription | None = None, recovery=None):
+def _decision(current: CurrentExercisePrescription | None = None):
     return build_exercise_progression_decision(
         user_id=1,
         current_exercise=current or _current(),
-        recovery=recovery or _recovery(),
     )
 
 
-def test_no_history_returns_insufficient_data(tmp_path, monkeypatch) -> None:
+def test_no_history_builds_baseline(tmp_path, monkeypatch) -> None:
     _seed_test_db(tmp_path, monkeypatch)
 
     decision = _decision()
 
-    assert decision.decision == "insufficient_data"
+    assert decision.decision == "build_baseline"
+    assert decision.headline == "Build baseline"
+    assert decision.target_guidance == "8–12 reps · RIR 1–3"
     assert decision.reason_codes[0] == "no_completed_history"
     assert decision.evidence_session_count == 0
 
@@ -75,71 +66,35 @@ def test_complete_within_range_session_progresses_reps_with_reference_weight(
 
     decision = _decision()
 
-    assert decision.decision == "progress_reps"
+    assert decision.decision == "increase_reps"
     assert decision.reference_weight == 25.0
-    assert decision.headline == "Add reps"
-    assert "Keep 25 lb" in decision.target_guidance
+    assert decision.headline == "Increase reps"
+    assert decision.target_guidance == "25 lb × 8–12"
 
 
-def test_first_top_range_session_requires_another_confirmation(
-    tmp_path, monkeypatch
-) -> None:
+def test_most_recent_top_range_session_increases_load(tmp_path, monkeypatch) -> None:
     _seed_test_db(tmp_path, monkeypatch)
     _insert_completed_plan(actual_reps=[12, 12, 12], actual_rirs=[1, 1, 1])
 
     decision = _decision()
 
-    assert decision.decision == "progress_reps"
-    assert "latest_session_top_range_first_confirmation" in decision.reason_codes
+    assert decision.decision == "increase_load"
+    assert decision.headline == "Increase load"
+    assert decision.target_guidance == "Next practical load × 8–12"
+    assert decision.reason_codes == ["latest_completed_exposure_top_range"]
 
 
-def test_two_consecutive_top_range_sessions_increase_load(
-    tmp_path, monkeypatch
-) -> None:
+def test_current_prescription_drives_top_range_threshold(tmp_path, monkeypatch) -> None:
     _seed_test_db(tmp_path, monkeypatch)
     _insert_completed_plan(
-        completed_at="2026-07-01T10:00:00",
-        actual_reps=[12, 12, 12],
-        actual_rirs=[1, 1, 1],
-    )
-    _insert_completed_plan(
-        completed_at="2026-07-08T10:00:00",
-        actual_reps=[12, 12, 12],
+        actual_reps=[10, 10, 10],
         actual_rirs=[2, 2, 2],
     )
 
-    decision = _decision()
+    decision = _decision(replace(_current(), reps_max=10))
 
     assert decision.decision == "increase_load"
-    assert decision.evidence_session_count == 2
-    assert "next practical load" in decision.target_guidance
-
-
-def test_limiting_recovery_brakes_upward_progression(tmp_path, monkeypatch) -> None:
-    _seed_test_db(tmp_path, monkeypatch)
-    _insert_completed_plan(actual_reps=[10, 10, 10], actual_rirs=[2, 2, 2])
-
-    decision = _decision(recovery=_recovery(fatigue_support="limiting"))
-
-    assert decision.decision == "hold"
-    assert decision.recovery_brake_applied is True
-    assert "recovery_limited_progression_brake" in decision.reason_codes
-
-
-def test_non_limiting_recovery_does_not_brake_progression(
-    tmp_path, monkeypatch
-) -> None:
-    _seed_test_db(tmp_path, monkeypatch)
-    _insert_completed_plan(actual_reps=[10, 10, 10], actual_rirs=[2, 2, 2])
-
-    decision = _decision(
-        recovery=_recovery(
-            readiness_classification="mixed", fatigue_support="supportive"
-        )
-    )
-
-    assert decision.decision == "progress_reps"
-    assert decision.recovery_brake_applied is False
+    assert decision.evidence_session_count == 1
 
 
 def test_one_meaningful_underperformance_session_holds(tmp_path, monkeypatch) -> None:
@@ -149,10 +104,11 @@ def test_one_meaningful_underperformance_session_holds(tmp_path, monkeypatch) ->
     decision = _decision()
 
     assert decision.decision == "hold"
-    assert "latest_session_underperformed_once" in decision.reason_codes
+    assert decision.target_guidance == "25 lb × 8–12"
+    assert decision.reason_codes == ["single_completed_regression"]
 
 
-def test_two_consecutive_underperformance_sessions_ease_back(
+def test_two_consecutive_underperformance_sessions_decrease_load(
     tmp_path, monkeypatch
 ) -> None:
     _seed_test_db(tmp_path, monkeypatch)
@@ -165,11 +121,13 @@ def test_two_consecutive_underperformance_sessions_ease_back(
 
     decision = _decision()
 
-    assert decision.decision == "ease_back"
-    assert "two_consecutive_underperformance_sessions" in decision.reason_codes
+    assert decision.decision == "decrease_load"
+    assert decision.headline == "Decrease load"
+    assert decision.target_guidance == "Lighter than 25 lb × 8–12"
+    assert decision.reason_codes == ["two_consecutive_completed_regressions"]
 
 
-def test_latest_incomplete_session_blocks_older_positive_evidence(
+def test_incomplete_exposure_is_ignored_instead_of_counting_as_failure(
     tmp_path, monkeypatch
 ) -> None:
     _seed_test_db(tmp_path, monkeypatch)
@@ -186,32 +144,39 @@ def test_latest_incomplete_session_blocks_older_positive_evidence(
 
     decision = _decision()
 
-    assert decision.decision == "insufficient_data"
-    assert decision.reason_codes[0] == "latest_history_incomplete"
+    assert decision.decision == "increase_load"
+    assert decision.evidence_session_count == 1
 
 
-def test_incomplete_second_session_prevents_two_session_rule_only(
+def test_skipped_and_incomplete_exposures_do_not_create_repeated_regression(
     tmp_path, monkeypatch
 ) -> None:
     _seed_test_db(tmp_path, monkeypatch)
     _insert_completed_plan(
         completed_at="2026-07-01T10:00:00",
-        actual_reps=[12, None, 12],
-        actual_rirs=[2, None, 2],
+        actual_reps=[6, 6, 8],
+        actual_rirs=[0, 0, 2],
+    )
+    _insert_completed_plan(
+        completed_at="2026-07-06T10:00:00",
+        actual_reps=[6, 6, 8],
+        actual_rirs=[0, 0, 2],
+        completed_flags=[1, 0, 1],
     )
     _insert_completed_plan(
         completed_at="2026-07-08T10:00:00",
-        actual_reps=[12, 12, 12],
-        actual_rirs=[2, 2, 2],
+        actual_reps=[6, 6, 8],
+        actual_rirs=[0, 0, 2],
+        skipped_flags=[1, 1, 1],
     )
 
     decision = _decision()
 
-    assert decision.decision == "progress_reps"
-    assert "latest_session_top_range_first_confirmation" in decision.reason_codes
+    assert decision.decision == "hold"
+    assert decision.reason_codes == ["single_completed_regression"]
 
 
-def test_extra_sets_and_varied_weight_do_not_block_rep_progression(
+def test_varied_working_load_builds_baseline_instead_of_guessing(
     tmp_path, monkeypatch
 ) -> None:
     _seed_test_db(tmp_path, monkeypatch)
@@ -225,9 +190,20 @@ def test_extra_sets_and_varied_weight_do_not_block_rep_progression(
 
     decision = _decision()
 
-    assert decision.decision == "progress_reps"
+    assert decision.decision == "build_baseline"
     assert decision.reference_weight is None
-    assert "Keep the load or resistance similar" in decision.target_guidance
+    assert decision.reason_codes == ["no_trustworthy_completed_exposure"]
+
+
+def test_user_and_exercise_history_are_isolated(tmp_path, monkeypatch) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _insert_completed_plan(user_id=2, exercise_name="Bench Press")
+    _insert_completed_plan(user_id=1, exercise_name="Squat")
+
+    decision = _decision()
+
+    assert decision.decision == "build_baseline"
+    assert decision.reason_codes == ["no_completed_history"]
 
 
 def test_substitution_history_uses_replacement_identity_and_original_prescription(
@@ -287,7 +263,7 @@ def test_substitution_history_uses_replacement_identity_and_original_prescriptio
 
     decision = _decision(_current("Dumbbell Row", replacement.id))
 
-    assert decision.decision == "progress_reps"
+    assert decision.decision == "increase_reps"
     assert decision.exercise_name == "Dumbbell Row"
     assert decision.catalog_exercise_id == replacement.id
 
@@ -338,5 +314,5 @@ def test_inactive_substitution_does_not_replace_planned_exercise_identity(
 
     decision = _decision(_current("Bench Press"))
 
-    assert decision.decision == "progress_reps"
+    assert decision.decision == "increase_reps"
     assert decision.exercise_name == "Bench Press"
