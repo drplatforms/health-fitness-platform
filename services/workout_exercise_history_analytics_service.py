@@ -7,6 +7,9 @@ from statistics import mean
 from typing import Literal
 
 from services.workout_progression_decision_service import (
+    CurrentExercisePrescription,
+    ProgressionDecisionCode,
+    build_exercise_progression_decision,
     comparable_working_weight,
 )
 from services.workout_progression_history_service import (
@@ -51,6 +54,24 @@ class ExerciseHistoryRecentSession:
     summary: str
     comparable_working_weight: float | None
     average_actual_rir: float | None
+    completed_sets: list[ExerciseHistoryCompletedSet]
+
+
+@dataclass(frozen=True)
+class ExerciseHistoryCompletedSet:
+    set_number: int
+    actual_reps: int | None
+    actual_weight: float | None
+    actual_rir: int | None
+
+
+@dataclass(frozen=True)
+class ExerciseHistoryProgressionRecommendation:
+    decision: ProgressionDecisionCode
+    headline: str
+    target_guidance: str
+    evidence_session_count: int
+    confidence: str
 
 
 @dataclass(frozen=True)
@@ -70,6 +91,7 @@ class ExerciseHistoryAnalyticsSummary:
     last_performed_at: str | None
     latest_completed_session_summary: str
     recent_best_set: WorkoutExerciseBestSet | None
+    progression_recommendation: ExerciseHistoryProgressionRecommendation
     logging_quality: str
     limitation: str | None
     recent_working_load_trend: RecentWorkingLoadTrend
@@ -116,7 +138,7 @@ def build_workout_exercise_history_analytics(
 
     overview = _build_overview(sessions, len(grouped_sessions))
     exercises = [
-        _build_exercise_summary(group, bounded_session_limit)
+        _build_exercise_summary(user_id, group, bounded_session_limit)
         for group in ordered_groups[:bounded_exercise_limit]
     ]
     return WorkoutExerciseHistoryAnalytics(overview=overview, exercises=exercises)
@@ -148,6 +170,7 @@ def _build_overview(
 
 
 def _build_exercise_summary(
+    user_id: int,
     sessions: list[ExerciseProgressionSession],
     session_limit: int,
 ) -> ExerciseHistoryAnalyticsSummary:
@@ -171,6 +194,10 @@ def _build_exercise_summary(
         last_performed_at=latest_session.performed_at,
         latest_completed_session_summary=latest_session.summary,
         recent_best_set=select_recent_best_set(ordered),
+        progression_recommendation=_progression_recommendation(
+            user_id,
+            ordered[0],
+        ),
         logging_quality=logging_quality,
         limitation=(
             None
@@ -199,6 +226,45 @@ def _build_recent_session(
         summary=summary.summary,
         comparable_working_weight=comparable_working_weight(session),
         average_actual_rir=round(mean(rirs), 1) if rirs else None,
+        completed_sets=[_build_completed_set(row) for row in completed_rows],
+    )
+
+
+def _build_completed_set(row: dict[str, object]) -> ExerciseHistoryCompletedSet:
+    return ExerciseHistoryCompletedSet(
+        set_number=int(row["set_number"]),
+        actual_reps=(
+            None if row.get("actual_reps") is None else int(row["actual_reps"])
+        ),
+        actual_weight=(
+            None if row.get("actual_weight") is None else float(row["actual_weight"])
+        ),
+        actual_rir=(None if row.get("actual_rir") is None else int(row["actual_rir"])),
+    )
+
+
+def _progression_recommendation(
+    user_id: int,
+    latest_session: ExerciseProgressionSession,
+) -> ExerciseHistoryProgressionRecommendation:
+    decision = build_exercise_progression_decision(
+        user_id=user_id,
+        current_exercise=CurrentExercisePrescription(
+            exercise_name=latest_session.effective_exercise_name,
+            catalog_exercise_id=latest_session.effective_catalog_exercise_id,
+            sets=latest_session.planned_set_count,
+            reps_min=latest_session.planned_reps_min,
+            reps_max=latest_session.planned_reps_max,
+            rir_min=latest_session.planned_rir_min,
+            rir_max=latest_session.planned_rir_max,
+        ),
+    )
+    return ExerciseHistoryProgressionRecommendation(
+        decision=decision.decision,
+        headline=decision.headline,
+        target_guidance=decision.target_guidance,
+        evidence_session_count=decision.evidence_session_count,
+        confidence=decision.confidence,
     )
 
 

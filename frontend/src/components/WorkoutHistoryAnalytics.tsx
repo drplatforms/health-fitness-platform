@@ -9,6 +9,7 @@ import {
   WorkoutExerciseHistoryAnalyticsApiResult,
 } from "@/lib/workoutExerciseHistoryApi";
 import { ExerciseHistoryAnalyticsSummary } from "@/types/workoutExerciseHistory";
+import type { ExerciseHistoryCompletedSet } from "@/types/workoutExerciseHistory";
 
 export function WorkoutHistoryAnalytics({ userId }: { userId: number }) {
   return <WorkoutHistoryAnalyticsForUser key={userId} userId={userId} />;
@@ -196,7 +197,8 @@ function SelectedExerciseSummary({
   );
   return (
     <div className="pt-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <ProgressionRecommendation exercise={exercise} />
         <SummaryItem
           label="Latest session"
           value={exercise.latest_completed_session_summary}
@@ -230,8 +232,25 @@ function SelectedExerciseSummary({
                 {formatHistoryDate(session.performed_at, true)}
               </p>
               <div className="min-w-0">
-                <p className="text-sm text-text-body">{session.summary}</p>
-                <p className="mt-0.5 text-xs text-text-secondary">
+                <ol
+                  aria-label={`Completed sets for ${formatHistoryDate(session.performed_at, true)}`}
+                  className="space-y-1"
+                >
+                  {session.completed_sets.map((set) => (
+                    <li
+                      key={set.set_number}
+                      className="grid grid-cols-[3rem_minmax(0,1fr)] gap-2 text-sm"
+                    >
+                      <span className="font-medium text-text-secondary">
+                        Set {set.set_number}
+                      </span>
+                      <span className="text-text-body">
+                        {formatCompletedSet(set)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-1.5 text-xs text-text-secondary">
                   {session.completed_set_count} of {session.planned_set_count}{" "}
                   planned sets logged
                 </p>
@@ -240,6 +259,30 @@ function SelectedExerciseSummary({
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+function ProgressionRecommendation({
+  exercise,
+}: {
+  exercise: ExerciseHistoryAnalyticsSummary;
+}) {
+  const recommendation = exercise.progression_recommendation;
+  return (
+    <div
+      aria-label="Current progression recommendation"
+      className="rounded-xl bg-positive-surface px-3 py-3 ring-1 ring-positive-surface"
+    >
+      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-positive-foreground">
+        Current recommendation
+      </p>
+      <p className="mt-1 text-sm font-semibold text-positive-foreground-strong">
+        {recommendation.headline}
+      </p>
+      <p className="mt-0.5 text-xs text-text-body">
+        {recommendation.target_guidance}
+      </p>
     </div>
   );
 }
@@ -255,6 +298,21 @@ function SummaryItem({ label, value }: { label: string; value: string }) {
       </p>
     </div>
   );
+}
+
+function formatCompletedSet(set: ExerciseHistoryCompletedSet): string {
+  const parts = [
+    set.actual_reps === null ? "Reps not logged" : `${set.actual_reps} reps`,
+    set.actual_weight === null
+      ? null
+      : `${formatHistoryNumber(set.actual_weight)} lb`,
+    set.actual_rir === null ? null : `RIR ${set.actual_rir}`,
+  ].filter((part): part is string => part !== null);
+  return parts.join(" · ");
+}
+
+function formatHistoryNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function filterExercises(

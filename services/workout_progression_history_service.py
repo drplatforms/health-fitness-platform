@@ -57,6 +57,10 @@ class ExerciseProgressionSession:
     performed_at: str | None
     planned_exercise_id: int
     planned_set_count: int
+    planned_reps_min: int | None
+    planned_reps_max: int | None
+    planned_rir_min: int | None
+    planned_rir_max: int | None
     effective_exercise_name: str
     effective_catalog_exercise_id: int | None
     actual_rows: list[dict[str, Any]]
@@ -202,6 +206,10 @@ def _load_completed_progression_sessions(
                pwe.id AS planned_exercise_id,
                pwe.name AS planned_exercise_name,
                pwe.sets AS planned_set_count,
+               pwe.reps_min AS planned_reps_min,
+               pwe.reps_max AS planned_reps_max,
+               pwe.rir_min AS planned_rir_min,
+               pwe.rir_max AS planned_rir_max,
                {planned_measurement_expr} AS planned_measurement_type,
                {planned_catalog_expr} AS planned_catalog_exercise_id
         FROM workout_plan_instances AS wpi
@@ -314,6 +322,10 @@ def _load_completed_progression_sessions(
                 performed_at=_date_part(row["performed_at"]),
                 planned_exercise_id=int(row["planned_exercise_id"]),
                 planned_set_count=_safe_int(row["planned_set_count"]),
+                planned_reps_min=_nullable_int(row["planned_reps_min"]),
+                planned_reps_max=_nullable_int(row["planned_reps_max"]),
+                planned_rir_min=_nullable_int(row["planned_rir_min"]),
+                planned_rir_max=_nullable_int(row["planned_rir_max"]),
                 effective_exercise_name=effective_name,
                 effective_catalog_exercise_id=effective_catalog_exercise_id,
                 actual_rows=[dict(actual) for actual in actual_rows],

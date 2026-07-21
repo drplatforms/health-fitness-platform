@@ -41,6 +41,33 @@ def test_exercise_history_analytics_endpoint_returns_bounded_public_contract(
         ],
     }
     assert payload["exercises"][0]["exercise_name"] == "Bench Press"
+    assert payload["exercises"][0]["progression_recommendation"] == {
+        "decision": "increase_reps",
+        "headline": "Increase reps",
+        "target_guidance": "45 lb × 8–12",
+        "evidence_session_count": 1,
+        "confidence": "Moderate",
+    }
+    assert payload["exercises"][0]["recent_sessions"][0]["completed_sets"] == [
+        {
+            "set_number": 1,
+            "actual_reps": 10,
+            "actual_weight": 45.0,
+            "actual_rir": 2,
+        },
+        {
+            "set_number": 2,
+            "actual_reps": 10,
+            "actual_weight": 45.0,
+            "actual_rir": 2,
+        },
+        {
+            "set_number": 3,
+            "actual_reps": 10,
+            "actual_weight": 45.0,
+            "actual_rir": 2,
+        },
+    ]
     serialized = str(payload).lower()
     assert "private api analytics note" not in serialized
     assert "actual_rows" not in serialized
