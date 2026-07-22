@@ -156,14 +156,14 @@ export async function DailyWorkspacePage({
 
         {data && workspace === "recovery" ? (
           <div className="space-y-3 sm:space-y-4">
-            <LongitudinalInsightsPanel
-              data={longitudinalInsightsResult.data}
-              error={longitudinalInsightsResult.error}
-            />
             <RecoveryCheckInCard
               userId={userId}
               targetDate={data.target_date}
               readiness={data.readiness}
+            />
+            <LongitudinalInsightsPanel
+              data={longitudinalInsightsResult.data}
+              error={longitudinalInsightsResult.error}
             />
             {data.coach_note.enabled && data.coach_note.text ? (
               <TodayCard title="Coach Note" accent="warm">
