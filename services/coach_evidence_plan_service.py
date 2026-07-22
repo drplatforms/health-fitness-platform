@@ -237,8 +237,16 @@ def _requested_domains(
 def _comparison_mode(normalized: str) -> CoachEvidenceComparisonMode:
     if "deload" in normalized or "respond to" in normalized:
         return "event_response"
-    if "when was" in normalized and any(
-        word in normalized for word in ("best", "strongest", "highest")
+    if (
+        "when was" in normalized
+        and any(word in normalized for word in ("best", "strongest", "highest"))
+    ) or any(
+        phrase in normalized
+        for phrase in (
+            "when training was going better",
+            "when training was better",
+            "when workouts were going better",
+        )
     ):
         return "best_period"
     if any(

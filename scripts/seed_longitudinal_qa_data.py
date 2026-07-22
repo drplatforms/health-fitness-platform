@@ -819,12 +819,12 @@ def _nutrition_food_plan(
     phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "aligned_managed":
         return [
-            ("Oats, Dry", 80 + (index % 3) * 5),
-            ("Chicken Breast, Cooked, Skinless", 180),
-            ("White Rice, Cooked", 260),
-            ("Greek Yogurt, Plain", 220),
-            ("Olive Oil", 12),
-            ("Blueberries", 100),
+            ("Oats, Dry", 100 + (index % 3) * 5),
+            ("Chicken Breast, Cooked, Skinless", 220),
+            ("White Rice, Cooked", 450),
+            ("Greek Yogurt, Plain", 300),
+            ("Olive Oil", 20),
+            ("Blueberries", 130),
         ]
     if user.scenario == "recovery_limited":
         if phase in {"schedule_disruption", "recurring_stress", "missed_training"}:
@@ -837,11 +837,13 @@ def _nutrition_food_plan(
         if phase == "recovery_swings" and (index // 7) % 2 == 0:
             return [("Egg, Large", 110), ("Banana", 100)]
         return [
-            ("Chicken Breast, Cooked, Skinless", 155 + (index % 3) * 5),
-            ("Brown Rice, Cooked", 160 + (index % 4) * 10),
+            ("Oats, Dry", 85 + (index % 3) * 5),
+            ("Chicken Breast, Cooked, Skinless", 200 + (index % 3) * 5),
+            ("Brown Rice, Cooked", 380 + (index % 4) * 10),
             ("Banana", 120),
-            ("Greek Yogurt, Plain", 160),
-            ("Olive Oil", 10),
+            ("Greek Yogurt, Plain", 250),
+            ("Almonds", 35),
+            ("Olive Oil", 18),
         ]
     if user.scenario == "nutrition_training_mismatch":
         if phase == "baseline":
@@ -852,36 +854,39 @@ def _nutrition_food_plan(
             if index % 2 == 0:
                 return [("Greek Yogurt, Plain", 180)]
             return [("Turkey Breast, Cooked", 140), ("Banana", 100)]
-        rice_grams = 170
+        rice_grams = 420
         if phase == "fat_loss":
-            rice_grams = 145 + (index % 3) * 10
+            rice_grams = 380 + (index % 3) * 10
         elif phase == "harder_training":
-            rice_grams = 220 + (index % 4) * 10
+            rice_grams = 500 + (index % 4) * 10
         elif phase == "maintenance_recovery":
-            rice_grams = 240 + (index % 3) * 10
+            rice_grams = 460 + (index % 3) * 10
         return [
-            ("Oats, Dry", 60 + (index % 3) * 5),
-            ("Turkey Breast, Cooked", 155 + (index % 2) * 10),
+            ("Oats, Dry", 100 + (index % 3) * 5),
+            ("Turkey Breast, Cooked", 220 + (index % 2) * 10),
             ("White Rice, Cooked", rice_grams),
-            ("Banana", 100),
-            ("Greek Yogurt, Plain", 200),
-            ("Olive Oil", 8 if phase == "fat_loss" else 12),
+            ("Banana", 120),
+            ("Greek Yogurt, Plain", 300),
+            ("Almonds", 40),
+            ("Olive Oil", 14 if phase == "fat_loss" else 18),
         ]
     if user.scenario == "improving_after_deload":
         if phase in {"recovery_decline", "brief_fatigue"} and index % 5 == 0:
             return [("Greek Yogurt, Plain", 180), ("Banana", 100)]
-        rice_grams = 220
+        rice_grams = 470
         if phase == "deload":
-            rice_grams = 170
+            rice_grams = 400
         elif phase in {"progression", "rebound", "recovery_rebound"}:
-            rice_grams = 250
+            rice_grams = 520
         return [
-            ("Oats, Dry", 70 + (index % 3) * 5),
-            ("Chicken Breast, Cooked, Skinless", 170 + (index % 2) * 10),
+            ("Oats, Dry", 95 + (index % 3) * 5),
+            ("Egg, Large", 110),
+            ("Chicken Breast, Cooked, Skinless", 210 + (index % 2) * 10),
             ("Brown Rice, Cooked", rice_grams),
             ("Broccoli, Cooked", 130),
-            ("Greek Yogurt, Plain", 180),
-            ("Olive Oil", 10),
+            ("Greek Yogurt, Plain", 280),
+            ("Almonds", 45),
+            ("Olive Oil", 22),
         ]
     if index % 5 in {0, 1}:
         return []
@@ -932,21 +937,53 @@ def _seed_nutrition(
             continue
         nutrition_days += 1
         for food_name, grams in entries:
+            meal_type = _seed_meal_type(food_name)
             cursor.execute(
                 """
-                INSERT INTO food_entries (user_id, food_id, grams, entry_date, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO food_entries (
+                    user_id, food_id, grams, meal_type, entry_date, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user.user_id,
                     food_ids[food_name],
                     float(grams),
+                    meal_type,
                     _iso(day),
-                    _timestamp(day, hour=12, minute=index % 50),
+                    _timestamp(
+                        day,
+                        hour={
+                            "breakfast": 8,
+                            "lunch": 13,
+                            "dinner": 19,
+                            "snack": 16,
+                        }[meal_type],
+                        minute=index % 50,
+                    ),
                 ),
             )
             nutrition_entries += 1
     return nutrition_days, nutrition_entries
+
+
+def _seed_meal_type(food_name: str) -> str:
+    if food_name in {"Oats, Dry", "Egg, Large", "Blueberries"}:
+        return "breakfast"
+    if food_name in {
+        "Chicken Breast, Cooked, Skinless",
+        "Turkey Breast, Cooked",
+        "Tuna, Canned in Water",
+    }:
+        return "lunch"
+    if food_name in {
+        "White Rice, Cooked",
+        "Brown Rice, Cooked",
+        "Broccoli, Cooked",
+        "Olive Oil",
+    }:
+        return "dinner"
+    return "snack"
 
 
 def _workout_days(user: LongitudinalQAUser, days: list[date]) -> list[date]:

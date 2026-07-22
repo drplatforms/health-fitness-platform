@@ -350,6 +350,61 @@ def test_user_103_change_questions_retrieve_cross_domain_history_with_log_qualit
         )
 
 
+def test_nutrition_measurements_reach_baseline_and_historical_coach_evidence(
+    rich_seed,
+):
+    baseline = build_coach_evidence_pack(
+        user_id=104,
+        question="Am I more consistent during the week than on weekends?",
+        as_of_date=TARGET,
+    )
+    baseline_nutrition = next(
+        item
+        for item in baseline.evidence
+        if item.evidence_type == "nutrition_logging_quality"
+    )
+    baseline_types = {
+        item["type"] for item in baseline_nutrition.synthesis_data["measurements"]
+    }
+
+    assert "weekday_vs_weekend_logging" in baseline_types
+    assert "weekday_vs_weekend_intake" in baseline_types
+    assert "nutrition_intelligence_service" in baseline.source_services
+
+    cross_domain = build_coach_evidence_pack(
+        user_id=104,
+        question="Why might training have started feeling harder?",
+        as_of_date=TARGET,
+    )
+    assert {"training", "recovery", "nutrition"}.issubset(
+        set(cross_domain.question_topics)
+    )
+    assert any(
+        item.evidence_type == "nutrition_logging_quality"
+        for item in cross_domain.evidence
+    )
+
+    historical = build_coach_evidence_pack(
+        user_id=104,
+        question="How did nutrition differ when training was going better?",
+        as_of_date=TARGET,
+    )
+    historical_nutrition = next(
+        item
+        for item in historical.evidence
+        if item.evidence_type == "nutrition_history_windows"
+    )
+    assert historical.evidence_plan is not None
+    assert historical.evidence_plan.comparison_mode == "best_period"
+    assert any(
+        window["measurements"]
+        for window in historical_nutrition.structured_data["windows"]
+    )
+    prompt = json.dumps(historical.to_prompt_dict(), default=str)
+    assert "longitudinal_qa_scenario_manifest" not in prompt
+    assert len(prompt) <= MAX_EVIDENCE_PROMPT_CHARS
+
+
 def test_sparse_and_stable_controls_expose_truthful_coverage(rich_seed):
     stable = build_coach_evidence_pack(
         user_id=102,

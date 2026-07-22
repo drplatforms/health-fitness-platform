@@ -54,7 +54,7 @@ def _seed_fingerprint() -> str:
         ),
         "nutrition": _rows(
             """
-            SELECT fe.user_id, fe.entry_date, f.name, fe.grams
+            SELECT fe.user_id, fe.entry_date, f.name, fe.grams, fe.meal_type
             FROM food_entries fe
             JOIN foods f ON f.id = fe.food_id
             WHERE fe.user_id IN (101, 102, 103, 104, 105)
@@ -267,6 +267,32 @@ def test_incomplete_nutrition_uses_existing_quality_semantics_and_sparse_suppres
         max_insights=10,
     )
     assert sparse.insights == []
+
+
+def test_user_104_complete_days_have_plausible_intake_and_meal_categories(
+    tmp_path, monkeypatch
+):
+    _seed(tmp_path, monkeypatch)
+    window = build_nutrition_trend_window(
+        user_id=104,
+        end_date=FIXED_END_DATE.isoformat(),
+        window_days=28,
+    )
+    complete_days = [
+        day
+        for day in window.trend_days
+        if day.logging_completeness
+        in {"reasonably_complete", "complete_enough_for_guidance"}
+    ]
+
+    assert window.intake_trend_summary.average_calories is not None
+    assert window.intake_trend_summary.average_calories >= 1900
+    assert len(complete_days) >= 21
+    assert all(day.intake_plausibility == "not_flagged" for day in complete_days)
+    assert all(day.logged_meal_count >= 3 for day in complete_days)
+    assert {"breakfast", "lunch", "dinner", "snack"}.issubset(
+        {meal_type for day in complete_days for meal_type in day.meal_types}
+    )
 
 
 def test_structured_retrieval_covers_week_month_phase_six_month_and_year_needs(

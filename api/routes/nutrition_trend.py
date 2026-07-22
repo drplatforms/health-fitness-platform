@@ -96,6 +96,8 @@ def _build_public_response(trend_window: NutritionTrendWindow) -> dict[str, Any]
         "no_log_day_count": trend_window.no_log_day_count,
         "intake_trend_summary": trend_window.intake_trend_summary.to_dict(),
         "bodyweight_trend_summary": trend_window.bodyweight_trend_summary.to_dict(),
+        "target_context": trend_window.target_context.to_dict(),
+        "observations": [item.to_dict() for item in trend_window.observations],
         "calibration_readiness": trend_window.calibration_readiness.to_dict(),
         "confidence": trend_window.confidence,
         "reason_codes": list(trend_window.reason_codes),

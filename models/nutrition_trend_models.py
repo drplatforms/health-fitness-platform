@@ -19,6 +19,23 @@ NUTRITION_TREND_LOGGING_COMPLETENESS_VALUES = {
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
 }
 
+INTAKE_PLAUSIBILITY_UNKNOWN = "unknown"
+INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD = "below_complete_day_threshold"
+INTAKE_PLAUSIBILITY_NOT_FLAGGED = "not_flagged"
+
+NUTRITION_INTAKE_PLAUSIBILITY_VALUES = {
+    INTAKE_PLAUSIBILITY_UNKNOWN,
+    INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD,
+    INTAKE_PLAUSIBILITY_NOT_FLAGGED,
+}
+
+NUTRITION_TARGET_STATUS_VALUES = {
+    "below_target",
+    "near_target",
+    "above_target",
+    "unavailable",
+}
+
 LOGGING_CONSISTENCY_INSUFFICIENT = "insufficient"
 LOGGING_CONSISTENCY_INCONSISTENT = "inconsistent"
 LOGGING_CONSISTENCY_USABLE = "usable"
@@ -81,6 +98,20 @@ class NutritionTrendDay:
     confidence: str = "Limited"
     bodyweight_lb: float | None = None
     training_day: bool = False
+    logged_entry_count: int = 0
+    logged_meal_count: int = 0
+    meal_types: list[str] = field(default_factory=list)
+    logging_present: bool = False
+    intake_plausibility: str = INTAKE_PLAUSIBILITY_UNKNOWN
+    plausibility_threshold_calories: float | None = None
+    target_context_available: bool = False
+    calorie_target_min: float | None = None
+    calorie_target_max: float | None = None
+    protein_target_min: float | None = None
+    protein_target_max: float | None = None
+    calorie_target_status: str = "unavailable"
+    protein_target_status: str = "unavailable"
+    evidence_references: list[str] = field(default_factory=list)
     reason_codes: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
 
@@ -93,10 +124,27 @@ class NutritionTrendDay:
         _validate_optional_non_negative("logged_carbohydrate", self.logged_carbohydrate)
         _validate_optional_non_negative("logged_fat", self.logged_fat)
         _validate_optional_non_negative("bodyweight_lb", self.bodyweight_lb)
+        _validate_non_negative_int("logged_entry_count", self.logged_entry_count)
+        _validate_non_negative_int("logged_meal_count", self.logged_meal_count)
+        _validate_safe_text_list("meal_types", self.meal_types)
+        _validate_intake_plausibility(self.intake_plausibility)
+        _validate_optional_non_negative(
+            "plausibility_threshold_calories",
+            self.plausibility_threshold_calories,
+        )
+        _validate_optional_non_negative("calorie_target_min", self.calorie_target_min)
+        _validate_optional_non_negative("calorie_target_max", self.calorie_target_max)
+        _validate_optional_non_negative("protein_target_min", self.protein_target_min)
+        _validate_optional_non_negative("protein_target_max", self.protein_target_max)
+        _validate_target_status(self.calorie_target_status)
+        _validate_target_status(self.protein_target_status)
+        _validate_safe_text_list("evidence_references", self.evidence_references)
         _validate_safe_text_list("reason_codes", self.reason_codes)
         _validate_safe_text_list("limitations", self.limitations)
 
         if self.logging_completeness == LOGGING_COMPLETENESS_NO_LOGS:
+            if self.logging_present:
+                raise ValueError("No-log days cannot report logging presence")
             logged_values = (
                 self.logged_calories,
                 self.logged_protein,
@@ -105,6 +153,26 @@ class NutritionTrendDay:
             )
             if any(value is not None for value in logged_values):
                 raise ValueError("No-log days must not include logged nutrient values")
+        elif not self.logging_present:
+            # Older callers did not provide this additive field. Preserve their
+            # construction contract while normalizing the derived presence fact.
+            self.logging_present = True
+
+        if self.logged_entry_count and self.logged_meal_count > self.logged_entry_count:
+            raise ValueError("logged_meal_count cannot exceed logged_entry_count")
+
+        if not self.target_context_available and any(
+            value is not None
+            for value in (
+                self.calorie_target_min,
+                self.calorie_target_max,
+                self.protein_target_min,
+                self.protein_target_max,
+            )
+        ):
+            raise ValueError(
+                "Unavailable target context must not include nutrition target values"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -119,6 +187,7 @@ class NutritionIntakeTrendSummary:
     calorie_target_hit_rate: float | None = None
     protein_target_hit_rate: float | None = None
     complete_logging_rate: float | None = None
+    trustworthy_day_count: int = 0
     logging_consistency_status: str = LOGGING_CONSISTENCY_INSUFFICIENT
     confidence: str = "Limited"
     reason_codes: list[str] = field(default_factory=list)
@@ -134,6 +203,7 @@ class NutritionIntakeTrendSummary:
         _validate_optional_rate("calorie_target_hit_rate", self.calorie_target_hit_rate)
         _validate_optional_rate("protein_target_hit_rate", self.protein_target_hit_rate)
         _validate_optional_rate("complete_logging_rate", self.complete_logging_rate)
+        _validate_non_negative_int("trustworthy_day_count", self.trustworthy_day_count)
         _validate_logging_consistency_status(self.logging_consistency_status)
         _validate_confidence(self.confidence)
         _validate_safe_text_list("reason_codes", self.reason_codes)
@@ -146,6 +216,106 @@ class NutritionIntakeTrendSummary:
             raise ValueError(
                 "Insufficient or inconsistent logging summaries require reason_codes or limitations"
             )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class NutritionTargetContext:
+    available: bool = False
+    effective_start_date: str | None = None
+    effective_end_date: str | None = None
+    calorie_target_min: float | None = None
+    calorie_target_max: float | None = None
+    protein_target_min: float | None = None
+    protein_target_max: float | None = None
+    confidence: str = "Limited"
+    source: str = "nutrition_target_formula_service"
+    reason_codes: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        _validate_confidence(self.confidence)
+        _validate_required_text("source", self.source)
+        for field_name in (
+            "calorie_target_min",
+            "calorie_target_max",
+            "protein_target_min",
+            "protein_target_max",
+        ):
+            _validate_optional_non_negative(field_name, getattr(self, field_name))
+        _validate_safe_text_list("reason_codes", self.reason_codes)
+        _validate_safe_text_list("limitations", self.limitations)
+        if self.available and not (
+            (
+                self.calorie_target_min is not None
+                and self.calorie_target_max is not None
+            )
+            or (
+                self.protein_target_min is not None
+                and self.protein_target_max is not None
+            )
+        ):
+            raise ValueError(
+                "Available target context requires an approved target range"
+            )
+        if not self.available and any(
+            value is not None
+            for value in (
+                self.calorie_target_min,
+                self.calorie_target_max,
+                self.protein_target_min,
+                self.protein_target_max,
+            )
+        ):
+            raise ValueError(
+                "Unavailable target context must not include target ranges"
+            )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
+class NutritionObservation:
+    observation_id: str
+    observation_type: str
+    metric: str
+    current_start_date: str
+    current_end_date: str
+    current_value: Any
+    current_observation_count: int
+    comparison_start_date: str | None = None
+    comparison_end_date: str | None = None
+    comparison_value: Any = None
+    comparison_observation_count: int = 0
+    unit: str | None = None
+    coverage: dict[str, Any] = field(default_factory=dict)
+    data_quality: dict[str, Any] = field(default_factory=dict)
+    target_context: dict[str, Any] = field(default_factory=dict)
+    evidence_references: list[str] = field(default_factory=list)
+    reason_codes: list[str] = field(default_factory=list)
+    limitations: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "observation_id",
+            "observation_type",
+            "metric",
+            "current_start_date",
+            "current_end_date",
+        ):
+            _validate_required_text(field_name, getattr(self, field_name))
+        _validate_non_negative_int(
+            "current_observation_count", self.current_observation_count
+        )
+        _validate_non_negative_int(
+            "comparison_observation_count", self.comparison_observation_count
+        )
+        _validate_safe_text_list("evidence_references", self.evidence_references)
+        _validate_safe_text_list("reason_codes", self.reason_codes)
+        _validate_safe_text_list("limitations", self.limitations)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -292,6 +462,10 @@ class NutritionTrendWindow:
     reason_codes: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
     trend_days: list[NutritionTrendDay] = field(default_factory=list)
+    observations: list[NutritionObservation] = field(default_factory=list)
+    target_context: NutritionTargetContext = field(
+        default_factory=NutritionTargetContext
+    )
     metadata: NutritionTrendWindowMetadata = field(
         default_factory=NutritionTrendWindowMetadata
     )
@@ -328,7 +502,9 @@ class NutritionTrendWindow:
             NutritionCalibrationReadiness,
         )
         _validate_type("metadata", self.metadata, NutritionTrendWindowMetadata)
+        _validate_type("target_context", self.target_context, NutritionTargetContext)
         _validate_list_items("trend_days", self.trend_days, NutritionTrendDay)
+        _validate_list_items("observations", self.observations, NutritionObservation)
         self._validate_day_counts()
 
         if self.confidence in {"Limited", "Low"} and not (
@@ -361,6 +537,8 @@ class NutritionTrendWindow:
         payload["bodyweight_trend_summary"] = self.bodyweight_trend_summary.to_dict()
         payload["calibration_readiness"] = self.calibration_readiness.to_dict()
         payload["trend_days"] = [day.to_dict() for day in self.trend_days]
+        payload["observations"] = [item.to_dict() for item in self.observations]
+        payload["target_context"] = self.target_context.to_dict()
         payload["metadata"] = self.metadata.to_dict()
         return payload
 
@@ -373,6 +551,16 @@ def _validate_confidence(confidence: str) -> None:
 def _validate_logging_completeness(logging_completeness: str) -> None:
     if logging_completeness not in NUTRITION_TREND_LOGGING_COMPLETENESS_VALUES:
         raise ValueError(f"Invalid logging_completeness: {logging_completeness}")
+
+
+def _validate_intake_plausibility(intake_plausibility: str) -> None:
+    if intake_plausibility not in NUTRITION_INTAKE_PLAUSIBILITY_VALUES:
+        raise ValueError(f"Invalid intake_plausibility: {intake_plausibility}")
+
+
+def _validate_target_status(target_status: str) -> None:
+    if target_status not in NUTRITION_TARGET_STATUS_VALUES:
+        raise ValueError(f"Invalid nutrition target status: {target_status}")
 
 
 def _validate_logging_consistency_status(logging_consistency_status: str) -> None:

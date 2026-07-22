@@ -14,6 +14,9 @@ from models.nutrition_trend_models import (
     CALIBRATION_READINESS_NOT_READY,
     CALIBRATION_READINESS_STRONG,
     CALIBRATION_READINESS_USABLE,
+    INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD,
+    INTAKE_PLAUSIBILITY_NOT_FLAGGED,
+    INTAKE_PLAUSIBILITY_UNKNOWN,
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
     LOGGING_COMPLETENESS_LIKELY_INCOMPLETE,
     LOGGING_COMPLETENESS_NO_LOGS,
@@ -26,19 +29,25 @@ from models.nutrition_trend_models import (
     BodyweightTrendSummary,
     NutritionCalibrationReadiness,
     NutritionIntakeTrendSummary,
+    NutritionTargetContext,
     NutritionTrendDay,
     NutritionTrendWindow,
     NutritionTrendWindowMetadata,
 )
+from services.nutrition_intelligence_service import build_nutrition_observations
 from services.nutrition_target_vs_actual_service import (
     _logging_summary_from_actuals,
+    build_formula_derived_nutrition_targets,
     build_nutrition_actuals,
 )
 from services.user_service import get_user_profile
+from services.user_state_service import build_user_health_state
 
 MINIMUM_TREND_WINDOW_DAYS = 14
 PREFERRED_TREND_WINDOW_DAYS = 28
 STABLE_WEEKLY_WEIGHT_RATE_LB = 0.25
+DEFAULT_COMPLETE_DAY_CALORIE_FLOOR = 600.0
+CURRENT_TARGET_CONTEXT_DAYS = 28
 
 _COMPLETE_LOGGING_VALUES = {
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
@@ -76,10 +85,16 @@ def build_nutrition_trend_window(
             raise ValueError("window_days must be positive")
         start = end - timedelta(days=window_days - 1)
 
+    target_context = _build_target_context(
+        user_id=user_id,
+        start_date=start,
+        end_date=end,
+    )
     trend_days = build_nutrition_trend_days(
         user_id=user_id,
         start_date=start.isoformat(),
         end_date=end.isoformat(),
+        target_context=target_context,
     )
     complete_logging_day_count = sum(
         1 for day in trend_days if day.logging_completeness in _COMPLETE_LOGGING_VALUES
@@ -93,6 +108,10 @@ def build_nutrition_trend_window(
         if day.logging_completeness == LOGGING_COMPLETENESS_NO_LOGS
     )
     logged_day_count = complete_logging_day_count + partial_logging_day_count
+    observations = build_nutrition_observations(
+        trend_days,
+        target_context=target_context,
+    )
 
     intake_summary = summarize_nutrition_intake_trend(trend_days)
     bodyweight_summary = summarize_bodyweight_trend(
@@ -146,6 +165,8 @@ def build_nutrition_trend_window(
         reason_codes=reason_codes,
         limitations=limitations,
         trend_days=trend_days,
+        observations=observations,
+        target_context=target_context,
         metadata=NutritionTrendWindowMetadata(
             generated_at=datetime.now(UTC)
             .replace(microsecond=0)
@@ -156,6 +177,7 @@ def build_nutrition_trend_window(
                 bodyweight_summary=bodyweight_summary,
                 goal_context_available=goal_context_available,
                 training_context_available=training_context_available,
+                target_context_available=target_context.available,
             ),
             reason_codes=["trend_window_created"],
             limitations=(
@@ -168,7 +190,11 @@ def build_nutrition_trend_window(
 
 
 def build_nutrition_trend_days(
-    *, user_id: int, start_date: str, end_date: str
+    *,
+    user_id: int,
+    start_date: str,
+    end_date: str,
+    target_context: NutritionTargetContext | None = None,
 ) -> list[NutritionTrendDay]:
     start = _parse_date(start_date)
     end = _parse_date(end_date)
@@ -177,12 +203,26 @@ def build_nutrition_trend_days(
 
     bodyweights = _bodyweights_by_date(user_id=user_id, start_date=start, end_date=end)
     training_days = _training_days(user_id=user_id, start_date=start, end_date=end)
+    target_context = target_context or NutritionTargetContext(
+        reason_codes=["target_context_not_evaluated"],
+        limitations=["Target context was not requested for these daily states."],
+    )
     days: list[NutritionTrendDay] = []
 
     for current in _inclusive_dates(start, end):
         target_date = current.isoformat()
         actuals = build_nutrition_actuals(user_id, target_date)
         logging_summary = _logging_summary_from_actuals(actuals)
+        target_applies = _target_context_applies(target_context, target_date)
+        plausibility, plausibility_threshold = _intake_plausibility(
+            logged_calories=actuals.logged_calories,
+            logging_present=actuals.entry_count > 0,
+            calorie_target_min=(
+                target_context.calorie_target_min if target_applies else None
+            ),
+        )
+        logging_completeness = logging_summary.logging_completeness
+        confidence = logging_summary.confidence
         reason_codes = _unique(
             [
                 *actuals.reason_codes,
@@ -193,12 +233,51 @@ def build_nutrition_trend_days(
             ]
         )
         limitations = list(logging_summary.limitations)
-        if logging_summary.logging_completeness == LOGGING_COMPLETENESS_NO_LOGS:
+        if (
+            logging_completeness in _COMPLETE_LOGGING_VALUES
+            and plausibility == INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD
+        ):
+            logging_completeness = LOGGING_COMPLETENESS_LIKELY_INCOMPLETE
+            confidence = "Low"
+            reason_codes.extend(
+                [
+                    "intake_below_complete_day_threshold",
+                    "completeness_limited_by_intake_plausibility",
+                ]
+            )
+            limitations.append(
+                "Logged calories are below the threshold used to treat this as a complete day."
+            )
+
+        if logging_completeness == LOGGING_COMPLETENESS_NO_LOGS:
             reason_codes.append("no_log_day")
-        elif logging_summary.logging_completeness in _PARTIAL_LOGGING_VALUES:
+        elif logging_completeness in _PARTIAL_LOGGING_VALUES:
             reason_codes.append("partial_log_day")
-        elif logging_summary.logging_completeness in _COMPLETE_LOGGING_VALUES:
+        elif logging_completeness in _COMPLETE_LOGGING_VALUES:
             reason_codes.append("complete_logging_day")
+
+        calorie_status = _target_status(
+            actuals.logged_calories,
+            target_context.calorie_target_min if target_applies else None,
+            target_context.calorie_target_max if target_applies else None,
+            trustworthy=logging_completeness in _COMPLETE_LOGGING_VALUES,
+        )
+        protein_status = _target_status(
+            actuals.logged_protein,
+            target_context.protein_target_min if target_applies else None,
+            target_context.protein_target_max if target_applies else None,
+            trustworthy=logging_completeness in _COMPLETE_LOGGING_VALUES,
+        )
+        if target_applies:
+            reason_codes.append("approved_target_context_available")
+        else:
+            reason_codes.append("target_context_unavailable_for_date")
+
+        evidence_references = [f"nutrition-log-day:{target_date}"]
+        if target_date in bodyweights:
+            evidence_references.append(f"body-weight-day:{target_date}")
+        if target_date in training_days:
+            evidence_references.append(f"training-day:{target_date}")
 
         days.append(
             NutritionTrendDay(
@@ -207,10 +286,32 @@ def build_nutrition_trend_days(
                 logged_protein=actuals.logged_protein,
                 logged_carbohydrate=actuals.logged_carbs,
                 logged_fat=actuals.logged_fat,
-                logging_completeness=logging_summary.logging_completeness,
-                confidence=logging_summary.confidence,
+                logging_completeness=logging_completeness,
+                confidence=confidence,
                 bodyweight_lb=bodyweights.get(target_date),
                 training_day=target_date in training_days,
+                logged_entry_count=actuals.entry_count,
+                logged_meal_count=actuals.logged_meal_count,
+                meal_types=list(actuals.meal_types),
+                logging_present=actuals.entry_count > 0,
+                intake_plausibility=plausibility,
+                plausibility_threshold_calories=plausibility_threshold,
+                target_context_available=target_applies,
+                calorie_target_min=(
+                    target_context.calorie_target_min if target_applies else None
+                ),
+                calorie_target_max=(
+                    target_context.calorie_target_max if target_applies else None
+                ),
+                protein_target_min=(
+                    target_context.protein_target_min if target_applies else None
+                ),
+                protein_target_max=(
+                    target_context.protein_target_max if target_applies else None
+                ),
+                calorie_target_status=calorie_status,
+                protein_target_status=protein_status,
+                evidence_references=evidence_references,
                 reason_codes=_unique(reason_codes),
                 limitations=limitations,
             )
@@ -262,22 +363,26 @@ def summarize_nutrition_intake_trend(
             "Logging consistency is not strong enough for nutrition target calibration."
         )
 
-    calorie_hit_rate, protein_hit_rate = _target_hit_rates(trend_days)
+    trustworthy_days = _trustworthy_intake_days(trend_days)
+    calorie_hit_rate, protein_hit_rate = _target_hit_rates(trustworthy_days)
 
     return NutritionIntakeTrendSummary(
         average_calories=_average_logged_value(
-            [day.logged_calories for day in trend_days]
+            [day.logged_calories for day in trustworthy_days]
         ),
         average_protein_g=_average_logged_value(
-            [day.logged_protein for day in trend_days]
+            [day.logged_protein for day in trustworthy_days]
         ),
         average_carbohydrate_g=_average_logged_value(
-            [day.logged_carbohydrate for day in trend_days]
+            [day.logged_carbohydrate for day in trustworthy_days]
         ),
-        average_fat_g=_average_logged_value([day.logged_fat for day in trend_days]),
+        average_fat_g=_average_logged_value(
+            [day.logged_fat for day in trustworthy_days]
+        ),
         calorie_target_hit_rate=calorie_hit_rate,
         protein_target_hit_rate=protein_hit_rate,
         complete_logging_rate=complete_logging_rate,
+        trustworthy_day_count=len(trustworthy_days),
         logging_consistency_status=consistency,
         confidence=confidence,
         reason_codes=reason_codes,
@@ -457,6 +562,50 @@ def _average_logged_value(values: list[float | None]) -> float | None:
     return round(sum(present_values) / len(present_values), 1)
 
 
+def _trustworthy_intake_days(
+    trend_days: list[NutritionTrendDay],
+) -> list[NutritionTrendDay]:
+    return [
+        day
+        for day in trend_days
+        if day.logging_completeness in _COMPLETE_LOGGING_VALUES
+        and day.intake_plausibility != INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD
+    ]
+
+
+def _intake_plausibility(
+    *,
+    logged_calories: float | None,
+    logging_present: bool,
+    calorie_target_min: float | None,
+) -> tuple[str, float | None]:
+    if not logging_present or logged_calories is None:
+        return INTAKE_PLAUSIBILITY_UNKNOWN, None
+    threshold = DEFAULT_COMPLETE_DAY_CALORIE_FLOOR
+    if calorie_target_min is not None:
+        threshold = max(threshold, float(calorie_target_min) * 0.5)
+    threshold = round(threshold, 1)
+    if float(logged_calories) < threshold:
+        return INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD, threshold
+    return INTAKE_PLAUSIBILITY_NOT_FLAGGED, threshold
+
+
+def _target_status(
+    actual: float | None,
+    target_min: float | None,
+    target_max: float | None,
+    *,
+    trustworthy: bool,
+) -> str:
+    if not trustworthy or actual is None or target_min is None or target_max is None:
+        return "unavailable"
+    if actual < target_min:
+        return "below_target"
+    if actual > target_max:
+        return "above_target"
+    return "near_target"
+
+
 def _logging_consistency_status(
     *, window_days: int, logged_day_count: int, complete_logging_day_count: int
 ) -> str:
@@ -488,11 +637,142 @@ def _intake_confidence(logging_consistency_status: str) -> str:
 def _target_hit_rates(
     trend_days: list[NutritionTrendDay],
 ) -> tuple[float | None, float | None]:
-    # Trend windows intentionally avoid mutating or recalculating targets.
-    # Target hit-rate support stays unavailable until a later calibration service
-    # passes explicit approved target context into this summarizer.
-    _ = trend_days
-    return None, None
+    calorie_days = [
+        day for day in trend_days if day.calorie_target_status != "unavailable"
+    ]
+    protein_days = [
+        day for day in trend_days if day.protein_target_status != "unavailable"
+    ]
+    calorie_rate = (
+        round(
+            sum(day.calorie_target_status == "near_target" for day in calorie_days)
+            / len(calorie_days),
+            3,
+        )
+        if calorie_days
+        else None
+    )
+    protein_rate = (
+        round(
+            sum(day.protein_target_status == "near_target" for day in protein_days)
+            / len(protein_days),
+            3,
+        )
+        if protein_days
+        else None
+    )
+    return calorie_rate, protein_rate
+
+
+def _build_target_context(
+    *, user_id: int, start_date: date, end_date: date
+) -> NutritionTargetContext:
+    latest_observation = _latest_user_observation_date(user_id)
+    if latest_observation is not None and end_date < latest_observation:
+        return NutritionTargetContext(
+            reason_codes=["historical_target_context_unavailable"],
+            limitations=[
+                "Current profile-derived targets are not applied to an earlier historical window."
+            ],
+        )
+
+    try:
+        health_state = build_user_health_state(user_id)
+        targets, _approved = build_formula_derived_nutrition_targets(
+            health_state,
+            calculation_date=end_date.isoformat(),
+        )
+    except (KeyError, TypeError, ValueError):
+        return NutritionTargetContext(
+            reason_codes=["approved_target_context_unavailable"],
+            limitations=["Approved nutrition target context is unavailable."],
+        )
+
+    target_values = {
+        "calorie_target_min": (
+            targets.calorie_target_min if targets.allow_calorie_targets else None
+        ),
+        "calorie_target_max": (
+            targets.calorie_target_max if targets.allow_calorie_targets else None
+        ),
+        "protein_target_min": (
+            targets.protein_grams_min if targets.allow_protein_targets else None
+        ),
+        "protein_target_max": (
+            targets.protein_grams_max if targets.allow_protein_targets else None
+        ),
+    }
+    has_range = any(value is not None for value in target_values.values())
+    if targets.confidence not in {"Moderate", "High"} or not has_range:
+        return NutritionTargetContext(
+            confidence=targets.confidence,
+            reason_codes=["approved_target_context_unavailable"],
+            limitations=[
+                "Approved nutrition targets do not have enough confidence for longitudinal comparison."
+            ],
+        )
+
+    effective_start = max(
+        start_date,
+        end_date - timedelta(days=CURRENT_TARGET_CONTEXT_DAYS - 1),
+    )
+    return NutritionTargetContext(
+        available=True,
+        effective_start_date=effective_start.isoformat(),
+        effective_end_date=end_date.isoformat(),
+        confidence=targets.confidence,
+        source="nutrition_target_formula_service:current_profile",
+        reason_codes=["approved_current_target_context_available"],
+        limitations=[
+            "Current profile-derived targets apply only to the latest 28 days in this window."
+        ],
+        **target_values,
+    )
+
+
+def _target_context_applies(
+    target_context: NutritionTargetContext, target_date: str
+) -> bool:
+    return bool(
+        target_context.available
+        and target_context.effective_start_date is not None
+        and target_context.effective_end_date is not None
+        and target_context.effective_start_date
+        <= target_date
+        <= target_context.effective_end_date
+    )
+
+
+def _latest_user_observation_date(user_id: int) -> date | None:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT MAX(observed_date) AS observed_date
+        FROM (
+            SELECT entry_date AS observed_date
+            FROM food_entries
+            WHERE user_id = ?
+            UNION ALL
+            SELECT checkin_date AS observed_date
+            FROM daily_checkins
+            WHERE user_id = ?
+            UNION ALL
+            SELECT workout_date AS observed_date
+            FROM workout_sessions
+            WHERE user_id = ?
+            UNION ALL
+            SELECT substr(completed_at, 1, 10) AS observed_date
+            FROM workout_execution_sessions
+            WHERE user_id = ? AND completed_at IS NOT NULL
+        )
+        """,
+        (user_id, user_id, user_id, user_id),
+    )
+    row = cursor.fetchone()
+    conn.close()
+    value = row["observed_date"] if row is not None else None
+    return _parse_date(str(value)) if value else None
 
 
 def _bodyweight_rows(
@@ -673,6 +953,7 @@ def _metadata_inputs_used(
     bodyweight_summary: BodyweightTrendSummary,
     goal_context_available: bool,
     training_context_available: bool,
+    target_context_available: bool,
 ) -> list[str]:
     inputs = ["logged_nutrition_actuals", "logging_completeness"]
     if logged_day_count == 0:
@@ -683,4 +964,6 @@ def _metadata_inputs_used(
         inputs.append("goal_context")
     if training_context_available:
         inputs.append("training_context")
+    if target_context_available:
+        inputs.append("approved_current_nutrition_targets")
     return inputs
