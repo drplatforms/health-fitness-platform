@@ -131,6 +131,10 @@ _ACTION_FOLLOW_UP_PREFIXES = (
     "should i",
     "would it",
 )
+_EXERCISE_NAME_ALIASES = {
+    "rdl": "Romanian Deadlift",
+    "rdls": "Romanian Deadlift",
+}
 _CONFIDENCE_ORDER: dict[str, int] = {
     "Limited": 0,
     "Low": 1,
@@ -518,6 +522,17 @@ def build_coach_evidence_pack_from_sources(
         limitations=tuple(_dedupe_text(limitations)[:6]),
         source_services=tuple(dict.fromkeys(source_services)),
         confidence=confidence,
+        matched_exercise_context=(
+            {
+                "catalog_exercise_id": matched_exercise.id,
+                "name": matched_exercise.name,
+                "exercise_type": matched_exercise.exercise_type,
+                "movement_pattern": matched_exercise.movement_pattern,
+                "primary_muscle_groups": list(matched_exercise.primary_muscle_groups),
+            }
+            if matched_exercise is not None
+            else {}
+        ),
     )
 
 
@@ -583,6 +598,20 @@ def resolve_referenced_exercise(
 ) -> ExerciseCatalogEntry | None:
     normalized_question = _normalize(question)
     question_tokens = set(normalized_question.split())
+    alias_match = next(
+        (
+            canonical_name
+            for alias, canonical_name in _EXERCISE_NAME_ALIASES.items()
+            if alias in question_tokens
+        ),
+        None,
+    )
+    if alias_match is not None:
+        matched_alias_entry = next(
+            (entry for entry in catalog if entry.name == alias_match), None
+        )
+        if matched_alias_entry is not None:
+            return matched_alias_entry
     candidates: list[tuple[float, int, str, ExerciseCatalogEntry]] = []
     for entry in catalog:
         normalized_name = _normalize(entry.name)

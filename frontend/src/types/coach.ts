@@ -17,9 +17,31 @@ export interface CoachEvidencePack {
   as_of_date: string;
   question_topics: string[];
   matched_exercise_name: string | null;
+  matched_exercise_context: Record<string, unknown>;
   evidence: CoachEvidenceItem[];
   limitations: string[];
   confidence: CoachConfidence;
+}
+
+export interface CoachKnowledgePassage {
+  reference_id: string;
+  source_id: string;
+  source_title: string;
+  chunk_id: string;
+  heading: string;
+  passage: string;
+  provenance: string;
+  corpus_version: string;
+  related_exercises: string[];
+}
+
+export interface CoachKnowledgeContext {
+  retrieval_version: string;
+  corpus_version: string;
+  corpus_digest: string;
+  question_intents: string[];
+  matched_exercise_name: string | null;
+  passages: CoachKnowledgePassage[];
 }
 
 export interface CoachSuggestedAction {
@@ -34,10 +56,13 @@ export interface CoachAnswerResponse {
   answer: string;
   supporting_evidence_references: string[];
   supporting_evidence: CoachEvidenceItem[];
+  supporting_knowledge_references: string[];
+  supporting_knowledge: CoachKnowledgePassage[];
   confidence: CoachConfidence;
   uncertainty: string | null;
   suggested_action: CoachSuggestedAction | null;
   evidence_pack: CoachEvidencePack;
+  knowledge_context: CoachKnowledgeContext;
   provider_run: {
     configured_provider: CoachProvider;
     selected_provider: CoachProvider;

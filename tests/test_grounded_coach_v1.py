@@ -512,6 +512,7 @@ def test_seeded_user_102_conversation_reaches_synthesis_with_authoritative_evide
                 {
                     "answer": "A conversational synthesis using the selected observations.",
                     "evidence_references": expected_references,
+                    "knowledge_references": [],
                     "uncertainty": "The observations do not establish a cause.",
                     "suggested_action": expected_action,
                 }
@@ -569,6 +570,7 @@ def test_response_contract_returns_known_references_telemetry_and_confidence():
                 {
                     "answer": "The logged effort pattern changed across the compared sessions.",
                     "evidence_references": ["exercise:42:effort-trend"],
+                    "knowledge_references": [],
                     "uncertainty": "The history does not establish why effort changed.",
                     "suggested_action": None,
                 }
@@ -602,6 +604,7 @@ def test_no_evidence_references_yields_limited_application_confidence():
         {
             "answer": "The available history is not enough for a personal conclusion.",
             "evidence_references": [],
+            "knowledge_references": [],
             "uncertainty": "The available history is too sparse.",
             "suggested_action": None,
         }
@@ -621,6 +624,7 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
                 "exercise:42:effort-trend",
                 "exercise:42:progression-decision",
             ],
+            "knowledge_references": [],
             "uncertainty": "Logged patterns cannot establish the cause.",
             "suggested_action": None,
         }
@@ -653,6 +657,7 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
                 {
                     "answer": "   ",
                     "evidence_references": [],
+                    "knowledge_references": [],
                     "uncertainty": None,
                     "suggested_action": None,
                 }
@@ -667,6 +672,7 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
                         "exercise:42:effort-trend",
                         "exercise:42:effort-trend",
                     ],
+                    "knowledge_references": [],
                     "uncertainty": None,
                     "suggested_action": None,
                 }
@@ -678,6 +684,7 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
                 {
                     "answer": "An answer.",
                     "evidence_references": [],
+                    "knowledge_references": [],
                     "uncertainty": ["not", "text"],
                     "suggested_action": None,
                 }
@@ -701,6 +708,7 @@ def test_unknown_evidence_reference_is_rejected_objectively():
         {
             "answer": "A synthesis.",
             "evidence_references": ["exercise:42:not-in-pack"],
+            "knowledge_references": [],
             "uncertainty": None,
             "suggested_action": None,
         }
@@ -717,6 +725,7 @@ def test_structured_progression_action_is_validated_and_exposed():
         {
             "answer": "The current application guidance is to keep the target steady.",
             "evidence_references": ["exercise:42:progression-decision"],
+            "knowledge_references": [],
             "uncertainty": None,
             "suggested_action": {
                 "action_type": "progression_decision",
@@ -733,6 +742,31 @@ def test_structured_progression_action_is_validated_and_exposed():
         "decision": "hold",
         "evidence_reference": "exercise:42:progression-decision",
     }
+
+
+def test_structured_progression_action_does_not_require_duplicate_general_reference():
+    raw = json.dumps(
+        {
+            "answer": "The current application guidance is to keep the target steady.",
+            "evidence_references": [],
+            "knowledge_references": [],
+            "uncertainty": None,
+            "suggested_action": {
+                "action_type": "progression_decision",
+                "decision": "hold",
+                "evidence_reference": "exercise:42:progression-decision",
+            },
+        }
+    )
+
+    result = _ask_with_raw_output(raw, evidence_pack=_progression_guidance_pack())
+
+    assert result.supporting_evidence_references == ()
+    assert result.suggested_action is not None
+    assert result.suggested_action.decision == "hold"
+    assert (
+        result.suggested_action.evidence_reference == "exercise:42:progression-decision"
+    )
 
 
 @pytest.mark.parametrize(
@@ -757,15 +791,6 @@ def test_structured_progression_action_is_validated_and_exposed():
             "suggested_action_reference_mismatch",
         ),
         (
-            ["exercise:42:effort-trend"],
-            {
-                "action_type": "progression_decision",
-                "decision": "hold",
-                "evidence_reference": "exercise:42:progression-decision",
-            },
-            "suggested_action_reference_not_cited",
-        ),
-        (
             ["exercise:42:progression-decision"],
             {
                 "action_type": "progression_decision",
@@ -783,6 +808,7 @@ def test_invalid_structured_actions_are_rejected_objectively(
         {
             "answer": "A synthesis.",
             "evidence_references": references,
+            "knowledge_references": [],
             "uncertainty": None,
             "suggested_action": action,
         }
@@ -828,6 +854,7 @@ def test_openai_coach_path_reaches_shared_adapter_with_mocked_sdk(monkeypatch):
                     {
                         "answer": "A synthesis from the bounded training observation.",
                         "evidence_references": ["exercise:42:effort-trend"],
+                        "knowledge_references": [],
                         "uncertainty": None,
                         "suggested_action": None,
                     }
@@ -862,6 +889,7 @@ def test_openai_coach_path_reaches_shared_adapter_with_mocked_sdk(monkeypatch):
     assert request["text"]["format"]["schema"]["required"] == [
         "answer",
         "evidence_references",
+        "knowledge_references",
         "uncertainty",
         "suggested_action",
     ]
@@ -883,6 +911,7 @@ def test_provider_selection_changes_synthesis_only_not_grounding():
                     {
                         "answer": "A provider-specific synthesis.",
                         "evidence_references": ["exercise:42:effort-trend"],
+                        "knowledge_references": [],
                         "uncertainty": None,
                         "suggested_action": None,
                     }

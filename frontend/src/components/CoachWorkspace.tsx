@@ -14,9 +14,9 @@ import {
 
 const STARTER_QUESTIONS = [
   "Am I making progress?",
-  "How has my recovery changed recently?",
-  "What changed over the last month?",
-  "What patterns have you noticed in my training?",
+  "What should I focus on during an RDL?",
+  "How is a Pendlay Row different from a regular Barbell Row?",
+  "What common squat mistakes should I watch for?",
 ];
 const MAX_CONTEXT_TURNS = 6;
 
@@ -116,7 +116,7 @@ export function CoachWorkspace({ userId }: { userId: number }) {
           <div>
             <h2 className="text-base font-semibold text-text-strong">Grounded Coach</h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-text-body">
-              Ask about your logged training, recovery, nutrition, or body-weight patterns.
+              Ask about your logged patterns or how an exercise works.
             </p>
           </div>
           {messages.length > 0 ? (
@@ -243,7 +243,7 @@ export function CoachWorkspace({ userId }: { userId: number }) {
         />
         <div className="mt-2 flex items-center justify-between gap-3">
           <p className="text-xs text-text-muted">
-            Answers use bounded application evidence and do not change your plan or logs.
+            Personal evidence and curated exercise knowledge stay separate. Answers do not change your plan or logs.
           </p>
           <button
             type="submit"
@@ -290,8 +290,11 @@ function CoachAnswer({ result }: { result: CoachAnswerResponse }) {
 
       <details className="mt-3 rounded-xl border border-border-subtle bg-surface-muted/40 px-3 py-2.5">
         <summary className="cursor-pointer text-sm font-semibold text-text-body">
-          Why I&apos;m saying this ({result.supporting_evidence.length})
+          Sources used ({result.supporting_evidence.length + result.supporting_knowledge.length})
         </summary>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-[0.1em] text-text-muted">
+          Your data and application observations
+        </p>
         {result.supporting_evidence.length > 0 ? (
           <ul className="mt-2 space-y-2">
             {result.supporting_evidence.map((item) => (
@@ -307,9 +310,35 @@ function CoachAnswer({ result }: { result: CoachAnswerResponse }) {
           </ul>
         ) : (
           <p className="mt-2 text-xs text-text-muted">
-            No supported personal observation was available for this answer.
+            No personal evidence was used for this answer.
           </p>
         )}
+        <div className="mt-3 border-t border-border-subtle pt-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-text-muted">
+            Curated exercise knowledge
+          </p>
+          {result.supporting_knowledge.length > 0 ? (
+            <ul className="mt-2 space-y-2">
+              {result.supporting_knowledge.map((item) => (
+                <li key={item.reference_id} className="border-l-2 border-border-accent pl-3">
+                  <p className="text-xs font-semibold text-text-strong">
+                    {item.heading}
+                  </p>
+                  <p className="mt-0.5 text-xs leading-5 text-text-body">
+                    {item.passage}
+                  </p>
+                  <p className="mt-0.5 text-[0.68rem] text-text-muted">
+                    {item.source_title} · {item.reference_id}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-2 text-xs text-text-muted">
+              No exercise-knowledge passage was used for this answer.
+            </p>
+          )}
+        </div>
         {result.evidence_pack.limitations.length > 0 ? (
           <div className="mt-3 border-t border-border-subtle pt-2">
             <p className="text-xs font-semibold text-text-muted">Data limits</p>
