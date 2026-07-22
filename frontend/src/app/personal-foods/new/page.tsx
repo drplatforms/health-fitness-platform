@@ -1,7 +1,7 @@
 import Link from "next/link";
 
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
 import { PersonalFoodForm } from "@/components/PersonalFoodForm";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
 
@@ -27,6 +27,7 @@ export default async function NewPersonalFoodPage({
   if (targetDate) {
     contextParams.set("date", targetDate);
   }
+  contextParams.set("view", "library");
 
   return (
     <main className="min-h-screen bg-canvas px-3 py-3 text-text-strong sm:px-4 sm:py-6">
@@ -35,19 +36,14 @@ export default async function NewPersonalFoodPage({
           <div className="flex flex-wrap gap-4 text-sm font-semibold">
             <Link
               href={`/food?${contextParams.toString()}`}
-              className="hidden text-accent-text hover:text-accent-text-hover md:inline"
+              className="text-accent-text hover:text-accent-text-hover"
             >
-              Back to Food
-            </Link>
-            <Link
-              href={`/personal-foods?${contextParams.toString()}`}
-              className="text-text-secondary hover:text-text-primary"
-            >
-              My Foods
+              Back to Food Library
             </Link>
           </div>
           <ThemePreferenceControl />
         </div>
+        <PrimaryNavigation userId={userId} date={targetDate} />
         <section className="rounded-2xl bg-surface px-4 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-6 sm:py-5">
           <h1 className="mb-4 text-2xl font-semibold tracking-tight sm:mb-5">Add food</h1>
           <PersonalFoodForm
@@ -57,7 +53,6 @@ export default async function NewPersonalFoodPage({
           />
         </section>
       </div>
-      <MobilePrimaryNav userId={userId} date={targetDate} />
     </main>
   );
 }

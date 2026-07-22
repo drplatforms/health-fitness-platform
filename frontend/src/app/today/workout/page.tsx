@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WorkoutPreviewExperience } from "@/components/WorkoutPreviewExperience";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
@@ -96,13 +96,14 @@ export default async function WorkoutPage({
           </div>
         </section>
 
+        <PrimaryNavigation userId={userId} date={todayQuery.date} />
+
         <WorkoutPreviewExperience
           key={todayQuery.date ?? "live"}
           userId={userId}
           requestedDate={todayQuery.date}
         />
       </div>
-      <MobilePrimaryNav userId={userId} date={todayQuery.date} />
     </main>
   );
 }

@@ -24,7 +24,7 @@ import {
   PersonalFoodLoggedEntry,
 } from "@/types/personalFood";
 
-type LoggedFoodEntry =
+export type LoggedFoodEntry =
   | (CanonicalFoodLoggedEntry & { food_type: "canonical" })
   | PersonalFoodLoggedEntry;
 

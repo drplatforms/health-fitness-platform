@@ -6,6 +6,10 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from services.ai_model_identity_service import (
+    KNOWN_OPENAI_TEXT_MODEL_FAMILIES,
+    canonical_openai_model_family,
+)
 from services.provider_lifecycle_service import resolve_ollama_base_url
 
 MEAL_IDEAS_LOCAL_MODEL_ENV = "MEAL_IDEAS_LOCAL_MODEL"
@@ -14,15 +18,7 @@ OLLAMA_BASE_URL_ENV = "OLLAMA_BASE_URL"
 
 DEFAULT_LOCAL_MODEL = "qwen3:8b"
 DEFAULT_OPENAI_MODEL = "gpt-5.4-mini"
-OPENAI_MEAL_IDEA_MODELS = (
-    "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.4-nano",
-)
+OPENAI_MEAL_IDEA_MODELS = KNOWN_OPENAI_TEXT_MODEL_FAMILIES
 DEFAULT_OLLAMA_DISCOVERY_TIMEOUT_SECONDS = 5.0
 
 OllamaTagsFetch = Callable[[str, float], dict[str, Any]]
@@ -45,9 +41,7 @@ def build_meal_idea_model_options(
         or DEFAULT_OPENAI_MODEL
     )
     openai_default = (
-        configured_openai
-        if configured_openai in OPENAI_MEAL_IDEA_MODELS
-        else DEFAULT_OPENAI_MODEL
+        canonical_openai_model_family(configured_openai) or DEFAULT_OPENAI_MODEL
     )
 
     fetch_tags = ollama_tags_fetch or _fetch_ollama_tags
@@ -102,8 +96,13 @@ def validate_selected_meal_idea_model(provider: str, model: str) -> str:
     selected = model.strip()
     if not selected or len(selected) > 200:
         raise ValueError("model must be between 1 and 200 characters.")
-    if provider == "openai" and selected not in OPENAI_MEAL_IDEA_MODELS:
-        raise ValueError("The selected OpenAI model is not supported for Meal Ideas.")
+    if provider == "openai":
+        canonical_model = canonical_openai_model_family(selected)
+        if canonical_model not in OPENAI_MEAL_IDEA_MODELS:
+            raise ValueError(
+                "The selected OpenAI model is not supported for Meal Ideas."
+            )
+        return canonical_model
     return selected
 
 
@@ -120,7 +119,7 @@ def configured_meal_idea_model(
         env.get(MEAL_IDEAS_OPENAI_MODEL_ENV, DEFAULT_OPENAI_MODEL).strip()
         or DEFAULT_OPENAI_MODEL
     )
-    return configured if configured in OPENAI_MEAL_IDEA_MODELS else DEFAULT_OPENAI_MODEL
+    return canonical_openai_model_family(configured) or DEFAULT_OPENAI_MODEL
 
 
 def _model_option(name: str) -> dict[str, str]:

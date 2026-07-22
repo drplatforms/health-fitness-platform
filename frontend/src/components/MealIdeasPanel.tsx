@@ -2,18 +2,32 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
+import { AIRunTelemetrySummary } from "@/components/AIRunTelemetrySummary";
 import {
+  instructionReplacementConfirmationMessage,
+  needsInstructionReplacementConfirmation,
+} from "@/lib/instructionRegeneration";
+import {
+  fetchMealIdeaHistory,
   fetchMealIdeaModelOptions,
+  generateMealInstructions,
   generateMealIdeas,
 } from "@/lib/mealIdeasApi";
+import { createSavedMeal, updateSavedMeal } from "@/lib/savedMealApi";
 import {
   GroundedMealIdea,
+  MealIdeaGenerationHistoryItem,
   MealIdeaMealType,
   MealIdeaModelOptionsResponse,
   MealIdeaProvider,
   MealIdeaSteering,
   MealIdeasResponse,
+  MealInstructionsResponse,
 } from "@/types/mealIdea";
+import {
+  SAVED_MEAL_CHANGED_EVENT,
+  SavedMealMutation,
+} from "@/types/savedMeal";
 
 interface MealIdeasPanelProps {
   userId: number;
@@ -56,6 +70,10 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
   const [mealType, setMealType] = useState<MealIdeaMealType | null>(null);
   const [intent, setIntent] = useState("");
   const [result, setResult] = useState<MealIdeasResponse | null>(null);
+  const [history, setHistory] = useState<MealIdeaGenerationHistoryItem[]>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [controlsExpanded, setControlsExpanded] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const selectedModel = selectedModels[provider];
@@ -93,6 +111,84 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let active = true;
+    void fetchMealIdeaHistory(userId)
+      .then((response) => {
+        if (!active) return;
+        setHistory(response.results);
+        seedDiversityFromHistory(response.results);
+        const latest = response.results[0];
+        if (latest) {
+          restoreGeneration(latest);
+          setControlsExpanded(false);
+        }
+        setHistoryError(null);
+      })
+      .catch((loadError) => {
+        if (!active) return;
+        setHistoryError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Recent meal ideas are unavailable.",
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [userId]);
+
+  function seedDiversityFromHistory(items: MealIdeaGenerationHistoryItem[]) {
+    generatedExposureRef.current = {
+      ideaNames: appendBoundedExposure(
+        [],
+        items.flatMap((item) => item.result.ideas.map((idea) => idea.name)).reverse(),
+        20,
+      ),
+      foodNames: appendBoundedExposure(
+        [],
+        items
+          .flatMap((item) =>
+            item.result.ideas.flatMap((idea) =>
+              idea.ingredients.map((ingredient) => ingredient.display_name),
+            ),
+          )
+          .reverse(),
+        40,
+      ),
+    };
+  }
+
+  function restoreGeneration(item: MealIdeaGenerationHistoryItem) {
+    setSelectedHistoryId(item.id);
+    setResult(item.result);
+    setProvider(item.request.provider);
+    setSelectedModels((current) => ({
+      ...current,
+      [item.request.provider]: item.request.model,
+    }));
+    setSteering(item.request.creative_steering);
+    setMealType(item.request.meal_type);
+    setIntent(item.request.intent ?? "");
+    setError(null);
+  }
+
+  async function refreshHistory() {
+    try {
+      const response = await fetchMealIdeaHistory(userId);
+      setHistory(response.results);
+      setSelectedHistoryId(response.results[0]?.id ?? null);
+      seedDiversityFromHistory(response.results);
+      setHistoryError(null);
+    } catch (loadError) {
+      setHistoryError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Recent meal ideas are unavailable.",
+      );
+    }
+  }
+
   async function handleGenerate(event?: FormEvent) {
     event?.preventDefault();
     if (!selectedModel) {
@@ -128,7 +224,10 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
           40,
         ),
       };
+      setSelectedHistoryId(null);
       setResult(response);
+      setControlsExpanded(false);
+      await refreshHistory();
     } catch (generationError) {
       setError(
         generationError instanceof Error
@@ -142,8 +241,9 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
 
   return (
     <section className="space-y-4 rounded-2xl border border-border-subtle bg-surface-muted/35 p-3 sm:p-4">
-      <div>
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
           <div>
             <h3 className="text-base font-semibold text-text-strong">AI Meal Ideas</h3>
             <p className="mt-0.5 text-xs text-text-muted">
@@ -155,9 +255,30 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
               Generated with {providerLabel(result.provider)} · {result.model}
             </span>
           ) : null}
+          </div>
         </div>
+        {result ? (
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setControlsExpanded((current) => !current)}
+              className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-body"
+            >
+              {controlsExpanded ? "Hide options" : "Change options"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerate()}
+              disabled={isGenerating || !selectedModel}
+              className="rounded-lg bg-action-primary px-3 py-2 text-xs font-semibold text-action-primary-foreground hover:bg-action-primary-hover disabled:opacity-60"
+            >
+              {isGenerating ? "Generating…" : "Generate another"}
+            </button>
+          </div>
+        ) : null}
       </div>
 
+      {controlsExpanded || !result ? (
       <form onSubmit={handleGenerate} className="space-y-4">
         <fieldset>
           <legend className="text-xs font-semibold uppercase tracking-wide text-text-muted">
@@ -279,6 +400,53 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
               : "Generate meal ideas"}
         </button>
       </form>
+      ) : (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 rounded-xl border border-border-subtle bg-surface px-3 py-2.5 text-xs text-text-muted">
+          <span>{providerLabel(provider)} · {selectedModel || result.model}</span>
+          <span>{steeringLabel(steering)}</span>
+          <span>{mealType ? mealTypeLabel(mealType) : "Any meal"}</span>
+          {intent.trim() ? <span className="truncate">“{intent.trim()}”</span> : null}
+        </div>
+      )}
+
+      {history.length > 0 ? (
+        <details className="rounded-xl border border-border-subtle bg-surface px-3 py-2.5">
+          <summary className="cursor-pointer text-xs font-semibold text-text-body">
+            Recent generations ({history.length})
+          </summary>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {history.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                aria-pressed={selectedHistoryId === item.id}
+                onClick={() => {
+                  restoreGeneration(item);
+                  setControlsExpanded(false);
+                }}
+                className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                  selectedHistoryId === item.id
+                    ? "border-border-accent bg-positive-surface text-positive-foreground-strong"
+                    : "border-border bg-surface text-text-body"
+                }`}
+              >
+                <span className="block font-semibold">
+                  {formatGenerationTime(item.created_at)} · {providerLabel(item.result.provider)}
+                </span>
+                <span className="mt-0.5 block truncate opacity-80">
+                  {item.result.ideas.map((idea) => idea.name).join(" · ")}
+                </span>
+              </button>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {historyError ? (
+        <p role="status" className="text-xs text-text-muted">
+          {historyError} New ideas can still be generated.
+        </p>
+      ) : null}
 
       {error ? (
         <div role="alert" className="rounded-xl bg-danger-surface px-3 py-2.5 text-sm text-danger-foreground">
@@ -288,9 +456,21 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
 
       {result ? (
         <div className="space-y-3" aria-live="polite">
+          <AIRunTelemetrySummary
+            telemetry={result.telemetry}
+            className="rounded-xl border border-border-subtle bg-surface px-3 py-2.5"
+          />
           <div className="grid gap-3 md:grid-cols-2">
-            {result.ideas.map((idea) => (
-              <MealIdeaCard key={`${idea.name}:${idea.meal_type}`} idea={idea} />
+            {result.ideas.map((idea, index) => (
+              <MealIdeaCard
+                key={`${selectedHistoryId ?? "new"}:${index}:${idea.name}:${idea.ingredients
+                  .map((ingredient) => `${ingredient.canonical_food_id}:${ingredient.amount_grams}`)
+                  .join("|")}`}
+                idea={idea}
+                userId={userId}
+                provider={result.provider}
+                model={result.model}
+              />
             ))}
           </div>
           {result.rejected_concept_count > 0 ? (
@@ -306,7 +486,99 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
   );
 }
 
-function MealIdeaCard({ idea }: { idea: GroundedMealIdea }) {
+function MealIdeaCard({
+  idea,
+  userId,
+  provider,
+  model,
+}: {
+  idea: GroundedMealIdea;
+  userId: number;
+  provider: MealIdeaProvider;
+  model: string;
+}) {
+  const [instructionResult, setInstructionResult] =
+    useState<MealInstructionsResponse | null>(null);
+  const [isGeneratingInstructions, setIsGeneratingInstructions] = useState(false);
+  const [isConfirmingInstructionReplacement, setIsConfirmingInstructionReplacement] =
+    useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedMealId, setSavedMealId] = useState<number | null>(null);
+  const [savedInstructionKey, setSavedInstructionKey] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerateInstructions() {
+    setIsConfirmingInstructionReplacement(false);
+    setIsGeneratingInstructions(true);
+    setError(null);
+    try {
+      const response = await generateMealInstructions({
+        userId,
+        provider,
+        model,
+        idea,
+      });
+      setInstructionResult(response);
+    } catch (generationError) {
+      setError(
+        generationError instanceof Error
+          ? generationError.message
+          : "Cooking instructions could not be generated.",
+      );
+    } finally {
+      setIsGeneratingInstructions(false);
+    }
+  }
+
+  function requestInstructionGeneration() {
+    if (
+      needsInstructionReplacementConfirmation(instructionResult?.instructions)
+    ) {
+      setIsConfirmingInstructionReplacement(true);
+      return;
+    }
+    void handleGenerateInstructions();
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const payload: SavedMealMutation = {
+        user_id: userId,
+        display_name: idea.name,
+        default_meal_type: idea.meal_type === "dessert" ? "other" : idea.meal_type,
+        cooking_instructions: instructionResult?.instructions ?? [],
+        instruction_telemetry: instructionResult?.telemetry ?? null,
+        source_type: "ai",
+        source_provider: provider,
+        source_model: model,
+        items: idea.ingredients.map((ingredient) => ({
+          food_type: "canonical",
+          canonical_food_id: ingredient.canonical_food_id,
+          grams: ingredient.amount_grams,
+        })),
+      };
+      const response = savedMealId
+        ? await updateSavedMeal(savedMealId, payload)
+        : await createSavedMeal(payload);
+      setSavedMealId(response.saved_meal.id);
+      setSavedInstructionKey(JSON.stringify(instructionResult?.instructions ?? []));
+      window.dispatchEvent(new Event(SAVED_MEAL_CHANGED_EVENT));
+      setMessage(
+        savedMealId
+          ? "Saved recipe updated with these instructions."
+          : "Saved to Saved Recipes with these exact grounded quantities.",
+      );
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Unable to save recipe.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <article className="rounded-xl border border-border-subtle bg-surface p-3">
       <div className="flex items-start justify-between gap-3">
@@ -343,12 +615,116 @@ function MealIdeaCard({ idea }: { idea: GroundedMealIdea }) {
         {Math.round(idea.calories)} cal · {Math.round(idea.protein_g)}P ·{" "}
         {Math.round(idea.carbs_g)}C · {Math.round(idea.fat_g)}F
       </p>
+      {instructionResult ? (
+        <div className="mt-3 space-y-2">
+          <details className="rounded-lg bg-surface-muted/60 p-2.5">
+            <summary className="cursor-pointer text-xs font-semibold text-text-strong">
+              Cooking instructions
+            </summary>
+            <ol className="mt-2 list-decimal space-y-1.5 pl-5 text-sm text-text-body">
+              {instructionResult.instructions.map((step, index) => (
+                <li key={`${index}:${step}`}>{step}</li>
+              ))}
+            </ol>
+          </details>
+          <AIRunTelemetrySummary
+            telemetry={instructionResult.telemetry}
+            className="rounded-lg border border-border-subtle bg-surface-muted/40 px-2.5 py-2"
+          />
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={requestInstructionGeneration}
+          disabled={isGeneratingInstructions}
+          className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-text-body disabled:opacity-50"
+        >
+          {isGeneratingInstructions
+            ? "Generating…"
+            : instructionResult
+              ? "Regenerate instructions"
+              : "Cooking instructions"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void handleSave()}
+          disabled={
+            isSaving ||
+            (savedMealId !== null &&
+              savedInstructionKey ===
+                JSON.stringify(instructionResult?.instructions ?? []))
+          }
+          className="rounded-lg bg-action-primary px-3 py-2 text-xs font-semibold text-action-primary-foreground hover:bg-action-primary-hover disabled:opacity-50"
+        >
+          {isSaving
+            ? "Saving…"
+            : savedMealId === null
+              ? "Save recipe"
+              : savedInstructionKey ===
+                  JSON.stringify(instructionResult?.instructions ?? [])
+                ? "Saved"
+                : "Update saved recipe"}
+        </button>
+      </div>
+      {isConfirmingInstructionReplacement ? (
+        <div
+          role="alert"
+          className="mt-3 rounded-xl border border-warning-foreground/30 bg-warning-surface p-3"
+        >
+          <p className="text-sm font-semibold text-warning-foreground">
+            Replace cooking instructions?
+          </p>
+          <p className="mt-1 text-xs text-warning-foreground">
+            {instructionReplacementConfirmationMessage(providerLabel(provider), model)}
+          </p>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setIsConfirmingInstructionReplacement(false)}
+              className="rounded-lg border border-border px-3 py-2 text-sm font-semibold text-text-body"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleGenerateInstructions()}
+              disabled={isGeneratingInstructions}
+              className="rounded-lg bg-action-primary px-3 py-2 text-sm font-semibold text-action-primary-foreground hover:bg-action-primary-hover disabled:opacity-50"
+            >
+              Regenerate
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {message ? <p role="status" className="mt-2 text-xs text-positive-foreground-strong">{message}</p> : null}
+      {error ? <p role="alert" className="mt-2 text-xs text-danger-foreground">{error}</p> : null}
     </article>
   );
 }
 
 function providerLabel(provider: MealIdeaProvider) {
   return provider === "local" ? "Local" : "OpenAI";
+}
+
+function steeringLabel(steering: MealIdeaSteering) {
+  return STEERING_OPTIONS.find((option) => option.value === steering)?.label ?? steering;
+}
+
+function mealTypeLabel(mealType: MealIdeaMealType) {
+  return MEAL_TYPES.find((option) => option.value === mealType)?.label ?? mealType;
+}
+
+function formatGenerationTime(value: string) {
+  const normalized = value.includes("T") ? value : `${value.replace(" ", "T")}Z`;
+  const parsed = new Date(normalized);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 function optionStillAvailable(

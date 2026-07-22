@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from models.ai_run_models import AIRunTelemetry
+
 MEAL_IDEA_PROVIDERS = ("local", "openai")
 MEAL_IDEA_STEERING_OPTIONS = (
     "sweet",
@@ -84,6 +86,7 @@ class MealIdeasResult:
     ideas: tuple[GroundedMealIdea, ...]
     rejected_concept_count: int = 0
     context_signals: dict[str, Any] = field(default_factory=dict)
+    telemetry: AIRunTelemetry | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -94,4 +97,7 @@ class MealIdeasResult:
             "ideas": [idea.to_public_dict() for idea in self.ideas],
             "rejected_concept_count": self.rejected_concept_count,
             "context_signals": dict(self.context_signals),
+            "telemetry": (
+                self.telemetry.to_public_dict() if self.telemetry is not None else None
+            ),
         }

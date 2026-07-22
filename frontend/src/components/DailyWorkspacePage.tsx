@@ -2,9 +2,8 @@ import Link from "next/link";
 
 import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
-import { LoggedFoodsList } from "@/components/LoggedFoodsList";
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
-import { NutritionMacroCard } from "@/components/NutritionMacroCard";
+import { MealsWorkspaceDeck } from "@/components/MealsWorkspaceDeck";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { TodayCard } from "@/components/TodayCard";
@@ -25,10 +24,11 @@ export async function DailyWorkspacePage({
   workspace,
   searchParams,
 }: {
-  workspace: "food" | "recovery";
+  workspace: "food" | "meals" | "recovery";
   searchParams: SearchParams;
 }) {
   const resolvedSearchParams = await searchParams;
+  const requestedFoodView = firstQueryValue(resolvedSearchParams.view);
   const todayQuery = resolveTodayQuery(resolvedSearchParams);
   const { data, error } = await fetchDailyDriverToday(todayQuery);
   const userId = todayQuery.userId ?? data?.user_id ?? getDefaultUserId();
@@ -64,7 +64,12 @@ export async function DailyWorkspacePage({
       : canonicalLoggedFoodsResult.error || personalLoggedFoodsResult.error
         ? "Some logged foods are unavailable right now."
         : null;
-  const title = workspace === "food" ? "Food" : "Recovery";
+  const title =
+    workspace === "food"
+      ? "Food"
+      : workspace === "meals"
+        ? "Meals"
+        : "Recovery";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
@@ -97,6 +102,8 @@ export async function DailyWorkspacePage({
           </div>
         </section>
 
+        <PrimaryNavigation userId={userId} date={todayQuery.date} />
+
         {error ? (
           <TodayCard title={error.heading} accent="warm">
             <p className="text-sm leading-6 text-text-body">{error.message}</p>
@@ -112,26 +119,23 @@ export async function DailyWorkspacePage({
         ) : null}
 
         {data && workspace === "food" ? (
-          <div className="space-y-3 sm:space-y-4">
-            <NutritionMacroCard
-              nutrition={data.nutrition}
-              userId={userId}
-              targetDate={data.target_date}
-            />
-            <FoodWorkspaceDeck
-              key={`${userId}:${data.target_date}`}
-              userId={userId}
-              targetDate={data.target_date}
-              requestedDate={todayQuery.date}
-            />
-            <LoggedFoodsList
-              key={`logged-foods:${userId}:${data.target_date}`}
-              initialEntries={loggedFoodEntries}
-              initialError={loggedFoodsError}
-              userId={userId}
-              targetDate={data.target_date}
-            />
-          </div>
+          <FoodWorkspaceDeck
+            key={`${userId}:${data.target_date}`}
+            userId={userId}
+            targetDate={data.target_date}
+            requestedDate={todayQuery.date}
+            initialLoggedEntries={loggedFoodEntries}
+            initialLoggedError={loggedFoodsError}
+            initialView={foodView(requestedFoodView)}
+          />
+        ) : null}
+
+        {data && workspace === "meals" ? (
+          <MealsWorkspaceDeck
+            key={`${userId}:${data.target_date}`}
+            userId={userId}
+            targetDate={data.target_date}
+          />
         ) : null}
 
         {data && workspace === "recovery" ? (
@@ -151,7 +155,16 @@ export async function DailyWorkspacePage({
           </div>
         ) : null}
       </div>
-      <MobilePrimaryNav userId={userId} date={todayQuery.date} />
     </main>
   );
+}
+
+function firstQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function foodView(value: string | undefined) {
+  return value === "logged" || value === "pantry" || value === "library"
+    ? value
+    : "log";
 }

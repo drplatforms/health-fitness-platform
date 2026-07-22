@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WeeklyTrainingPlanner } from "@/components/WeeklyTrainingPlanner";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
@@ -48,9 +48,10 @@ export default async function WeeklyWorkoutPage({
           </div>
         </section>
 
+        <PrimaryNavigation userId={userId} />
+
         <WeeklyTrainingPlanner userId={userId} initialWeekStartDate={initialWeekStartDate} />
       </div>
-      <MobilePrimaryNav userId={userId} />
     </main>
   );
 }

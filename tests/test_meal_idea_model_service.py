@@ -59,5 +59,11 @@ def test_local_model_discovery_failure_preserves_configured_default():
 
 def test_openai_model_validation_rejects_names_outside_curated_boundary():
     assert validate_selected_meal_idea_model("openai", "gpt-5.4-mini") == "gpt-5.4-mini"
+    assert (
+        validate_selected_meal_idea_model("openai", "gpt-5.4-mini-2026-03-17")
+        == "gpt-5.4-mini"
+    )
     with pytest.raises(ValueError, match="not supported"):
         validate_selected_meal_idea_model("openai", "gpt-4.1-mini")
+    with pytest.raises(ValueError, match="not supported"):
+        validate_selected_meal_idea_model("openai", "future-model-2026-03-17")

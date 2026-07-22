@@ -418,6 +418,8 @@ def test_openai_context_keeps_available_and_recent_exposure_soft(
     assert prompt_context["recent_generated_idea_names_soft_repetition_signal"] == [
         "Recent Bowl"
     ]
+    assert "remaining_nutrition_context" not in prompt_context
+    assert "not Meet My Macros" in captured_prompt
     assert "do not maximize overlap, do not build primarily from it" in captured_prompt
     assert result.ideas[0].available_ingredient_count == 0
     assert all(not item.is_available for item in result.ideas[0].ingredients)
@@ -482,6 +484,191 @@ def test_grounded_macros_come_from_catalog_values(meal_idea_db) -> None:
     assert meal.protein_g == 49
     assert meal.carbs_g == 31
     assert meal.fat_g == 13
+
+
+def test_normal_meal_ideas_do_not_load_or_prompt_with_remaining_macros(
+    meal_idea_db,
+    monkeypatch,
+) -> None:
+    protein = _food(
+        "Independent Portion Protein", calories=200, protein=30, carbs=0, fat=8
+    )
+    side = _food("Independent Portion Side", calories=130, protein=3, carbs=28, fat=1)
+    raw = _raw_ideas(
+        _idea(
+            "Independent Portion Plate",
+            (protein.display_name, 100),
+            (side.display_name, 100),
+        )
+    )
+    captured_prompt = ""
+
+    def forbidden_remaining_context(*_args, **_kwargs):
+        raise AssertionError("Normal Meal Ideas must not load macro headroom.")
+
+    def generate(model, prompt, timeout, schema):
+        nonlocal captured_prompt
+        del model, timeout, schema
+        captured_prompt = prompt
+        return raw
+
+    monkeypatch.setattr(
+        meal_idea_service,
+        "_remaining_nutrition_context",
+        forbidden_remaining_context,
+    )
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request("local"),
+        local_generate=generate,
+    )
+
+    prompt_context = json.loads(captured_prompt.split("CONTEXT:\n", 1)[1])
+    assert "nutrition" not in prompt_context
+    assert "remaining_nutrition_context" not in prompt_context
+    assert "not macro-target closure" in captured_prompt
+    assert result.context_signals["nutrition_context_available"] is False
+    assert result.ideas[0].ingredients[0].amount_grams == 100
+
+
+def test_microscopic_meal_portions_are_rejected_after_catalog_grounding(
+    meal_idea_db,
+) -> None:
+    protein = _food("Plausibility Protein", calories=200, protein=30, carbs=0, fat=8)
+    side = _food("Plausibility Side", calories=130, protein=3, carbs=28, fat=1)
+    raw = _raw_ideas(
+        _idea("Microscopic Plate", (protein.display_name, 4), (side.display_name, 6)),
+        _idea("Normal Plate", (protein.display_name, 120), (side.display_name, 150)),
+    )
+
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request(),
+        local_generate=lambda *_: raw,
+    )
+
+    assert [idea.name for idea in result.ideas] == [
+        "Normal Plate",
+        "Normal Plate Variation 3",
+    ]
+    assert result.rejected_concept_count == 1
+
+
+def test_microscopic_named_core_ingredients_are_rejected_with_plausible_totals(
+    meal_idea_db,
+) -> None:
+    chicken = _food("Chicken Breast", calories=165, protein=31, carbs=0, fat=3.6)
+    pasta = _food("Cooked Pasta", calories=150, protein=5, carbs=30, fat=1)
+    sauce = _food("Creamy Tomato Sauce", calories=200, protein=3, carbs=10, fat=16)
+    raw = _raw_ideas(
+        _idea(
+            "Creamy Chicken Pasta",
+            (chicken.display_name, 5),
+            (pasta.display_name, 6),
+            (sauce.display_name, 250),
+        ),
+        _idea(
+            "Normal Chicken Pasta",
+            (chicken.display_name, 120),
+            (pasta.display_name, 180),
+            (sauce.display_name, 40),
+        ),
+    )
+
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request(),
+        local_generate=lambda *_: raw,
+    )
+
+    assert [idea.name for idea in result.ideas] == [
+        "Normal Chicken Pasta",
+        "Normal Chicken Pasta Variation 3",
+    ]
+    assert result.rejected_concept_count == 1
+
+
+def test_small_seasoning_amounts_remain_valid_with_normal_core_portions(
+    meal_idea_db,
+) -> None:
+    chicken = _food("Seasoned Chicken", calories=165, protein=31, carbs=0, fat=3.6)
+    pasta = _food("Seasoned Pasta", calories=150, protein=5, carbs=30, fat=1)
+    pepper = _food("Black Pepper", calories=250, protein=10, carbs=60, fat=3)
+    raw = _raw_ideas(
+        _idea(
+            "Peppered Chicken Pasta",
+            (chicken.display_name, 120),
+            (pasta.display_name, 180),
+            (pepper.display_name, 1),
+        )
+    )
+
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request(),
+        local_generate=lambda *_: raw,
+    )
+
+    assert result.ideas[0].ingredients[-1].display_name == pepper.display_name
+    assert result.ideas[0].ingredients[-1].amount_grams == 1
+
+
+def test_dense_topping_uses_density_adjusted_floor_instead_of_core_floor(
+    meal_idea_db,
+) -> None:
+    chicken = _food("Salad Chicken", calories=165, protein=31, carbs=0, fat=3.6)
+    vegetables = _food(
+        "Mixed Salad Vegetables", calories=50, protein=3, carbs=10, fat=0.5
+    )
+    croutons = _food("Whole Grain Croutons", calories=400, protein=10, carbs=65, fat=10)
+    raw = _raw_ideas(
+        _idea(
+            "Chicken Salad with Crunch",
+            (chicken.display_name, 120),
+            (vegetables.display_name, 200),
+            (croutons.display_name, 12),
+        )
+    )
+
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request(),
+        local_generate=lambda *_: raw,
+    )
+
+    assert result.ideas[0].ingredients[-1].display_name == croutons.display_name
+    assert result.ideas[0].ingredients[-1].amount_grams == 12
+
+
+def test_excessive_single_meal_portions_are_rejected_with_meal_type_bounds(
+    meal_idea_db,
+) -> None:
+    protein = _food("Bounded Protein", calories=220, protein=32, carbs=0, fat=9)
+    side = _food("Bounded Side", calories=150, protein=4, carbs=30, fat=1)
+    raw = _raw_ideas(
+        _idea(
+            "Excessive Dinner", (protein.display_name, 700), (side.display_name, 700)
+        ),
+        _idea("Bounded Dinner", (protein.display_name, 140), (side.display_name, 180)),
+    )
+
+    result = meal_idea_service.generate_meal_ideas(
+        user_id=1,
+        target_date="2026-07-21",
+        request=_request(),
+        local_generate=lambda *_: raw,
+    )
+
+    assert [idea.name for idea in result.ideas] == [
+        "Bounded Dinner",
+        "Bounded Dinner Variation 3",
+    ]
+    assert result.rejected_concept_count == 1
 
 
 def test_local_normalization_keeps_valid_concepts_when_one_is_malformed(

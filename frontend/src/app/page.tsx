@@ -1,9 +1,8 @@
 import Link from "next/link";
 
-import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
@@ -355,6 +354,11 @@ export default async function Home({
           </div>
         </section>
 
+        <PrimaryNavigation
+          userId={currentUserId}
+          date={todayQuery.date}
+        />
+
         {error ? (
           <TodayCard title={error.heading} accent="warm">
             <div className="space-y-3">
@@ -384,17 +388,6 @@ export default async function Home({
                 userId={currentUserId}
                 targetDate={data.target_date}
               />
-              <div
-                id="food-workspace"
-                className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
-              >
-                <FoodWorkspaceDeck
-                  key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
-                  userId={todayQuery.userId ?? data.user_id}
-                  targetDate={data.target_date}
-                  requestedDate={todayQuery.date}
-                />
-              </div>
               <div className="grid gap-3 xl:grid-cols-2">
                 <LoggedFoodsList
                   key={`logged-foods:${todayQuery.userId ?? data.user_id}:${data.target_date}`}
@@ -498,10 +491,6 @@ export default async function Home({
           </div>
         ) : null}
       </div>
-      <MobilePrimaryNav
-        userId={currentUserId}
-        date={todayQuery.date}
-      />
     </main>
   );
 }

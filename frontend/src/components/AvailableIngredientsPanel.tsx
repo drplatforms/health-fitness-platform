@@ -20,6 +20,7 @@ import type {
   AvailableIngredientStarterItem,
   CanonicalFoodSearchResult,
 } from "@/types/canonicalFood";
+import { FOOD_LIBRARY_CHANGED_EVENT } from "@/types/canonicalFood";
 
 interface AvailableIngredientsPanelProps {
   userId: number;
@@ -89,7 +90,7 @@ export function AvailableIngredientsPanel({
           setErrorMessage(
             error instanceof Error
               ? error.message
-              : "Unable to load available ingredients.",
+              : "Unable to load your pantry.",
           );
         }
       })
@@ -101,6 +102,32 @@ export function AvailableIngredientsPanel({
 
     return () => {
       isActive = false;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    let active = true;
+    const handleLibraryChanged = () => {
+      void Promise.all([
+        fetchAvailableIngredients(userId),
+        fetchAvailableIngredientStarterGroups(userId),
+      ]).then(([available, starters]) => {
+        if (!active) return;
+        setIngredients(sortIngredients(available.results));
+        setStarterGroups(starters.groups);
+        setActiveStarterGroupKey((current) =>
+          starters.groups.some((group) => group.key === current)
+            ? current
+            : (starters.groups[0]?.key ?? ""),
+        );
+      }).catch(() => {
+        // Keep the last usable Pantry state when a background refresh fails.
+      });
+    };
+    window.addEventListener(FOOD_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
+    return () => {
+      active = false;
+      window.removeEventListener(FOOD_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
     };
   }, [userId]);
 
@@ -230,7 +257,7 @@ export function AvailableIngredientsPanel({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Unable to update available ingredients.",
+          : "Unable to update your pantry.",
       );
     } finally {
       setUpdatingFoodId(null);
@@ -311,15 +338,14 @@ export function AvailableIngredientsPanel({
       <header>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-lg font-bold text-text-strong">
-            Available ingredients
+            Pantry
           </h2>
           <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary">
             {ingredients.length} selected
           </span>
         </div>
         <p className="mt-1 text-sm leading-5 text-text-body">
-          Foods you generally have on hand. They can provide convenience context
-          for future meal ideas; the full food catalog will remain available.
+          Foods you generally keep on hand.
         </p>
       </header>
 
@@ -475,7 +501,7 @@ export function AvailableIngredientsPanel({
             }
           }}
           placeholder="Search rice, tomatoes, yogurt..."
-          aria-label="Search foods to add as available ingredients"
+          aria-label="Search foods to add to your pantry"
           className="w-full rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm text-text-primary outline-none transition focus:border-focus"
         />
 
@@ -511,7 +537,7 @@ export function AvailableIngredientsPanel({
                   <button
                     type="button"
                     disabled={isUpdating}
-                    aria-label={`${isAvailable ? "Remove" : "Add"} ${food.display_name} ${isAvailable ? "from" : "to"} available ingredients`}
+                    aria-label={`${isAvailable ? "Remove" : "Add"} ${food.display_name} ${isAvailable ? "from" : "to"} your pantry`}
                     onClick={() => void toggleIngredient(food, !isAvailable)}
                     className={`min-h-10 min-w-20 shrink-0 rounded-xl border px-3 py-2 text-sm font-semibold transition disabled:opacity-50 ${
                       isAvailable
@@ -541,7 +567,7 @@ export function AvailableIngredientsPanel({
               id={`${id}-selected-heading`}
               className="text-sm font-semibold text-text-primary"
             >
-              Selected ingredients
+              Pantry foods
             </h3>
             <span className="rounded-full bg-surface-subtle px-2 py-0.5 text-xs font-semibold text-text-secondary">
               {ingredients.length}
@@ -570,19 +596,19 @@ export function AvailableIngredientsPanel({
               value={selectedFilter}
               onChange={(event) => setSelectedFilter(event.target.value)}
               placeholder="Filter selected..."
-              aria-label="Filter selected available ingredients"
+              aria-label="Filter pantry foods"
               className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none focus:border-focus sm:w-56"
             />
             ) : null}
 
             {loadedUserId !== userId ? (
               <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body" role="status">
-                Loading available ingredients...
+                Loading pantry...
               </p>
             ) : ingredients.length === 0 ? (
               <p className="rounded-2xl border border-dashed border-border px-4 py-5 text-center text-sm text-text-secondary">
-                No ingredients selected yet. Search the catalog to add foods you
-                generally keep available.
+                Your pantry is empty. Search the catalog to add foods you
+                generally keep on hand.
               </p>
             ) : visibleIngredients.length === 0 ? (
               <p className="rounded-2xl bg-surface-subtle px-4 py-3 text-sm text-text-body">
@@ -604,7 +630,7 @@ export function AvailableIngredientsPanel({
                       <button
                         type="button"
                         disabled={isUpdating}
-                        aria-label={`Remove ${ingredient.display_name} from available ingredients`}
+                        aria-label={`Remove ${ingredient.display_name} from your pantry`}
                         title={`Remove ${ingredient.display_name}`}
                         onClick={() => void toggleIngredient(ingredient, false)}
                         className="flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-text-muted transition hover:bg-surface hover:text-danger-foreground disabled:opacity-50"

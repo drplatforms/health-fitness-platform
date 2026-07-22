@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
+from models.ai_run_models import AIRunTelemetry
+
 SavedMealFoodType = Literal["canonical", "personal"]
 
 
@@ -22,6 +24,11 @@ class SavedMealMutationInput:
     display_name: str
     default_meal_type: str | None = None
     items: tuple[SavedMealItemInput, ...] = field(default_factory=tuple)
+    cooking_instructions: tuple[str, ...] | None = None
+    instruction_telemetry: AIRunTelemetry | None = None
+    source_type: str | None = None
+    source_provider: str | None = None
+    source_model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -58,6 +65,11 @@ class SavedMeal:
     active: bool
     created_at: str
     updated_at: str
+    cooking_instructions: tuple[str, ...]
+    instruction_telemetry: AIRunTelemetry | None
+    source_type: str
+    source_provider: str | None
+    source_model: str | None
     items: tuple[SavedMealItem, ...]
     calories: float | None
     protein_g: float | None
@@ -79,6 +91,15 @@ class SavedMeal:
             "active": self.active,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
+            "cooking_instructions": list(self.cooking_instructions),
+            "instruction_telemetry": (
+                self.instruction_telemetry.to_public_dict()
+                if self.instruction_telemetry is not None
+                else None
+            ),
+            "source_type": self.source_type,
+            "source_provider": self.source_provider,
+            "source_model": self.source_model,
             "item_count": self.item_count,
             "items": [item.to_public_dict() for item in self.items],
             "current_macros": {
