@@ -50,6 +50,13 @@ def test_longitudinal_insight_smoke_dates_are_relative_to_seed_end_date():
         "training_progression": date(2026, 5, 4),
         "training_rising_effort": FIXED_END_DATE,
         "sparse_data_control": FIXED_END_DATE,
+        "strength_progression_phase": date(2025, 10, 17),
+        "strength_plateau_phase": date(2025, 12, 31),
+        "strength_deload_phase": date(2026, 3, 6),
+        "fat_loss_phase": date(2025, 12, 6),
+        "fat_loss_maintenance": FIXED_END_DATE,
+        "variable_schedule_disruption": date(2025, 9, 17),
+        "variable_schedule_return": FIXED_END_DATE,
     }
 
 
