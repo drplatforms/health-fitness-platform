@@ -1,0 +1,71 @@
+import { AIRunTelemetry } from "@/types/aiRunTelemetry";
+
+export type CoachProvider = "local" | "openai";
+export type CoachConfidence = "Limited" | "Low" | "Moderate" | "High";
+
+export interface CoachEvidenceItem {
+  reference_id: string;
+  domain: string;
+  label: string;
+  fact: string;
+  confidence: CoachConfidence;
+  observed_at: string | null;
+}
+
+export interface CoachEvidencePack {
+  pack_version: string;
+  as_of_date: string;
+  question_topics: string[];
+  matched_exercise_name: string | null;
+  evidence: CoachEvidenceItem[];
+  limitations: string[];
+  confidence: CoachConfidence;
+}
+
+export interface CoachSuggestedAction {
+  action_type: "progression_decision";
+  decision: "hold" | "increase_load" | "decrease_load" | "build_baseline";
+  evidence_reference: string;
+}
+
+export interface CoachAnswerResponse {
+  success: true;
+  user_id: number;
+  answer: string;
+  supporting_evidence_references: string[];
+  supporting_evidence: CoachEvidenceItem[];
+  confidence: CoachConfidence;
+  uncertainty: string | null;
+  suggested_action: CoachSuggestedAction | null;
+  evidence_pack: CoachEvidencePack;
+  provider_run: {
+    configured_provider: CoachProvider;
+    selected_provider: CoachProvider;
+    configured_model: string;
+    selected_model: string;
+    actual_model: string;
+  };
+  telemetry: AIRunTelemetry;
+}
+
+export interface CoachModelOption {
+  id: string;
+  label: string;
+}
+
+export interface CoachProviderModelOptions {
+  models: CoachModelOption[];
+  default_model: string;
+  source: "ollama" | "configured_fallback" | "curated";
+  message: string | null;
+}
+
+export interface CoachModelOptionsResponse {
+  configured_provider: CoachProvider;
+  providers: Record<CoachProvider, CoachProviderModelOptions>;
+}
+
+export interface CoachConversationContextTurn {
+  role: "user" | "assistant";
+  content: string;
+}

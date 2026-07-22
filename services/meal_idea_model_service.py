@@ -32,14 +32,38 @@ def build_meal_idea_model_options(
     """Return provider-owned model choices without making the UI own model policy."""
 
     env = os.environ if environ is None else environ
-    configured_local = (
-        env.get(MEAL_IDEAS_LOCAL_MODEL_ENV, DEFAULT_LOCAL_MODEL).strip()
-        or DEFAULT_LOCAL_MODEL
+    return build_ai_text_model_options(
+        configured_local_model=(
+            env.get(MEAL_IDEAS_LOCAL_MODEL_ENV, DEFAULT_LOCAL_MODEL).strip()
+            or DEFAULT_LOCAL_MODEL
+        ),
+        configured_openai_model=(
+            env.get(MEAL_IDEAS_OPENAI_MODEL_ENV, DEFAULT_OPENAI_MODEL).strip()
+            or DEFAULT_OPENAI_MODEL
+        ),
+        environ=env,
+        ollama_tags_fetch=ollama_tags_fetch,
+        unavailable_message=(
+            "Ollama model discovery is unavailable. Using the configured Local model."
+        ),
     )
-    configured_openai = (
-        env.get(MEAL_IDEAS_OPENAI_MODEL_ENV, DEFAULT_OPENAI_MODEL).strip()
-        or DEFAULT_OPENAI_MODEL
-    )
+
+
+def build_ai_text_model_options(
+    *,
+    configured_local_model: str,
+    configured_openai_model: str,
+    environ: Mapping[str, str] | None = None,
+    ollama_tags_fetch: OllamaTagsFetch | None = None,
+    unavailable_message: str = (
+        "Ollama model discovery is unavailable. Using the configured Local model."
+    ),
+) -> dict[str, Any]:
+    """Shared OpenAI/Ollama model discovery for user-selectable AI features."""
+
+    env = os.environ if environ is None else environ
+    configured_local = configured_local_model.strip() or DEFAULT_LOCAL_MODEL
+    configured_openai = configured_openai_model.strip() or DEFAULT_OPENAI_MODEL
     openai_default = (
         canonical_openai_model_family(configured_openai) or DEFAULT_OPENAI_MODEL
     )
@@ -68,9 +92,7 @@ def build_meal_idea_model_options(
         local_models = [configured_local]
         local_default = configured_local
         local_source = "configured_fallback"
-        local_message = (
-            "Ollama model discovery is unavailable. Using the configured Local model."
-        )
+        local_message = unavailable_message
 
     return {
         "providers": {
@@ -91,6 +113,21 @@ def build_meal_idea_model_options(
 
 
 def validate_selected_meal_idea_model(provider: str, model: str) -> str:
+    return validate_selected_ai_text_model(
+        provider,
+        model,
+        unsupported_openai_message=(
+            "The selected OpenAI model is not supported for Meal Ideas."
+        ),
+    )
+
+
+def validate_selected_ai_text_model(
+    provider: str,
+    model: str,
+    *,
+    unsupported_openai_message: str = "The selected OpenAI model is not supported.",
+) -> str:
     if not isinstance(model, str):
         raise ValueError("model must be text.")
     selected = model.strip()
@@ -99,9 +136,7 @@ def validate_selected_meal_idea_model(provider: str, model: str) -> str:
     if provider == "openai":
         canonical_model = canonical_openai_model_family(selected)
         if canonical_model not in OPENAI_MEAL_IDEA_MODELS:
-            raise ValueError(
-                "The selected OpenAI model is not supported for Meal Ideas."
-            )
+            raise ValueError(unsupported_openai_message)
         return canonical_model
     return selected
 

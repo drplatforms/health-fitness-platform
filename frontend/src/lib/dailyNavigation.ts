@@ -2,6 +2,7 @@ export type DailyWorkspaceDestination =
   | "today"
   | "food"
   | "meals"
+  | "coach"
   | "workout"
   | "recovery";
 
@@ -9,6 +10,7 @@ const dailyWorkspacePaths: Record<DailyWorkspaceDestination, string> = {
   today: "/",
   food: "/food",
   meals: "/meals",
+  coach: "/coach",
   workout: "/today/workout",
   recovery: "/recovery",
 };
@@ -21,6 +23,9 @@ export function activeDailyWorkspace(
   }
   if (pathname === "/meals" || pathname.startsWith("/meals/")) {
     return "meals";
+  }
+  if (pathname === "/coach" || pathname.startsWith("/coach/")) {
+    return "coach";
   }
   if (pathname === "/today/workout" || pathname.startsWith("/workout/")) {
     return "workout";

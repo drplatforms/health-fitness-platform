@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { CoachWorkspace } from "@/components/CoachWorkspace";
 import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
 import { LongitudinalInsightsPanel } from "@/components/LongitudinalInsightsPanel";
@@ -26,7 +27,7 @@ export async function DailyWorkspacePage({
   workspace,
   searchParams,
 }: {
-  workspace: "food" | "meals" | "recovery";
+  workspace: "coach" | "food" | "meals" | "recovery";
   searchParams: SearchParams;
 }) {
   const resolvedSearchParams = await searchParams;
@@ -71,11 +72,13 @@ export async function DailyWorkspacePage({
       ? await fetchLongitudinalInsightsFromBackend(userId, data.target_date)
       : { data: null, error: null };
   const title =
-    workspace === "food"
-      ? "Food"
-      : workspace === "meals"
-        ? "Meals"
-        : "Recovery";
+    workspace === "coach"
+      ? "Coach"
+      : workspace === "food"
+        ? "Food"
+        : workspace === "meals"
+          ? "Meals"
+          : "Recovery";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
@@ -110,13 +113,13 @@ export async function DailyWorkspacePage({
 
         <PrimaryNavigation userId={userId} date={todayQuery.date} />
 
-        {error ? (
+        {workspace !== "coach" && error ? (
           <TodayCard title={error.heading} accent="warm">
             <p className="text-sm leading-6 text-text-body">{error.message}</p>
           </TodayCard>
         ) : null}
 
-        {!error && !data ? (
+        {workspace !== "coach" && !error && !data ? (
           <TodayCard title={`${title} is unavailable`} accent="warm">
             <p className="text-sm leading-6 text-text-body">
               The backend did not return a usable daily response yet.
@@ -133,6 +136,13 @@ export async function DailyWorkspacePage({
             initialLoggedEntries={loggedFoodEntries}
             initialLoggedError={loggedFoodsError}
             initialView={foodView(requestedFoodView)}
+          />
+        ) : null}
+
+        {workspace === "coach" ? (
+          <CoachWorkspace
+            key={`${userId}:${data?.target_date ?? todayQuery.date ?? "live"}`}
+            userId={userId}
           />
         ) : null}
 
