@@ -14,6 +14,7 @@ from models.coach_models import (
     GroundedCoachAnswer,
 )
 from models.exercise_knowledge_models import ExerciseKnowledgeContext
+from models.recovery_knowledge_models import RecoveryKnowledgeContext
 from services.ai_run_telemetry_service import normalize_ai_run_telemetry
 from services.coach_evidence_service import (
     bound_coach_conversation_context,
@@ -30,6 +31,9 @@ from services.exercise_knowledge_retrieval_service import (
 from services.meal_idea_service import (
     _call_local_provider,
     _call_openai_provider,
+)
+from services.recovery_knowledge_retrieval_service import (
+    retrieve_recovery_knowledge,
 )
 
 COACH_LOCAL_TIMEOUT_ENV = "COACH_LOCAL_TIMEOUT_SECONDS"
@@ -133,6 +137,7 @@ def ask_grounded_coach(
     openai_generate: CoachProviderGenerate | None = None,
     evidence_pack: CoachEvidencePack | None = None,
     knowledge_context: ExerciseKnowledgeContext | None = None,
+    recovery_knowledge_context: RecoveryKnowledgeContext | None = None,
 ) -> GroundedCoachAnswer:
     normalized_question = _validate_question(question)
     bounded_conversation = bound_coach_conversation_context(conversation_context)
@@ -148,16 +153,26 @@ def ask_grounded_coach(
         question=normalized_question,
         conversation_context=bounded_conversation,
     )
+    retrieved_recovery_knowledge = (
+        recovery_knowledge_context or retrieve_recovery_knowledge(normalized_question)
+    )
+    suppress_exercise_knowledge = bool(
+        retrieved_recovery_knowledge.passages
+        and pack.matched_exercise_name is None
+        and "training" not in pack.question_topics
+    )
     retrieved_knowledge = knowledge_context or retrieve_exercise_knowledge(
         normalized_question,
         matched_exercise_name=pack.matched_exercise_name,
         exercise_context=pack.matched_exercise_context,
+        max_passages=0 if suppress_exercise_knowledge else 4,
     )
     prompt = build_grounded_coach_prompt(
         question=normalized_question,
         conversation_context=bounded_conversation,
         evidence_pack=pack,
         knowledge_context=retrieved_knowledge,
+        recovery_knowledge_context=retrieved_recovery_knowledge,
     )
     timeout_seconds, generate = _provider_runtime(
         selected_provider,
@@ -192,6 +207,7 @@ def ask_grounded_coach(
         raw_output,
         evidence_pack=pack,
         knowledge_context=retrieved_knowledge,
+        recovery_knowledge_context=retrieved_recovery_knowledge,
     )
     configured_provider_value = configured_coach_provider(environ=env)
     return GroundedCoachAnswer(
@@ -203,6 +219,7 @@ def ask_grounded_coach(
         suggested_action=parsed["suggested_action"],
         evidence_pack=pack,
         knowledge_context=retrieved_knowledge,
+        recovery_knowledge_context=retrieved_recovery_knowledge,
         configured_provider=configured_provider_value,  # type: ignore[arg-type]
         selected_provider=selected_provider,  # type: ignore[arg-type]
         configured_model=configured_coach_model(
@@ -220,11 +237,12 @@ def build_grounded_coach_prompt(
     conversation_context: Sequence[CoachConversationTurn],
     evidence_pack: CoachEvidencePack,
     knowledge_context: ExerciseKnowledgeContext,
+    recovery_knowledge_context: RecoveryKnowledgeContext,
 ) -> str:
     conversation_payload = [turn.to_dict() for turn in conversation_context]
     return (
         "You are the conversational Coach inside a personal health and fitness application.\n"
-        "Reason naturally across the bounded personal evidence and curated exercise knowledge supplied for this question.\n\n"
+        "Reason naturally across the bounded personal evidence and curated exercise and recovery knowledge supplied for this question.\n\n"
         "AUTHORITY MODEL:\n"
         "- EVIDENCE contains the only personal facts, observations, limitations, and constraints you may use.\n"
         "- validated_personal_fact entries are saved application facts.\n"
@@ -233,12 +251,14 @@ def build_grounded_coach_prompt(
         "- EVIDENCE.limitations are authoritative descriptions of data gaps.\n"
         "- EXERCISE_KNOWLEDGE contains general repository-curated domain context. It is not personal evidence, does not establish what happened to this user, and cannot override an application fact, observation, limitation, progression decision, or structured constraint.\n"
         "- Use EXERCISE_KNOWLEDGE to explain mechanics, cues, comparisons, common mistakes, conservative discomfort boundaries, or substitution principles when relevant.\n"
+        "- RECOVERY_KNOWLEDGE contains bounded general recovery education. It is separate from personal recovery evidence, cannot establish personal causation, cannot change application-derived confidence, and cannot override deterministic recovery or training conclusions.\n"
+        "- Use RECOVERY_KNOWLEDGE only for relevant general explanation; preserve the difference between an association in the user's records and a cause.\n"
         "- RECENT_CONVERSATION is for subject and dialogue continuity only. It is not factual evidence, and prior assistant messages are never authoritative.\n\n"
         "SYNTHESIS RULES:\n"
         "- Answer the current question directly, conversationally, and concisely.\n"
         "- You may paraphrase, compare, synthesize, and make cautious evidence-based observations.\n"
         "- Do not invent personal facts, unsupported causes, diagnoses, injuries, symptoms, or changes to application state.\n"
-        "- Clearly distinguish what the user's records show from general exercise context. Do not present a general mechanism as the cause of a personal symptom or trend.\n"
+        "- Clearly distinguish what the user's records show from general exercise or recovery context. Do not present a general mechanism as the cause of a personal symptom or trend.\n"
         "- Preserve uncertainty when the evidence does not establish a cause or conclusion.\n"
         "- Do not diagnose or prescribe medical treatment. Recommend appropriate professional care when the supplied evidence makes that caution relevant.\n"
         "- Do not claim that you changed a plan or log.\n"
@@ -247,7 +267,7 @@ def build_grounded_coach_prompt(
         "- Return one raw JSON object matching the required schema, with no markdown or preface.\n"
         "- answer is your natural-language response.\n"
         "- evidence_references contains every reference_id materially used, and only IDs present in EVIDENCE. Use an empty array when no evidence was used.\n"
-        "- knowledge_references contains every reference_id materially used, and only IDs present in EXERCISE_KNOWLEDGE. Use an empty array when no knowledge passage was used.\n"
+        "- knowledge_references contains every reference_id materially used, and only IDs present in EXERCISE_KNOWLEDGE or RECOVERY_KNOWLEDGE. Use an empty array when no knowledge passage was used.\n"
         "- uncertainty briefly names a material limitation when one matters; otherwise use null.\n"
         "- suggested_action is optional and does not mutate application state. Use null unless you are suggesting a progression decision.\n"
         "- When suggesting a progression decision, copy the decision from authoritative_value and the reference_id from the relevant authoritative_constraint. The explanation in answer should remain natural language and consistent with it.\n"
@@ -255,7 +275,8 @@ def build_grounded_coach_prompt(
         f"RECENT_CONVERSATION={json.dumps(conversation_payload, separators=(',', ':'))}\n"
         f"CURRENT_QUESTION={json.dumps(question)}\n"
         f"EVIDENCE={json.dumps(evidence_pack.to_prompt_dict(), separators=(',', ':'), default=str)}\n"
-        f"EXERCISE_KNOWLEDGE={json.dumps(knowledge_context.to_prompt_dict(), separators=(',', ':'), default=str)}"
+        f"EXERCISE_KNOWLEDGE={json.dumps(knowledge_context.to_prompt_dict(), separators=(',', ':'), default=str)}\n"
+        f"RECOVERY_KNOWLEDGE={json.dumps(recovery_knowledge_context.to_prompt_dict(), separators=(',', ':'), default=str)}"
     )
 
 
@@ -353,6 +374,7 @@ def _parse_and_validate_provider_answer(
     *,
     evidence_pack: CoachEvidencePack,
     knowledge_context: ExerciseKnowledgeContext,
+    recovery_knowledge_context: RecoveryKnowledgeContext,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(raw_output)
@@ -403,6 +425,9 @@ def _parse_and_validate_provider_answer(
     known_knowledge_references = {
         passage.reference_id for passage in knowledge_context.passages
     }
+    known_knowledge_references.update(
+        passage.reference_id for passage in recovery_knowledge_context.passages
+    )
     if not set(knowledge_references).issubset(known_knowledge_references):
         raise _rejected_output("knowledge_reference_mismatch")
     if uncertainty is not None and not isinstance(uncertainty, str):
