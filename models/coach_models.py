@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
+from datetime import date
 from typing import Any, Literal
 
 from models.ai_run_models import AIRunTelemetry
@@ -16,6 +17,16 @@ CoachProgressionDecision = Literal[
     "decrease_load",
     "build_baseline",
 ]
+CoachEvidenceComparisonMode = Literal[
+    "none",
+    "adjacent_periods",
+    "earlier_vs_recent",
+    "best_period",
+    "change_points",
+    "recurring_patterns",
+    "event_response",
+]
+CoachEvidenceHistoricalDepth = Literal["baseline", "window", "extended"]
 
 _PROMPT_DOMAIN_ORDER = (
     "profile",
@@ -47,6 +58,136 @@ class CoachConversationTurn:
 
 
 @dataclass(frozen=True)
+class CoachEvidenceWindow:
+    label: str
+    start_date: str
+    end_date: str
+    role: str
+    period_kind: str = "analysis_window"
+    expected_days: int | None = None
+    is_partial_period: bool = False
+
+    @property
+    def days(self) -> int:
+        return (
+            date.fromisoformat(self.end_date) - date.fromisoformat(self.start_date)
+        ).days + 1
+
+    def to_dict(self) -> dict[str, Any]:
+        expected_days = self.expected_days or self.days
+        return {
+            **asdict(self),
+            "days": self.days,
+            "days_covered": self.days,
+            "expected_days": expected_days,
+            "coverage_rate": round(self.days / expected_days, 3),
+        }
+
+
+@dataclass(frozen=True)
+class CoachEvidencePlanLimitation:
+    code: str
+    message: str
+    domain: str | None = None
+    requested_start_date: str | None = None
+    requested_end_date: str | None = None
+    available_start_date: str | None = None
+    available_end_date: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {key: value for key, value in asdict(self).items() if value is not None}
+
+
+@dataclass(frozen=True)
+class CoachEvidencePlan:
+    plan_version: str
+    requested_domains: tuple[str, ...]
+    subject: str | None
+    horizon_kind: str
+    requested_start_date: str | None
+    requested_end_date: str | None
+    retrieval_start_date: str | None
+    retrieval_end_date: str | None
+    comparison_mode: CoachEvidenceComparisonMode
+    historical_depth: CoachEvidenceHistoricalDepth
+    windows: tuple[CoachEvidenceWindow, ...]
+    presentation_windows: tuple[CoachEvidenceWindow, ...] = ()
+    inherited_subject: bool = False
+    inherited_horizon: bool = False
+    limitations: tuple[CoachEvidencePlanLimitation, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "plan_version": self.plan_version,
+            "requested_domains": list(self.requested_domains),
+            "subject": self.subject,
+            "horizon": {
+                "kind": self.horizon_kind,
+                "requested_start_date": self.requested_start_date,
+                "requested_end_date": self.requested_end_date,
+                "retrieval_start_date": self.retrieval_start_date,
+                "retrieval_end_date": self.retrieval_end_date,
+            },
+            "comparison_mode": self.comparison_mode,
+            "historical_depth": self.historical_depth,
+            "windows": [
+                window.to_dict()
+                for window in (self.presentation_windows or self.windows)
+            ],
+            "inherited_subject": self.inherited_subject,
+            "inherited_horizon": self.inherited_horizon,
+            "limitations": [item.to_dict() for item in self.limitations],
+        }
+
+    def to_prompt_dict(self) -> dict[str, Any]:
+        payload = {
+            "requested_domains": list(self.requested_domains),
+            "subject": self.subject,
+            "requested_window": {
+                "start_date": self.requested_start_date,
+                "end_date": self.requested_end_date,
+            },
+            "retrieval_window": {
+                "start_date": self.retrieval_start_date,
+                "end_date": self.retrieval_end_date,
+            },
+            "comparison_mode": self.comparison_mode,
+            "historical_depth": self.historical_depth,
+            "inherited_subject": self.inherited_subject,
+            "inherited_horizon": self.inherited_horizon,
+            "limitations": [item.to_dict() for item in self.limitations],
+        }
+        if self.presentation_windows:
+            payload["presentation_periods"] = {
+                "columns": [
+                    "period",
+                    "start_date",
+                    "end_date",
+                    "days_covered",
+                    "expected_days",
+                    "coverage_rate",
+                    "partial_period",
+                ],
+                "rows": [
+                    [
+                        window.label,
+                        window.start_date,
+                        window.end_date,
+                        window.days,
+                        window.expected_days or window.days,
+                        round(
+                            window.days / (window.expected_days or window.days),
+                            3,
+                        ),
+                        window.is_partial_period,
+                    ]
+                    for window in self.presentation_windows
+                ],
+            }
+        return payload
+
+
+@dataclass(frozen=True)
 class CoachEvidenceItem:
     reference_id: str
     domain: str
@@ -59,9 +200,10 @@ class CoachEvidenceItem:
     metadata: dict[str, Any] = field(default_factory=dict)
     structured_data: dict[str, Any] = field(default_factory=dict)
     synthesis_data: dict[str, Any] = field(default_factory=dict)
+    public_data: dict[str, Any] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "reference_id": self.reference_id,
             "domain": self.domain,
             "label": self.label,
@@ -69,6 +211,9 @@ class CoachEvidenceItem:
             "confidence": self.confidence,
             "observed_at": self.observed_at,
         }
+        if self.public_data:
+            payload["data"] = dict(self.public_data)
+        return payload
 
     def to_prompt_dict(self, *, reference_id: str | None = None) -> dict[str, Any]:
         payload = {
@@ -131,6 +276,7 @@ class CoachEvidencePack:
     source_services: tuple[str, ...]
     confidence: CoachConfidence
     matched_exercise_context: dict[str, Any] = field(default_factory=dict)
+    evidence_plan: CoachEvidencePlan | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -139,6 +285,9 @@ class CoachEvidencePack:
             "question_topics": list(self.question_topics),
             "matched_exercise_name": self.matched_exercise_name,
             "matched_exercise_context": dict(self.matched_exercise_context),
+            "evidence_plan": (
+                self.evidence_plan.to_dict() if self.evidence_plan is not None else None
+            ),
             "evidence": [item.to_public_dict() for item in self.evidence],
             "limitations": list(self.limitations),
             "confidence": self.confidence,
@@ -179,6 +328,11 @@ class CoachEvidencePack:
             "question_topics": list(self.question_topics),
             "matched_exercise_name": self.matched_exercise_name,
             "matched_exercise_context": dict(self.matched_exercise_context),
+            "evidence_plan": (
+                self.evidence_plan.to_prompt_dict()
+                if self.evidence_plan is not None
+                else None
+            ),
             "evidence_by_domain": grouped,
             "limitations": list(self.limitations),
             "backend_truth_contract": {

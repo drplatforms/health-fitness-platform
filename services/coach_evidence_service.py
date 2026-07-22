@@ -13,9 +13,17 @@ from models.coach_models import (
     CoachConversationTurn,
     CoachEvidenceItem,
     CoachEvidencePack,
+    CoachEvidencePlan,
 )
 from models.exercise_catalog_models import ExerciseCatalogEntry
 from models.longitudinal_insight_models import LongitudinalInsight
+from services.coach_evidence_plan_service import (
+    add_plan_limitations,
+    build_coach_evidence_plan,
+)
+from services.coach_historical_evidence_service import (
+    build_coach_historical_evidence,
+)
 from services.equipment_profile_service import get_effective_equipment_profile
 from services.exercise_catalog_service import get_exercise_catalog
 from services.longitudinal_insight_service import build_longitudinal_insight_feed
@@ -247,6 +255,7 @@ def build_coach_evidence_pack(
         None,
     )
     matched_exercise = resolve_referenced_exercise(question, catalog)
+    subject_inherited = False
     follow_up = prior_user_question is not None and _looks_like_follow_up(question)
     if (
         matched_exercise is None
@@ -257,6 +266,7 @@ def build_coach_evidence_pack(
             prior_subject_question or prior_user_question,
             catalog,
         )
+        subject_inherited = matched_exercise is not None
     classification_text = question
     if follow_up and not _has_explicit_question_subject(question, catalog):
         classification_text = (
@@ -277,9 +287,20 @@ def build_coach_evidence_pack(
     ):
         topics = (*topics, "recovery")
 
+    evidence_plan = build_coach_evidence_plan(
+        question=question,
+        as_of_date=target,
+        question_topics=topics,
+        conversation_context=bounded_turns,
+        subject=(matched_exercise.name if matched_exercise is not None else None),
+        subject_inherited=subject_inherited,
+    )
+    topics = tuple(dict.fromkeys((*topics, *evidence_plan.requested_domains)))
+
     broad = "broad" in topics
     source_services = [
         "user_service",
+        "coach_evidence_plan_service",
         "longitudinal_insight_service",
         "recovery_intelligence_v2_service",
         "nutrition_trend_service",
@@ -336,6 +357,16 @@ def build_coach_evidence_pack(
             ["equipment_profile_service", "workout_exercise_profile_service"]
         )
 
+    historical_evidence = build_coach_historical_evidence(
+        user_id=user_id,
+        plan=evidence_plan,
+    )
+    evidence_plan = add_plan_limitations(
+        evidence_plan,
+        historical_evidence.limitations,
+    )
+    source_services.extend(historical_evidence.source_services)
+
     return build_coach_evidence_pack_from_sources(
         user_id=user_id,
         question=question,
@@ -351,6 +382,8 @@ def build_coach_evidence_pack(
         historical_comparison=historical_comparison,
         equipment=equipment,
         exercise_preferences=preferences,
+        evidence_plan=evidence_plan,
+        historical_evidence=historical_evidence.evidence,
         source_services=source_services,
     )
 
@@ -371,6 +404,8 @@ def build_coach_evidence_pack_from_sources(
     historical_comparison: _ExerciseHistoricalComparison | None = None,
     equipment: Any | None = None,
     exercise_preferences: Mapping[int, str] | None = None,
+    evidence_plan: CoachEvidencePlan | None = None,
+    historical_evidence: Sequence[CoachEvidenceItem] = (),
     source_services: Sequence[str] = (),
 ) -> CoachEvidencePack:
     del question  # Question classification is represented by the explicit topics.
@@ -378,6 +413,7 @@ def build_coach_evidence_pack_from_sources(
     broad = "broad" in topic_set
     baseline_items: list[CoachEvidenceItem] = []
     depth_items: list[CoachEvidenceItem] = []
+    recovery_depth_items: list[CoachEvidenceItem] = []
     limitations: list[str] = []
 
     goal = _clean_value(user_profile.get("primary_goal"))
@@ -416,7 +452,7 @@ def build_coach_evidence_pack_from_sources(
         )
         baseline_items.append(current_recovery)
         if broad or "recovery" in topic_set:
-            depth_items.extend(
+            recovery_depth_items.extend(
                 item for item in recovery_items if item is not current_recovery
             )
     if recovery is not None and (broad or "recovery" in topic_set):
@@ -510,6 +546,9 @@ def build_coach_evidence_pack_from_sources(
                 )
             )
 
+    depth_items.extend(historical_evidence)
+    depth_items.extend(recovery_depth_items)
+
     baseline_references = {item.reference_id for item in _dedupe_items(baseline_items)}
     depth_items.extend(
         _depth_longitudinal_items(
@@ -552,6 +591,8 @@ def build_coach_evidence_pack_from_sources(
         else:
             limitations.append("No explicit equipment profile was available.")
 
+    if evidence_plan is not None:
+        limitations.extend(item.message for item in evidence_plan.limitations)
     limitations = _dedupe_text(limitations)[:6]
     matched_context = _matched_exercise_context(matched_exercise)
     items = _fit_evidence_items_to_prompt_budget(
@@ -562,6 +603,7 @@ def build_coach_evidence_pack_from_sources(
         matched_exercise_name=(matched_exercise.name if matched_exercise else None),
         matched_exercise_context=matched_context,
         limitations=limitations,
+        evidence_plan=evidence_plan,
     )
     if not items:
         limitations.append(
@@ -585,6 +627,7 @@ def build_coach_evidence_pack_from_sources(
         source_services=tuple(dict.fromkeys(source_services)),
         confidence=confidence,
         matched_exercise_context=matched_context,
+        evidence_plan=evidence_plan,
     )
 
 
@@ -649,6 +692,7 @@ def _fit_evidence_items_to_prompt_budget(
     matched_exercise_name: str | None,
     matched_exercise_context: Mapping[str, Any],
     limitations: Sequence[str],
+    evidence_plan: CoachEvidencePlan | None = None,
 ) -> list[CoachEvidenceItem]:
     selected: list[CoachEvidenceItem] = []
     for item in items:
@@ -664,10 +708,10 @@ def _fit_evidence_items_to_prompt_budget(
             source_services=(),
             confidence="Limited",
             matched_exercise_context=dict(matched_exercise_context),
+            evidence_plan=evidence_plan,
         )
         serialized = json.dumps(
             candidate_pack.to_prompt_dict(),
-            separators=(",", ":"),
             default=str,
         )
         if len(serialized) <= MAX_EVIDENCE_PROMPT_CHARS:
@@ -1529,6 +1573,22 @@ def _recovery_items(recovery: Any) -> list[CoachEvidenceItem]:
                 )
             )
 
+    windows = getattr(recovery, "windows", {})
+    for window_name, label in (
+        ("recent_7_days", "Recent 7-day recovery"),
+        ("baseline_28_days", "Recent 28-day recovery"),
+    ):
+        window = windows.get(window_name) if isinstance(windows, Mapping) else None
+        if isinstance(window, Mapping) and int(window.get("checkin_days") or 0) > 0:
+            items.append(
+                _recovery_window_summary_item(
+                    window_name=window_name,
+                    label=label,
+                    window=window,
+                    confidence=_confidence(getattr(recovery, "confidence", "Limited")),
+                )
+            )
+
     for comparison in (
         getattr(recovery, "recent_vs_baseline", None),
         getattr(recovery, "recent_vs_prior", None),
@@ -1578,6 +1638,66 @@ def _recovery_items(recovery: Any) -> list[CoachEvidenceItem]:
             )
         )
     return items
+
+
+def _recovery_window_summary_item(
+    *,
+    window_name: str,
+    label: str,
+    window: Mapping[str, Any],
+    confidence: CoachConfidence,
+) -> CoachEvidenceItem:
+    data = {
+        "window_name": window_name,
+        "start_date": window.get("start_date"),
+        "end_date": window.get("end_date"),
+        "expected_days": window.get("expected_days"),
+        "checkin_days": window.get("checkin_days"),
+        "checkin_rate": window.get("checkin_rate"),
+        "average_sleep_hours": window.get("average_sleep_hours"),
+        "average_sleep_quality": window.get("average_sleep_quality"),
+        "average_energy_level": window.get("average_energy_level"),
+        "average_soreness_level": window.get("average_soreness_level"),
+        "average_stress_level": window.get("average_stress_level"),
+        "average_training_motivation": window.get("average_training_motivation"),
+        "pain_concern_counts": dict(window.get("pain_concern_counts") or {}),
+    }
+    synthesis_data = {
+        key: value
+        for key, value in data.items()
+        if key
+        not in {
+            "average_sleep_quality",
+            "average_energy_level",
+            "average_soreness_level",
+            "average_stress_level",
+            "average_training_motivation",
+        }
+    }
+    synthesis_data.update(
+        {
+            "average_sleep_quality_1_5": data["average_sleep_quality"],
+            "average_energy_level_1_10": data["average_energy_level"],
+            "average_soreness_level_1_10": data["average_soreness_level"],
+            "average_stress_level_1_5": data["average_stress_level"],
+            "average_training_motivation_1_5": data["average_training_motivation"],
+        }
+    )
+    return _item(
+        f"recovery:window:{window_name}:{window.get('end_date')}",
+        "recovery",
+        "recovery_window_summary",
+        label,
+        (
+            f"{label} covers {window.get('checkin_days')} check-in days from "
+            f"{window.get('start_date')} through {window.get('end_date')}."
+        ),
+        confidence,
+        "recovery_intelligence_v2_service",
+        str(window.get("end_date")),
+        structured_data=data,
+        synthesis_data=synthesis_data,
+    )
 
 
 def _current_recovery_synthesis_data(current: Any) -> dict[str, Any]:

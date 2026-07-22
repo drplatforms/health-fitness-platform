@@ -76,7 +76,11 @@ COACH_RESPONSE_SCHEMA: dict[str, Any] = {
         "suggested_action",
     ],
     "properties": {
-        "answer": {"type": "string"},
+        "answer": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": MAX_ANSWER_CHARS,
+        },
         "evidence_references": {
             "type": "array",
             "maxItems": MAX_RETURNED_EVIDENCE_REFERENCES,
@@ -87,7 +91,10 @@ COACH_RESPONSE_SCHEMA: dict[str, Any] = {
             "maxItems": MAX_RETURNED_KNOWLEDGE_REFERENCES,
             "items": {"type": "string"},
         },
-        "uncertainty": {"type": ["string", "null"]},
+        "uncertainty": {
+            "type": ["string", "null"],
+            "maxLength": MAX_UNCERTAINTY_CHARS,
+        },
         "suggested_action": {
             "type": ["object", "null"],
             "additionalProperties": False,
