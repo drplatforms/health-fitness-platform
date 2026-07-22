@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { FoodWorkspaceDeck } from "@/components/FoodWorkspaceDeck";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
+import { LongitudinalInsightsPanel } from "@/components/LongitudinalInsightsPanel";
 import { MealsWorkspaceDeck } from "@/components/MealsWorkspaceDeck";
 import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/dailyDriverApi";
 import { buildDailyWorkspaceHref } from "@/lib/dailyNavigation";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
+import { fetchLongitudinalInsightsFromBackend } from "@/lib/longitudinalInsightApi";
 import { fetchPersonalFoodLogsFromBackend } from "@/lib/personalFoodLogsApi";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
@@ -64,6 +66,10 @@ export async function DailyWorkspacePage({
       : canonicalLoggedFoodsResult.error || personalLoggedFoodsResult.error
         ? "Some logged foods are unavailable right now."
         : null;
+  const longitudinalInsightsResult =
+    workspace === "recovery" && data
+      ? await fetchLongitudinalInsightsFromBackend(userId, data.target_date)
+      : { data: null, error: null };
   const title =
     workspace === "food"
       ? "Food"
@@ -140,6 +146,10 @@ export async function DailyWorkspacePage({
 
         {data && workspace === "recovery" ? (
           <div className="space-y-3 sm:space-y-4">
+            <LongitudinalInsightsPanel
+              data={longitudinalInsightsResult.data}
+              error={longitudinalInsightsResult.error}
+            />
             <RecoveryCheckInCard
               userId={userId}
               targetDate={data.target_date}

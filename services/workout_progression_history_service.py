@@ -150,6 +150,7 @@ def load_completed_exercise_progression_sessions(
         limit=max(1, int(limit)),
         normalized_target=normalized_target,
         catalog_exercise_id=catalog_exercise_id,
+        end_date=None,
     )
 
 
@@ -157,6 +158,7 @@ def load_completed_user_progression_sessions(
     *,
     user_id: int,
     lookback_days: int,
+    end_date: str | date | None = None,
 ) -> list[ExerciseProgressionSession]:
     """Load all effective exercise exposures from completed planned workouts."""
 
@@ -166,6 +168,7 @@ def load_completed_user_progression_sessions(
         limit=None,
         normalized_target=None,
         catalog_exercise_id=None,
+        end_date=end_date,
     )
 
 
@@ -176,6 +179,7 @@ def _load_completed_progression_sessions(
     limit: int | None,
     normalized_target: str | None,
     catalog_exercise_id: int | None,
+    end_date: str | date | None,
 ) -> list[ExerciseProgressionSession]:
     """Load shared substitution-aware completed-session evidence."""
 
@@ -185,7 +189,10 @@ def _load_completed_progression_sessions(
         conn.close()
         return []
 
-    cutoff = (date.today() - timedelta(days=max(1, int(lookback_days)))).isoformat()
+    resolved_end_date = _parse_date(end_date) if end_date is not None else date.today()
+    cutoff = (
+        resolved_end_date - timedelta(days=max(1, int(lookback_days)))
+    ).isoformat()
     wpi_columns = _column_names(cursor, "workout_plan_instances")
     pwe_columns = _column_names(cursor, "planned_workout_exercises")
     planned_catalog_expr = (
@@ -221,9 +228,10 @@ def _load_completed_progression_sessions(
           AND wpi.status = 'completed'
           AND wes.status = 'completed'
           AND date({performed_at_expr}) >= date(?)
+          AND date({performed_at_expr}) <= date(?)
         ORDER BY performed_at DESC, wpi.id DESC, pwe.exercise_order ASC
         """,
-        (user_id, cutoff),
+        (user_id, cutoff, resolved_end_date.isoformat()),
     ).fetchall()
 
     substitution_table_exists = _table_exists(
@@ -567,6 +575,15 @@ def _date_part(value: Any) -> str | None:
     if value is None:
         return None
     return str(value)[:10]
+
+
+def _parse_date(value: str | date) -> date:
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError as exc:
+        raise ValueError("Dates must use YYYY-MM-DD format") from exc
 
 
 def _is_truthy(value: Any) -> bool:

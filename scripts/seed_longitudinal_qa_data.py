@@ -39,8 +39,10 @@ from services.workout_plan_persistence_service import (  # noqa: E402
 
 SEED_MARKER = "longitudinal_qa_seed_v1"
 QA_USER_IDS = (101, 102, 103, 104, 105)
-DEFAULT_END_DATE = date(2026, 6, 14)
+DEFAULT_END_DATE = date.today()
 DEFAULT_DAY_COUNT = 180
+RECOVERY_DETERIORATION_OFFSET_DAYS = 14
+TRAINING_PROGRESSION_OFFSET_DAYS = 41
 
 PRODUCT_WORKOUT_TITLES = (
     "Recovery-Aware Strength Session",
@@ -254,6 +256,20 @@ def _timestamp(day: date, hour: int = 8, minute: int = 0) -> str:
 def _date_series(*, end_date: date, day_count: int) -> list[date]:
     start_date = end_date - timedelta(days=day_count - 1)
     return [start_date + timedelta(days=index) for index in range(day_count)]
+
+
+def longitudinal_insight_qa_dates(end_date: date) -> dict[str, date]:
+    """Return stable smoke-test anchors for the date-relative story arcs."""
+
+    return {
+        "recovery_deterioration": end_date
+        - timedelta(days=RECOVERY_DETERIORATION_OFFSET_DAYS),
+        "recovery_rebound": end_date,
+        "training_progression": end_date
+        - timedelta(days=TRAINING_PROGRESSION_OFFSET_DAYS),
+        "training_rising_effort": end_date,
+        "sparse_data_control": end_date,
+    }
 
 
 def _placeholders(values: tuple[int, ...]) -> str:
@@ -568,11 +584,22 @@ def _recovery_values(
         soreness = [4, 5, 6, 5, 6][index % 5]
         note = "Recovery is usable while nutrition consistency is the bigger question."
     elif user.scenario == "improving_after_deload":
-        progress = index / max(total_days - 1, 1)
-        sleep = 6.0 + (1.7 * progress) + ((index % 3) * 0.05)
-        energy = min(8, 4 + round(progress * 4))
-        soreness = max(2, 8 - round(progress * 6))
-        note = "Recent recovery inputs are improving after a more limited early phase."
+        story_phase = _recovery_story_phase(index, total_days)
+        if story_phase == "healthy_baseline":
+            sleep, energy, soreness = 7.8, 8, 2
+            note = "Recovery inputs are healthy before the short deterioration phase."
+        elif story_phase == "deterioration":
+            sleep, energy, soreness = 5.8, 4, 7
+            note = "Sleep, energy, and soreness are worsening during a hard recovery phase."
+        elif story_phase == "rebound":
+            sleep, energy, soreness = 8.0, 8, 2
+            note = "Recovery inputs have rebounded after the short deterioration phase."
+        else:
+            progress = index / max(total_days - 1, 1)
+            sleep = 6.0 + (1.7 * progress) + ((index % 3) * 0.05)
+            energy = min(8, 4 + round(progress * 4))
+            soreness = max(2, 8 - round(progress * 6))
+            note = "Recovery inputs gradually improve before the focused QA story arc."
     else:
         sleep = [6.0, 6.8, 5.7, 7.1, 6.4][index % 5]
         energy = [5, 6, 4, 7, 5][index % 5]
@@ -580,6 +607,17 @@ def _recovery_values(
         note = "Inputs are inconsistent, so confidence should stay limited."
 
     return round(sleep, 1), int(energy), int(soreness), note
+
+
+def _recovery_story_phase(index: int, total_days: int) -> str | None:
+    days_remaining = total_days - 1 - index
+    if 21 <= days_remaining <= 27:
+        return "healthy_baseline"
+    if 7 <= days_remaining <= 20:
+        return "deterioration"
+    if 0 <= days_remaining <= 6:
+        return "rebound"
+    return None
 
 
 def _weight_for(user: LongitudinalQAUser, index: int, total_days: int) -> float | None:
@@ -604,8 +642,12 @@ def _weight_for(user: LongitudinalQAUser, index: int, total_days: int) -> float 
 def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
     inserted = 0
     for index, day in enumerate(days):
-        if user.scenario == "data_quality_limited" and index % 3 == 0:
-            continue
+        days_remaining = len(days) - 1 - index
+        if user.scenario == "data_quality_limited":
+            if days_remaining < 28 and days_remaining != 0:
+                continue
+            if days_remaining >= 28 and index % 3 == 0:
+                continue
         if user.scenario == "nutrition_training_mismatch" and index % 9 == 0:
             continue
 
@@ -629,10 +671,17 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
             pain_concern = "none"
             pain_area = None
         elif user.scenario == "improving_after_deload":
+            story_phase = _recovery_story_phase(index, len(days))
+            if story_phase == "deterioration":
+                sleep_quality, stress_level, training_motivation = 2, 5, 2
+            elif story_phase in {"healthy_baseline", "rebound"}:
+                sleep_quality, stress_level, training_motivation = 4, 2, 4
+            else:
+                progress = index / max(len(days) - 1, 1)
+                sleep_quality = min(5, 2 + round(progress * 3))
+                stress_level = max(2, 5 - round(progress * 3))
+                training_motivation = min(5, 2 + round(progress * 3))
             progress = index / max(len(days) - 1, 1)
-            sleep_quality = min(5, 2 + round(progress * 3))
-            stress_level = max(2, 5 - round(progress * 3))
-            training_motivation = min(5, 2 + round(progress * 3))
             pain_concern = "mild" if progress < 0.25 and index % 7 == 0 else "none"
             pain_area = "lower_back" if pain_concern == "mild" else None
         else:
@@ -725,7 +774,9 @@ def _nutrition_food_plan(
     return [("Egg, Large", 110), ("Banana", 90)]
 
 
-def _should_seed_nutrition(user: LongitudinalQAUser, index: int) -> bool:
+def _should_seed_nutrition(
+    user: LongitudinalQAUser, index: int, total_days: int
+) -> bool:
     if user.scenario == "aligned_managed":
         return index % 12 != 0
     if user.scenario == "recovery_limited":
@@ -734,6 +785,9 @@ def _should_seed_nutrition(user: LongitudinalQAUser, index: int) -> bool:
         return index % 3 != 0
     if user.scenario == "improving_after_deload":
         return index >= 75 or index % 2 == 0
+    days_remaining = total_days - 1 - index
+    if days_remaining < 28:
+        return days_remaining == 0
     return index % 3 == 0 or index % 7 == 0
 
 
@@ -746,7 +800,7 @@ def _seed_nutrition(
     nutrition_days = 0
     nutrition_entries = 0
     for index, day in enumerate(days):
-        if not _should_seed_nutrition(user, index):
+        if not _should_seed_nutrition(user, index, len(days)):
             continue
         entries = _nutrition_food_plan(user, index)
         if not entries:
@@ -882,25 +936,39 @@ def _legacy_exercise_ids(cursor) -> dict[str, int]:
 
 
 def _actual_rir_for(
-    user: LongitudinalQAUser, workout_index: int, set_index: int
+    user: LongitudinalQAUser,
+    workout_index: int,
+    set_index: int,
+    *,
+    days_remaining: int,
 ) -> int | None:
     if user.scenario == "recovery_limited":
         return [1, 1, 0, 2][(workout_index + set_index) % 4]
     if user.scenario == "aligned_managed":
-        return [2, 3, 2, 3][(workout_index + set_index) % 4]
+        if days_remaining <= 1:
+            return 1
+        if days_remaining <= 7:
+            return 3
+        return 2
     if user.scenario == "nutrition_training_mismatch":
         return [1, 2, 1, 2][(workout_index + set_index) % 4]
     if user.scenario == "improving_after_deload":
-        return (
-            [1, 1, 2][set_index % 3] if workout_index < 20 else [2, 3, 2][set_index % 3]
-        )
+        if 7 <= days_remaining <= 15:
+            return 1
+        return [2, 3, 2][set_index % 3]
+    if days_remaining <= 28:
+        return None
     if (workout_index + set_index) % 5 == 0:
         return None
     return [3, 4, 2][set_index % 3]
 
 
 def _actual_weight_for(
-    user: LongitudinalQAUser, exercise_index: int, workout_index: int
+    user: LongitudinalQAUser,
+    exercise_index: int,
+    workout_index: int,
+    *,
+    days_remaining: int,
 ) -> float:
     base = {
         "recovery_limited": 40.0,
@@ -909,9 +977,12 @@ def _actual_weight_for(
         "improving_after_deload": 45.0,
         "data_quality_limited": 30.0,
     }[user.scenario]
-    progression = workout_index * (
-        0.12 if user.scenario != "data_quality_limited" else 0.04
-    )
+    if user.scenario == "aligned_managed":
+        progression = 10.0 if days_remaining <= 43 else min(workout_index * 0.12, 5.0)
+    else:
+        progression = workout_index * (
+            0.12 if user.scenario != "data_quality_limited" else 0.04
+        )
     return round(base + (exercise_index * 12.5) + progression, 1)
 
 
@@ -923,6 +994,7 @@ def _seed_workouts(
     actual_sets = 0
 
     for workout_index, day in enumerate(_workout_days(user, days)):
+        days_remaining = (days[-1] - day).days
         exercises = _plan_exercises_for(user, workout_index)
         title = _workout_title_for(user, workout_index)
         duration = 45 if user.scenario == "data_quality_limited" else 55
@@ -1066,7 +1138,12 @@ def _seed_workouts(
                 logged_sets = max(1, exercise["sets"] - 1)
 
             for set_number in range(1, logged_sets + 1):
-                actual_rir = _actual_rir_for(user, workout_index, set_number)
+                actual_rir = _actual_rir_for(
+                    user,
+                    workout_index,
+                    set_number,
+                    days_remaining=days_remaining,
+                )
                 completed = not skipped_exercise
                 actual_reps = None if skipped_exercise else exercise["reps_max"]
                 actual_weight = (
@@ -1076,6 +1153,7 @@ def _seed_workouts(
                         user,
                         exercise_index,
                         workout_index,
+                        days_remaining=days_remaining,
                     )
                 )
                 if (
@@ -1231,7 +1309,7 @@ def main() -> None:
         "--end-date",
         type=_parse_date,
         default=DEFAULT_END_DATE,
-        help="Inclusive seed end date in YYYY-MM-DD format.",
+        help="Inclusive seed end date in YYYY-MM-DD format; defaults to today.",
     )
     parser.add_argument(
         "--day-count",
@@ -1256,6 +1334,20 @@ def main() -> None:
             f"nutrition_entries={item.nutrition_entries} "
             f"completed_workouts={item.completed_workouts} "
             f"actual_sets={item.actual_sets}"
+        )
+    print("Historical insight smoke anchors:")
+    smoke_user_ids = {
+        "recovery_deterioration": 104,
+        "recovery_rebound": 104,
+        "training_progression": 102,
+        "training_rising_effort": 102,
+        "sparse_data_control": 105,
+    }
+    for label, as_of_date in longitudinal_insight_qa_dates(args.end_date).items():
+        user_id = smoke_user_ids[label]
+        print(
+            f"- {label}: GET /insights/longitudinal/{user_id}"
+            f"?as_of_date={as_of_date.isoformat()}&max_insights=10"
         )
 
 
