@@ -42,6 +42,7 @@ from services.coach_model_service import build_coach_model_options
 from services.exercise_knowledge_retrieval_service import retrieve_exercise_knowledge
 from services.grounded_coach_service import (
     COACH_OPENAI_MAX_OUTPUT_TOKENS,
+    MAX_ANSWER_CHARS,
     MAX_FAILED_OUTPUT_PREVIEW_CHARS,
     MAX_REFERENCE_DIAGNOSTIC_CHARS,
     CoachProviderError,
@@ -914,6 +915,11 @@ def test_response_schema_uses_exact_evidence_and_knowledge_aliases():
     assert set(evidence_schema["items"]["enum"]).isdisjoint(
         knowledge_schema["items"]["enum"]
     )
+    assert schema["properties"]["answer"] == {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": MAX_ANSWER_CHARS,
+    }
 
 
 @pytest.mark.parametrize(
@@ -1686,6 +1692,60 @@ def test_coach_api_is_user_scoped_and_preserves_provider_selection(
     assert captured["provider"] == "openai"
     assert captured["model"] == "gpt-5.4-mini"
     assert captured["conversation_context"][0].role == "user"
+
+
+def test_coach_api_accepts_a_prior_assistant_answer_at_the_response_limit(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "coach_follow_up_api.db")
+    database.initialize_database()
+    captured = {}
+
+    class FakeResult:
+        def to_public_dict(self):
+            return {"success": True, "answer": "Follow-up answer."}
+
+    def fake_ask(**kwargs):
+        captured.update(kwargs)
+        return FakeResult()
+
+    monkeypatch.setattr(coach_route, "ask_grounded_coach", fake_ask)
+    assistant_answer = "a" * MAX_ANSWER_CHARS
+    with TestClient(app) as client:
+        accepted = client.post(
+            "/coach/ask",
+            json={
+                "user_id": 104,
+                "question": "When was my training going best over the last year?",
+                "provider": "local",
+                "model": "qwen3:8b",
+                "conversation_context": [
+                    {
+                        "role": "user",
+                        "content": (
+                            "What are the biggest changes you see across my last year?"
+                        ),
+                    },
+                    {"role": "assistant", "content": assistant_answer},
+                ],
+            },
+        )
+        rejected = client.post(
+            "/coach/ask",
+            json={
+                "user_id": 104,
+                "question": "When was my training going best over the last year?",
+                "provider": "local",
+                "model": "qwen3:8b",
+                "conversation_context": [
+                    {"role": "assistant", "content": assistant_answer + "a"}
+                ],
+            },
+        )
+
+    assert accepted.status_code == 200
+    assert len(captured["conversation_context"][1].content) == MAX_ANSWER_CHARS
+    assert rejected.status_code == 422
 
 
 def test_coach_model_options_api_uses_shared_provider_boundary(tmp_path, monkeypatch):

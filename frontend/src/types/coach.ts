@@ -10,6 +10,7 @@ export interface CoachEvidenceItem {
   fact: string;
   confidence: CoachConfidence;
   observed_at: string | null;
+  data?: Record<string, unknown>;
 }
 
 export interface CoachEvidencePack {

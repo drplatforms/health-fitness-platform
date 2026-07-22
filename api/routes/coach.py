@@ -12,6 +12,7 @@ from services.coach_model_service import (
     configured_coach_provider,
 )
 from services.grounded_coach_service import (
+    MAX_ANSWER_CHARS,
     CoachError,
     CoachProviderError,
     ask_grounded_coach,
@@ -22,7 +23,7 @@ router = APIRouter(prefix="/coach", tags=["coach"])
 
 class CoachConversationTurnRequest(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=1200)
+    content: str = Field(min_length=1, max_length=MAX_ANSWER_CHARS)
 
 
 class CoachAskRequest(BaseModel):

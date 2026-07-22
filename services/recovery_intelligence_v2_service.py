@@ -49,6 +49,38 @@ class _WindowStats(dict[str, Any]):
     """Internal aggregate stats for a date window."""
 
 
+def build_recovery_history_window(
+    *,
+    user_id: int,
+    start_date: str | date,
+    end_date: str | date,
+) -> dict[str, Any]:
+    """Return neutral recovery measurements for one explicit historical window."""
+
+    start = _parse_date(start_date)
+    end = _parse_date(end_date)
+    if start > end:
+        raise ValueError("start_date must be on or before end_date")
+    rows = _load_checkin_rows(user_id=user_id, start_date=start, end_date=end)
+    days_by_date, duplicate_days_collapsed = _dedupe_checkin_days(rows)
+    stats = _window_stats(
+        days_by_date=days_by_date,
+        start_date=start,
+        end_date=end,
+        window_name="requested_history_window",
+    )
+    payload = _public_window(stats)
+    observed_dates = list(stats["dates_with_checkin"])
+    payload.update(
+        {
+            "first_observed_date": observed_dates[0] if observed_dates else None,
+            "last_observed_date": observed_dates[-1] if observed_dates else None,
+            "duplicate_days_collapsed": duplicate_days_collapsed,
+        }
+    )
+    return payload
+
+
 def build_recovery_intelligence_v2(
     user_id: int,
     target_date: str | date | None = None,
