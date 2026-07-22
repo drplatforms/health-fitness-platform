@@ -1003,6 +1003,7 @@ def _call_openai_provider(
         response,
         text=raw_text,
         requested_model=model,
+        configured_max_output_tokens=max_output_tokens,
     )
     return result if with_metadata else result.text
 

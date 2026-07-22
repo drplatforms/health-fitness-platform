@@ -76,8 +76,7 @@ class RecoveryKnowledgeContext:
             "authority_contract": {
                 "role": "domain_context_not_personal_evidence",
                 "may_explain_general_recovery_concepts": True,
-                "may_establish_personal_causation": False,
-                "may_change_personal_confidence": False,
+                "may_be_used_as_personal_evidence": False,
                 "may_override_personal_facts": False,
                 "may_override_application_decisions": False,
                 "may_diagnose_or_prescribe_treatment": False,

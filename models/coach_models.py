@@ -17,6 +17,25 @@ CoachProgressionDecision = Literal[
     "build_baseline",
 ]
 
+_PROMPT_DOMAIN_ORDER = (
+    "profile",
+    "recovery",
+    "training",
+    "nutrition",
+    "body_weight",
+    "equipment",
+    "preferences",
+    "cross_domain",
+)
+_PROMPT_EVIDENCE_CLASS_ORDER = (
+    "facts",
+    "snapshots",
+    "history",
+    "comparisons",
+    "observations",
+    "authoritative_constraints",
+)
+
 
 @dataclass(frozen=True)
 class CoachConversationTurn:
@@ -38,6 +57,8 @@ class CoachEvidenceItem:
     source: str
     observed_at: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    structured_data: dict[str, Any] = field(default_factory=dict)
+    synthesis_data: dict[str, Any] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -49,20 +70,42 @@ class CoachEvidenceItem:
             "observed_at": self.observed_at,
         }
 
-    def to_prompt_dict(self) -> dict[str, Any]:
+    def to_prompt_dict(self, *, reference_id: str | None = None) -> dict[str, Any]:
         payload = {
-            "reference_id": self.reference_id,
-            "domain": self.domain,
-            "evidence_type": self.evidence_type,
+            "reference_id": reference_id or self.reference_id,
             "evidence_role": self._prompt_evidence_role(),
-            "label": self.label,
-            "fact": self.fact,
-            "confidence": self.confidence,
             "observed_at": self.observed_at,
         }
+        model_data = self.synthesis_data or self.structured_data
+        if model_data:
+            payload["data"] = dict(model_data)
+        else:
+            payload["label"] = self.label
+            payload["fact"] = self.fact
         if self.evidence_type == "deterministic_progression_decision":
-            payload["authoritative_value"] = {"decision": self.metadata.get("decision")}
+            payload["authoritative_value"] = {
+                "decision": self.metadata.get("decision"),
+                "guidance": self.fact,
+            }
         return payload
+
+    def prompt_evidence_class(self) -> str:
+        role = self._prompt_evidence_role()
+        if role == "authoritative_constraint":
+            return "authoritative_constraints"
+        if role == "validated_personal_fact":
+            return "facts"
+        if self.evidence_type in {"current_recovery_checkin"}:
+            return "snapshots"
+        if "history" in self.evidence_type or "overview" in self.evidence_type:
+            return "history"
+        if (
+            "comparison" in self.evidence_type
+            or "trend" in self.evidence_type
+            or self.evidence_type == "longitudinal_insight"
+        ):
+            return "comparisons"
+        return "observations"
 
     def _prompt_evidence_role(self) -> str:
         if self.evidence_type == "deterministic_progression_decision":
@@ -102,23 +145,61 @@ class CoachEvidencePack:
         }
 
     def to_prompt_dict(self) -> dict[str, Any]:
+        aliases = self.prompt_reference_aliases()
+        grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        domains = [
+            *(
+                domain
+                for domain in _PROMPT_DOMAIN_ORDER
+                if any(item.domain == domain for item in self.evidence)
+            ),
+            *sorted(
+                {
+                    item.domain
+                    for item in self.evidence
+                    if item.domain not in _PROMPT_DOMAIN_ORDER
+                }
+            ),
+        ]
+        for domain in domains:
+            domain_items = [item for item in self.evidence if item.domain == domain]
+            classes: dict[str, list[dict[str, Any]]] = {}
+            for evidence_class in _PROMPT_EVIDENCE_CLASS_ORDER:
+                items = [
+                    item.to_prompt_dict(reference_id=aliases[item.reference_id])
+                    for item in domain_items
+                    if item.prompt_evidence_class() == evidence_class
+                ]
+                if items:
+                    classes[evidence_class] = items
+            grouped[domain] = classes
         return {
             "pack_version": self.pack_version,
             "as_of_date": self.as_of_date,
             "question_topics": list(self.question_topics),
             "matched_exercise_name": self.matched_exercise_name,
             "matched_exercise_context": dict(self.matched_exercise_context),
-            "evidence": [item.to_prompt_dict() for item in self.evidence],
+            "evidence_by_domain": grouped,
             "limitations": list(self.limitations),
-            "confidence_ceiling": self.confidence,
             "backend_truth_contract": {
-                "evidence_is_authoritative": True,
+                "personal_facts_are_limited_to_evidence": True,
                 "limitations_are_authoritative": True,
-                "provider_may_add_personal_facts": False,
-                "provider_may_make_causal_claims": False,
+                "structured_constraints_are_authoritative_for_actions": True,
                 "provider_may_mutate_application_state": False,
             },
         }
+
+    def prompt_reference_aliases(self) -> dict[str, str]:
+        counts: dict[tuple[str, str], int] = {}
+        aliases: dict[str, str] = {}
+        for item in self.evidence:
+            evidence_class = item.prompt_evidence_class()
+            key = (item.domain, evidence_class)
+            counts[key] = counts.get(key, 0) + 1
+            aliases[item.reference_id] = (
+                f"personal_evidence:{item.domain}:{evidence_class}:{counts[key]}"
+            )
+        return aliases
 
 
 @dataclass(frozen=True)

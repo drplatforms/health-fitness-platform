@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -40,7 +41,10 @@ COACH_EVIDENCE_PACK_VERSION = "grounded_coach_evidence_v1"
 MAX_CONVERSATION_TURNS = 6
 MAX_CONVERSATION_TURN_CHARS = 600
 MAX_CONVERSATION_TOTAL_CHARS = 2400
-MAX_EVIDENCE_ITEMS = 16
+MAX_EVIDENCE_PROMPT_CHARS = 12_000
+MAX_BASELINE_LONGITUDINAL_ITEMS = 4
+MAX_DEEP_LONGITUDINAL_ITEMS = 4
+BASELINE_TRAINING_LOOKBACK_DAYS = 28
 HISTORICAL_EXERCISE_LOOKBACK_DAYS = 365
 
 _RECOVERY_TERMS = {
@@ -89,13 +93,28 @@ _EQUIPMENT_TERMS = {
     "equipment",
     "gym",
     "home gym",
-    "available",
     "substitute",
     "alternative",
     "favorite",
     "favourite",
     "dislike",
     "prefer",
+}
+_AVAILABLE_EQUIPMENT_CONTEXT_TERMS = {
+    "barbell",
+    "barbells",
+    "bench",
+    "bike",
+    "cable",
+    "cables",
+    "dumbbell",
+    "dumbbells",
+    "machine",
+    "machines",
+    "rack",
+    "resistance band",
+    "resistance bands",
+    "treadmill",
 }
 _BROAD_PHRASES = (
     "am i making progress",
@@ -140,6 +159,13 @@ _CONFIDENCE_ORDER: dict[str, int] = {
     "Low": 1,
     "Moderate": 2,
     "High": 3,
+}
+_SUBJECTIVE_RECOVERY_SCALES: dict[str, tuple[int, int]] = {
+    "sleep_quality": (1, 5),
+    "energy_level": (1, 10),
+    "soreness_level": (1, 10),
+    "stress_level": (1, 5),
+    "training_motivation": (1, 5),
 }
 
 
@@ -252,37 +278,37 @@ def build_coach_evidence_pack(
         topics = (*topics, "recovery")
 
     broad = "broad" in topics
-    source_services = ["user_service"]
-    insights: Sequence[LongitudinalInsight] = ()
-    if broad or {"recovery", "training", "nutrition", "body_weight"}.intersection(
-        topics
-    ):
-        insight_feed = build_longitudinal_insight_feed(
-            user_id=user_id,
-            as_of_date=target,
-            max_insights=10,
-        )
-        insights = insight_feed.insights
-        source_services.append("longitudinal_insight_service")
+    source_services = [
+        "user_service",
+        "longitudinal_insight_service",
+        "recovery_intelligence_v2_service",
+        "nutrition_trend_service",
+        "workout_exercise_history_analytics_service",
+    ]
+    insight_feed = build_longitudinal_insight_feed(
+        user_id=user_id,
+        as_of_date=target,
+        max_insights=10,
+    )
+    insights: Sequence[LongitudinalInsight] = insight_feed.insights
+    recovery = build_recovery_intelligence_v2(
+        user_id=user_id,
+        target_date=target,
+    )
+    nutrition = build_nutrition_trend_window(
+        user_id=user_id,
+        end_date=target.isoformat(),
+        window_days=28,
+    )
+    baseline_training = build_workout_exercise_history_analytics(
+        user_id=user_id,
+        lookback_days=BASELINE_TRAINING_LOOKBACK_DAYS,
+        exercise_limit=1,
+        session_limit=1,
+        end_date=target.isoformat(),
+    )
 
-    recovery = None
-    if broad or "recovery" in topics:
-        recovery = build_recovery_intelligence_v2(
-            user_id=user_id,
-            target_date=target,
-        )
-        source_services.append("recovery_intelligence_v2_service")
-
-    nutrition = None
-    if broad or {"nutrition", "body_weight"}.intersection(topics):
-        nutrition = build_nutrition_trend_window(
-            user_id=user_id,
-            end_date=target.isoformat(),
-            window_days=28,
-        )
-        source_services.append("nutrition_trend_service")
-
-    training = None
+    training = baseline_training
     if broad or "training" in topics or matched_exercise is not None:
         training = build_workout_exercise_history_analytics(
             user_id=user_id,
@@ -291,7 +317,6 @@ def build_coach_evidence_pack(
             session_limit=8,
             end_date=target.isoformat(),
         )
-        source_services.append("workout_exercise_history_analytics_service")
 
     historical_comparison = None
     if historical_comparison_requested and matched_exercise is not None:
@@ -320,6 +345,7 @@ def build_coach_evidence_pack(
         insights=insights,
         recovery=recovery,
         nutrition=nutrition,
+        baseline_training=baseline_training,
         training=training,
         matched_exercise=matched_exercise,
         historical_comparison=historical_comparison,
@@ -339,6 +365,7 @@ def build_coach_evidence_pack_from_sources(
     insights: Sequence[LongitudinalInsight],
     recovery: Any | None = None,
     nutrition: Any | None = None,
+    baseline_training: WorkoutExerciseHistoryAnalytics | None = None,
     training: WorkoutExerciseHistoryAnalytics | None = None,
     matched_exercise: ExerciseCatalogEntry | None = None,
     historical_comparison: _ExerciseHistoricalComparison | None = None,
@@ -349,23 +376,59 @@ def build_coach_evidence_pack_from_sources(
     del question  # Question classification is represented by the explicit topics.
     topic_set = set(topics)
     broad = "broad" in topic_set
-    items: list[CoachEvidenceItem] = []
+    baseline_items: list[CoachEvidenceItem] = []
+    depth_items: list[CoachEvidenceItem] = []
     limitations: list[str] = []
 
-    if broad or "profile" in topic_set:
-        goal = _clean_value(user_profile.get("primary_goal"))
-        if goal:
-            items.append(
-                _item(
-                    "profile:primary_goal",
-                    "profile",
-                    "user_goal",
-                    "Primary goal",
-                    f"The saved primary goal is {_humanize(goal)}.",
-                    "High",
-                    "users.primary_goal",
-                )
+    goal = _clean_value(user_profile.get("primary_goal"))
+    if goal:
+        baseline_items.append(
+            _item(
+                "profile:primary_goal",
+                "profile",
+                "user_goal",
+                "Primary goal",
+                f"The saved primary goal is {_humanize(goal)}.",
+                "High",
+                "users.primary_goal",
+                structured_data={"primary_goal": goal},
             )
+        )
+
+    baseline_training_source = baseline_training or training
+    training_overview_item = _training_overview_item(
+        baseline_training_source,
+        window_days=BASELINE_TRAINING_LOOKBACK_DAYS,
+        window_end=as_of_date,
+    )
+    if training_overview_item is not None:
+        baseline_items.append(training_overview_item)
+
+    recovery_items = _recovery_items(recovery) if recovery is not None else []
+    if recovery_items:
+        current_recovery = next(
+            (
+                item
+                for item in recovery_items
+                if item.evidence_type == "current_recovery_checkin"
+            ),
+            recovery_items[0],
+        )
+        baseline_items.append(current_recovery)
+        if broad or "recovery" in topic_set:
+            depth_items.extend(
+                item for item in recovery_items if item is not current_recovery
+            )
+    if recovery is not None and (broad or "recovery" in topic_set):
+        limitations.extend(getattr(recovery, "limitations", [])[:2])
+
+    if nutrition is not None:
+        baseline_items.extend(_nutrition_items(nutrition, include_weight=True))
+        if broad or {"nutrition", "body_weight"}.intersection(topic_set):
+            limitations.extend(getattr(nutrition, "limitations", [])[:2])
+
+    baseline_longitudinal = _baseline_longitudinal_items(insights)
+    baseline_items.extend(baseline_longitudinal)
 
     if matched_exercise is not None:
         exercise_id = matched_exercise.id
@@ -378,7 +441,7 @@ def build_coach_evidence_pack_from_sources(
             + (f" and uses {equipment_text}" if equipment_text else "")
             + "."
         )
-        items.append(
+        depth_items.append(
             _item(
                 f"{reference_base}:catalog",
                 "training",
@@ -387,6 +450,16 @@ def build_coach_evidence_pack_from_sources(
                 fact,
                 "High",
                 "exercise_catalog_service",
+                structured_data={
+                    "catalog_exercise_id": matched_exercise.id,
+                    "name": matched_exercise.name,
+                    "exercise_type": matched_exercise.exercise_type,
+                    "movement_pattern": matched_exercise.movement_pattern,
+                    "primary_muscle_groups": list(
+                        matched_exercise.primary_muscle_groups
+                    ),
+                    "equipment_required": list(matched_exercise.equipment_required),
+                },
             )
         )
         exercise_history = _matching_exercise_history(training, matched_exercise)
@@ -395,7 +468,9 @@ def build_coach_evidence_pack_from_sources(
                 f"No completed {matched_exercise.name} history was available in the bounded lookback."
             )
         else:
-            items.extend(_exercise_history_items(reference_base, exercise_history))
+            depth_items.extend(
+                _exercise_history_items(reference_base, exercise_history)
+            )
             if exercise_history.limitation:
                 limitations.append(exercise_history.limitation)
 
@@ -405,7 +480,7 @@ def build_coach_evidence_pack_from_sources(
                     f"The bounded longer history did not contain both an earlier comparable progression phase and a current comparison for {matched_exercise.name}."
                 )
             else:
-                items.extend(
+                depth_items.extend(
                     _historical_comparison_items(
                         reference_base,
                         matched_exercise.name,
@@ -419,7 +494,7 @@ def build_coach_evidence_pack_from_sources(
             else None
         )
         if preference in {"favorite", "disliked"}:
-            items.append(
+            depth_items.append(
                 _item(
                     f"{reference_base}:preference",
                     "preferences",
@@ -428,64 +503,39 @@ def build_coach_evidence_pack_from_sources(
                     f"{matched_exercise.name} is saved as {preference}.",
                     "High",
                     "workout_exercise_profile_service",
+                    structured_data={
+                        "exercise_name": matched_exercise.name,
+                        "preference": preference,
+                    },
                 )
             )
 
-    relevant_domains = _relevant_insight_domains(topic_set)
-    items.extend(
-        _insight_items(
+    baseline_references = {item.reference_id for item in _dedupe_items(baseline_items)}
+    depth_items.extend(
+        _depth_longitudinal_items(
             insights,
-            relevant_domains,
+            relevant_domains=_relevant_insight_domains(topic_set),
             broad=broad,
             matched_exercise_name=(
                 matched_exercise.name if matched_exercise is not None else None
             ),
+            excluded_references=baseline_references,
         )
     )
 
-    if recovery is not None:
-        items.extend(_recovery_items(recovery))
-        limitations.extend(getattr(recovery, "limitations", [])[:2])
-
-    if nutrition is not None:
-        items.extend(
-            _nutrition_items(
-                nutrition,
-                include_weight=broad or "body_weight" in topic_set,
-            )
+    if training_overview_item is None and (
+        broad or "training" in topic_set or matched_exercise is not None
+    ):
+        limitations.append(
+            "No completed workout history was available in the bounded lookback."
         )
-        limitations.extend(getattr(nutrition, "limitations", [])[:2])
-
-    if training is not None and (broad or matched_exercise is None):
-        overview = training.overview
-        if overview.has_history:
-            items.append(
-                _item(
-                    "training:history-overview",
-                    "training",
-                    "training_history_overview",
-                    "Recent training history",
-                    (
-                        f"The bounded training history contains {overview.completed_workout_count} "
-                        f"completed workouts and {overview.completed_set_count} completed sets across "
-                        f"{overview.distinct_effective_exercise_count} exercises."
-                    ),
-                    "High",
-                    "workout_exercise_history_analytics_service",
-                    overview.most_recent_completed_workout_date,
-                )
-            )
-        else:
-            limitations.append(
-                "No completed workout history was available in the bounded lookback."
-            )
 
     if equipment is not None and "equipment" in topic_set:
         confidence = getattr(equipment, "confidence", "Low")
         if confidence != "Low":
             available = list(getattr(equipment, "available_equipment", []))
             if available:
-                items.append(
+                depth_items.append(
                     _item(
                         "equipment:available",
                         "equipment",
@@ -496,16 +546,28 @@ def build_coach_evidence_pack_from_sources(
                         + ".",
                         _confidence(confidence),
                         "equipment_profile_service",
+                        structured_data={"available_equipment": available[:12]},
                     )
                 )
         else:
             limitations.append("No explicit equipment profile was available.")
 
-    items = _dedupe_items(items)[:MAX_EVIDENCE_ITEMS]
+    limitations = _dedupe_text(limitations)[:6]
+    matched_context = _matched_exercise_context(matched_exercise)
+    items = _fit_evidence_items_to_prompt_budget(
+        _dedupe_items([*baseline_items, *depth_items]),
+        user_id=user_id,
+        as_of_date=as_of_date,
+        topics=topics,
+        matched_exercise_name=(matched_exercise.name if matched_exercise else None),
+        matched_exercise_context=matched_context,
+        limitations=limitations,
+    )
     if not items:
         limitations.append(
             "The available history did not contain enough supported evidence for this question."
         )
+        limitations = _dedupe_text(limitations)[:6]
     confidence = _pack_confidence(items)
     if "historical_comparison" in topic_set and not {
         "exercise_historical_progression_phase",
@@ -519,21 +581,98 @@ def build_coach_evidence_pack_from_sources(
         question_topics=tuple(topics),
         matched_exercise_name=(matched_exercise.name if matched_exercise else None),
         evidence=tuple(items),
-        limitations=tuple(_dedupe_text(limitations)[:6]),
+        limitations=tuple(limitations),
         source_services=tuple(dict.fromkeys(source_services)),
         confidence=confidence,
-        matched_exercise_context=(
-            {
-                "catalog_exercise_id": matched_exercise.id,
-                "name": matched_exercise.name,
-                "exercise_type": matched_exercise.exercise_type,
-                "movement_pattern": matched_exercise.movement_pattern,
-                "primary_muscle_groups": list(matched_exercise.primary_muscle_groups),
-            }
-            if matched_exercise is not None
-            else {}
-        ),
+        matched_exercise_context=matched_context,
     )
+
+
+def _training_overview_item(
+    training: WorkoutExerciseHistoryAnalytics | None,
+    *,
+    window_days: int,
+    window_end: str,
+) -> CoachEvidenceItem | None:
+    if training is None or not training.overview.has_history:
+        return None
+    overview = training.overview
+    return _item(
+        "training:history-overview",
+        "training",
+        "training_history_overview",
+        "Recent training history",
+        (
+            f"The recent {window_days}-day training window contains "
+            f"{overview.completed_workout_count} completed workouts and "
+            f"{overview.completed_set_count} completed sets across "
+            f"{overview.distinct_effective_exercise_count} exercises."
+        ),
+        "High",
+        "workout_exercise_history_analytics_service",
+        overview.most_recent_completed_workout_date,
+        structured_data={
+            "window_days": window_days,
+            "window_end": window_end,
+            "completed_workout_count": overview.completed_workout_count,
+            "completed_set_count": overview.completed_set_count,
+            "distinct_effective_exercise_count": (
+                overview.distinct_effective_exercise_count
+            ),
+            "most_recent_completed_workout_date": (
+                overview.most_recent_completed_workout_date
+            ),
+        },
+    )
+
+
+def _matched_exercise_context(
+    matched_exercise: ExerciseCatalogEntry | None,
+) -> dict[str, Any]:
+    if matched_exercise is None:
+        return {}
+    return {
+        "catalog_exercise_id": matched_exercise.id,
+        "name": matched_exercise.name,
+        "exercise_type": matched_exercise.exercise_type,
+        "movement_pattern": matched_exercise.movement_pattern,
+        "primary_muscle_groups": list(matched_exercise.primary_muscle_groups),
+    }
+
+
+def _fit_evidence_items_to_prompt_budget(
+    items: Sequence[CoachEvidenceItem],
+    *,
+    user_id: int,
+    as_of_date: str,
+    topics: Sequence[str],
+    matched_exercise_name: str | None,
+    matched_exercise_context: Mapping[str, Any],
+    limitations: Sequence[str],
+) -> list[CoachEvidenceItem]:
+    selected: list[CoachEvidenceItem] = []
+    for item in items:
+        candidate_items = (*selected, item)
+        candidate_pack = CoachEvidencePack(
+            pack_version=COACH_EVIDENCE_PACK_VERSION,
+            user_id=user_id,
+            as_of_date=as_of_date,
+            question_topics=tuple(topics),
+            matched_exercise_name=matched_exercise_name,
+            evidence=candidate_items,
+            limitations=tuple(limitations),
+            source_services=(),
+            confidence="Limited",
+            matched_exercise_context=dict(matched_exercise_context),
+        )
+        serialized = json.dumps(
+            candidate_pack.to_prompt_dict(),
+            separators=(",", ":"),
+            default=str,
+        )
+        if len(serialized) <= MAX_EVIDENCE_PROMPT_CHARS:
+            selected.append(item)
+    return selected
 
 
 def classify_coach_question(question: str) -> tuple[str, ...]:
@@ -579,9 +718,7 @@ def classify_coach_question(question: str) -> tuple[str, ...]:
         topics.append("body_weight")
     if words.intersection(_PROFILE_TERMS):
         topics.append("profile")
-    if words.intersection(_EQUIPMENT_TERMS) or any(
-        phrase in normalized for phrase in _EQUIPMENT_TERMS if " " in phrase
-    ):
+    if _has_equipment_intent(question):
         topics.append("equipment")
     if not topics:
         topics.append("broad")
@@ -642,8 +779,8 @@ def _has_explicit_question_subject(
             | _NUTRITION_TERMS
             | _BODY_WEIGHT_TERMS
             | _PROFILE_TERMS
-            | _EQUIPMENT_TERMS
         )
+        or _has_equipment_intent(question)
         or any(phrase in normalized for phrase in _BROAD_PHRASES)
         or resolve_referenced_exercise(question, catalog) is not None
     )
@@ -669,13 +806,28 @@ def _has_explicit_non_training_subject(question: str) -> bool:
             | _NUTRITION_TERMS
             | _BODY_WEIGHT_TERMS
             | (_PROFILE_TERMS - {"progress"})
-            | _EQUIPMENT_TERMS
         )
+        or _has_equipment_intent(question)
         or "body weight" in normalized
         or any(
             phrase in normalized
             for phrase in ("my training", "my workouts", "training overall")
         )
+    )
+
+
+def _has_equipment_intent(question: str) -> bool:
+    normalized = _normalize(question)
+    words = set(normalized.split())
+    if words.intersection(_EQUIPMENT_TERMS) or any(
+        phrase in normalized for phrase in _EQUIPMENT_TERMS if " " in phrase
+    ):
+        return True
+    if "available" not in words:
+        return False
+    return any(
+        (context in words if " " not in context else context in normalized)
+        for context in _AVAILABLE_EQUIPMENT_CONTEXT_TERMS
     )
 
 
@@ -695,17 +847,48 @@ def _relevant_insight_domains(topics: set[str]) -> set[str]:
     return domains
 
 
-def _insight_items(
+def _baseline_longitudinal_items(
     insights: Sequence[LongitudinalInsight],
-    relevant_domains: set[str],
+) -> list[CoachEvidenceItem]:
+    selected: list[LongitudinalInsight] = []
+    for domain in (
+        "recovery",
+        "training",
+        "nutrition",
+        "body_weight",
+        "cross_domain",
+    ):
+        match = next((item for item in insights if item.domain == domain), None)
+        if match is not None:
+            selected.append(match)
+        if len(selected) >= MAX_BASELINE_LONGITUDINAL_ITEMS:
+            break
+    return [_longitudinal_item(insight) for insight in selected]
+
+
+def _depth_longitudinal_items(
+    insights: Sequence[LongitudinalInsight],
     *,
+    relevant_domains: set[str],
     broad: bool,
     matched_exercise_name: str | None,
+    excluded_references: set[str],
 ) -> list[CoachEvidenceItem]:
+    eligible_domains = (
+        {"recovery", "training", "nutrition", "body_weight", "cross_domain"}
+        if broad
+        else relevant_domains
+    )
     selected: list[CoachEvidenceItem] = []
-    per_domain: dict[str, int] = {}
+    selected_domains: set[str] = set()
     for insight in insights:
-        if not broad and insight.domain not in relevant_domains:
+        reference_id = f"insight:{insight.stable_id}"
+        if (
+            reference_id in excluded_references
+            or insight.domain not in eligible_domains
+        ):
+            continue
+        if insight.domain in selected_domains:
             continue
         if (
             matched_exercise_name is not None
@@ -713,36 +896,59 @@ def _insight_items(
             and not _insight_mentions_exercise(insight, matched_exercise_name)
         ):
             continue
-        if per_domain.get(insight.domain, 0) >= 2:
-            continue
-        evidence_values = "; ".join(
-            f"{item.label}: {item.value}" for item in insight.evidence[:3]
-        )
-        fact = f"{insight.title}. {insight.explanation}"
-        if evidence_values:
-            fact += f" Supporting observations: {evidence_values}."
-        selected.append(
-            _item(
-                f"insight:{insight.stable_id}",
-                insight.domain,
-                "longitudinal_insight",
-                insight.title,
-                fact,
-                "High" if insight.evidence_strength == "strong" else "Moderate",
-                "longitudinal_insight_service",
-                insight.observation_window.end_date,
-                {
-                    "window_start": insight.observation_window.start_date,
-                    "window_end": insight.observation_window.end_date,
-                    "direction": insight.direction,
-                    "status": insight.status,
-                },
-            )
-        )
-        per_domain[insight.domain] = per_domain.get(insight.domain, 0) + 1
-        if len(selected) >= 7:
+        selected.append(_longitudinal_item(insight))
+        selected_domains.add(insight.domain)
+        if len(selected) >= MAX_DEEP_LONGITUDINAL_ITEMS:
             break
     return selected
+
+
+def _longitudinal_item(insight: LongitudinalInsight) -> CoachEvidenceItem:
+    evidence_values = "; ".join(
+        f"{item.label}: {item.value}" for item in insight.evidence[:3]
+    )
+    fact = f"{insight.title}. {insight.explanation}"
+    if evidence_values:
+        fact += f" Supporting observations: {evidence_values}."
+    return _item(
+        f"insight:{insight.stable_id}",
+        insight.domain,
+        "longitudinal_insight",
+        insight.title,
+        fact,
+        "High" if insight.evidence_strength == "strong" else "Moderate",
+        "longitudinal_insight_service",
+        insight.observation_window.end_date,
+        {
+            "window_start": insight.observation_window.start_date,
+            "window_end": insight.observation_window.end_date,
+            "direction": insight.direction,
+            "status": insight.status,
+        },
+        structured_data={
+            "observation_type": insight.insight_type,
+            "observation_window": insight.observation_window.to_dict(),
+            "comparison_window": (
+                insight.comparison_window.to_dict()
+                if insight.comparison_window is not None
+                else None
+            ),
+            "measurements": [item.to_dict() for item in insight.evidence],
+            "evidence_strength": insight.evidence_strength,
+            "coverage": {
+                "status": insight.data_coverage.status,
+                "observation_count": insight.data_coverage.observation_count,
+                "comparison_observation_count": (
+                    insight.data_coverage.comparison_observation_count
+                ),
+                "expected_observation_count": (
+                    insight.data_coverage.expected_observation_count
+                ),
+                "observation_rate": insight.data_coverage.observation_rate,
+            },
+        },
+        synthesis_data=_longitudinal_synthesis_data(insight),
+    )
 
 
 def _insight_mentions_exercise(
@@ -755,6 +961,87 @@ def _insight_mentions_exercise(
     return len(exercise_tokens.intersection(insight_text.split())) >= min(
         2, len(exercise_tokens)
     )
+
+
+def _longitudinal_synthesis_data(
+    insight: LongitudinalInsight,
+) -> dict[str, Any]:
+    recent_window = _synthesis_window(insight.observation_window)
+    previous_window = (
+        _synthesis_window(insight.comparison_window)
+        if insight.comparison_window is not None
+        else None
+    )
+    coverage = {
+        "recent_observation_count": insight.data_coverage.observation_count,
+        "previous_observation_count": (
+            insight.data_coverage.comparison_observation_count
+        ),
+        "expected_observation_count": (
+            insight.data_coverage.expected_observation_count
+        ),
+        "observation_rate": insight.data_coverage.observation_rate,
+    }
+    measurements = {item.metric: item for item in insight.evidence}
+    if insight.insight_type == "stable_load_rising_effort":
+        load_values = _comparison_numbers(measurements.get("comparable_working_weight"))
+        rir_values = _comparison_numbers(measurements.get("average_actual_rir"))
+        if load_values is not None and rir_values is not None:
+            return {
+                "exercise": _rising_effort_exercise_name(insight.title),
+                "previous_average_load_lb": load_values[0],
+                "recent_average_load_lb": load_values[1],
+                "previous_average_rir": rir_values[0],
+                "recent_average_rir": rir_values[1],
+                "previous_window": previous_window,
+                "recent_window": recent_window,
+                "coverage": coverage,
+            }
+    return {
+        "previous_window": previous_window,
+        "recent_window": recent_window,
+        "measurements": [
+            {
+                "metric": item.metric,
+                "value": item.value,
+                "source_fields": list(item.source_fields),
+            }
+            for item in insight.evidence
+        ],
+        "coverage": coverage,
+    }
+
+
+def _synthesis_window(window: Any) -> dict[str, Any]:
+    return {
+        "start_date": window.start_date,
+        "end_date": window.end_date,
+        "days": window.days,
+        "observation_count": window.observation_count,
+    }
+
+
+def _comparison_numbers(
+    evidence: Any | None,
+) -> tuple[int | float, int | float] | None:
+    if evidence is None:
+        return None
+    parts = str(evidence.value).split("→")
+    if len(parts) != 2:
+        return None
+    values: list[int | float] = []
+    for part in parts:
+        match = re.search(r"-?\d+(?:\.\d+)?", part)
+        if match is None:
+            return None
+        value = float(match.group())
+        values.append(int(value) if value.is_integer() else value)
+    return values[0], values[1]
+
+
+def _rising_effort_exercise_name(title: str) -> str:
+    suffix = " is getting harder at the same load"
+    return title[: -len(suffix)] if title.endswith(suffix) else title
 
 
 def _matching_exercise_history(
@@ -920,6 +1207,20 @@ def _historical_comparison_items(
             "workout_progression_history_service",
             earlier.window_end,
             _comparison_phase_metadata(earlier),
+            structured_data={
+                "exercise_name": exercise_name,
+                **_comparison_phase_metadata(earlier),
+            },
+            synthesis_data={
+                "exercise": exercise_name,
+                "window_start": earlier.window_start,
+                "window_end": earlier.window_end,
+                "previous_average_load_lb": earlier.prior_weight,
+                "recent_average_load_lb": earlier.recent_weight,
+                "previous_average_rir": earlier.prior_rir,
+                "recent_average_rir": earlier.recent_rir,
+                "session_count": 4,
+            },
         ),
         _item(
             f"{reference_base}:current-phase:{current.window_start}:{current.window_end}",
@@ -931,6 +1232,20 @@ def _historical_comparison_items(
             "workout_progression_history_service",
             current.window_end,
             _comparison_phase_metadata(current),
+            structured_data={
+                "exercise_name": exercise_name,
+                **_comparison_phase_metadata(current),
+            },
+            synthesis_data={
+                "exercise": exercise_name,
+                "window_start": current.window_start,
+                "window_end": current.window_end,
+                "previous_average_load_lb": current.prior_weight,
+                "recent_average_load_lb": current.recent_weight,
+                "previous_average_rir": current.prior_rir,
+                "recent_average_rir": current.recent_rir,
+                "session_count": 4,
+            },
         ),
     ]
 
@@ -985,6 +1300,58 @@ def _exercise_history_items(
             "High" if exercise.logging_quality == "complete" else "Moderate",
             "workout_exercise_history_analytics_service",
             exercise.last_performed_at,
+            structured_data={
+                "exercise_name": exercise.exercise_name,
+                "completed_session_count": exercise.completed_session_count,
+                "logging_quality": exercise.logging_quality,
+                "latest_session": (
+                    {
+                        "performed_at": exercise.recent_sessions[0].performed_at,
+                        "completed_set_count": (
+                            exercise.recent_sessions[0].completed_set_count
+                        ),
+                        "planned_set_count": (
+                            exercise.recent_sessions[0].planned_set_count
+                        ),
+                        "comparable_working_weight_lb": (
+                            exercise.recent_sessions[0].comparable_working_weight
+                        ),
+                        "average_actual_rir": (
+                            exercise.recent_sessions[0].average_actual_rir
+                        ),
+                    }
+                    if exercise.recent_sessions
+                    else None
+                ),
+            },
+            synthesis_data={
+                "exercise": exercise.exercise_name,
+                "completed_session_count": exercise.completed_session_count,
+                "latest_session": (
+                    {
+                        "performed_at": exercise.recent_sessions[0].performed_at,
+                        "completed_set_count": (
+                            exercise.recent_sessions[0].completed_set_count
+                        ),
+                        "planned_set_count": (
+                            exercise.recent_sessions[0].planned_set_count
+                        ),
+                        "comparable_working_weight_lb": (
+                            exercise.recent_sessions[0].comparable_working_weight
+                        ),
+                        "average_actual_rir": (
+                            exercise.recent_sessions[0].average_actual_rir
+                        ),
+                    }
+                    if exercise.recent_sessions
+                    else None
+                ),
+                **(
+                    {"logging_quality": exercise.logging_quality}
+                    if exercise.logging_quality != "complete"
+                    else {}
+                ),
+            },
         )
     ]
     trend = exercise.recent_working_load_trend
@@ -1006,6 +1373,25 @@ def _exercise_history_items(
                 "Moderate",
                 "workout_exercise_history_analytics_service",
                 exercise.last_performed_at,
+                structured_data={
+                    "exercise_name": exercise.exercise_name,
+                    "status": trend.status,
+                    "absolute_change_lb": trend.absolute_change_lb,
+                    "qualifying_session_count": trend.qualifying_session_count,
+                    "latest_comparable_working_weight_lb": (
+                        trend.latest_comparable_working_weight
+                    ),
+                    "comparison_working_weight_lb": (trend.comparison_working_weight),
+                },
+                synthesis_data={
+                    "exercise": exercise.exercise_name,
+                    "latest_comparable_working_weight_lb": (
+                        trend.latest_comparable_working_weight
+                    ),
+                    "comparison_working_weight_lb": (trend.comparison_working_weight),
+                    "absolute_change_lb": trend.absolute_change_lb,
+                    "qualifying_session_count": trend.qualifying_session_count,
+                },
             )
         )
     rir_sessions = [
@@ -1029,6 +1415,41 @@ def _exercise_history_items(
                 "Moderate",
                 "workout_exercise_history_analytics_service",
                 latest.performed_at,
+                structured_data={
+                    "observation_type": "logged_effort_comparison",
+                    "exercise_name": exercise.exercise_name,
+                    "latest": {
+                        "performed_at": latest.performed_at,
+                        "comparable_working_weight_lb": (
+                            latest.comparable_working_weight
+                        ),
+                        "average_actual_rir": latest.average_actual_rir,
+                    },
+                    "comparison": {
+                        "performed_at": comparison.performed_at,
+                        "comparable_working_weight_lb": (
+                            comparison.comparable_working_weight
+                        ),
+                        "average_actual_rir": comparison.average_actual_rir,
+                    },
+                },
+                synthesis_data={
+                    "exercise": exercise.exercise_name,
+                    "recent": {
+                        "performed_at": latest.performed_at,
+                        "comparable_working_weight_lb": (
+                            latest.comparable_working_weight
+                        ),
+                        "average_actual_rir": latest.average_actual_rir,
+                    },
+                    "previous": {
+                        "performed_at": comparison.performed_at,
+                        "comparable_working_weight_lb": (
+                            comparison.comparable_working_weight
+                        ),
+                        "average_actual_rir": comparison.average_actual_rir,
+                    },
+                },
             )
         )
     recommendation = exercise.progression_recommendation
@@ -1044,6 +1465,14 @@ def _exercise_history_items(
                 "workout_progression_decision_service",
                 exercise.last_performed_at,
                 {"decision": recommendation.decision},
+                structured_data={
+                    "decision": recommendation.decision,
+                    "evidence_session_count": recommendation.evidence_session_count,
+                    "confidence": recommendation.confidence,
+                },
+                synthesis_data={
+                    "evidence_session_count": recommendation.evidence_session_count,
+                },
             )
         )
     return items
@@ -1082,23 +1511,114 @@ def _recovery_items(recovery: Any) -> list[CoachEvidenceItem]:
                     _confidence(getattr(recovery, "confidence", "Limited")),
                     "recovery_intelligence_v2_service",
                     current.date,
+                    structured_data={
+                        "date": current.date,
+                        "sleep_hours": current.sleep_hours,
+                        "sleep_quality": current.sleep_quality,
+                        "energy_level": current.energy_level,
+                        "soreness_level": current.soreness_level,
+                        "stress_level": current.stress_level,
+                        "training_motivation": current.training_motivation,
+                        "pain_concern": current.pain_concern,
+                        "pain_area": current.pain_area,
+                        "data_quality_status": getattr(
+                            current, "data_quality_status", None
+                        ),
+                    },
+                    synthesis_data=_current_recovery_synthesis_data(current),
                 )
             )
-    summary = getattr(recovery, "coach_safe_summary", "")
-    if isinstance(summary, str) and summary.strip():
+
+    for comparison in (
+        getattr(recovery, "recent_vs_baseline", None),
+        getattr(recovery, "recent_vs_prior", None),
+    ):
+        if (
+            comparison is None
+            or getattr(comparison, "confidence", "Limited") == "Limited"
+        ):
+            continue
+        comparison_name = str(comparison.comparison_name)
+        data = {
+            "observation_type": "recovery_window_comparison",
+            "comparison_name": comparison_name,
+            "recent_window_days": comparison.recent_window_days,
+            "comparison_window_days": comparison.comparison_window_days,
+            "sleep_hours_delta": comparison.sleep_delta,
+            "energy_level_delta": comparison.energy_delta,
+            "soreness_level_delta": comparison.soreness_delta,
+            "body_weight_lb_delta": comparison.body_weight_delta,
+            "trend_direction": comparison.trend_direction,
+            "confidence": comparison.confidence,
+        }
         items.append(
             _item(
-                f"recovery:summary:{recovery.target_date}",
+                f"recovery:comparison:{comparison_name}:{recovery.target_date}",
                 "recovery",
-                "recovery_summary",
-                "Recent recovery summary",
-                summary.strip(),
-                _confidence(getattr(recovery, "confidence", "Limited")),
+                "recovery_window_comparison",
+                "Recovery window comparison",
+                (
+                    f"The {comparison_name.replace('_', ' ')} recovery comparison "
+                    f"covers {comparison.recent_window_days} recent days and "
+                    f"{comparison.comparison_window_days} comparison days."
+                ),
+                _confidence(comparison.confidence),
                 "recovery_intelligence_v2_service",
                 recovery.target_date,
+                structured_data=data,
+                synthesis_data={
+                    "comparison_name": comparison_name,
+                    "recent_window_days": comparison.recent_window_days,
+                    "comparison_window_days": comparison.comparison_window_days,
+                    "sleep_hours_delta": comparison.sleep_delta,
+                    "energy_level_delta": comparison.energy_delta,
+                    "soreness_level_delta": comparison.soreness_delta,
+                    "body_weight_lb_delta": comparison.body_weight_delta,
+                },
             )
         )
     return items
+
+
+def _current_recovery_synthesis_data(current: Any) -> dict[str, Any]:
+    data = {
+        "date": current.date,
+        "sleep_hours": current.sleep_hours,
+        "sleep_quality": _scaled_subjective_recovery_value(
+            "sleep_quality", current.sleep_quality
+        ),
+        "energy_level": _scaled_subjective_recovery_value(
+            "energy_level", current.energy_level
+        ),
+        "soreness_level": _scaled_subjective_recovery_value(
+            "soreness_level", current.soreness_level
+        ),
+        "stress_level": _scaled_subjective_recovery_value(
+            "stress_level", current.stress_level
+        ),
+        "training_motivation": _scaled_subjective_recovery_value(
+            "training_motivation", current.training_motivation
+        ),
+        "pain_concern": current.pain_concern,
+        "pain_area": current.pain_area,
+    }
+    data_quality_status = getattr(current, "data_quality_status", None)
+    if data_quality_status in {"missing", "limited", "partial"}:
+        data["data_quality_status"] = data_quality_status
+    return data
+
+
+def _scaled_subjective_recovery_value(
+    field_name: str, value: int | float | None
+) -> dict[str, int | float] | None:
+    if value is None:
+        return None
+    scale_min, scale_max = _SUBJECTIVE_RECOVERY_SCALES[field_name]
+    return {
+        "value": value,
+        "scale_min": scale_min,
+        "scale_max": scale_max,
+    }
 
 
 def _nutrition_items(
@@ -1121,6 +1641,27 @@ def _nutrition_items(
                 _confidence(intake.confidence),
                 "nutrition_trend_service",
                 nutrition.end_date,
+                structured_data={
+                    "window_start": nutrition.start_date,
+                    "window_end": nutrition.end_date,
+                    "window_days": nutrition.window_days,
+                    "logged_day_count": nutrition.logged_day_count,
+                    "complete_logging_day_count": (
+                        nutrition.complete_logging_day_count
+                    ),
+                    "partial_logging_day_count": (nutrition.partial_logging_day_count),
+                    "logging_consistency_status": (intake.logging_consistency_status),
+                },
+                synthesis_data={
+                    "window_start": nutrition.start_date,
+                    "window_end": nutrition.end_date,
+                    "window_days": nutrition.window_days,
+                    "logged_day_count": nutrition.logged_day_count,
+                    "complete_logging_day_count": (
+                        nutrition.complete_logging_day_count
+                    ),
+                    "partial_logging_day_count": (nutrition.partial_logging_day_count),
+                },
             )
         )
         averages = []
@@ -1145,6 +1686,14 @@ def _nutrition_items(
                     _confidence(intake.confidence),
                     "nutrition_trend_service",
                     nutrition.end_date,
+                    structured_data={
+                        "window_start": nutrition.start_date,
+                        "window_end": nutrition.end_date,
+                        "average_calories": intake.average_calories,
+                        "average_protein_g": intake.average_protein_g,
+                        "average_carbohydrate_g": (intake.average_carbohydrate_g),
+                        "average_fat_g": intake.average_fat_g,
+                    },
                 )
             )
     if include_weight:
@@ -1169,6 +1718,25 @@ def _nutrition_items(
                     _confidence(weight.confidence),
                     "nutrition_trend_service",
                     nutrition.end_date,
+                    structured_data={
+                        "window_start": nutrition.start_date,
+                        "window_end": nutrition.end_date,
+                        "window_days": nutrition.window_days,
+                        "weigh_in_count": weight.weigh_in_count,
+                        "trend_direction": weight.trend_direction,
+                        "start_weight_lb": weight.start_weight_lb,
+                        "end_weight_lb": weight.end_weight_lb,
+                        "weekly_rate_lb": weight.weekly_rate_lb,
+                    },
+                    synthesis_data={
+                        "window_start": nutrition.start_date,
+                        "window_end": nutrition.end_date,
+                        "window_days": nutrition.window_days,
+                        "weigh_in_count": weight.weigh_in_count,
+                        "start_weight_lb": weight.start_weight_lb,
+                        "end_weight_lb": weight.end_weight_lb,
+                        "weekly_rate_lb": weight.weekly_rate_lb,
+                    },
                 )
             )
     return items
@@ -1184,6 +1752,8 @@ def _item(
     source: str,
     observed_at: str | None = None,
     metadata: Mapping[str, Any] | None = None,
+    structured_data: Mapping[str, Any] | None = None,
+    synthesis_data: Mapping[str, Any] | None = None,
 ) -> CoachEvidenceItem:
     return CoachEvidenceItem(
         reference_id=reference_id,
@@ -1195,6 +1765,8 @@ def _item(
         source=source,
         observed_at=observed_at,
         metadata=dict(metadata or {}),
+        structured_data=dict(structured_data or {}),
+        synthesis_data=dict(synthesis_data or {}),
     )
 
 

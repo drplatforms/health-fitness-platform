@@ -63,6 +63,8 @@ def coach_ask(request: CoachAskRequest):
         }
         if exc.validation_reasons:
             detail["validation_reasons"] = list(exc.validation_reasons)
+        if exc.provider_diagnostics:
+            detail["provider_diagnostics"] = exc.provider_diagnostics
         raise HTTPException(
             status_code=502,
             detail=detail,
