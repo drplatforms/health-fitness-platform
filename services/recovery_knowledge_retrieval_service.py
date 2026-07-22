@@ -102,6 +102,17 @@ _GENERAL_PERSONAL_EXPLANATION_MARKERS = (
     "can my",
     "in general",
 )
+_BROAD_RECOVERY_STATE_PHRASES = (
+    "run down",
+    "worn out",
+    "unusually tired",
+    "feeling off",
+    "feel off",
+    "workout feels harder",
+    "workouts feel harder",
+    "training feels harder",
+    "exercise feels harder",
+)
 _QUERY_EXPANSIONS = {
     "poor sleep": "sleep loss duration quality perceived effort training fatigue",
     "sleep duration": "hours amount short sleep opportunity",
@@ -114,6 +125,11 @@ _QUERY_EXPANSIONS = {
     "active recovery": "easy movement complete rest low demand rest strategy",
     "hydration": "fluid sweat heat duration sufficient exercise context",
     "hard training": "unusually demanding novel high volume residual fatigue soreness",
+    "run down": "fatigue perceived recovery low energy training load recovery balance",
+    "worn out": "fatigue perceived recovery low energy training load recovery balance",
+    "unusually tired": "fatigue perceived recovery low energy training load recovery balance",
+    "feeling off": "perceived recovery readiness wellbeing fatigue variability",
+    "feel harder": "perceived effort fatigue training load recovery",
     "cause": "association personal causation mechanism evidence boundary",
 }
 
@@ -183,7 +199,17 @@ def classify_recovery_knowledge_intents(question: str) -> tuple[str, ...]:
     ):
         intents.append("soreness_timing")
 
-    has_fatigue = bool(words.intersection({"fatigue", "fatigued", "tired"}))
+    has_broad_recovery_state = any(
+        phrase in normalized for phrase in _BROAD_RECOVERY_STATE_PHRASES
+    )
+    has_fatigue = (
+        bool(words.intersection({"fatigue", "fatigued", "tired", "exhausted"}))
+        or has_broad_recovery_state
+    )
+    if has_broad_recovery_state:
+        intents.append("perceived_recovery")
+        if has_training or has_recovery:
+            intents.append("training_load_recovery")
     if has_fatigue and words.intersection(
         {"accumulated", "cumulative", "building", "repeated", "several"}
     ):
@@ -394,6 +420,8 @@ def _empty_context(
 def _is_personal_history_only(normalized: str, words: set[str]) -> bool:
     personal = bool(words.intersection({"my", "me", "i"}))
     if not personal:
+        return False
+    if any(phrase in normalized for phrase in _BROAD_RECOVERY_STATE_PHRASES):
         return False
     if any(marker in normalized for marker in _GENERAL_PERSONAL_EXPLANATION_MARKERS):
         return False

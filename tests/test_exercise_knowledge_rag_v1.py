@@ -167,11 +167,13 @@ def test_coach_combines_personal_evidence_and_distinct_knowledge_references() ->
         return json.dumps(
             {
                 "answer": (
-                    "Your logs show higher recent effort. In general, an unsupported row also asks the trunk to hold the hinge, so torso movement or fatigue can increase that demand; the logs do not establish the cause of your sensation."
+                    "Your recent rows took more effort at the same load. An unsupported "
+                    "row also asks your trunk to hold the hinge, so torso position and "
+                    "fatigue are useful possibilities to investigate."
                 ),
                 "evidence_references": ["exercise:42:effort-trend"],
                 "knowledge_references": [knowledge_context.passages[0].reference_id],
-                "uncertainty": "The available records do not establish a cause.",
+                "uncertainty": None,
                 "suggested_action": None,
             }
         )

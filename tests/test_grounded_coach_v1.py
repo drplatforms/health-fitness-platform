@@ -17,16 +17,21 @@ from models.coach_models import (
     CoachEvidencePack,
 )
 from models.exercise_catalog_models import ExerciseCatalogEntry
+from models.exercise_knowledge_models import ExerciseKnowledgeContext
 from models.longitudinal_insight_models import (
     InsightDataCoverage,
     InsightEvidence,
     InsightWindow,
     LongitudinalInsight,
 )
+from models.recovery_knowledge_models import RecoveryKnowledgeContext
 from scripts.seed_longitudinal_qa_data import seed_longitudinal_qa_data
 from services.coach_evidence_service import (
+    BASELINE_TRAINING_LOOKBACK_DAYS,
+    MAX_BASELINE_LONGITUDINAL_ITEMS,
     MAX_CONVERSATION_TOTAL_CHARS,
     MAX_CONVERSATION_TURNS,
+    MAX_EVIDENCE_PROMPT_CHARS,
     bound_coach_conversation_context,
     build_coach_evidence_pack,
     build_coach_evidence_pack_from_sources,
@@ -34,10 +39,16 @@ from services.coach_evidence_service import (
     resolve_referenced_exercise,
 )
 from services.coach_model_service import build_coach_model_options
+from services.exercise_knowledge_retrieval_service import retrieve_exercise_knowledge
 from services.grounded_coach_service import (
+    COACH_OPENAI_MAX_OUTPUT_TOKENS,
+    MAX_FAILED_OUTPUT_PREVIEW_CHARS,
+    MAX_REFERENCE_DIAGNOSTIC_CHARS,
     CoachProviderError,
     ask_grounded_coach,
+    build_coach_response_schema,
 )
+from services.recovery_knowledge_retrieval_service import retrieve_recovery_knowledge
 from services.workout_exercise_history_analytics_service import (
     ExerciseHistoryAnalyticsOverview,
     ExerciseHistoryAnalyticsSummary,
@@ -45,6 +56,12 @@ from services.workout_exercise_history_analytics_service import (
     ExerciseHistoryRecentSession,
     RecentWorkingLoadTrend,
     WorkoutExerciseHistoryAnalytics,
+)
+
+STRESS_TEST_QUESTION = (
+    "Forget giving me the safest answer. Looking at everything you actually have "
+    "available, what do you genuinely think is going on with me right now? Walk "
+    "me through your reasoning like a great coach would."
 )
 
 
@@ -179,6 +196,33 @@ def _provider_pack() -> CoachEvidencePack:
         confidence="Moderate",
         source="workout_exercise_history_analytics_service",
         observed_at="2026-07-20",
+        structured_data={
+            "observation_type": "logged_effort_comparison",
+            "exercise_name": "Barbell Row",
+            "latest": {
+                "performed_at": "2026-07-20",
+                "comparable_working_weight_lb": 100,
+                "average_actual_rir": 1,
+            },
+            "comparison": {
+                "performed_at": "2026-07-06",
+                "comparable_working_weight_lb": 100,
+                "average_actual_rir": 3,
+            },
+        },
+        synthesis_data={
+            "exercise": "Barbell Row",
+            "recent": {
+                "performed_at": "2026-07-20",
+                "comparable_working_weight_lb": 100,
+                "average_actual_rir": 1,
+            },
+            "previous": {
+                "performed_at": "2026-07-06",
+                "comparable_working_weight_lb": 100,
+                "average_actual_rir": 3,
+            },
+        },
     )
     return CoachEvidencePack(
         pack_version="grounded_coach_evidence_v1",
@@ -204,6 +248,12 @@ def _progression_guidance_pack() -> CoachEvidencePack:
         source="workout_progression_decision_service",
         observed_at="2026-07-20",
         metadata={"decision": "hold"},
+        structured_data={
+            "decision": "hold",
+            "evidence_session_count": 4,
+            "confidence": "Moderate",
+        },
+        synthesis_data={"evidence_session_count": 4},
     )
     base = _provider_pack()
     return CoachEvidencePack(
@@ -219,6 +269,27 @@ def _progression_guidance_pack() -> CoachEvidencePack:
             "workout_progression_decision_service",
         ),
         confidence="Moderate",
+    )
+
+
+def _empty_exercise_knowledge_context() -> ExerciseKnowledgeContext:
+    return ExerciseKnowledgeContext(
+        retrieval_version="test",
+        corpus_version="test",
+        corpus_digest="test",
+        question_intents=(),
+        matched_exercise_name=None,
+        passages=(),
+    )
+
+
+def _empty_recovery_knowledge_context() -> RecoveryKnowledgeContext:
+    return RecoveryKnowledgeContext(
+        retrieval_version="test",
+        corpus_version="test",
+        corpus_digest="test",
+        question_intents=(),
+        passages=(),
     )
 
 
@@ -242,7 +313,7 @@ def _ask_with_raw_output(
     )
 
 
-def test_exercise_resolution_and_evidence_selection_are_specific_and_repeatable():
+def test_exercise_resolution_keeps_baseline_and_adds_specific_depth_repeatably():
     catalog = [
         ExerciseCatalogEntry(
             id=11,
@@ -289,7 +360,7 @@ def test_exercise_resolution_and_evidence_selection_are_specific_and_repeatable(
         "exercise:42:load-trend",
         "exercise:42:effort-trend",
     }
-    assert "insight:training:dumbbell-bench-press" not in references
+    assert "insight:training:dumbbell-bench-press" in references
 
 
 def test_question_classification_and_cross_domain_evidence_remain_bounded():
@@ -300,7 +371,18 @@ def test_question_classification_and_cross_domain_evidence_remain_bounded():
 
     recovery = SimpleNamespace(
         current_day=None,
-        coach_safe_summary="Recent recovery markers were steadier than the prior window.",
+        recent_vs_baseline=None,
+        recent_vs_prior=SimpleNamespace(
+            comparison_name="recent_vs_prior",
+            recent_window_days=7,
+            comparison_window_days=7,
+            sleep_delta=0.4,
+            energy_delta=0.5,
+            soreness_delta=-0.5,
+            body_weight_delta=None,
+            trend_direction="improving",
+            confidence="Moderate",
+        ),
         confidence="Moderate",
         target_date="2026-07-21",
         limitations=[],
@@ -358,7 +440,177 @@ def test_question_classification_and_cross_domain_evidence_remain_bounded():
         "body_weight",
         "cross_domain",
     }
-    assert len(pack.evidence) <= 16
+    serialized = json.dumps(pack.to_prompt_dict(), separators=(",", ":"), default=str)
+    assert len(serialized) <= MAX_EVIDENCE_PROMPT_CHARS
+
+
+def test_every_question_gets_whole_person_baseline_and_intent_adds_depth(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "coach_baseline.db")
+    target = date(2026, 6, 14)
+    seed_longitudinal_qa_data(end_date=target)
+
+    assert classify_coach_question(STRESS_TEST_QUESTION) == ("broad",)
+    assert classify_coach_question("What equipment do I have available?") == (
+        "equipment",
+    )
+
+    baseline_pack = build_coach_evidence_pack(
+        user_id=102,
+        question=STRESS_TEST_QUESTION,
+        as_of_date=target,
+    )
+    baseline_domains = {item.domain for item in baseline_pack.evidence}
+    assert baseline_domains >= {
+        "profile",
+        "training",
+        "recovery",
+        "nutrition",
+        "body_weight",
+    }
+    assert "equipment" not in baseline_pack.question_topics
+    assert any(
+        item.evidence_type == "longitudinal_insight" for item in baseline_pack.evidence
+    )
+    training_overview = next(
+        item
+        for item in baseline_pack.evidence
+        if item.evidence_type == "training_history_overview"
+    )
+    assert training_overview.structured_data["window_days"] == (
+        BASELINE_TRAINING_LOOKBACK_DAYS
+    )
+    prompt_payload = json.dumps(
+        baseline_pack.to_prompt_dict(), separators=(",", ":"), default=str
+    )
+    assert len(prompt_payload) <= MAX_EVIDENCE_PROMPT_CHARS
+    assert '"evidence_strength"' not in prompt_payload
+    assert "stable_load_rising_effort" not in prompt_payload
+
+    exercise_pack = build_coach_evidence_pack(
+        user_id=102,
+        question="Why is my Barbell Row getting harder?",
+        as_of_date=target,
+    )
+    assert {item.domain for item in exercise_pack.evidence} >= baseline_domains
+    assert exercise_pack.matched_exercise_name == "Barbell Row"
+    assert {
+        "exercise_identity",
+        "exercise_history",
+        "exercise_effort_trend",
+    }.issubset({item.evidence_type for item in exercise_pack.evidence})
+
+    recovery_pack = build_coach_evidence_pack(
+        user_id=102,
+        question="How has my recovery changed lately?",
+        as_of_date=target,
+    )
+    assert {item.domain for item in recovery_pack.evidence} >= baseline_domains
+    assert "recovery" in recovery_pack.question_topics
+    assert any(
+        item.evidence_type == "recovery_window_comparison"
+        for item in recovery_pack.evidence
+    )
+
+
+def test_model_facing_recovery_snapshot_includes_subjective_scale_bounds():
+    recovery = SimpleNamespace(
+        current_day=SimpleNamespace(
+            date="2026-07-21",
+            sleep_hours=7.5,
+            sleep_quality=4,
+            energy_level=7,
+            soreness_level=3,
+            stress_level=2,
+            training_motivation=5,
+            pain_concern="none",
+            pain_area=None,
+            data_quality_status="usable",
+        ),
+        recent_vs_baseline=None,
+        recent_vs_prior=None,
+        confidence="Moderate",
+        target_date="2026-07-21",
+        limitations=[],
+    )
+    pack = build_coach_evidence_pack_from_sources(
+        user_id=1,
+        question="How am I doing overall?",
+        as_of_date="2026-07-21",
+        topics=("broad",),
+        user_profile={"primary_goal": None},
+        insights=[],
+        recovery=recovery,
+    )
+
+    recovery_snapshot = pack.to_prompt_dict()["evidence_by_domain"]["recovery"][
+        "snapshots"
+    ][0]["data"]
+
+    assert recovery_snapshot["sleep_quality"] == {
+        "value": 4,
+        "scale_min": 1,
+        "scale_max": 5,
+    }
+    assert recovery_snapshot["energy_level"] == {
+        "value": 7,
+        "scale_min": 1,
+        "scale_max": 10,
+    }
+    assert recovery_snapshot["soreness_level"] == {
+        "value": 3,
+        "scale_min": 1,
+        "scale_max": 10,
+    }
+    assert recovery_snapshot["stress_level"] == {
+        "value": 2,
+        "scale_min": 1,
+        "scale_max": 5,
+    }
+    assert recovery_snapshot["training_motivation"] == {
+        "value": 5,
+        "scale_min": 1,
+        "scale_max": 5,
+    }
+    internal_snapshot = next(
+        item
+        for item in pack.evidence
+        if item.evidence_type == "current_recovery_checkin"
+    )
+    assert internal_snapshot.structured_data["sleep_quality"] == 4
+    assert internal_snapshot.structured_data["energy_level"] == 7
+
+
+def test_baseline_longitudinal_state_is_domain_balanced_and_bounded():
+    insights = [
+        _insight(domain, f"{domain}:{index}", f"{domain} observation {index}")
+        for domain in (
+            "recovery",
+            "training",
+            "nutrition",
+            "body_weight",
+            "cross_domain",
+        )
+        for index in range(3)
+    ]
+    pack = build_coach_evidence_pack_from_sources(
+        user_id=1,
+        question="What equipment can I use?",
+        as_of_date="2026-07-21",
+        topics=("equipment",),
+        user_profile={"primary_goal": "strength"},
+        insights=insights,
+        training=_barbell_row_history(),
+    )
+
+    longitudinal = [
+        item for item in pack.evidence if item.evidence_type == "longitudinal_insight"
+    ]
+    assert len(longitudinal) == MAX_BASELINE_LONGITUDINAL_ITEMS
+    assert len({item.domain for item in longitudinal}) == len(longitudinal)
+    serialized = json.dumps(pack.to_prompt_dict(), separators=(",", ":"), default=str)
+    assert len(serialized) <= MAX_EVIDENCE_PROMPT_CHARS
 
 
 def test_unsupported_sources_are_suppressed_instead_of_becoming_personal_facts():
@@ -371,7 +623,8 @@ def test_unsupported_sources_are_suppressed_instead_of_becoming_personal_facts()
         insights=[],
         recovery=SimpleNamespace(
             current_day=None,
-            coach_safe_summary="",
+            recent_vs_baseline=None,
+            recent_vs_prior=None,
             confidence="Limited",
             target_date="2026-07-21",
             limitations=[],
@@ -405,6 +658,7 @@ def test_unsupported_sources_are_suppressed_instead_of_becoming_personal_facts()
     )
 
     assert pack.evidence == ()
+    assert pack.to_prompt_dict()["evidence_by_domain"] == {}
     assert pack.confidence == "Limited"
     assert any("enough supported evidence" in item for item in pack.limitations)
     assert not any("0 calories" in item for item in pack.limitations)
@@ -470,7 +724,10 @@ def test_seeded_user_102_conversation_reaches_synthesis_with_authoritative_evide
         evidence_by_type = {item.evidence_type: item for item in pack.evidence}
         assert pack.matched_exercise_name == "Barbell Row"
         assert set(required_types).issubset(evidence_by_type)
-        assert len(pack.evidence) <= 16
+        serialized = json.dumps(
+            pack.to_prompt_dict(), separators=(",", ":"), default=str
+        )
+        assert len(serialized) <= MAX_EVIDENCE_PROMPT_CHARS
         references = [
             evidence_by_type[evidence_type].reference_id
             for evidence_type in required_types
@@ -513,7 +770,7 @@ def test_seeded_user_102_conversation_reaches_synthesis_with_authoritative_evide
                     "answer": "A conversational synthesis using the selected observations.",
                     "evidence_references": expected_references,
                     "knowledge_references": [],
-                    "uncertainty": "The observations do not establish a cause.",
+                    "uncertainty": None,
                     "suggested_action": expected_action,
                 }
             )
@@ -552,8 +809,32 @@ def test_seeded_user_102_conversation_reaches_synthesis_with_authoritative_evide
         )
 
     assert len(prompts) == 4
-    assert "prior assistant messages are never authoritative" in prompts[-1]
+    assert "Use RECENT_CONVERSATION for dialogue continuity" in prompts[-1]
     assert '"evidence_role":"authoritative_constraint"' in prompts[-1]
+    assert "do not establish a cause" not in prompts[-1]
+    assert "provider_may_make_causal_claims" not in prompts[-1]
+    assert '"previous_average_load_lb"' in prompts[-1]
+    assert '"previous_average_rir"' in prompts[-1]
+    assert "stable_load_rising_effort" not in prompts[-1]
+    assert "rising_effort" not in prompts[-1]
+    assert '"evidence_strength"' not in prompts[-1]
+    assert '"confidence":"High"' not in prompts[-1]
+    assert "Lower RIR means the sets were logged closer to failure" not in prompts[-1]
+    assert any('"comparison_name":"recent_vs_baseline"' in prompt for prompt in prompts)
+    assert any('"recovery":{' in prompt for prompt in prompts)
+    assert all('"evidence":[' not in prompt for prompt in prompts)
+    assert all(
+        "Reason and communicate according to the strength and coverage" not in prompt
+        for prompt in prompts
+    )
+    assert all(
+        "Recent recovery indicators look supportive" not in prompt for prompt in prompts
+    )
+    assert all(
+        "Coincident patterns do not establish causation" not in prompt
+        for prompt in prompts
+    )
+    assert all('"confidence_ceiling"' not in prompt for prompt in prompts)
 
 
 def test_response_contract_returns_known_references_telemetry_and_confidence():
@@ -562,16 +843,21 @@ def test_response_contract_returns_known_references_telemetry_and_confidence():
     def generate(model, prompt, timeout, schema):
         del timeout
         assert model == "qwen3:8b"
-        assert "exercise:42:effort-trend" in prompt
+        assert "personal_evidence:training:comparisons:1" in prompt
+        assert "exercise:42:effort-trend" not in prompt
         assert '"evidence_role":"deterministic_observation"' in prompt
+        assert '"data":{"exercise":"Barbell Row","recent"' in prompt
+        assert '"observation_type"' not in prompt
+        assert '"confidence":"Moderate"' not in prompt
+        assert "Average logged RIR was 1 recently" not in prompt
         assert "confidence" not in schema["properties"]
         return AIProviderTextResult(
             text=json.dumps(
                 {
                     "answer": "The logged effort pattern changed across the compared sessions.",
-                    "evidence_references": ["exercise:42:effort-trend"],
+                    "evidence_references": ["personal_evidence:training:comparisons:1"],
                     "knowledge_references": [],
-                    "uncertainty": "The history does not establish why effort changed.",
+                    "uncertainty": None,
                     "suggested_action": None,
                 }
             ),
@@ -597,6 +883,126 @@ def test_response_contract_returns_known_references_telemetry_and_confidence():
     assert public["suggested_action"] is None
     assert public["telemetry"]["estimated_api_cost_usd"] == 0.0
     assert public["provider_run"]["actual_model"] == "qwen3:8b"
+
+
+def test_response_schema_uses_exact_evidence_and_knowledge_aliases():
+    pack = _progression_guidance_pack()
+    exercise_knowledge = retrieve_exercise_knowledge(
+        "What should I focus on during an RDL?"
+    )
+    recovery_knowledge = retrieve_recovery_knowledge(
+        "Why poor sleep may make training feel harder"
+    )
+
+    schema = build_coach_response_schema(
+        evidence_pack=pack,
+        knowledge_context=exercise_knowledge,
+        recovery_knowledge_context=recovery_knowledge,
+    )
+
+    evidence_schema = schema["properties"]["evidence_references"]
+    assert evidence_schema["maxItems"] == 8
+    assert evidence_schema["items"]["enum"] == list(
+        pack.prompt_reference_aliases().values()
+    )
+    knowledge_schema = schema["properties"]["knowledge_references"]
+    assert knowledge_schema["maxItems"] == 4
+    assert knowledge_schema["items"]["enum"] == [
+        *(passage.reference_id for passage in exercise_knowledge.passages),
+        *(passage.reference_id for passage in recovery_knowledge.passages),
+    ]
+    assert set(evidence_schema["items"]["enum"]).isdisjoint(
+        knowledge_schema["items"]["enum"]
+    )
+
+
+@pytest.mark.parametrize(
+    "returned_aliases",
+    [
+        [],
+        ["personal_evidence:training:comparisons:1"],
+    ],
+)
+def test_response_schema_allows_empty_or_valid_evidence_subset(returned_aliases):
+    pack = _provider_pack()
+
+    def generate(model, prompt, timeout, schema):
+        del model, prompt, timeout
+        assert schema["properties"]["evidence_references"]["items"]["enum"] == [
+            "personal_evidence:training:comparisons:1"
+        ]
+        return json.dumps(
+            {
+                "answer": "A bounded answer.",
+                "evidence_references": returned_aliases,
+                "knowledge_references": [],
+                "uncertainty": None,
+                "suggested_action": None,
+            }
+        )
+
+    result = ask_grounded_coach(
+        user_id=1,
+        question="What changed?",
+        provider="local",
+        model="qwen3:8b",
+        local_generate=generate,
+        evidence_pack=pack,
+        knowledge_context=_empty_exercise_knowledge_context(),
+        recovery_knowledge_context=_empty_recovery_knowledge_context(),
+        environ={},
+    )
+
+    expected = ("exercise:42:effort-trend",) if returned_aliases else ()
+    assert result.supporting_evidence_references == expected
+
+
+def test_zero_reference_aliases_require_clean_empty_arrays():
+    empty_pack = CoachEvidencePack(
+        pack_version="grounded_coach_evidence_v1",
+        user_id=1,
+        as_of_date="2026-07-21",
+        question_topics=("broad",),
+        matched_exercise_name=None,
+        evidence=(),
+        limitations=(),
+        source_services=(),
+        confidence="Limited",
+    )
+    empty_exercise_knowledge = _empty_exercise_knowledge_context()
+    empty_recovery_knowledge = _empty_recovery_knowledge_context()
+
+    def generate(model, prompt, timeout, schema):
+        del model, prompt, timeout
+        for field in ("evidence_references", "knowledge_references"):
+            reference_schema = schema["properties"][field]
+            assert reference_schema["maxItems"] == 0
+            assert reference_schema["items"] == {"type": "string"}
+            assert "enum" not in reference_schema["items"]
+        return json.dumps(
+            {
+                "answer": "There is no supported context to cite.",
+                "evidence_references": [],
+                "knowledge_references": [],
+                "uncertainty": None,
+                "suggested_action": None,
+            }
+        )
+
+    result = ask_grounded_coach(
+        user_id=1,
+        question="What is available?",
+        provider="local",
+        model="qwen3:8b",
+        local_generate=generate,
+        evidence_pack=empty_pack,
+        knowledge_context=empty_exercise_knowledge,
+        recovery_knowledge_context=empty_recovery_knowledge,
+        environ={},
+    )
+
+    assert result.supporting_evidence_references == ()
+    assert result.supporting_knowledge_references == ()
 
 
 def test_no_evidence_references_yields_limited_application_confidence():
@@ -625,7 +1031,7 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
                 "exercise:42:progression-decision",
             ],
             "knowledge_references": [],
-            "uncertainty": "Logged patterns cannot establish the cause.",
+            "uncertainty": None,
             "suggested_action": None,
         }
     )
@@ -636,6 +1042,31 @@ def test_natural_language_is_not_semantically_reinterpreted_after_generation():
         "exercise:42:effort-trend",
         "exercise:42:progression-decision",
     )
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "The same load is costing you more effort lately; I would watch whether that persists.",
+        "Your recent sets look tougher than the comparison session even though the weight is unchanged.",
+        "At 100 lb, logged RIR moved from 3 to 1. That is a meaningful change in effort.",
+    ],
+)
+def test_valid_grounded_reasoning_styles_need_no_disclaimer(answer):
+    raw = json.dumps(
+        {
+            "answer": answer,
+            "evidence_references": ["exercise:42:effort-trend"],
+            "knowledge_references": [],
+            "uncertainty": None,
+            "suggested_action": None,
+        }
+    )
+
+    result = _ask_with_raw_output(raw)
+
+    assert result.answer == answer
+    assert result.uncertainty is None
 
 
 @pytest.mark.parametrize(
@@ -720,17 +1151,89 @@ def test_unknown_evidence_reference_is_rejected_objectively():
     assert error.value.validation_reasons == ("evidence_reference_mismatch",)
 
 
+def test_injected_unknown_alias_still_fails_with_bounded_diagnostics():
+    pack = _provider_pack()
+    unknown_alias = "personal_evidence:training:comparisons:999:" + ("x" * 500)
+
+    def generate(model, prompt, timeout, schema):
+        del prompt, timeout
+        assert schema["properties"]["evidence_references"]["items"]["enum"] == [
+            "personal_evidence:training:comparisons:1"
+        ]
+        return AIProviderTextResult(
+            text=json.dumps(
+                {
+                    "answer": "An injected response.",
+                    "evidence_references": [unknown_alias],
+                    "knowledge_references": [],
+                    "uncertainty": None,
+                    "suggested_action": None,
+                }
+            ),
+            model=f"{model}-2026-07-15",
+            input_tokens=800,
+            cached_input_tokens=200,
+            output_tokens=80,
+            reasoning_tokens=50,
+            total_tokens=880,
+            response_id="resp_reference_mismatch",
+            status="completed",
+            max_output_tokens=COACH_OPENAI_MAX_OUTPUT_TOKENS,
+        )
+
+    with pytest.raises(CoachProviderError) as error:
+        ask_grounded_coach(
+            user_id=1,
+            question="What changed?",
+            provider="openai",
+            model="gpt-5.6-sol",
+            openai_generate=generate,
+            evidence_pack=pack,
+            knowledge_context=_empty_exercise_knowledge_context(),
+            recovery_knowledge_context=_empty_recovery_knowledge_context(),
+            environ={"OPENAI_API_KEY": "test-key"},
+        )
+
+    assert error.value.validation_reasons == ("evidence_reference_mismatch",)
+    diagnostics = error.value.provider_diagnostics
+    assert diagnostics["response_id"] == "resp_reference_mismatch"
+    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
+    assert diagnostics["status"] == "completed"
+    assert diagnostics["usage"] == {
+        "input_tokens": 800,
+        "cached_input_tokens": 200,
+        "output_tokens": 80,
+        "reasoning_tokens": 50,
+        "total_tokens": 880,
+    }
+    assert diagnostics["allowed_evidence_aliases"] == [
+        "personal_evidence:training:comparisons:1"
+    ]
+    assert diagnostics["returned_evidence_references"] == [
+        unknown_alias[:MAX_REFERENCE_DIAGNOSTIC_CHARS]
+    ]
+    assert diagnostics["unresolved_evidence_references"] == [
+        unknown_alias[:MAX_REFERENCE_DIAGNOSTIC_CHARS]
+    ]
+    assert diagnostics["reference_diagnostics_truncated"] is True
+    assert "raw_output_preview" not in diagnostics
+
+
 def test_structured_progression_action_is_validated_and_exposed():
     raw = json.dumps(
         {
             "answer": "The current application guidance is to keep the target steady.",
-            "evidence_references": ["exercise:42:progression-decision"],
+            "evidence_references": [
+                "personal_evidence:training:authoritative_constraints:1"
+            ],
             "knowledge_references": [],
             "uncertainty": None,
             "suggested_action": {
                 "action_type": "progression_decision",
                 "decision": "hold",
-                "evidence_reference": "exercise:42:progression-decision",
+                "evidence_reference": (
+                    "personal_evidence:training:authoritative_constraints:1"
+                ),
             },
         }
     )
@@ -843,27 +1346,45 @@ def test_selected_provider_failure_is_controlled_and_has_no_fabricated_fallback(
     assert len(calls) == 1
 
 
-def test_openai_coach_path_reaches_shared_adapter_with_mocked_sdk(monkeypatch):
+@pytest.mark.parametrize(
+    ("requested_model", "actual_model"),
+    [
+        ("gpt-5.4-mini", "gpt-5.4-mini-2026-03-17"),
+        ("gpt-5.6-luna", "gpt-5.6-luna-2026-07-15"),
+    ],
+)
+def test_openai_completed_valid_structured_output_uses_shared_adapter(
+    monkeypatch,
+    requested_model,
+    actual_model,
+):
     captured: dict[str, object] = {}
 
     class FakeResponses:
         def create(self, **kwargs):
             captured["request"] = kwargs
             return SimpleNamespace(
+                id="resp_completed",
                 output_text=json.dumps(
                     {
                         "answer": "A synthesis from the bounded training observation.",
-                        "evidence_references": ["exercise:42:effort-trend"],
+                        "evidence_references": [
+                            "personal_evidence:training:comparisons:1"
+                        ],
                         "knowledge_references": [],
                         "uncertainty": None,
                         "suggested_action": None,
                     }
                 ),
-                model="gpt-5.4-mini-2026-03-17",
+                model=actual_model,
+                status="completed",
+                incomplete_details=None,
                 usage=SimpleNamespace(
                     input_tokens=120,
                     input_tokens_details=SimpleNamespace(cached_tokens=20),
                     output_tokens=40,
+                    output_tokens_details=SimpleNamespace(reasoning_tokens=12),
+                    total_tokens=160,
                 ),
             )
 
@@ -878,14 +1399,15 @@ def test_openai_coach_path_reaches_shared_adapter_with_mocked_sdk(monkeypatch):
         user_id=1,
         question="Why is my Barbell Row getting harder?",
         provider="openai",
-        model="gpt-5.4-mini",
+        model=requested_model,
         evidence_pack=_provider_pack(),
         environ={"OPENAI_API_KEY": "test-key"},
     )
 
     request = captured["request"]
     assert isinstance(request, dict)
-    assert request["model"] == "gpt-5.4-mini"
+    assert request["model"] == requested_model
+    assert request["max_output_tokens"] == COACH_OPENAI_MAX_OUTPUT_TOKENS
     assert request["text"]["format"]["schema"]["required"] == [
         "answer",
         "evidence_references",
@@ -893,9 +1415,146 @@ def test_openai_coach_path_reaches_shared_adapter_with_mocked_sdk(monkeypatch):
         "uncertainty",
         "suggested_action",
     ]
+    assert request["text"]["format"]["schema"]["properties"]["evidence_references"][
+        "items"
+    ]["enum"] == ["personal_evidence:training:comparisons:1"]
     assert "temperature" not in request
     assert result.supporting_evidence_references == ("exercise:42:effort-trend",)
-    assert result.telemetry.model == "gpt-5.4-mini-2026-03-17"
+    assert result.telemetry.model == actual_model
+
+
+def test_openai_incomplete_max_tokens_is_distinct_provider_output_failure(
+    monkeypatch,
+):
+    class FakeResponses:
+        def create(self, **kwargs):
+            assert kwargs["max_output_tokens"] == COACH_OPENAI_MAX_OUTPUT_TOKENS
+            return SimpleNamespace(
+                id="resp_incomplete",
+                output_text='{"answer":"partial',
+                model="gpt-5.6-sol-2026-07-15",
+                status="incomplete",
+                incomplete_details=SimpleNamespace(reason="max_output_tokens"),
+                usage=SimpleNamespace(
+                    input_tokens=2_100,
+                    input_tokens_details=SimpleNamespace(cached_tokens=500),
+                    output_tokens=2_400,
+                    output_tokens_details=SimpleNamespace(reasoning_tokens=2_250),
+                    total_tokens=4_500,
+                ),
+            )
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            del kwargs
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+
+    with pytest.raises(CoachProviderError) as error:
+        ask_grounded_coach(
+            user_id=1,
+            question="What is going on with me right now?",
+            provider="openai",
+            model="gpt-5.6-sol",
+            evidence_pack=_provider_pack(),
+            environ={"OPENAI_API_KEY": "test-key"},
+        )
+
+    assert error.value.code == "provider_output_rejected"
+    assert error.value.validation_reasons == ("provider_response_incomplete",)
+    diagnostics = error.value.provider_diagnostics
+    assert diagnostics["response_id"] == "resp_incomplete"
+    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
+    assert diagnostics["status"] == "incomplete"
+    assert diagnostics["incomplete_reason"] == "max_output_tokens"
+    assert diagnostics["max_output_tokens"] == COACH_OPENAI_MAX_OUTPUT_TOKENS
+    assert diagnostics["usage"] == {
+        "input_tokens": 2_100,
+        "cached_input_tokens": 500,
+        "output_tokens": 2_400,
+        "reasoning_tokens": 2_250,
+        "total_tokens": 4_500,
+    }
+    assert "raw_output_preview" not in diagnostics
+
+
+def test_openai_completed_non_json_output_remains_invalid_response_json(monkeypatch):
+    class FakeResponses:
+        def create(self, **kwargs):
+            del kwargs
+            return SimpleNamespace(
+                id="resp_invalid_json",
+                output_text="not-json",
+                model="gpt-5.6-sol-2026-07-15",
+                status="completed",
+                incomplete_details=None,
+                usage=SimpleNamespace(
+                    input_tokens=100,
+                    input_tokens_details=SimpleNamespace(cached_tokens=0),
+                    output_tokens=5,
+                    output_tokens_details=SimpleNamespace(reasoning_tokens=0),
+                    total_tokens=105,
+                ),
+            )
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            del kwargs
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+
+    with pytest.raises(CoachProviderError) as error:
+        ask_grounded_coach(
+            user_id=1,
+            question="What changed?",
+            provider="openai",
+            model="gpt-5.6-sol",
+            evidence_pack=_provider_pack(),
+            environ={"OPENAI_API_KEY": "test-key"},
+        )
+
+    assert error.value.validation_reasons == ("invalid_response_json",)
+    assert error.value.provider_diagnostics["status"] == "completed"
+    assert error.value.provider_diagnostics["raw_output_preview"] == "not-json"
+
+
+def test_openai_failure_diagnostics_bound_raw_output_preview():
+    raw_output = "x" * (MAX_FAILED_OUTPUT_PREVIEW_CHARS + 75)
+
+    def generate(model, prompt, timeout, schema):
+        del prompt, timeout, schema
+        return AIProviderTextResult(
+            text=raw_output,
+            model=f"{model}-2026-07-15",
+            input_tokens=900,
+            cached_input_tokens=300,
+            output_tokens=120,
+            reasoning_tokens=80,
+            total_tokens=1_020,
+            response_id="resp_bounded_preview",
+            status="completed",
+            max_output_tokens=COACH_OPENAI_MAX_OUTPUT_TOKENS,
+        )
+
+    with pytest.raises(CoachProviderError) as error:
+        ask_grounded_coach(
+            user_id=1,
+            question="What changed?",
+            provider="openai",
+            model="gpt-5.6-sol",
+            openai_generate=generate,
+            evidence_pack=_provider_pack(),
+            environ={"OPENAI_API_KEY": "test-key"},
+        )
+
+    diagnostics = error.value.provider_diagnostics
+    assert diagnostics["raw_output_length"] == len(raw_output)
+    assert len(diagnostics["raw_output_preview"]) == MAX_FAILED_OUTPUT_PREVIEW_CHARS
+    assert diagnostics["raw_output_preview_truncated"] is True
+    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
+    assert diagnostics["usage"]["reasoning_tokens"] == 80
 
 
 def test_provider_selection_changes_synthesis_only_not_grounding():
@@ -1098,6 +1757,11 @@ def test_coach_api_exposes_objective_contract_diagnostics(tmp_path, monkeypatch)
                 "invalid_response_contract",
                 "suggested_action_conflict",
             ),
+            provider_diagnostics={
+                "actual_model": "gpt-5.6-sol-2026-07-15",
+                "status": "completed",
+                "raw_output_preview": "bounded preview",
+            },
         )
 
     monkeypatch.setattr(coach_route, "ask_grounded_coach", fail)
@@ -1117,3 +1781,8 @@ def test_coach_api_exposes_objective_contract_diagnostics(tmp_path, monkeypatch)
         "invalid_response_contract",
         "suggested_action_conflict",
     ]
+    assert response.json()["detail"]["provider_diagnostics"] == {
+        "actual_model": "gpt-5.6-sol-2026-07-15",
+        "status": "completed",
+        "raw_output_preview": "bounded preview",
+    }

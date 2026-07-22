@@ -13,6 +13,12 @@ class AIProviderTextResult:
     input_tokens: int | None = None
     cached_input_tokens: int | None = None
     output_tokens: int | None = None
+    reasoning_tokens: int | None = None
+    total_tokens: int | None = None
+    response_id: str | None = None
+    status: str | None = None
+    incomplete_reason: str | None = None
+    max_output_tokens: int | None = None
 
 
 @dataclass(frozen=True)

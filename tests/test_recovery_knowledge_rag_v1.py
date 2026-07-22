@@ -84,6 +84,36 @@ def test_recovery_retrieval_qa_cases_return_expected_concepts(
 
 
 @pytest.mark.parametrize(
+    ("question", "expected_intents", "expected_chunk_ids"),
+    [
+        (
+            "Why have I been feeling more run down lately? Look at everything you know about my recent recovery and training.",
+            {"perceived_recovery", "training_load_recovery"},
+            {
+                "training-load-has-multiple-parts-v1",
+                "life-and-training-stress-v1",
+            },
+        ),
+        ("Why have I felt worn out lately?", {"perceived_recovery"}, set()),
+        ("Why am I unusually tired?", {"perceived_recovery"}, set()),
+        ("Why do my workouts feel harder?", {"perceived_recovery"}, set()),
+        ("Why have I been feeling off?", {"perceived_recovery"}, set()),
+    ],
+)
+def test_broad_recovery_language_retrieves_general_context(
+    question: str,
+    expected_intents: set[str],
+    expected_chunk_ids: set[str],
+) -> None:
+    context = retrieve_recovery_knowledge(question)
+
+    assert expected_intents <= set(context.question_intents)
+    assert expected_chunk_ids <= {passage.chunk_id for passage in context.passages}
+    assert context.suppressed_for_personal_history is False
+    assert context.passages
+
+
+@pytest.mark.parametrize(
     "question",
     [
         "How many hours did I sleep last night?",
@@ -181,6 +211,11 @@ def _recovery_pack() -> CoachEvidencePack:
         confidence="Moderate",
         source="recovery_intelligence_v2_service",
         observed_at="2026-07-21",
+        structured_data={
+            "observation_type": "recovery_window_comparison",
+            "sleep_hours_delta": -0.8,
+            "average_actual_rir_delta": -1.0,
+        },
     )
     return CoachEvidencePack(
         pack_version="grounded_coach_evidence_v1",
@@ -189,7 +224,7 @@ def _recovery_pack() -> CoachEvidencePack:
         question_topics=("recovery",),
         matched_exercise_name=None,
         evidence=(item,),
-        limitations=("The records show an association, not a cause.",),
+        limitations=(),
         source_services=("recovery_intelligence_v2_service",),
         confidence="Moderate",
     )
@@ -207,19 +242,19 @@ def test_grounded_coach_keeps_recovery_evidence_and_knowledge_distinct() -> None
         assert "RECOVERY_KNOWLEDGE=" in prompt
         assert knowledge_reference in prompt
         assert '"knowledge_domain":"recovery"' in prompt
-        assert "may_change_personal_confidence" in prompt
+        assert "may_be_used_as_personal_evidence" in prompt
+        assert "may_establish_personal_causation" not in prompt
         assert "EXERCISE_KNOWLEDGE=" in prompt
         assert "knowledge:fatigue-and-technique" not in prompt
         return json.dumps(
             {
                 "answer": (
-                    "Your records show a coincident sleep and effort pattern. "
-                    "Poor sleep can generally increase perceived effort, but it does not "
-                    "establish the cause of your harder sessions."
+                    "Shorter sleep is one plausible contributor to why training felt "
+                    "harder, especially because logged effort rose in the same period."
                 ),
                 "evidence_references": [pack.evidence[0].reference_id],
                 "knowledge_references": [knowledge_reference],
-                "uncertainty": "The personal records establish association, not causation.",
+                "uncertainty": None,
                 "suggested_action": None,
             }
         )

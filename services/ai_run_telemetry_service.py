@@ -33,15 +33,31 @@ def openai_provider_text_result(
     *,
     text: str,
     requested_model: str,
+    configured_max_output_tokens: int | None = None,
 ) -> AIProviderTextResult:
     usage = _field(response, "usage")
-    details = _field(usage, "input_tokens_details")
+    input_details = _field(usage, "input_tokens_details")
+    output_details = _field(usage, "output_tokens_details")
+    incomplete_details = _field(response, "incomplete_details")
     return AIProviderTextResult(
         text=text,
         model=_optional_text(_field(response, "model")) or requested_model,
         input_tokens=_optional_nonnegative_int(_field(usage, "input_tokens")),
-        cached_input_tokens=_optional_nonnegative_int(_field(details, "cached_tokens")),
+        cached_input_tokens=_optional_nonnegative_int(
+            _field(input_details, "cached_tokens")
+        ),
         output_tokens=_optional_nonnegative_int(_field(usage, "output_tokens")),
+        reasoning_tokens=_optional_nonnegative_int(
+            _field(output_details, "reasoning_tokens")
+        ),
+        total_tokens=_optional_nonnegative_int(_field(usage, "total_tokens")),
+        response_id=_optional_text(_field(response, "id")),
+        status=_optional_text(_field(response, "status")),
+        incomplete_reason=_optional_text(_field(incomplete_details, "reason")),
+        max_output_tokens=(
+            _optional_nonnegative_int(configured_max_output_tokens)
+            or _optional_nonnegative_int(_field(response, "max_output_tokens"))
+        ),
     )
 
 
