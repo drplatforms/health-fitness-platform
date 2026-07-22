@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from models.ai_run_models import AIRunTelemetry
+from models.exercise_knowledge_models import ExerciseKnowledgeContext
 
 CoachProvider = Literal["local", "openai"]
 CoachConfidence = Literal["Limited", "Low", "Moderate", "High"]
@@ -85,6 +86,7 @@ class CoachEvidencePack:
     limitations: tuple[str, ...]
     source_services: tuple[str, ...]
     confidence: CoachConfidence
+    matched_exercise_context: dict[str, Any] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -92,6 +94,7 @@ class CoachEvidencePack:
             "as_of_date": self.as_of_date,
             "question_topics": list(self.question_topics),
             "matched_exercise_name": self.matched_exercise_name,
+            "matched_exercise_context": dict(self.matched_exercise_context),
             "evidence": [item.to_public_dict() for item in self.evidence],
             "limitations": list(self.limitations),
             "confidence": self.confidence,
@@ -103,6 +106,7 @@ class CoachEvidencePack:
             "as_of_date": self.as_of_date,
             "question_topics": list(self.question_topics),
             "matched_exercise_name": self.matched_exercise_name,
+            "matched_exercise_context": dict(self.matched_exercise_context),
             "evidence": [item.to_prompt_dict() for item in self.evidence],
             "limitations": list(self.limitations),
             "confidence_ceiling": self.confidence,
@@ -130,10 +134,12 @@ class CoachSuggestedAction:
 class GroundedCoachAnswer:
     answer: str
     supporting_evidence_references: tuple[str, ...]
+    supporting_knowledge_references: tuple[str, ...]
     confidence: CoachConfidence
     uncertainty: str | None
     suggested_action: CoachSuggestedAction | None
     evidence_pack: CoachEvidencePack
+    knowledge_context: ExerciseKnowledgeContext
     configured_provider: CoachProvider
     selected_provider: CoachProvider
     configured_model: str
@@ -149,12 +155,24 @@ class GroundedCoachAnswer:
             for reference in self.supporting_evidence_references
             if reference in evidence_by_reference
         ]
+        knowledge_by_reference = {
+            passage.reference_id: passage for passage in self.knowledge_context.passages
+        }
+        supporting_knowledge = [
+            knowledge_by_reference[reference].to_public_dict()
+            for reference in self.supporting_knowledge_references
+            if reference in knowledge_by_reference
+        ]
         return {
             "success": True,
             "user_id": self.evidence_pack.user_id,
             "answer": self.answer,
             "supporting_evidence_references": list(self.supporting_evidence_references),
             "supporting_evidence": supporting_evidence,
+            "supporting_knowledge_references": list(
+                self.supporting_knowledge_references
+            ),
+            "supporting_knowledge": supporting_knowledge,
             "confidence": self.confidence,
             "uncertainty": self.uncertainty,
             "suggested_action": (
@@ -163,6 +181,7 @@ class GroundedCoachAnswer:
                 else None
             ),
             "evidence_pack": self.evidence_pack.to_public_dict(),
+            "knowledge_context": self.knowledge_context.to_public_dict(),
             "provider_run": {
                 "configured_provider": self.configured_provider,
                 "selected_provider": self.selected_provider,

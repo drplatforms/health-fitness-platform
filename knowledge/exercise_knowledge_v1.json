@@ -1,0 +1,236 @@
+{
+  "corpus_version": "exercise_knowledge_corpus_v1",
+  "exercise_aliases": {
+    "rdl": "Romanian Deadlift",
+    "romanian deadlifts": "Romanian Deadlift",
+    "barbell rows": "Barbell Row",
+    "pendlay rows": "Pendlay Row",
+    "back squat": "Barbell Squat",
+    "back squats": "Barbell Squat"
+  },
+  "documents": [
+    {
+      "source_id": "rowing-mechanics",
+      "title": "Rowing mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Barbell Row",
+        "services/exercise_instruction_seed_data.py#Pendlay Row",
+        "services/exercise_instruction_seed_data.py#Chest-Supported Dumbbell Row"
+      ],
+      "related_exercises": [
+        "Barbell Row",
+        "Pendlay Row",
+        "Chest-Supported Dumbbell Row",
+        "One-Arm Dumbbell Row"
+      ],
+      "taxonomy_tags": ["rowing", "horizontal_pull", "barbell_row"],
+      "chunks": [
+        {
+          "chunk_id": "row-hinge-and-trunk-demand-v1",
+          "heading": "Hinge and trunk demand in unsupported rows",
+          "intents": ["mechanics", "technique", "discomfort"],
+          "search_terms": ["lower back", "lumbar", "torso angle", "brace", "fatigue"],
+          "text": "An unsupported Barbell Row asks the hips and trunk to hold a steady hinge while the arms row. The lower back can therefore feel like it is working even when the row is controlled. If the torso rises on each pull, the bar drifts away, or the hinge position changes as fatigue builds, the trunk demand usually increases. A lighter load, a slightly higher but repeatable torso angle, or a chest-supported row can reduce the demand of holding the hinge. General exercise context cannot determine whether a specific sensation is normal muscle effort or a problem."
+        },
+        {
+          "chunk_id": "row-path-and-common-errors-v1",
+          "heading": "Row path and common row errors",
+          "intents": ["technique", "mistakes"],
+          "search_terms": ["form cues", "bar path", "lower ribs", "standing up", "rounding"],
+          "text": "For a Barbell Row, begin from a braced hinge with the bar below the shoulders, pull toward the lower ribs or upper waist, and return to straight arms without changing the torso angle. Useful checks are keeping the bar close, keeping both feet balanced, and moving the elbows without turning the pull into a shrug. Common errors include standing up as the bar is pulled, jerking the load, rounding farther to reach the bottom, or shortening the lowering phase."
+        },
+        {
+          "chunk_id": "pendlay-versus-continuous-row-v1",
+          "heading": "Pendlay Row versus a continuous Barbell Row",
+          "intents": ["comparison", "mechanics"],
+          "search_terms": ["difference", "dead stop", "from floor", "reset", "regular row"],
+          "text": "A Pendlay Row starts each repetition from a settled bar on the floor, so the lifter re-establishes position and produces the pull from a dead stop. A regular bent-over Barbell Row usually keeps the bar off the floor and maintains continuous tension through repeated lowering and lifting. The Pendlay setup normally uses a more horizontal torso and requires enough mobility and control to reach the floor without changing spinal position. Neither version is automatically better; the useful choice depends on the intended range, available setup, and ability to repeat the position."
+        }
+      ]
+    },
+    {
+      "source_id": "hip-hinge-mechanics",
+      "title": "Hip hinge mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Romanian Deadlift",
+        "services/exercise_instruction_seed_data.py#Barbell Hip Hinge Drill"
+      ],
+      "related_exercises": [
+        "Romanian Deadlift",
+        "Barbell Good Morning",
+        "Barbell Hip Hinge Drill"
+      ],
+      "taxonomy_tags": ["hinge", "hip_hinge", "hinge_barbell"],
+      "chunks": [
+        {
+          "chunk_id": "rdl-position-and-range-v1",
+          "heading": "RDL position and range",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["rdl", "hamstrings", "hips back", "soft knees", "bar close"],
+          "text": "In a Romanian Deadlift, begin standing, soften the knees, brace the trunk, and push the hips backward while keeping the bar close to the legs. Keep the slight knee bend fairly steady rather than turning the movement into a squat. Lower only as far as you can preserve the position and feel the hamstrings limit the hinge; reaching a particular floor height is not the goal. Stand by pressing through the feet and bringing the hips forward without leaning back at the top."
+        },
+        {
+          "chunk_id": "hinge-common-errors-v1",
+          "heading": "Common hip hinge errors",
+          "intents": ["mistakes", "technique"],
+          "search_terms": ["rounding", "squatting", "bar drifting", "overextending", "common mistakes"],
+          "text": "Common hinge errors are bending the knees progressively until the movement becomes a squat, letting the load drift away from the legs, chasing extra depth by rounding, and finishing by leaning the torso behind the hips. Fatigue or excess load can make these changes more likely. Shortening the range, slowing the lowering phase, or using a lighter load can make the intended hip movement easier to repeat."
+        }
+      ]
+    },
+    {
+      "source_id": "squat-mechanics",
+      "title": "Squat mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": ["services/exercise_instruction_seed_data.py#Barbell Squat"],
+      "related_exercises": [
+        "Barbell Squat",
+        "Front Squat",
+        "Goblet Squat",
+        "Bodyweight Squat",
+        "Box Squat"
+      ],
+      "taxonomy_tags": ["squat", "knee_dominant"],
+      "chunks": [
+        {
+          "chunk_id": "balanced-squat-v1",
+          "heading": "A balanced squat",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["bar over midfoot", "knees track toes", "depth", "balance"],
+          "text": "A repeatable squat coordinates the hips and knees while pressure stays balanced across the heel and forefoot. In a Barbell Squat, the bar should remain balanced over the middle of the feet, the knees should generally track in the direction of the toes, and the chest and hips should rise together. Stance and depth can vary; use a stance and depth that remain controlled and comfortable rather than forcing one universal shape."
+        },
+        {
+          "chunk_id": "squat-errors-and-regressions-v1",
+          "heading": "Squat errors and useful regressions",
+          "intents": ["mistakes", "substitution", "regression"],
+          "search_terms": ["knees cave", "chest collapse", "heel lift", "goblet", "box squat"],
+          "text": "Useful squat checks include whether the knees collapse inward, the feet lose balanced pressure, the chest drops much faster than the hips, or the load moves ahead of the feet. Reducing load or depth is the simplest regression. A controlled Bodyweight Squat, Goblet Squat, or Box Squat can also make balance, depth, or load position easier to practice while preserving the squat pattern."
+        }
+      ]
+    },
+    {
+      "source_id": "pressing-pulling-fundamentals",
+      "title": "Pressing and pulling fundamentals",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Barbell Bench Press",
+        "services/exercise_instruction_seed_data.py#Overhead Press",
+        "services/exercise_instruction_seed_data.py#Pull-Up"
+      ],
+      "related_exercises": [
+        "Barbell Bench Press",
+        "Dumbbell Bench Press",
+        "Overhead Press",
+        "Pull-Up",
+        "Lat Pulldown"
+      ],
+      "taxonomy_tags": ["horizontal_push", "vertical_push", "vertical_pull"],
+      "chunks": [
+        {
+          "chunk_id": "pressing-stack-and-control-v1",
+          "heading": "Pressing position and control",
+          "intents": ["mechanics", "technique", "mistakes"],
+          "search_terms": ["bench press", "overhead press", "wrist", "elbow", "ribs", "bar path"],
+          "text": "For pressing, use a grip that keeps the wrists supported over the forearms and move through a repeatable path. On a bench press, keep the upper back supported and use a consistent chest touch point. On an overhead press, brace so the ribs stay over the pelvis, move the head only enough to clear the bar, and finish with the load stacked overhead without leaning back. Common errors are changing the path each repetition, losing wrist position, or using trunk movement to finish a load that the intended press cannot control."
+        },
+        {
+          "chunk_id": "vertical-pulling-control-v1",
+          "heading": "Vertical pulling fundamentals",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["pull up", "pulldown", "elbows to ribs", "assistance", "swinging"],
+          "text": "In vertical pulls, begin from a controlled long-arm position, keep the trunk relatively quiet, and drive the elbows toward the ribs. Avoid kicking, dropping through the bottom, or turning a pulldown into a large backward lean. Assistance, a pulldown, or a reduced range is a useful regression when a full bodyweight repetition cannot be controlled."
+        }
+      ]
+    },
+    {
+      "source_id": "bracing-and-trunk-stability",
+      "title": "Bracing and trunk stability",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Barbell Hip Hinge Drill",
+        "services/exercise_instruction_seed_data.py#Band Anti-Rotation Hold"
+      ],
+      "related_exercises": ["Plank", "Barbell Row", "Romanian Deadlift", "Barbell Squat", "Overhead Press"],
+      "taxonomy_tags": ["trunk_stability", "anti_extension", "anti_rotation"],
+      "chunks": [
+        {
+          "chunk_id": "brace-for-repeatable-position-v1",
+          "heading": "Bracing supports a repeatable position",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["brace", "core", "trunk", "ribs pelvis", "breathing"],
+          "text": "Bracing is the deliberate trunk tension used to keep the rib cage, pelvis, and load in a repeatable relationship while the hips, knees, shoulders, or elbows move. It is not a requirement to hold the breath for an entire set. Set the position before the hardest part of a repetition, keep enough tension to prevent unwanted bending or rotation, and reset between repetitions when needed. The amount of tension should match the task rather than being maximal for every exercise."
+        }
+      ]
+    },
+    {
+      "source_id": "fatigue-and-technique",
+      "title": "Fatigue and technique",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": ["services/exercise_instruction_seed_data.py"],
+      "related_exercises": [],
+      "taxonomy_tags": ["fatigue", "technique"],
+      "chunks": [
+        {
+          "chunk_id": "technique-under-fatigue-v1",
+          "heading": "Technique changes as a set becomes demanding",
+          "intents": ["mechanics", "technique", "mistakes"],
+          "search_terms": ["fatigue", "form breakdown", "last reps", "tempo", "load"],
+          "text": "As a set becomes demanding, speed and range can change and the body may recruit extra movement to finish repetitions. A useful technique boundary is whether the intended position and range remain repeatable, not whether every repetition looks identical. If the torso, joint path, or range changes abruptly, reduce the load or end the set rather than practicing increasingly different repetitions. Logged effort can show that a set was hard, but it cannot by itself establish why technique changed."
+        }
+      ]
+    },
+    {
+      "source_id": "discomfort-boundaries",
+      "title": "Conservative discomfort and pain boundaries",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": ["services/exercise_instruction_seed_data.py#safety_notes"],
+      "related_exercises": [],
+      "taxonomy_tags": ["safety", "discomfort"],
+      "chunks": [
+        {
+          "chunk_id": "muscle-effort-versus-concerning-symptoms-v1",
+          "heading": "Do not diagnose a sensation from exercise context",
+          "intents": ["discomfort", "safety"],
+          "search_terms": ["pain", "uncomfortable", "sharp", "pinching", "numbness", "tingling"],
+          "text": "Exercise knowledge can explain what a movement normally asks the body to do, but it cannot identify the cause of an individual sensation. Stop or change the movement when there is sharp, escalating, pinching, unstable, numb, or tingling discomfort, or when symptoms persist outside the exercise. Use a comfortable range and load rather than pushing through concerning pain. Recurrent or significant symptoms deserve assessment by an appropriately qualified clinician."
+        },
+        {
+          "chunk_id": "first-adjustments-for-discomfort-v1",
+          "heading": "Conservative first adjustments",
+          "intents": ["discomfort", "substitution", "regression"],
+          "search_terms": ["reduce range", "lighter load", "support", "alternative", "variation"],
+          "text": "When an exercise is uncomfortable, first reduce the load, range, speed, or fatigue demand and check whether position remains controlled. If discomfort continues, choose a variation that preserves the intended movement or muscle group with more support or a more comfortable joint path. These are general exercise adjustments, not a diagnosis or a substitute for care when symptoms are concerning."
+        }
+      ]
+    },
+    {
+      "source_id": "substitution-and-regression",
+      "title": "Exercise substitution and regression principles",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_substitution_service.py",
+        "services/exercise_instruction_seed_data.py"
+      ],
+      "related_exercises": [],
+      "taxonomy_tags": ["substitution", "regression", "movement_pattern"],
+      "chunks": [
+        {
+          "chunk_id": "preserve-purpose-not-appearance-v1",
+          "heading": "Preserve the purpose of the exercise",
+          "intents": ["substitution", "regression"],
+          "search_terms": ["alternative", "substitute", "equipment", "movement pattern", "support"],
+          "text": "A useful substitution preserves the reason the exercise is in the session while changing the feature that is limiting it. Match the broad movement pattern and intended training role, then consider available equipment, support, load position, range, and the person's saved constraints or preferences. For example, a chest-supported row preserves horizontal pulling while reducing the need to hold a hinge; a Goblet Squat preserves squatting with a simpler load position. The application's structured substitution rules remain authoritative for actual plan changes."
+        },
+        {
+          "chunk_id": "regression-order-v1",
+          "heading": "A simple regression order",
+          "intents": ["substitution", "regression", "technique"],
+          "search_terms": ["easier variation", "reduce load", "range", "tempo", "assistance"],
+          "text": "Before replacing a movement entirely, consider reducing load, shortening to a comfortable range, slowing the repetition, reducing set fatigue, or adding external support. If the movement still cannot be performed comfortably and repeatably, select a related variation with a lower balance, mobility, or trunk-stability demand. Progression or substitution decisions already calculated by the application should not be overridden by general knowledge."
+        }
+      ]
+    }
+  ]
+}

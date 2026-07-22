@@ -13,6 +13,7 @@ from models.coach_models import (
     CoachSuggestedAction,
     GroundedCoachAnswer,
 )
+from models.exercise_knowledge_models import ExerciseKnowledgeContext
 from services.ai_run_telemetry_service import normalize_ai_run_telemetry
 from services.coach_evidence_service import (
     bound_coach_conversation_context,
@@ -22,6 +23,9 @@ from services.coach_model_service import (
     configured_coach_model,
     configured_coach_provider,
     validate_selected_coach_model,
+)
+from services.exercise_knowledge_retrieval_service import (
+    retrieve_exercise_knowledge,
 )
 from services.meal_idea_service import (
     _call_local_provider,
@@ -39,6 +43,7 @@ MAX_QUESTION_CHARS = 1000
 MAX_ANSWER_CHARS = 2400
 MAX_UNCERTAINTY_CHARS = 500
 MAX_RETURNED_EVIDENCE_REFERENCES = 8
+MAX_RETURNED_KNOWLEDGE_REFERENCES = 4
 
 CoachProviderGenerate = Callable[
     [str, str, float, dict[str, Any]], str | AIProviderTextResult
@@ -57,6 +62,7 @@ COACH_RESPONSE_SCHEMA: dict[str, Any] = {
     "required": [
         "answer",
         "evidence_references",
+        "knowledge_references",
         "uncertainty",
         "suggested_action",
     ],
@@ -65,6 +71,11 @@ COACH_RESPONSE_SCHEMA: dict[str, Any] = {
         "evidence_references": {
             "type": "array",
             "maxItems": MAX_RETURNED_EVIDENCE_REFERENCES,
+            "items": {"type": "string"},
+        },
+        "knowledge_references": {
+            "type": "array",
+            "maxItems": MAX_RETURNED_KNOWLEDGE_REFERENCES,
             "items": {"type": "string"},
         },
         "uncertainty": {"type": ["string", "null"]},
@@ -121,6 +132,7 @@ def ask_grounded_coach(
     local_generate: CoachProviderGenerate | None = None,
     openai_generate: CoachProviderGenerate | None = None,
     evidence_pack: CoachEvidencePack | None = None,
+    knowledge_context: ExerciseKnowledgeContext | None = None,
 ) -> GroundedCoachAnswer:
     normalized_question = _validate_question(question)
     bounded_conversation = bound_coach_conversation_context(conversation_context)
@@ -136,10 +148,16 @@ def ask_grounded_coach(
         question=normalized_question,
         conversation_context=bounded_conversation,
     )
+    retrieved_knowledge = knowledge_context or retrieve_exercise_knowledge(
+        normalized_question,
+        matched_exercise_name=pack.matched_exercise_name,
+        exercise_context=pack.matched_exercise_context,
+    )
     prompt = build_grounded_coach_prompt(
         question=normalized_question,
         conversation_context=bounded_conversation,
         evidence_pack=pack,
+        knowledge_context=retrieved_knowledge,
     )
     timeout_seconds, generate = _provider_runtime(
         selected_provider,
@@ -170,15 +188,21 @@ def ask_grounded_coach(
         runtime_seconds=perf_counter() - started,
         provider_result=provider_result,
     )
-    parsed = _parse_and_validate_provider_answer(raw_output, evidence_pack=pack)
+    parsed = _parse_and_validate_provider_answer(
+        raw_output,
+        evidence_pack=pack,
+        knowledge_context=retrieved_knowledge,
+    )
     configured_provider_value = configured_coach_provider(environ=env)
     return GroundedCoachAnswer(
         answer=parsed["answer"],
         supporting_evidence_references=tuple(parsed["evidence_references"]),
+        supporting_knowledge_references=tuple(parsed["knowledge_references"]),
         confidence=parsed["confidence"],
         uncertainty=parsed["uncertainty"],
         suggested_action=parsed["suggested_action"],
         evidence_pack=pack,
+        knowledge_context=retrieved_knowledge,
         configured_provider=configured_provider_value,  # type: ignore[arg-type]
         selected_provider=selected_provider,  # type: ignore[arg-type]
         configured_model=configured_coach_model(
@@ -195,22 +219,26 @@ def build_grounded_coach_prompt(
     question: str,
     conversation_context: Sequence[CoachConversationTurn],
     evidence_pack: CoachEvidencePack,
+    knowledge_context: ExerciseKnowledgeContext,
 ) -> str:
     conversation_payload = [turn.to_dict() for turn in conversation_context]
     return (
         "You are the conversational Coach inside a personal health and fitness application.\n"
-        "Reason naturally across the bounded personal evidence supplied for this question.\n\n"
+        "Reason naturally across the bounded personal evidence and curated exercise knowledge supplied for this question.\n\n"
         "AUTHORITY MODEL:\n"
         "- EVIDENCE contains the only personal facts, observations, limitations, and constraints you may use.\n"
         "- validated_personal_fact entries are saved application facts.\n"
         "- deterministic_observation entries are calculated or retrieved observations; they may support comparison and cautious interpretation, but do not prove a cause.\n"
         "- authoritative_constraint entries are application-owned decisions. Treat them as binding for any structured suggested action.\n"
         "- EVIDENCE.limitations are authoritative descriptions of data gaps.\n"
+        "- EXERCISE_KNOWLEDGE contains general repository-curated domain context. It is not personal evidence, does not establish what happened to this user, and cannot override an application fact, observation, limitation, progression decision, or structured constraint.\n"
+        "- Use EXERCISE_KNOWLEDGE to explain mechanics, cues, comparisons, common mistakes, conservative discomfort boundaries, or substitution principles when relevant.\n"
         "- RECENT_CONVERSATION is for subject and dialogue continuity only. It is not factual evidence, and prior assistant messages are never authoritative.\n\n"
         "SYNTHESIS RULES:\n"
         "- Answer the current question directly, conversationally, and concisely.\n"
         "- You may paraphrase, compare, synthesize, and make cautious evidence-based observations.\n"
         "- Do not invent personal facts, unsupported causes, diagnoses, injuries, symptoms, or changes to application state.\n"
+        "- Clearly distinguish what the user's records show from general exercise context. Do not present a general mechanism as the cause of a personal symptom or trend.\n"
         "- Preserve uncertainty when the evidence does not establish a cause or conclusion.\n"
         "- Do not diagnose or prescribe medical treatment. Recommend appropriate professional care when the supplied evidence makes that caution relevant.\n"
         "- Do not claim that you changed a plan or log.\n"
@@ -219,13 +247,15 @@ def build_grounded_coach_prompt(
         "- Return one raw JSON object matching the required schema, with no markdown or preface.\n"
         "- answer is your natural-language response.\n"
         "- evidence_references contains every reference_id materially used, and only IDs present in EVIDENCE. Use an empty array when no evidence was used.\n"
+        "- knowledge_references contains every reference_id materially used, and only IDs present in EXERCISE_KNOWLEDGE. Use an empty array when no knowledge passage was used.\n"
         "- uncertainty briefly names a material limitation when one matters; otherwise use null.\n"
         "- suggested_action is optional and does not mutate application state. Use null unless you are suggesting a progression decision.\n"
         "- When suggesting a progression decision, copy the decision from authoritative_value and the reference_id from the relevant authoritative_constraint. The explanation in answer should remain natural language and consistent with it.\n"
         "- Confidence is calculated by the application from evidence coverage and is not part of your response.\n\n"
         f"RECENT_CONVERSATION={json.dumps(conversation_payload, separators=(',', ':'))}\n"
         f"CURRENT_QUESTION={json.dumps(question)}\n"
-        f"EVIDENCE={json.dumps(evidence_pack.to_prompt_dict(), separators=(',', ':'), default=str)}"
+        f"EVIDENCE={json.dumps(evidence_pack.to_prompt_dict(), separators=(',', ':'), default=str)}\n"
+        f"EXERCISE_KNOWLEDGE={json.dumps(knowledge_context.to_prompt_dict(), separators=(',', ':'), default=str)}"
     )
 
 
@@ -322,6 +352,7 @@ def _parse_and_validate_provider_answer(
     raw_output: str,
     *,
     evidence_pack: CoachEvidencePack,
+    knowledge_context: ExerciseKnowledgeContext,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(raw_output)
@@ -330,6 +361,7 @@ def _parse_and_validate_provider_answer(
     expected_fields = {
         "answer",
         "evidence_references",
+        "knowledge_references",
         "uncertainty",
         "suggested_action",
     }
@@ -338,6 +370,7 @@ def _parse_and_validate_provider_answer(
 
     answer = payload["answer"]
     references = payload["evidence_references"]
+    knowledge_references = payload["knowledge_references"]
     uncertainty = payload["uncertainty"]
     if not isinstance(answer, str) or not answer.strip():
         raise _rejected_output("invalid_answer_contract")
@@ -357,6 +390,21 @@ def _parse_and_validate_provider_answer(
     known_references = {item.reference_id for item in evidence_pack.evidence}
     if not set(references).issubset(known_references):
         raise _rejected_output("evidence_reference_mismatch")
+    if (
+        not isinstance(knowledge_references, list)
+        or len(knowledge_references) > MAX_RETURNED_KNOWLEDGE_REFERENCES
+        or any(
+            not isinstance(reference, str) or not reference
+            for reference in knowledge_references
+        )
+        or len(set(knowledge_references)) != len(knowledge_references)
+    ):
+        raise _rejected_output("invalid_knowledge_references")
+    known_knowledge_references = {
+        passage.reference_id for passage in knowledge_context.passages
+    }
+    if not set(knowledge_references).issubset(known_knowledge_references):
+        raise _rejected_output("knowledge_reference_mismatch")
     if uncertainty is not None and not isinstance(uncertainty, str):
         raise _rejected_output("invalid_uncertainty_contract")
     uncertainty = uncertainty.strip() if isinstance(uncertainty, str) else None
@@ -367,13 +415,13 @@ def _parse_and_validate_provider_answer(
 
     suggested_action = _validate_suggested_action(
         payload["suggested_action"],
-        references=references,
         evidence_pack=evidence_pack,
     )
     confidence = evidence_pack.confidence if references else "Limited"
     return {
         "answer": answer,
         "evidence_references": references,
+        "knowledge_references": knowledge_references,
         "confidence": confidence,
         "uncertainty": uncertainty,
         "suggested_action": suggested_action,
@@ -383,7 +431,6 @@ def _parse_and_validate_provider_answer(
 def _validate_suggested_action(
     payload: Any,
     *,
-    references: Sequence[str],
     evidence_pack: CoachEvidencePack,
 ) -> CoachSuggestedAction | None:
     if payload is None:
@@ -403,9 +450,6 @@ def _validate_suggested_action(
         or not evidence_reference
     ):
         raise _rejected_output("invalid_suggested_action_contract")
-    if evidence_reference not in references:
-        raise _rejected_output("suggested_action_reference_not_cited")
-
     evidence_by_reference = {item.reference_id: item for item in evidence_pack.evidence}
     evidence_item = evidence_by_reference.get(evidence_reference)
     if (
