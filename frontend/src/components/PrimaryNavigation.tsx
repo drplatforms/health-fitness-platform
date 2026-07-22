@@ -21,6 +21,7 @@ const ITEMS: Array<{
   { key: "today", label: "Today" },
   { key: "food", label: "Food" },
   { key: "meals", label: "Meals" },
+  { key: "coach", label: "Coach" },
   { key: "workout", label: "Workout" },
   { key: "recovery", label: "Recovery" },
 ];
@@ -67,7 +68,7 @@ export function PrimaryNavigation({ userId, date }: PrimaryNavigationProps) {
         aria-label="Primary navigation"
         className="hidden rounded-2xl border border-border-subtle bg-surface/80 p-1 shadow-[0_16px_35px_-32px_rgba(15,23,42,0.55)] backdrop-blur md:block"
       >
-        <div className="grid grid-cols-5 gap-1">
+        <div className="grid grid-cols-6 gap-1">
           <NavigationItems userId={userId} date={date} mobile={false} />
         </div>
       </nav>
@@ -75,7 +76,7 @@ export function PrimaryNavigation({ userId, date }: PrimaryNavigationProps) {
         aria-label="Primary mobile navigation"
         className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-surface/95 px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-[0_-16px_35px_-28px_rgba(15,23,42,0.55)] backdrop-blur md:hidden"
       >
-        <div className="mx-auto grid max-w-xl grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-xl grid-cols-6 gap-1">
           <NavigationItems userId={userId} date={date} mobile />
         </div>
       </nav>
