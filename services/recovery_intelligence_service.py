@@ -114,8 +114,13 @@ def _load_checkin_rows(
                checkin_date,
                body_weight,
                sleep_hours,
+               sleep_quality,
                energy_level,
                soreness_level,
+               stress_level,
+               training_motivation,
+               pain_concern,
+               pain_area,
                mood,
                notes,
                created_at
@@ -159,6 +164,9 @@ def _signal_day_from_row(row: dict[str, Any]) -> RecoverySignalDay:
     energy = _optional_float(row.get("energy_level"))
     soreness = _optional_float(row.get("soreness_level"))
     body_weight = _optional_float(row.get("body_weight"))
+    sleep_quality = _optional_float(row.get("sleep_quality"))
+    stress_level = _optional_float(row.get("stress_level"))
+    training_motivation = _optional_float(row.get("training_motivation"))
     flags = []
     if sleep is None:
         flags.append("sleep_missing")
@@ -168,6 +176,14 @@ def _signal_day_from_row(row: dict[str, Any]) -> RecoverySignalDay:
         flags.append("soreness_missing")
     if body_weight is None:
         flags.append("body_weight_missing")
+    if sleep_quality is None:
+        flags.append("sleep_quality_missing")
+    if stress_level is None:
+        flags.append("stress_missing")
+    if training_motivation is None:
+        flags.append("training_motivation_missing")
+    if row.get("pain_concern") is None:
+        flags.append("pain_concern_missing")
     return RecoverySignalDay(
         date=str(row.get("checkin_date")),
         sleep_hours=sleep,
@@ -176,6 +192,11 @@ def _signal_day_from_row(row: dict[str, Any]) -> RecoverySignalDay:
         body_weight_lb=body_weight,
         mood=row.get("mood") or None,
         notes_present=bool(row.get("notes")),
+        sleep_quality=sleep_quality,
+        stress_level=stress_level,
+        training_motivation=training_motivation,
+        pain_concern=row.get("pain_concern") or None,
+        pain_area=row.get("pain_area") or None,
         data_quality_flags=flags,
     )
 

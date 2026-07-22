@@ -61,12 +61,22 @@ def test_seed_user_profiles_is_idempotent(tmp_path, monkeypatch):
     assert cursor.fetchone()["count"] == 6
 
     cursor.execute("""
-        SELECT COUNT(*) AS count
+        SELECT
+            COUNT(*) AS count,
+            MIN(sleep_quality) AS min_sleep_quality,
+            MAX(stress_level) AS max_stress_level,
+            MIN(training_motivation) AS min_training_motivation,
+            SUM(pain_concern = 'none') AS no_pain_count
         FROM daily_checkins
         WHERE notes LIKE 'seed_user_profiles_v1:%'
           AND user_id = 102
         """)
-    assert cursor.fetchone()["count"] == 4
+    seeded_recovery = cursor.fetchone()
+    assert seeded_recovery["count"] == 4
+    assert seeded_recovery["min_sleep_quality"] == 4
+    assert seeded_recovery["max_stress_level"] == 2
+    assert seeded_recovery["min_training_motivation"] == 4
+    assert seeded_recovery["no_pain_count"] == 4
     conn.close()
 
 

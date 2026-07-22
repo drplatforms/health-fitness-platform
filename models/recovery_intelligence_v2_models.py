@@ -24,6 +24,22 @@ INDICATOR_NAME_VALUES = {
     "body_weight",
     "checkin_consistency",
 }
+SLEEP_DURATION_CONTEXT_VALUES = {"unknown", "short", "borderline", "typical", "long"}
+FIVE_POINT_CONTEXT_VALUES = {"unknown", "low", "moderate", "high"}
+SLEEP_QUALITY_CONTEXT_VALUES = {"unknown", "poor", "fair", "good"}
+PAIN_CONTEXT_VALUES = {"unknown", "none", "mild", "significant"}
+PAIN_AREA_VALUES = {
+    "neck",
+    "shoulder",
+    "elbow",
+    "wrist_hand",
+    "upper_back",
+    "lower_back",
+    "hip",
+    "knee",
+    "ankle_foot",
+    "other",
+}
 
 _FORBIDDEN_RECOVERY_TEXT = (
     "overtraining",
@@ -52,6 +68,11 @@ class RecoveryV2IndicatorDay:
     body_weight_lb: float | None
     notes_present: bool
     data_quality_status: str
+    sleep_quality: float | None = None
+    stress_level: float | None = None
+    training_motivation: float | None = None
+    pain_concern: str | None = None
+    pain_area: str | None = None
     reason_codes: list[str] = field(default_factory=list)
     limitations: list[str] = field(default_factory=list)
 
@@ -61,6 +82,18 @@ class RecoveryV2IndicatorDay:
         _validate_optional_non_negative("energy_level", self.energy_level)
         _validate_optional_non_negative("soreness_level", self.soreness_level)
         _validate_optional_non_negative("body_weight_lb", self.body_weight_lb)
+        _validate_optional_scale("sleep_quality", self.sleep_quality)
+        _validate_optional_scale("stress_level", self.stress_level)
+        _validate_optional_scale("training_motivation", self.training_motivation)
+        _validate_allowed_optional(
+            "pain_concern", self.pain_concern, PAIN_CONTEXT_VALUES - {"unknown"}
+        )
+        _validate_allowed_optional("pain_area", self.pain_area, PAIN_AREA_VALUES)
+        if self.pain_area is not None and self.pain_concern not in {
+            "mild",
+            "significant",
+        }:
+            raise ValueError("pain_area requires a mild or significant pain_concern")
         _validate_bool("notes_present", self.notes_present)
         _validate_allowed(
             "data_quality_status",
@@ -69,6 +102,47 @@ class RecoveryV2IndicatorDay:
         )
         _validate_safe_text_list("reason_codes", self.reason_codes)
         _validate_safe_text_list("limitations", self.limitations)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class RecoverySignalContext:
+    sleep_duration_context: str
+    sleep_quality_context: str
+    energy_context: str
+    stress_context: str
+    motivation_context: str
+    soreness_context: str
+    pain_context: str
+    pain_area: str | None = None
+
+    def __post_init__(self) -> None:
+        _validate_allowed(
+            "sleep_duration_context",
+            self.sleep_duration_context,
+            SLEEP_DURATION_CONTEXT_VALUES,
+        )
+        _validate_allowed(
+            "sleep_quality_context",
+            self.sleep_quality_context,
+            SLEEP_QUALITY_CONTEXT_VALUES,
+        )
+        for name, value in (
+            ("energy_context", self.energy_context),
+            ("stress_context", self.stress_context),
+            ("motivation_context", self.motivation_context),
+            ("soreness_context", self.soreness_context),
+        ):
+            _validate_allowed(name, value, FIVE_POINT_CONTEXT_VALUES)
+        _validate_allowed("pain_context", self.pain_context, PAIN_CONTEXT_VALUES)
+        _validate_allowed_optional("pain_area", self.pain_area, PAIN_AREA_VALUES)
+        if self.pain_area is not None and self.pain_context not in {
+            "mild",
+            "significant",
+        }:
+            raise ValueError("pain_area requires a mild or significant pain_context")
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -280,6 +354,7 @@ class RecoveryIntelligenceV2Summary:
     fatigue_support: str
     data_quality: RecoveryDataQuality
     confidence: str
+    signal_context: RecoverySignalContext | None = None
     source_facts: list[RecoverySourceFact] = field(default_factory=list)
     coach_safe_summary: str = ""
     reason_codes: list[str] = field(default_factory=list)
@@ -355,6 +430,11 @@ def _validate_allowed(name: str, value: str, allowed: set[str]) -> None:
         raise ValueError(f"{name} must be one of {sorted(allowed)}")
 
 
+def _validate_allowed_optional(name: str, value: str | None, allowed: set[str]) -> None:
+    if value is not None:
+        _validate_allowed(name, value, allowed)
+
+
 def _validate_positive_int(name: str, value: int) -> None:
     if not isinstance(value, int) or value <= 0:
         raise ValueError(f"{name} must be a positive integer")
@@ -379,6 +459,12 @@ def _validate_optional_non_negative(name: str, value: float | None) -> None:
 def _validate_rate(name: str, value: float) -> None:
     if not isinstance(value, int | float) or value < 0 or value > 1:
         raise ValueError(f"{name} must be between 0 and 1")
+
+
+def _validate_optional_scale(name: str, value: float | None) -> None:
+    _validate_optional_number(name, value)
+    if value is not None and (value < 1 or value > 5):
+        raise ValueError(f"{name} must be between 1 and 5 when present")
 
 
 def _validate_bool(name: str, value: bool) -> None:

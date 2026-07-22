@@ -8,8 +8,16 @@ import {
   fetchRecoveryCheckIn,
   saveRecoveryCheckIn,
 } from "@/lib/recoveryCheckinApi";
+import {
+  AFFECTED_REGION_OPTIONS,
+  limitationTokenLabel,
+} from "@/lib/temporaryWorkoutLimitation";
 import { DailyDriverReadinessSummary } from "@/types/dailyDriver";
-import { RecoveryCheckInRecord } from "@/types/recoveryCheckin";
+import {
+  PainArea,
+  PainConcern,
+  RecoveryCheckInRecord,
+} from "@/types/recoveryCheckin";
 
 interface RecoveryCheckInCardProps {
   userId: number;
@@ -20,9 +28,14 @@ interface RecoveryCheckInCardProps {
 interface RecoveryFormState {
   bodyWeight: string;
   sleepHours: string;
+  sleepQuality: number | null;
   energyLevel: number;
   sorenessLevel: number;
-  stressLevel: StressOptionValue;
+  stressLevel: number | null;
+  trainingMotivation: number | null;
+  mood: string | null;
+  painConcern: PainConcern | null;
+  painArea: PainArea | null;
   painOrRestrictionNote: string;
   generalNotes: string;
 }
@@ -30,9 +43,14 @@ interface RecoveryFormState {
 const DEFAULT_FORM_STATE: RecoveryFormState = {
   bodyWeight: "",
   sleepHours: "",
+  sleepQuality: null,
   energyLevel: 5,
   sorenessLevel: 3,
-  stressLevel: "managed",
+  stressLevel: null,
+  trainingMotivation: null,
+  mood: null,
+  painConcern: null,
+  painArea: null,
   painOrRestrictionNote: "",
   generalNotes: "",
 };
@@ -44,20 +62,51 @@ const readinessToneMap = {
   unknown: "neutral",
 } as const;
 
-const stressOptions = [
+const moodOptions = [
   { label: "Low", value: "low" },
-  { label: "Managed", value: "managed" },
-  { label: "High", value: "high" },
+  { label: "Steady", value: "steady" },
+  { label: "Good", value: "good" },
 ] as const;
 
-type StressOptionValue = (typeof stressOptions)[number]["value"];
+const sleepQualityOptions = [
+  { label: "Not set", value: "" },
+  { label: "1 · Poor", value: "1" },
+  { label: "2 · Restless", value: "2" },
+  { label: "3 · Fair", value: "3" },
+  { label: "4 · Good", value: "4" },
+  { label: "5 · Great", value: "5" },
+] as const;
 
-function normalizeStressLevel(value: string | null | undefined): StressOptionValue {
-  const normalizedValue = value?.trim().toLowerCase();
+const levelOptions = [
+  { label: "Not set", value: "" },
+  { label: "1 · Very low", value: "1" },
+  { label: "2 · Low", value: "2" },
+  { label: "3 · Moderate", value: "3" },
+  { label: "4 · High", value: "4" },
+  { label: "5 · Very high", value: "5" },
+] as const;
 
-  return stressOptions.some((option) => option.value === normalizedValue)
-    ? normalizedValue as StressOptionValue
-    : "managed";
+const painConcernOptions: { label: string; value: PainConcern }[] = [
+  { label: "None", value: "none" },
+  { label: "Mild / note it", value: "mild" },
+  { label: "May affect training", value: "significant" },
+];
+
+const painAreaOptions: PainArea[] = [...AFFECTED_REGION_OPTIONS, "other"];
+
+function normalizeMood(value: string | null | undefined): string | null {
+  const normalizedValue = value?.trim();
+  return normalizedValue || null;
+}
+
+function normalizeOptionalScale(value: number | null | undefined): number | null {
+  return typeof value === "number" && value >= 1 && value <= 5 ? value : null;
+}
+
+function parseOptionalScale(value: string): number | null {
+  if (!value) return null;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 5 ? parsed : null;
 }
 
 function parseNotes(notes: string | null): Pick<
@@ -118,11 +167,16 @@ function toFormState(checkin: RecoveryCheckInRecord): RecoveryFormState {
       typeof checkin.body_weight === "number" ? String(checkin.body_weight) : "",
     sleepHours:
       typeof checkin.sleep_hours === "number" ? String(checkin.sleep_hours) : "",
+    sleepQuality: normalizeOptionalScale(checkin.sleep_quality),
     energyLevel:
       typeof checkin.energy_level === "number" ? checkin.energy_level : 5,
     sorenessLevel:
       typeof checkin.soreness_level === "number" ? checkin.soreness_level : 3,
-    stressLevel: normalizeStressLevel(checkin.mood),
+    stressLevel: normalizeOptionalScale(checkin.stress_level),
+    trainingMotivation: normalizeOptionalScale(checkin.training_motivation),
+    mood: normalizeMood(checkin.mood),
+    painConcern: checkin.pain_concern,
+    painArea: checkin.pain_area,
     painOrRestrictionNote: parsedNotes.painOrRestrictionNote,
     generalNotes: parsedNotes.generalNotes,
   };
@@ -135,6 +189,7 @@ export function RecoveryCheckInCard({
 }: RecoveryCheckInCardProps) {
   const [formState, setFormState] = useState<RecoveryFormState>(DEFAULT_FORM_STATE);
   const [savedCheckIn, setSavedCheckIn] = useState<RecoveryCheckInRecord | null>(null);
+  const [recentCheckIns, setRecentCheckIns] = useState<RecoveryCheckInRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -176,6 +231,7 @@ export function RecoveryCheckInCard({
         }
 
         setSavedCheckIn(response.checkin);
+        setRecentCheckIns(response.recent_checkins ?? []);
         setFormState(
           response.checkin ? toFormState(response.checkin) : { ...DEFAULT_FORM_STATE },
         );
@@ -229,14 +285,24 @@ export function RecoveryCheckInCard({
         target_date: targetDate,
         body_weight: bodyWeight,
         sleep_hours: sleepHours,
+        sleep_quality: formState.sleepQuality,
         energy_level: formState.energyLevel,
         soreness_level: formState.sorenessLevel,
-        mood: formState.stressLevel,
+        stress_level: formState.stressLevel,
+        training_motivation: formState.trainingMotivation,
+        pain_concern: formState.painConcern,
+        pain_area:
+          formState.painConcern === "mild" ||
+          formState.painConcern === "significant"
+            ? formState.painArea
+            : null,
+        mood: formState.mood,
         notes: serializeNotes(formState),
       });
       const currentResponse = await fetchRecoveryCheckIn(userId, targetDate);
 
       setSavedCheckIn(currentResponse.checkin);
+      setRecentCheckIns(currentResponse.recent_checkins ?? []);
       if (currentResponse.checkin) {
         setFormState(toFormState(currentResponse.checkin));
       }
@@ -324,43 +390,70 @@ export function RecoveryCheckInCard({
           </label>
         </div>
 
-        <div className="space-y-1.5 sm:space-y-2">
-          <span className="text-sm font-semibold text-text-primary">Stress / fatigue</span>
-          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Stress / fatigue">
-            {stressOptions.map((option) => {
-              const isActive = formState.stressLevel === option.value;
-              return (
-                <label
-                  key={option.value}
-                  className="cursor-pointer"
-                >
-                  <input
-                    type="radio"
-                    name="stressLevel"
-                    value={option.value}
-                    checked={isActive}
-                    onChange={(event) =>
-                      updateFormState((current) => ({
-                        ...current,
-                        stressLevel: normalizeStressLevel(event.target.value),
-                      }))
-                    }
-                    className="sr-only"
-                  />
-                  <span
-                    aria-pressed={isActive}
-                    className={`flex min-h-10 items-center justify-center rounded-full px-2 py-2 text-sm font-semibold transition ${
-                      isActive
-                        ? "bg-control-selected-surface text-text-inverse"
-                        : "bg-surface-subtle text-text-body ring-1 ring-border hover:bg-surface-muted"
-                    }`}
-                  >
-                    {option.label}
-                  </span>
-                </label>
-              );
-            })}
-          </div>
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <label className="min-w-0 space-y-1.5">
+            <span className="text-xs font-semibold text-text-primary">
+              Sleep quality
+            </span>
+            <select
+              value={formState.sleepQuality ?? ""}
+              onChange={(event) =>
+                updateFormState((current) => ({
+                  ...current,
+                  sleepQuality: parseOptionalScale(event.target.value),
+                }))
+              }
+              className="min-h-10 w-full min-w-0 rounded-xl border border-border bg-surface px-2 py-2 text-xs text-text-primary outline-none transition focus:border-focus sm:text-sm"
+            >
+              {sleepQualityOptions.map((option) => (
+                <option key={option.value || "unset"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0 space-y-1.5">
+            <span className="text-xs font-semibold text-text-primary">Stress</span>
+            <select
+              value={formState.stressLevel ?? ""}
+              onChange={(event) =>
+                updateFormState((current) => ({
+                  ...current,
+                  stressLevel: parseOptionalScale(event.target.value),
+                }))
+              }
+              className="min-h-10 w-full min-w-0 rounded-xl border border-border bg-surface px-2 py-2 text-xs text-text-primary outline-none transition focus:border-focus sm:text-sm"
+            >
+              {levelOptions.map((option) => (
+                <option key={option.value || "unset"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="min-w-0 space-y-1.5">
+            <span className="text-xs font-semibold text-text-primary">
+              Motivation
+            </span>
+            <select
+              value={formState.trainingMotivation ?? ""}
+              onChange={(event) =>
+                updateFormState((current) => ({
+                  ...current,
+                  trainingMotivation: parseOptionalScale(event.target.value),
+                }))
+              }
+              className="min-h-10 w-full min-w-0 rounded-xl border border-border bg-surface px-2 py-2 text-xs text-text-primary outline-none transition focus:border-focus sm:text-sm"
+            >
+              {levelOptions.map((option) => (
+                <option key={option.value || "unset"} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -399,23 +492,158 @@ export function RecoveryCheckInCard({
           </label>
         </div>
 
-        <label className="space-y-1.5 sm:space-y-2">
-          <span className="text-sm font-semibold text-text-primary">
-            Anything hurt or restricted?
-          </span>
-          <textarea
-            value={formState.painOrRestrictionNote}
-            onChange={(event) =>
-              updateFormState((current) => ({
-                ...current,
-                painOrRestrictionNote: event.target.value,
-              }))
-            }
-            rows={2}
-            className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus sm:rounded-2xl sm:px-4 sm:py-3"
-            placeholder="Optional"
-          />
-        </label>
+        <div className="space-y-1.5 sm:space-y-2">
+          <span className="text-sm font-semibold text-text-primary">Mood</span>
+          <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Mood">
+            {moodOptions.map((option) => {
+              const isActive = formState.mood === option.value;
+              return (
+                <label key={option.value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="mood"
+                    value={option.value}
+                    checked={isActive}
+                    onChange={() =>
+                      updateFormState((current) => ({
+                        ...current,
+                        mood: option.value,
+                      }))
+                    }
+                    className="sr-only"
+                  />
+                  <span
+                    aria-pressed={isActive}
+                    className={`flex min-h-10 items-center justify-center rounded-full px-2 py-2 text-sm font-semibold transition ${
+                      isActive
+                        ? "bg-control-selected-surface text-text-inverse"
+                        : "bg-surface-subtle text-text-body ring-1 ring-border hover:bg-surface-muted"
+                    }`}
+                  >
+                    {option.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          {formState.mood &&
+          !moodOptions.some((option) => option.value === formState.mood) ? (
+            <p className="text-xs text-text-muted">
+              Existing mood preserved: {formState.mood}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="space-y-2 rounded-xl border border-border px-3 py-3 sm:rounded-2xl sm:px-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-text-primary">
+              Pain or restriction concern
+            </span>
+            {formState.painConcern ? (
+              <button
+                type="button"
+                onClick={() =>
+                  updateFormState((current) => ({
+                    ...current,
+                    painConcern: null,
+                    painArea: null,
+                  }))
+                }
+                className="text-xs font-semibold text-text-muted hover:text-text-primary"
+              >
+                Clear
+              </button>
+            ) : (
+              <span className="text-xs text-text-muted">Optional</span>
+            )}
+          </div>
+          <div
+            className="grid grid-cols-3 gap-2"
+            role="radiogroup"
+            aria-label="Pain or restriction concern"
+          >
+            {painConcernOptions.map((option) => {
+              const isActive = formState.painConcern === option.value;
+              return (
+                <label key={option.value} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painConcern"
+                    value={option.value}
+                    checked={isActive}
+                    onChange={() =>
+                      updateFormState((current) => ({
+                        ...current,
+                        painConcern: option.value,
+                        painArea:
+                          option.value === "none" ? null : current.painArea,
+                      }))
+                    }
+                    className="sr-only"
+                  />
+                  <span
+                    aria-pressed={isActive}
+                    className={`flex min-h-10 items-center justify-center rounded-xl px-2 py-2 text-center text-xs font-semibold transition sm:text-sm ${
+                      isActive
+                        ? "bg-control-selected-surface text-text-inverse"
+                        : "bg-surface-subtle text-text-body ring-1 ring-border hover:bg-surface-muted"
+                    }`}
+                  >
+                    {option.label}
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+
+          {formState.painConcern === "mild" ||
+          formState.painConcern === "significant" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-xs font-semibold text-text-primary">
+                  Broad area
+                </span>
+                <select
+                  value={formState.painArea ?? ""}
+                  onChange={(event) =>
+                    updateFormState((current) => ({
+                      ...current,
+                      painArea: (event.target.value || null) as PainArea | null,
+                    }))
+                  }
+                  className="min-h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
+                >
+                  <option value="">Not specified</option>
+                  {painAreaOptions.map((area) => (
+                    <option key={area} value={area}>
+                      {limitationTokenLabel(area)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-xs font-semibold text-text-primary">
+                  Optional context
+                </span>
+                <input
+                  value={formState.painOrRestrictionNote}
+                  onChange={(event) =>
+                    updateFormState((current) => ({
+                      ...current,
+                      painOrRestrictionNote: event.target.value,
+                    }))
+                  }
+                  className="min-h-10 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm text-text-primary outline-none transition focus:border-focus"
+                  placeholder="Keep it brief"
+                />
+              </label>
+            </div>
+          ) : formState.painOrRestrictionNote ? (
+            <p className="rounded-xl bg-surface-subtle px-3 py-2 text-xs text-text-body">
+              Existing note preserved: {formState.painOrRestrictionNote}
+            </p>
+          ) : null}
+        </div>
 
         <details className="rounded-xl border border-border px-3 py-2 sm:hidden">
           <summary className="cursor-pointer text-sm font-semibold text-text-primary">
@@ -450,6 +678,53 @@ export function RecoveryCheckInCard({
             placeholder="Optional"
           />
         </label>
+
+        {recentCheckIns.length > 0 ? (
+          <details className="rounded-xl border border-border px-3 py-2 sm:rounded-2xl sm:px-4 sm:py-3">
+            <summary className="cursor-pointer text-sm font-semibold text-text-primary">
+              Recent check-ins ({recentCheckIns.length})
+            </summary>
+            <div className="mt-3 divide-y divide-border">
+              {recentCheckIns.slice(0, 5).map((checkin) => (
+                <div key={checkin.id} className="space-y-1 py-2 first:pt-0 last:pb-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">
+                    {checkin.checkin_date}
+                  </p>
+                  <p className="text-xs leading-5 text-text-body">
+                    Sleep {checkin.sleep_hours ?? "unknown"}h
+                    {checkin.sleep_quality !== null
+                      ? ` · quality ${checkin.sleep_quality}/5`
+                      : ""}
+                    {checkin.energy_level !== null
+                      ? ` · energy ${checkin.energy_level}/10`
+                      : ""}
+                    {checkin.soreness_level !== null
+                      ? ` · soreness ${checkin.soreness_level}/10`
+                      : ""}
+                  </p>
+                  {checkin.stress_level !== null ||
+                  checkin.training_motivation !== null ||
+                  checkin.pain_concern !== null ? (
+                    <p className="text-xs leading-5 text-text-body">
+                      {checkin.stress_level !== null
+                        ? `Stress ${checkin.stress_level}/5`
+                        : "Stress unknown"}
+                      {checkin.training_motivation !== null
+                        ? ` · motivation ${checkin.training_motivation}/5`
+                        : ""}
+                      {checkin.pain_concern !== null
+                        ? ` · pain ${checkin.pain_concern.replace("_", " ")}`
+                        : ""}
+                      {checkin.pain_area
+                        ? ` (${limitationTokenLabel(checkin.pain_area)})`
+                        : ""}
+                    </p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </details>
+        ) : null}
 
         {savedCheckIn ? (
           <p className="text-xs uppercase tracking-[0.16em] text-text-muted">

@@ -11,11 +11,12 @@ from models.recovery_intelligence_v2_models import (
     RecoveryIndicatorInterpretation,
     RecoveryIntelligenceV2Summary,
     RecoveryRecentDelta,
+    RecoverySignalContext,
     RecoverySourceFact,
     RecoveryV2IndicatorDay,
 )
 
-RECOVERY_INTELLIGENCE_V2_SERVICE_MODEL_VERSION = "recovery_intelligence_v2_service_v1"
+RECOVERY_INTELLIGENCE_V2_SERVICE_MODEL_VERSION = "recovery_intelligence_v2_service_v2"
 SOURCE_TABLE = "daily_checkins"
 BASELINE_WINDOW_DAYS = 28
 RECENT_WINDOW_DAYS = 7
@@ -90,6 +91,7 @@ def build_recovery_intelligence_v2(
     )
 
     current_day = _build_current_day(days_by_date.get(target.isoformat()))
+    signal_context = _build_signal_context(current_day)
     data_quality = _build_data_quality(
         baseline_stats=baseline_stats,
         target_date=target,
@@ -252,6 +254,7 @@ def build_recovery_intelligence_v2(
         fatigue_support=fatigue_support,
         data_quality=data_quality,
         confidence=confidence,
+        signal_context=signal_context,
         source_facts=source_facts,
         coach_safe_summary=coach_safe_summary,
         reason_codes=reason_codes,
@@ -271,8 +274,13 @@ def _load_checkin_rows(
                checkin_date,
                body_weight,
                sleep_hours,
+               sleep_quality,
                energy_level,
                soreness_level,
+               stress_level,
+               training_motivation,
+               pain_concern,
+               pain_area,
                mood,
                notes,
                created_at
@@ -312,8 +320,13 @@ def _normalize_checkin_day(row: dict[str, Any]) -> _CheckinDay:
     return _CheckinDay(
         date=str(row.get("checkin_date")),
         sleep_hours=_optional_float(row.get("sleep_hours")),
+        sleep_quality=_optional_float(row.get("sleep_quality")),
         energy_level=_optional_float(row.get("energy_level")),
         soreness_level=_optional_float(row.get("soreness_level")),
+        stress_level=_optional_float(row.get("stress_level")),
+        training_motivation=_optional_float(row.get("training_motivation")),
+        pain_concern=row.get("pain_concern") or None,
+        pain_area=row.get("pain_area") or None,
         body_weight_lb=_optional_float(row.get("body_weight")),
         notes_present=bool(row.get("notes")),
     )
@@ -333,6 +346,14 @@ def _build_current_day(day: _CheckinDay | None) -> RecoveryV2IndicatorDay | None
         if day.get(key) is None:
             missing_count += 1
             reason_codes.append(reason)
+    for key, reason in (
+        ("sleep_quality", "sleep_quality_missing_current_day"),
+        ("stress_level", "stress_missing_current_day"),
+        ("training_motivation", "training_motivation_missing_current_day"),
+        ("pain_concern", "pain_concern_missing_current_day"),
+    ):
+        if day.get(key) is None:
+            reason_codes.append(reason)
     if missing_count >= 2:
         status = "limited"
         limitations.append("Current-day recovery check-in is missing multiple fields.")
@@ -349,8 +370,30 @@ def _build_current_day(day: _CheckinDay | None) -> RecoveryV2IndicatorDay | None
         body_weight_lb=day.get("body_weight_lb"),
         notes_present=bool(day.get("notes_present")),
         data_quality_status=status,
+        sleep_quality=day.get("sleep_quality"),
+        stress_level=day.get("stress_level"),
+        training_motivation=day.get("training_motivation"),
+        pain_concern=day.get("pain_concern"),
+        pain_area=day.get("pain_area"),
         reason_codes=reason_codes,
         limitations=limitations,
+    )
+
+
+def _build_signal_context(
+    day: RecoveryV2IndicatorDay | None,
+) -> RecoverySignalContext | None:
+    if day is None:
+        return None
+    return RecoverySignalContext(
+        sleep_duration_context=_classify_sleep_duration(day.sleep_hours),
+        sleep_quality_context=_classify_sleep_quality(day.sleep_quality),
+        energy_context=_classify_five_point(day.energy_level, max_value=10),
+        stress_context=_classify_five_point(day.stress_level),
+        motivation_context=_classify_five_point(day.training_motivation),
+        soreness_context=_classify_five_point(day.soreness_level, max_value=10),
+        pain_context=day.pain_concern or "unknown",
+        pain_area=day.pain_area,
     )
 
 
@@ -367,12 +410,33 @@ def _window_stats(
     sleep_values = [
         day["sleep_hours"] for day in days if day.get("sleep_hours") is not None
     ]
+    sleep_quality_values = [
+        day["sleep_quality"] for day in days if day.get("sleep_quality") is not None
+    ]
     energy_values = [
         day["energy_level"] for day in days if day.get("energy_level") is not None
     ]
     soreness_values = [
         day["soreness_level"] for day in days if day.get("soreness_level") is not None
     ]
+    stress_values = [
+        day["stress_level"] for day in days if day.get("stress_level") is not None
+    ]
+    motivation_values = [
+        day["training_motivation"]
+        for day in days
+        if day.get("training_motivation") is not None
+    ]
+    pain_concern_counts = {
+        concern: sum(1 for day in days if day.get("pain_concern") == concern)
+        for concern in ("none", "mild", "significant")
+    }
+    pain_area_counts = {
+        area: sum(1 for day in days if day.get("pain_area") == area)
+        for area in sorted(
+            {str(day["pain_area"]) for day in days if day.get("pain_area") is not None}
+        )
+    }
     weight_values = [
         (day["date"], day["body_weight_lb"])
         for day in days
@@ -386,17 +450,28 @@ def _window_stats(
         checkin_days=len(days),
         checkin_rate=round(len(days) / expected_days, 2),
         average_sleep_hours=_round_average(sleep_values),
+        average_sleep_quality=_round_average(sleep_quality_values),
         average_energy_level=_round_average(energy_values),
         average_soreness_level=_round_average(soreness_values),
+        average_stress_level=_round_average(stress_values),
+        average_training_motivation=_round_average(motivation_values),
+        pain_concern_counts=pain_concern_counts,
+        pain_area_counts=pain_area_counts,
         latest_body_weight_lb=(weight_values[-1][1] if weight_values else None),
         average_body_weight_lb=_round_average([value for _, value in weight_values]),
         sleep_value_days=len(sleep_values),
+        sleep_quality_value_days=len(sleep_quality_values),
         energy_value_days=len(energy_values),
         soreness_value_days=len(soreness_values),
+        stress_value_days=len(stress_values),
+        training_motivation_value_days=len(motivation_values),
         body_weight_value_days=len(weight_values),
         missing_sleep_days=expected_days - len(sleep_values),
+        missing_sleep_quality_days=expected_days - len(sleep_quality_values),
         missing_energy_days=expected_days - len(energy_values),
         missing_soreness_days=expected_days - len(soreness_values),
+        missing_stress_days=expected_days - len(stress_values),
+        missing_training_motivation_days=expected_days - len(motivation_values),
         dates_with_checkin=[day["date"] for day in days],
         first_body_weight_lb=(weight_values[0][1] if weight_values else None),
         last_body_weight_lb=(weight_values[-1][1] if weight_values else None),
@@ -792,6 +867,16 @@ def _build_source_facts(
         ),
         RecoverySourceFact(
             source_table=SOURCE_TABLE,
+            field_name="sleep_quality",
+            observed_date=None,
+            value_summary=_fact_value_summary(
+                "recent sleep quality average",
+                recent_stats["average_sleep_quality"],
+            ),
+            confidence=data_quality.confidence,
+        ),
+        RecoverySourceFact(
+            source_table=SOURCE_TABLE,
             field_name="energy_level",
             observed_date=None,
             value_summary=_fact_value_summary(
@@ -805,6 +890,35 @@ def _build_source_facts(
             observed_date=None,
             value_summary=_fact_value_summary(
                 "recent soreness average", recent_stats["average_soreness_level"]
+            ),
+            confidence=data_quality.confidence,
+        ),
+        RecoverySourceFact(
+            source_table=SOURCE_TABLE,
+            field_name="stress_level",
+            observed_date=None,
+            value_summary=_fact_value_summary(
+                "recent stress average", recent_stats["average_stress_level"]
+            ),
+            confidence=data_quality.confidence,
+        ),
+        RecoverySourceFact(
+            source_table=SOURCE_TABLE,
+            field_name="training_motivation",
+            observed_date=None,
+            value_summary=_fact_value_summary(
+                "recent training motivation average",
+                recent_stats["average_training_motivation"],
+            ),
+            confidence=data_quality.confidence,
+        ),
+        RecoverySourceFact(
+            source_table=SOURCE_TABLE,
+            field_name="pain_concern",
+            observed_date=None,
+            value_summary=(
+                "recent structured pain concern counts: "
+                f"{recent_stats['pain_concern_counts']}"
             ),
             confidence=data_quality.confidence,
         ),
@@ -855,10 +969,57 @@ def _public_window(stats: _WindowStats) -> dict[str, Any]:
         "checkin_days": stats["checkin_days"],
         "checkin_rate": stats["checkin_rate"],
         "average_sleep_hours": stats["average_sleep_hours"],
+        "average_sleep_quality": stats["average_sleep_quality"],
+        "sleep_quality_value_days": stats["sleep_quality_value_days"],
         "average_energy_level": stats["average_energy_level"],
         "average_soreness_level": stats["average_soreness_level"],
+        "average_stress_level": stats["average_stress_level"],
+        "stress_value_days": stats["stress_value_days"],
+        "average_training_motivation": stats["average_training_motivation"],
+        "training_motivation_value_days": stats["training_motivation_value_days"],
+        "pain_concern_value_days": sum(stats["pain_concern_counts"].values()),
+        "pain_concern_counts": stats["pain_concern_counts"],
+        "pain_area_counts": stats["pain_area_counts"],
         "latest_body_weight_lb": stats["latest_body_weight_lb"],
     }
+
+
+def _classify_sleep_duration(value: float | None) -> str:
+    if value is None:
+        return "unknown"
+    if value < 6:
+        return "short"
+    if value < 7:
+        return "borderline"
+    if value > 9.5:
+        return "long"
+    return "typical"
+
+
+def _classify_sleep_quality(value: float | None) -> str:
+    if value is None:
+        return "unknown"
+    if value <= 2:
+        return "poor"
+    if value == 3:
+        return "fair"
+    return "good"
+
+
+def _classify_five_point(value: float | None, *, max_value: int = 5) -> str:
+    if value is None:
+        return "unknown"
+    if max_value == 10:
+        if value <= 3:
+            return "low"
+        if value <= 7:
+            return "moderate"
+        return "high"
+    if value <= 2:
+        return "low"
+    if value == 3:
+        return "moderate"
+    return "high"
 
 
 def _indicator_stat_key(indicator_name: str) -> str:

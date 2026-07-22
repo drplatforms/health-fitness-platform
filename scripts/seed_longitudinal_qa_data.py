@@ -610,6 +610,37 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
             continue
 
         sleep, energy, soreness, note = _recovery_values(user, index, len(days))
+        if user.scenario == "recovery_limited":
+            sleep_quality = 2 if index % 3 else 3
+            stress_level = 5
+            training_motivation = 2 if index % 2 else 3
+            pain_concern = "mild" if index % 8 == 0 else "none"
+            pain_area = "knee" if pain_concern == "mild" else None
+        elif user.scenario == "aligned_managed":
+            sleep_quality = 4
+            stress_level = 2
+            training_motivation = 4
+            pain_concern = "none"
+            pain_area = None
+        elif user.scenario == "nutrition_training_mismatch":
+            sleep_quality = 3
+            stress_level = 4
+            training_motivation = 3
+            pain_concern = "none"
+            pain_area = None
+        elif user.scenario == "improving_after_deload":
+            progress = index / max(len(days) - 1, 1)
+            sleep_quality = min(5, 2 + round(progress * 3))
+            stress_level = max(2, 5 - round(progress * 3))
+            training_motivation = min(5, 2 + round(progress * 3))
+            pain_concern = "mild" if progress < 0.25 and index % 7 == 0 else "none"
+            pain_area = "lower_back" if pain_concern == "mild" else None
+        else:
+            sleep_quality = None if index % 2 == 0 else 3
+            stress_level = None if index % 3 == 0 else 4
+            training_motivation = None if index % 4 == 0 else 3
+            pain_concern = None if index % 5 == 0 else "none"
+            pain_area = None
         cursor.execute(
             """
             INSERT INTO daily_checkins (
@@ -617,21 +648,31 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
                 checkin_date,
                 body_weight,
                 sleep_hours,
+                sleep_quality,
                 energy_level,
                 soreness_level,
+                stress_level,
+                training_motivation,
+                pain_concern,
+                pain_area,
                 mood,
                 notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user.user_id,
                 _iso(day),
                 _weight_for(user, index, len(days)),
                 sleep,
+                sleep_quality,
                 energy,
                 soreness,
+                stress_level,
+                training_motivation,
+                pain_concern,
+                pain_area,
                 "steady" if user.scenario != "data_quality_limited" else "variable",
                 note,
                 _timestamp(day, hour=7),
