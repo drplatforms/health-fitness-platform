@@ -14,6 +14,7 @@ from api.routes.daily_coach import router as daily_coach_router
 from api.routes.daily_driver import router as daily_driver_router
 from api.routes.equipment_profiles import router as equipment_profile_router
 from api.routes.food_canonical_search import router as food_canonical_search_router
+from api.routes.longitudinal_insights import router as longitudinal_insight_router
 from api.routes.meal_ideas import router as meal_ideas_router
 from api.routes.nutrition import router as nutrition_router
 from api.routes.nutrition_food_suggestions import (
@@ -72,6 +73,7 @@ app.include_router(daily_coach_router)
 app.include_router(equipment_profile_router)
 app.include_router(food_canonical_search_router)
 app.include_router(meal_ideas_router)
+app.include_router(longitudinal_insight_router)
 app.include_router(report_router)
 app.include_router(recovery_router)
 app.include_router(nutrition_target_vs_actual_router)

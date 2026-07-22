@@ -7,6 +7,7 @@ from scripts.seed_longitudinal_qa_data import (
     DEFAULT_DAY_COUNT,
     FORBIDDEN_PRODUCT_CONTEXT_TERMS,
     QA_USER_IDS,
+    longitudinal_insight_qa_dates,
     seed_longitudinal_qa_data,
 )
 from scripts.spike_direct_ollama_training_report_section import (
@@ -38,6 +39,18 @@ def _all_rows(sql: str, params: tuple = ()):
 def _seed(tmp_path, monkeypatch, *, end_date: date = FIXED_END_DATE):
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "fitness_ai_test.db")
     return seed_longitudinal_qa_data(end_date=end_date)
+
+
+def test_longitudinal_insight_smoke_dates_are_relative_to_seed_end_date():
+    anchors = longitudinal_insight_qa_dates(FIXED_END_DATE)
+
+    assert anchors == {
+        "recovery_deterioration": date(2026, 5, 31),
+        "recovery_rebound": FIXED_END_DATE,
+        "training_progression": date(2026, 5, 4),
+        "training_rising_effort": FIXED_END_DATE,
+        "sparse_data_control": FIXED_END_DATE,
+    }
 
 
 def test_seed_longitudinal_qa_data_runs_and_is_idempotent(tmp_path, monkeypatch):

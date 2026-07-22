@@ -110,6 +110,7 @@ def build_workout_exercise_history_analytics(
     lookback_days: int = DEFAULT_ANALYTICS_LOOKBACK_DAYS,
     exercise_limit: int = DEFAULT_ANALYTICS_EXERCISE_LIMIT,
     session_limit: int = DEFAULT_ANALYTICS_SESSION_LIMIT,
+    end_date: str | None = None,
 ) -> WorkoutExerciseHistoryAnalytics:
     """Build bounded, read-only descriptive exercise history analytics."""
 
@@ -128,6 +129,32 @@ def build_workout_exercise_history_analytics(
     sessions = load_completed_user_progression_sessions(
         user_id=user_id,
         lookback_days=bounded_lookback,
+        end_date=end_date,
+    )
+    return build_workout_exercise_history_analytics_from_sessions(
+        user_id=user_id,
+        sessions=sessions,
+        exercise_limit=bounded_exercise_limit,
+        session_limit=bounded_session_limit,
+    )
+
+
+def build_workout_exercise_history_analytics_from_sessions(
+    *,
+    user_id: int,
+    sessions: list[ExerciseProgressionSession],
+    exercise_limit: int = DEFAULT_ANALYTICS_EXERCISE_LIMIT,
+    session_limit: int = DEFAULT_ANALYTICS_SESSION_LIMIT,
+) -> WorkoutExerciseHistoryAnalytics:
+    """Build the existing public analytics contract from preloaded history."""
+
+    bounded_exercise_limit = min(
+        MAX_ANALYTICS_EXERCISE_LIMIT,
+        max(1, int(exercise_limit)),
+    )
+    bounded_session_limit = min(
+        MAX_ANALYTICS_SESSION_LIMIT,
+        max(1, int(session_limit)),
     )
     grouped_sessions = _group_sessions_by_effective_identity(sessions)
     ordered_groups = sorted(
