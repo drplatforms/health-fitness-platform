@@ -605,7 +605,7 @@ function MealIdeaCard({
               ) : null}
             </span>
             <span className="shrink-0 text-xs text-text-muted">
-              {formatAmount(ingredient.amount_grams)} g
+              {ingredient.quantity_display.display_text}
             </span>
           </li>
         ))}
@@ -751,8 +751,4 @@ function generationNonce() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `${Date.now()}-${Math.random()}`;
-}
-
-function formatAmount(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

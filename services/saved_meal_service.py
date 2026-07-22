@@ -7,12 +7,14 @@ from typing import Any
 
 from database import get_connection
 from models.ai_run_models import AIRunTelemetry
+from models.measurement_display_models import TrustedQuantityMeasure
 from models.saved_meal_models import (
     SavedMeal,
     SavedMealItem,
     SavedMealItemInput,
     SavedMealMutationInput,
 )
+from services.measurement_display_service import present_food_quantity
 from services.nutrition_service import MAX_CANONICAL_LOG_GRAMS, _normalize_meal_type
 from services.personal_food_service import _assert_user_exists
 
@@ -269,6 +271,15 @@ def scale_saved_meal_recipe(
                 "personal_food_id": item.personal_food_id,
                 "display_name": item.display_name,
                 "amount_grams": round(item.resolved_grams * multiplier, 4),
+                "quantity_display": present_food_quantity(
+                    canonical_food_id=item.canonical_food_id,
+                    grams=round(item.resolved_grams * multiplier, 4),
+                    trusted_measures=(
+                        _personal_saved_item_measure(item)
+                        if item.food_type == "personal"
+                        else None
+                    ),
+                ).to_public_dict(),
             }
             for item in meal.items
         ],
@@ -859,6 +870,7 @@ def _build_saved_meal_item(
     grams = float(item_row["resolved_grams"])
     validation_reason: str | None = None
     nutrient_values: dict[str, float | None]
+    trusted_measures: tuple[TrustedQuantityMeasure, ...] | None = None
     if item_row["food_type"] == "canonical":
         cursor.execute(
             "SELECT display_name, active FROM canonical_foods WHERE id = ?",
@@ -893,7 +905,8 @@ def _build_saved_meal_item(
             """
             SELECT pf.display_name, pf.active, pf.user_id,
                    pr.calories_per_100g, pr.protein_g_per_100g,
-                   pr.carbs_g_per_100g, pr.fat_g_per_100g
+                   pr.carbs_g_per_100g, pr.fat_g_per_100g,
+                   pr.serving_name, pr.serving_grams
             FROM personal_foods AS pf
             LEFT JOIN personal_food_revisions AS pr ON pr.id = pf.current_revision_id
             WHERE pf.id = ?
@@ -917,6 +930,38 @@ def _build_saved_meal_item(
                 "carbs_g": _scaled(food_row["carbs_g_per_100g"], grams),
                 "fat_g": _scaled(food_row["fat_g_per_100g"], grams),
             }
+            if (
+                item_row["amount_source"] == "personal_serving"
+                and item_row["serving_quantity"] is not None
+                and float(item_row["serving_quantity"]) > 0
+            ):
+                snapshot_name = "serving"
+                if (
+                    item_row["serving_display_snapshot"]
+                    and " x " in item_row["serving_display_snapshot"]
+                ):
+                    snapshot_name = str(item_row["serving_display_snapshot"]).split(
+                        " x ", 1
+                    )[1]
+                trusted_measures = (
+                    TrustedQuantityMeasure(
+                        unit_name=snapshot_name,
+                        unit_quantity=1,
+                        grams=grams / float(item_row["serving_quantity"]),
+                        confidence="High",
+                        source="saved_personal_serving_snapshot",
+                    ),
+                )
+            elif food_row["serving_grams"] is not None:
+                trusted_measures = (
+                    TrustedQuantityMeasure(
+                        unit_name=str(food_row["serving_name"] or "serving"),
+                        unit_quantity=1,
+                        grams=float(food_row["serving_grams"]),
+                        confidence="High",
+                        source="personal_food_revision",
+                    ),
+                )
 
     return SavedMealItem(
         id=int(item_row["id"]),
@@ -927,6 +972,11 @@ def _build_saved_meal_item(
         display_name=display_name,
         active=active,
         resolved_grams=grams,
+        quantity_display=present_food_quantity(
+            canonical_food_id=item_row["canonical_food_id"],
+            grams=grams,
+            trusted_measures=trusted_measures,
+        ),
         canonical_serving_unit_id=item_row["canonical_serving_unit_id"],
         serving_quantity=_optional_float(item_row["serving_quantity"]),
         serving_display_snapshot=item_row["serving_display_snapshot"],
@@ -937,6 +987,29 @@ def _build_saved_meal_item(
         protein_g=nutrient_values["protein_g"],
         carbs_g=nutrient_values["carbs_g"],
         fat_g=nutrient_values["fat_g"],
+    )
+
+
+def _personal_saved_item_measure(
+    item: SavedMealItem,
+) -> tuple[TrustedQuantityMeasure, ...]:
+    if (
+        item.amount_source != "personal_serving"
+        or item.serving_quantity is None
+        or item.serving_quantity <= 0
+    ):
+        return ()
+    unit_name = "serving"
+    if item.serving_display_snapshot and " x " in item.serving_display_snapshot:
+        unit_name = item.serving_display_snapshot.split(" x ", 1)[1].strip()
+    return (
+        TrustedQuantityMeasure(
+            unit_name=unit_name,
+            unit_quantity=1,
+            grams=item.resolved_grams / item.serving_quantity,
+            confidence="High",
+            source="saved_personal_serving_snapshot",
+        ),
     )
 
 

@@ -7,6 +7,7 @@ from typing import Any
 
 from database import get_connection
 from models.meal_idea_models import MealIdeaGenerationRequest, MealIdeasResult
+from services.measurement_display_service import present_food_quantity
 
 MAX_MEAL_IDEA_GENERATION_SETS_PER_USER = 5
 
@@ -152,13 +153,40 @@ def list_generation_sets(
 
 
 def _generation_set_from_row(row: sqlite3.Row) -> MealIdeaGenerationSet:
+    result = _decode_payload(row["result_json"])
+    _add_missing_quantity_presentations(result)
     return MealIdeaGenerationSet(
         id=int(row["id"]),
         user_id=int(row["user_id"]),
         created_at=str(row["created_at"]),
         request=_decode_payload(row["request_json"]),
-        result=_decode_payload(row["result_json"]),
+        result=result,
     )
+
+
+def _add_missing_quantity_presentations(result: dict[str, Any]) -> None:
+    ideas = result.get("ideas")
+    if not isinstance(ideas, list):
+        return
+    for idea in ideas:
+        if not isinstance(idea, dict) or not isinstance(idea.get("ingredients"), list):
+            continue
+        for ingredient in idea["ingredients"]:
+            if not isinstance(ingredient, dict) or "quantity_display" in ingredient:
+                continue
+            canonical_food_id = ingredient.get("canonical_food_id")
+            amount_grams = ingredient.get("amount_grams")
+            if (
+                isinstance(canonical_food_id, int)
+                and not isinstance(canonical_food_id, bool)
+                and isinstance(amount_grams, int | float)
+                and not isinstance(amount_grams, bool)
+                and amount_grams > 0
+            ):
+                ingredient["quantity_display"] = present_food_quantity(
+                    canonical_food_id=canonical_food_id,
+                    grams=amount_grams,
+                ).to_public_dict()
 
 
 def _assert_user_exists(cursor: sqlite3.Cursor, user_id: int) -> None:

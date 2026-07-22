@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal
 
 from models.ai_run_models import AIRunTelemetry
+from models.measurement_display_models import QuantityPresentation
 
 SavedMealFoodType = Literal["canonical", "personal"]
 
@@ -41,6 +42,7 @@ class SavedMealItem:
     display_name: str
     active: bool
     resolved_grams: float
+    quantity_display: QuantityPresentation
     canonical_serving_unit_id: int | None
     serving_quantity: float | None
     serving_display_snapshot: str | None
@@ -53,7 +55,9 @@ class SavedMealItem:
     fat_g: float | None
 
     def to_public_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        payload["quantity_display"] = self.quantity_display.to_public_dict()
+        return payload
 
 
 @dataclass(frozen=True)

@@ -32,6 +32,7 @@ from services.meal_idea_service import (
     _call_openai_provider,
     _timeout,
 )
+from services.measurement_display_service import present_food_quantity
 from services.saved_meal_service import (
     get_saved_meal,
     set_saved_meal_cooking_instructions,
@@ -311,6 +312,10 @@ def _build_instruction_prompt(request: MealInstructionGenerationRequest) -> str:
                 "personal_food_id": ingredient.personal_food_id,
                 "display_name": ingredient.display_name,
                 "amount_grams": ingredient.amount_grams,
+                "display_quantity": present_food_quantity(
+                    canonical_food_id=ingredient.canonical_food_id,
+                    grams=ingredient.amount_grams,
+                ).display_text,
             }
             for ingredient in request.ingredients
         ],
