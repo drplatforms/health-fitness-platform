@@ -4,6 +4,7 @@ import { KeyboardEvent, PointerEvent, useId, useRef, useState } from "react";
 
 import { AvailableIngredientsPanel } from "@/components/AvailableIngredientsPanel";
 import { FoodLoggingCard } from "@/components/FoodLoggingCard";
+import { MealIdeasPanel } from "@/components/MealIdeasPanel";
 import { PersonalFoodsList } from "@/components/PersonalFoodsList";
 import { SavedMealsPanel } from "@/components/SavedMealsPanel";
 
@@ -263,7 +264,10 @@ export function FoodWorkspaceDeck({
           hidden={activePanel !== "meals"}
           className={styles.panel}
         >
-          <SavedMealsPanel userId={userId} targetDate={targetDate} />
+          <div className="space-y-5">
+            <MealIdeasPanel userId={userId} targetDate={targetDate} />
+            <SavedMealsPanel userId={userId} targetDate={targetDate} />
+          </div>
         </div>
         <div
           id={`${id}-available-panel`}
