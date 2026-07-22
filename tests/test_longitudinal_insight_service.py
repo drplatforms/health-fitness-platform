@@ -203,9 +203,9 @@ def _canonical_id(query: str) -> int:
 
 
 def _log_complete_day(user_id: int, target_date: str) -> None:
-    add_canonical_food_entry(user_id, _canonical_id("chicken breast"), 150, target_date)
-    add_canonical_food_entry(user_id, _canonical_id("rice"), 200, target_date)
-    add_canonical_food_entry(user_id, _canonical_id("olive oil"), 10, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("chicken breast"), 250, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("rice"), 650, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("olive oil"), 35, target_date)
 
 
 def _clear_user_history(user_id: int = 1) -> None:

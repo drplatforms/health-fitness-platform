@@ -277,7 +277,8 @@ def test_low_entry_and_meal_count_reason_codes_appear(tmp_path, monkeypatch):
 
     assert summary.logging_completeness == LOGGING_COMPLETENESS_PARTIAL_DAY
     assert "entry_count_low" in summary.reason_codes
-    assert "meal_count_low" in summary.reason_codes
+    assert "meal_semantics_insufficient" in summary.reason_codes
+    assert "meal_type_semantics_unavailable" in summary.reason_codes
 
 
 def test_training_day_context_can_be_included_as_context_only(tmp_path, monkeypatch):

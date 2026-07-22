@@ -100,7 +100,9 @@ def build_coach_historical_evidence(
             )
             for window in presentation_windows
         ]
-        source_services.append("nutrition_trend_service")
+        source_services.extend(
+            ["nutrition_trend_service", "nutrition_intelligence_service"]
+        )
 
     if "nutrition" in domains:
         item = _nutrition_history_item(
@@ -682,18 +684,19 @@ def _nutrition_history_item(
             ("average_fat_g", "average_fat_g"),
         ),
     )
-    synthesis_windows = _table_payload(
-        structured_windows,
-        (
-            ("period", "label"),
-            ("logged_days", "logged_day_count"),
-            ("complete_days", "complete_logging_day_count"),
-            ("partial_days", "partial_logging_day_count"),
-            ("logging_status", "logging_consistency_status"),
-            ("average_calories", "average_calories"),
-            ("average_protein_g", "average_protein_g"),
-        ),
-    )
+    synthesis_columns = [
+        ("period", "label"),
+        ("logged_days", "logged_day_count"),
+        ("complete_days", "complete_logging_day_count"),
+        ("partial_days", "partial_logging_day_count"),
+        ("trustworthy_days", "trustworthy_day_count"),
+        ("logging_status", "logging_consistency_status"),
+        ("average_calories", "average_calories"),
+        ("average_protein_g", "average_protein_g"),
+    ]
+    if len(structured_windows) <= 4:
+        synthesis_columns.append(("measurements", "synthesis_measurements"))
+    synthesis_windows = _table_payload(structured_windows, synthesis_columns)
     observed_dates = [
         day.date
         for window in windows
@@ -737,7 +740,31 @@ def _nutrition_window_data(
         "average_protein_g": intake.average_protein_g,
         "average_carbohydrate_g": intake.average_carbohydrate_g,
         "average_fat_g": intake.average_fat_g,
+        "trustworthy_day_count": intake.trustworthy_day_count,
+        "measurements": [observation.to_dict() for observation in window.observations],
+        "synthesis_measurements": [
+            _nutrition_observation_synthesis_data(observation)
+            for observation in window.observations
+            if observation.observation_type
+            in {
+                "intake_variability",
+                "weekday_vs_weekend_intake",
+                "training_day_vs_rest_day_intake",
+                "target_hit_frequency",
+            }
+        ],
         "confidence": intake.confidence,
+    }
+
+
+def _nutrition_observation_synthesis_data(observation: Any) -> dict[str, Any]:
+    return {
+        "type": observation.observation_type,
+        "metric": observation.metric,
+        "current": observation.current_value,
+        "current_n": observation.current_observation_count,
+        "comparison": observation.comparison_value,
+        "comparison_n": observation.comparison_observation_count,
     }
 
 

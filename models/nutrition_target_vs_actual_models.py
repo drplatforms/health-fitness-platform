@@ -29,6 +29,7 @@ class NutritionActuals:
     logged_meal_count: int = 0
     entry_count: int = 0
     source_count: int = 0
+    meal_types: list[str] = field(default_factory=list)
     missing_calorie_entries: int = 0
     missing_protein_entries: int = 0
     missing_carb_entries: int = 0

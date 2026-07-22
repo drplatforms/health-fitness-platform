@@ -12,7 +12,9 @@ from models.nutrition_trend_models import (
     CALIBRATION_READINESS_NOT_READY,
     CALIBRATION_READINESS_STRONG,
     CALIBRATION_READINESS_USABLE,
+    INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD,
     LOGGING_COMPLETENESS_COMPLETE_ENOUGH,
+    LOGGING_COMPLETENESS_LIKELY_INCOMPLETE,
     LOGGING_COMPLETENESS_NO_LOGS,
     LOGGING_COMPLETENESS_PARTIAL_DAY,
     LOGGING_CONSISTENCY_STRONG,
@@ -75,9 +77,9 @@ def _set_profile_context(
 
 
 def _log_complete_day(user_id: int, target_date: str) -> None:
-    add_canonical_food_entry(user_id, _canonical_id("chicken breast"), 150, target_date)
-    add_canonical_food_entry(user_id, _canonical_id("rice"), 200, target_date)
-    add_canonical_food_entry(user_id, _canonical_id("olive oil"), 10, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("chicken breast"), 250, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("rice"), 650, target_date)
+    add_canonical_food_entry(user_id, _canonical_id("olive oil"), 35, target_date)
 
 
 def _log_partial_day(user_id: int, target_date: str) -> None:
@@ -257,6 +259,51 @@ def test_no_log_and_partial_days_are_counted_separately(tmp_path, monkeypatch) -
     assert completeness_by_date[_day(0)] == LOGGING_COMPLETENESS_COMPLETE_ENOUGH
 
 
+def test_tiny_multi_entry_day_has_presence_but_is_not_trusted_complete(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    add_canonical_food_entry(1, _canonical_id("chicken breast"), 20, _day(0))
+    add_canonical_food_entry(1, _canonical_id("rice"), 20, _day(0))
+    add_canonical_food_entry(1, _canonical_id("olive oil"), 1, _day(0))
+
+    window = build_nutrition_trend_window(
+        1, end_date=_today().isoformat(), window_days=14
+    )
+    day = next(item for item in window.trend_days if item.date == _day(0))
+
+    assert day.logging_present is True
+    assert day.logged_entry_count == 3
+    assert day.logged_meal_count == 0
+    assert day.meal_types == []
+    assert day.logging_completeness == LOGGING_COMPLETENESS_LIKELY_INCOMPLETE
+    assert day.intake_plausibility == INTAKE_PLAUSIBILITY_BELOW_COMPLETE_DAY_THRESHOLD
+    assert "completeness_limited_by_intake_plausibility" in day.reason_codes
+    assert window.complete_logging_day_count == 0
+    assert window.intake_trend_summary.trustworthy_day_count == 0
+    assert window.intake_trend_summary.average_calories is None
+
+
+def test_current_targets_are_bounded_and_not_reused_for_earlier_history(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _log_complete_day(1, _day(0))
+    current = build_nutrition_trend_window(
+        1, end_date=_today().isoformat(), window_days=14
+    )
+    historical = build_nutrition_trend_window(1, end_date=_day(7), window_days=14)
+
+    assert current.target_context.available is True
+    assert current.target_context.effective_end_date == _day(0)
+    assert "approved_current_nutrition_targets" in current.metadata.inputs_used
+    assert historical.target_context.available is False
+    assert "historical_target_context_unavailable" in (
+        historical.target_context.reason_codes
+    )
+    assert all(not day.target_context_available for day in historical.trend_days)
+
+
 def test_missing_nutrient_values_are_not_coerced_to_zero(tmp_path, monkeypatch) -> None:
     _seed_test_db(tmp_path, monkeypatch)
     _log_calories_only_food(1, _day(0))
@@ -292,8 +339,8 @@ def test_average_macros_are_calculated_only_from_present_logged_values(
     complete_day = next(day for day in trend_days if day.date == _day(0))
     assert summary.average_protein_g == complete_day.logged_protein
     assert summary.average_fat_g == complete_day.logged_fat
-    assert summary.average_calories is not None
-    assert summary.average_calories > complete_day.logged_calories / 2
+    assert summary.average_calories == complete_day.logged_calories
+    assert summary.trustworthy_day_count == 1
 
 
 def test_bodyweight_trend_unavailable_is_distinct_from_stable_trend(

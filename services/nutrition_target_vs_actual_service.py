@@ -134,6 +134,11 @@ def _rows_for_date(user_id: int, target_date: str) -> list[dict[str, Any]]:
         SELECT
             food_entries.id AS entry_id,
             food_entries.grams AS grams,
+            food_entries.meal_type AS meal_type,
+            food_entries.calories AS entry_calories,
+            food_entries.protein_g AS entry_protein,
+            food_entries.carbs_g AS entry_carbs,
+            food_entries.fat_g AS entry_fat,
             foods.name AS food_name,
             nutrients.name AS nutrient_name,
             nutrients.unit AS nutrient_unit,
@@ -198,6 +203,9 @@ def build_nutrition_actuals(
         )
 
     entry_nutrients: dict[int, set[str]] = {}
+    entry_totals: dict[int, dict[str, float]] = {}
+    entry_snapshots: dict[int, dict[str, float | None]] = {}
+    meal_types: set[str] = set()
     totals: dict[str, float] = {
         "calories": 0.0,
         "protein": 0.0,
@@ -210,6 +218,20 @@ def build_nutrition_actuals(
     for row in rows:
         entry_id = int(row["entry_id"])
         entry_nutrients.setdefault(entry_id, set())
+        entry_totals.setdefault(entry_id, {nutrient: 0.0 for nutrient in totals})
+        entry_snapshots.setdefault(
+            entry_id,
+            {
+                "calories": _as_float(row.get("entry_calories")),
+                "protein": _as_float(row.get("entry_protein")),
+                "carbs": _as_float(row.get("entry_carbs")),
+                "fat": _as_float(row.get("entry_fat")),
+                "fiber": None,
+            },
+        )
+        meal_type = str(row.get("meal_type") or "").strip().lower()
+        if meal_type:
+            meal_types.add(meal_type)
         nutrient_name = row.get("nutrient_name")
         if nutrient_name is None:
             continue
@@ -223,9 +245,20 @@ def build_nutrition_actuals(
         if amount_per_100g is None:
             continue
 
+        entry_totals[entry_id][normalized] += float(amount_per_100g) * grams / 100.0
         entry_nutrients[entry_id].add(normalized)
-        totals[normalized] += float(amount_per_100g) * grams / 100.0
-        seen_nutrient_totals.add(normalized)
+
+    for entry_id, nutrient_totals in entry_totals.items():
+        snapshot = entry_snapshots[entry_id]
+        for nutrient in totals:
+            snapshot_value = snapshot[nutrient]
+            if snapshot_value is not None:
+                totals[nutrient] += snapshot_value
+                entry_nutrients[entry_id].add(nutrient)
+                seen_nutrient_totals.add(nutrient)
+            elif nutrient in entry_nutrients[entry_id]:
+                totals[nutrient] += nutrient_totals[nutrient]
+                seen_nutrient_totals.add(nutrient)
 
     missing_counts: dict[str, int] = {}
     for nutrient in ["calories", "protein", "carbs", "fat", "fiber"]:
@@ -262,9 +295,13 @@ def build_nutrition_actuals(
         logged_fiber=(
             _round_or_none(totals["fiber"]) if "fiber" in seen_nutrient_totals else None
         ),
-        logged_meal_count=entry_count,
+        # meal_type is a bounded category, not an eating-occasion identifier.
+        # The legacy field now reports distinct represented categories rather
+        # than treating every food row as a meal.
+        logged_meal_count=len(meal_types),
         entry_count=entry_count,
         source_count=entry_count,
+        meal_types=sorted(meal_types),
         missing_calorie_entries=missing_counts["calories"],
         missing_protein_entries=missing_counts["protein"],
         missing_carb_entries=missing_counts["carbs"],
@@ -305,7 +342,11 @@ def _logging_summary_from_actuals(actuals: NutritionActuals) -> NutritionLogging
         completeness = LOGGING_COMPLETENESS_PARTIAL_DAY
         confidence = "Low"
         reason_codes.extend(
-            ["partial_nutrition_logging", "entry_count_low", "meal_count_low"]
+            [
+                "partial_nutrition_logging",
+                "entry_count_low",
+                "meal_semantics_insufficient",
+            ]
         )
         limitations.append("Nutrition logging appears partial for this date.")
     elif missing_nutrient_fields:
@@ -331,6 +372,9 @@ def _logging_summary_from_actuals(actuals: NutritionActuals) -> NutritionLogging
         completeness = LOGGING_COMPLETENESS_COMPLETE_ENOUGH
         confidence = "High"
         reason_codes.append("complete_enough_for_guidance")
+
+    if not actuals.meal_types:
+        reason_codes.append("meal_type_semantics_unavailable")
 
     return NutritionLoggingSummary(
         user_id=actuals.user_id,

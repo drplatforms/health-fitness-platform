@@ -286,6 +286,11 @@ def build_coach_evidence_pack(
         and "recovery" not in topics
     ):
         topics = (*topics, "recovery")
+    normalized_question = _normalize(question)
+    if "training" in topics and {"harder", "easier"}.intersection(
+        normalized_question.split()
+    ):
+        topics = (*topics, "recovery", "nutrition")
 
     evidence_plan = build_coach_evidence_plan(
         question=question,
@@ -304,6 +309,7 @@ def build_coach_evidence_pack(
         "longitudinal_insight_service",
         "recovery_intelligence_v2_service",
         "nutrition_trend_service",
+        "nutrition_intelligence_service",
         "workout_exercise_history_analytics_service",
     ]
     insight_feed = build_longitudinal_insight_feed(
@@ -408,7 +414,6 @@ def build_coach_evidence_pack_from_sources(
     historical_evidence: Sequence[CoachEvidenceItem] = (),
     source_services: Sequence[str] = (),
 ) -> CoachEvidencePack:
-    del question  # Question classification is represented by the explicit topics.
     topic_set = set(topics)
     broad = "broad" in topic_set
     baseline_items: list[CoachEvidenceItem] = []
@@ -459,7 +464,20 @@ def build_coach_evidence_pack_from_sources(
         limitations.extend(getattr(recovery, "limitations", [])[:2])
 
     if nutrition is not None:
-        baseline_items.extend(_nutrition_items(nutrition, include_weight=True))
+        baseline_items.extend(
+            _nutrition_items(
+                nutrition,
+                include_weight=True,
+                measurement_types=_nutrition_measurement_types_for_question(
+                    question,
+                    historical_depth=(
+                        evidence_plan.historical_depth
+                        if evidence_plan is not None
+                        else "baseline"
+                    ),
+                ),
+            )
+        )
         if broad or {"nutrition", "body_weight"}.intersection(topic_set):
             limitations.extend(getattr(nutrition, "limitations", [])[:2])
 
@@ -1742,11 +1760,27 @@ def _scaled_subjective_recovery_value(
 
 
 def _nutrition_items(
-    nutrition: Any, *, include_weight: bool
+    nutrition: Any,
+    *,
+    include_weight: bool,
+    measurement_types: set[str],
 ) -> list[CoachEvidenceItem]:
     items: list[CoachEvidenceItem] = []
     if nutrition.logged_day_count > 0:
         intake = nutrition.intake_trend_summary
+        measurements = _nutrition_measurement_payloads(
+            getattr(nutrition, "observations", []),
+            allowed_types=measurement_types,
+        )
+        structured_measurements = [
+            observation.to_dict()
+            for observation in getattr(nutrition, "observations", [])
+        ]
+        trustworthy_day_count = getattr(
+            intake,
+            "trustworthy_day_count",
+            nutrition.complete_logging_day_count,
+        )
         items.append(
             _item(
                 f"nutrition:logging:{nutrition.start_date}:{nutrition.end_date}",
@@ -1771,6 +1805,8 @@ def _nutrition_items(
                     ),
                     "partial_logging_day_count": (nutrition.partial_logging_day_count),
                     "logging_consistency_status": (intake.logging_consistency_status),
+                    "trustworthy_day_count": trustworthy_day_count,
+                    "measurements": structured_measurements,
                 },
                 synthesis_data={
                     "window_start": nutrition.start_date,
@@ -1781,6 +1817,8 @@ def _nutrition_items(
                         nutrition.complete_logging_day_count
                     ),
                     "partial_logging_day_count": (nutrition.partial_logging_day_count),
+                    "trustworthy_day_count": trustworthy_day_count,
+                    "measurements": measurements,
                 },
             )
         )
@@ -1860,6 +1898,67 @@ def _nutrition_items(
                 )
             )
     return items
+
+
+def _nutrition_measurement_payloads(
+    observations: Sequence[Any],
+    *,
+    allowed_types: set[str],
+) -> list[dict[str, Any]]:
+    payloads: list[dict[str, Any]] = []
+    for observation in observations:
+        if observation.observation_type not in allowed_types:
+            continue
+        target_context = dict(getattr(observation, "target_context", {}) or {})
+        payload = {
+            "type": observation.observation_type,
+            "current": observation.current_value,
+            "current_n": observation.current_observation_count,
+            "comparison": observation.comparison_value,
+            "comparison_n": observation.comparison_observation_count,
+        }
+        if observation.observation_type == "target_hit_frequency":
+            payload["target_context"] = {
+                key: target_context.get(key)
+                for key in (
+                    "calorie_target_min",
+                    "calorie_target_max",
+                    "protein_target_min",
+                    "protein_target_max",
+                )
+                if target_context.get(key) is not None
+            }
+        payloads.append(payload)
+    return payloads
+
+
+def _nutrition_measurement_types_for_question(
+    question: str,
+    *,
+    historical_depth: str,
+) -> set[str]:
+    normalized = _normalize(question)
+    if historical_depth != "baseline":
+        # Historical windows carry the requested period comparison. Keep the
+        # always-on baseline compact so it cannot crowd that evidence out.
+        return {"recent_vs_previous"}
+    if any(term in normalized for term in ("weekday", "weekend", "during the week")):
+        return {
+            "weekday_vs_weekend_logging",
+            "weekday_vs_weekend_intake",
+        }
+    if "training" in normalized and any(
+        term in normalized for term in ("rest day", "harder", "easier")
+    ):
+        return {
+            "training_day_vs_rest_day_logging",
+            "training_day_vs_rest_day_intake",
+        }
+    return {
+        "recent_vs_previous",
+        "intake_variability",
+        "target_hit_frequency",
+    }
 
 
 def _item(

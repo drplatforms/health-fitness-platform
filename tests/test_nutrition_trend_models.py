@@ -240,6 +240,8 @@ def test_missing_nutrient_values_are_not_coerced_to_zero() -> None:
     payload = day.to_dict()
     assert payload["logged_protein"] is None
     assert payload["logged_fat"] is None
+    assert payload["logging_present"] is True
+    assert payload["logged_entry_count"] == 0
 
 
 def test_bodyweight_trend_unavailable_is_distinct_from_stable_trend() -> None:
