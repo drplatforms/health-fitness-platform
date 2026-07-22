@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from models.ai_run_models import AIRunTelemetry
 from models.exercise_knowledge_models import ExerciseKnowledgeContext
+from models.recovery_knowledge_models import RecoveryKnowledgeContext
 
 CoachProvider = Literal["local", "openai"]
 CoachConfidence = Literal["Limited", "Low", "Moderate", "High"]
@@ -140,6 +141,7 @@ class GroundedCoachAnswer:
     suggested_action: CoachSuggestedAction | None
     evidence_pack: CoachEvidencePack
     knowledge_context: ExerciseKnowledgeContext
+    recovery_knowledge_context: RecoveryKnowledgeContext
     configured_provider: CoachProvider
     selected_provider: CoachProvider
     configured_model: str
@@ -156,10 +158,20 @@ class GroundedCoachAnswer:
             if reference in evidence_by_reference
         ]
         knowledge_by_reference = {
-            passage.reference_id: passage for passage in self.knowledge_context.passages
+            passage.reference_id: {
+                **passage.to_public_dict(),
+                "knowledge_domain": "exercise",
+            }
+            for passage in self.knowledge_context.passages
         }
+        knowledge_by_reference.update(
+            {
+                passage.reference_id: passage.to_public_dict()
+                for passage in self.recovery_knowledge_context.passages
+            }
+        )
         supporting_knowledge = [
-            knowledge_by_reference[reference].to_public_dict()
+            knowledge_by_reference[reference]
             for reference in self.supporting_knowledge_references
             if reference in knowledge_by_reference
         ]
@@ -182,6 +194,9 @@ class GroundedCoachAnswer:
             ),
             "evidence_pack": self.evidence_pack.to_public_dict(),
             "knowledge_context": self.knowledge_context.to_public_dict(),
+            "recovery_knowledge_context": (
+                self.recovery_knowledge_context.to_public_dict()
+            ),
             "provider_run": {
                 "configured_provider": self.configured_provider,
                 "selected_provider": self.selected_provider,

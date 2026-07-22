@@ -1,0 +1,334 @@
+{
+  "corpus_version": "recovery_knowledge_corpus_v1",
+  "documents": [
+    {
+      "source_id": "sleep-recovery-fundamentals",
+      "title": "Sleep duration and sleep quality",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://www.cdc.gov/sleep/about/index.html",
+        "https://pubmed.ncbi.nlm.nih.gov/36472094/"
+      ],
+      "topic_tags": ["sleep", "sleep_duration", "sleep_quality"],
+      "chunks": [
+        {
+          "chunk_id": "sleep-duration-and-opportunity-v1",
+          "heading": "Sleep duration describes time asleep",
+          "intents": ["sleep_duration", "sleep_quality_comparison"],
+          "search_terms": ["hours slept", "short sleep", "sleep amount", "seven hours", "sleep opportunity"],
+          "text": "Sleep duration is the amount of sleep obtained, not simply time spent in bed. Adults generally benefit from at least seven hours, while individual needs and day-to-day circumstances vary. One short night can matter without proving a lasting recovery problem; repeated records are more useful than a single value."
+        },
+        {
+          "chunk_id": "sleep-quality-is-distinct-v1",
+          "heading": "Sleep quality is distinct from duration",
+          "intents": ["sleep_quality", "sleep_quality_comparison"],
+          "search_terms": ["restless sleep", "fragmented sleep", "good quality", "uninterrupted", "duration versus quality"],
+          "text": "Sleep quality describes how continuous and restorative sleep feels. A person can log enough hours yet report restless or fragmented sleep, or log fewer hours that felt relatively continuous. Duration and quality therefore provide complementary context and should not be treated as interchangeable scores."
+        },
+        {
+          "chunk_id": "poor-sleep-perceived-effort-v1",
+          "heading": "Poor sleep can change how training feels",
+          "intents": ["sleep_training_effect", "perceived_recovery"],
+          "search_terms": ["training feels harder", "poor sleep", "perceived effort", "fatigue", "performance"],
+          "text": "Sleep loss is associated with higher perceived effort and, in many exercise settings, lower performance. This makes poor sleep a plausible general reason training may feel harder, but it cannot establish why a particular session felt difficult without personal evidence and other context."
+        }
+      ]
+    },
+    {
+      "source_id": "stress-and-perceived-recovery",
+      "title": "Stress and perceived recovery",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/",
+        "https://pubmed.ncbi.nlm.nih.gov/32991706/"
+      ],
+      "topic_tags": ["stress", "perceived_recovery", "wellbeing"],
+      "chunks": [
+        {
+          "chunk_id": "life-and-training-stress-v1",
+          "heading": "Recovery reflects training and non-training stress",
+          "intents": ["stress_perception", "training_load_recovery"],
+          "search_terms": ["life stress", "work stress", "training stress", "total stress", "recovery balance"],
+          "text": "Recovery context includes both training demand and non-training demands such as work, schedule disruption, and mental strain. Two similar workouts can therefore be experienced differently when the surrounding stress context differs. A stress rating adds context; it does not identify a single cause."
+        },
+        {
+          "chunk_id": "stress-can-shape-perception-v1",
+          "heading": "Stress can shape perceived recovery",
+          "intents": ["stress_perception", "perceived_recovery"],
+          "search_terms": ["feel less recovered", "high stress", "perceived fatigue", "readiness", "wellbeing"],
+          "text": "Higher perceived stress can coincide with lower energy, poorer sleep, greater fatigue, or a lower sense of readiness. These self-reports are useful because they describe the athlete's current experience, but overlapping ratings do not show which factor produced another."
+        },
+        {
+          "chunk_id": "subjective-signals-need-context-v1",
+          "heading": "Subjective recovery signals are contextual evidence",
+          "intents": ["stress_perception", "recovery_variability", "causation_boundary"],
+          "search_terms": ["subjective recovery", "self report", "stress score", "wellbeing measure", "association"],
+          "text": "Self-reported stress, fatigue, soreness, sleep quality, and mood are commonly used together because each captures a different part of perceived recovery. Their relationships with training load vary widely, so they are best interpreted as repeated contextual signals rather than precise diagnoses or causal measurements."
+        }
+      ]
+    },
+    {
+      "source_id": "soreness-and-pain-boundaries",
+      "title": "Soreness and conservative pain boundaries",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/12617692/",
+        "https://pubmed.ncbi.nlm.nih.gov/29755363/"
+      ],
+      "topic_tags": ["soreness", "pain", "discomfort_boundary"],
+      "chunks": [
+        {
+          "chunk_id": "soreness-versus-pain-v1",
+          "heading": "Soreness and pain are not interchangeable",
+          "intents": ["soreness_pain_comparison", "pain_boundary"],
+          "search_terms": ["soreness versus pain", "muscle tenderness", "sharp pain", "ache", "difference"],
+          "text": "Post-training soreness commonly feels like diffuse muscle tenderness or stiffness that appears after unfamiliar or demanding work. Pain is a broader signal and may be sharp, focal, escalating, or linked to a particular movement. A check-in should keep soreness and pain concerns separate rather than assuming one explains the other."
+        },
+        {
+          "chunk_id": "soreness-can-outlast-rest-day-v1",
+          "heading": "Soreness can remain after a rest day",
+          "intents": ["soreness_timing", "hard_training_recovery"],
+          "search_terms": ["sore after rest day", "delayed soreness", "doms", "24 hours", "48 hours"],
+          "text": "Delayed soreness often develops after the training session and can remain noticeable for more than one day, especially after unfamiliar or unusually demanding exercise. A rest day does not guarantee that soreness will be gone by the next morning, and soreness duration alone does not identify a personal problem."
+        },
+        {
+          "chunk_id": "conservative-discomfort-boundary-v1",
+          "heading": "Use a conservative boundary around pain",
+          "intents": ["pain_boundary", "soreness_pain_comparison"],
+          "search_terms": ["pain concern", "discomfort", "modify movement", "stop movement", "worsening pain"],
+          "text": "General recovery knowledge should not relabel a logged pain concern as ordinary soreness. When a movement produces sharp, focal, escalating, or otherwise concerning pain, the conservative fitness boundary is to stop or modify that movement rather than use general recovery explanations to dismiss the signal."
+        }
+      ]
+    },
+    {
+      "source_id": "training-load-and-accumulated-fatigue",
+      "title": "Training load, recovery, and accumulated fatigue",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/28463642/",
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/"
+      ],
+      "topic_tags": ["training_load", "fatigue", "recovery_balance"],
+      "chunks": [
+        {
+          "chunk_id": "training-load-has-multiple-parts-v1",
+          "heading": "Training load has external and internal context",
+          "intents": ["training_load_recovery", "accumulated_fatigue"],
+          "search_terms": ["training volume", "intensity", "frequency", "session effort", "workload"],
+          "text": "Training demand is shaped by more than one number. Volume, intensity, frequency, exercise novelty, session duration, and perceived effort can all contribute. Recovery interpretation should therefore use the available load pattern and personal responses rather than treating one hard set or one total as the whole workload."
+        },
+        {
+          "chunk_id": "accumulated-fatigue-is-repeated-demand-v1",
+          "heading": "Accumulated fatigue reflects repeated demand",
+          "intents": ["accumulated_fatigue", "training_load_recovery"],
+          "search_terms": ["cumulative fatigue", "fatigue building", "several hard sessions", "repeated demand", "not recovering"],
+          "text": "Accumulated fatigue is the practical idea that residual effects from repeated training and life demands can overlap before recovery feels complete. It is better supported by a pattern across several observations—such as rising effort with poorer recovery signals—than by one difficult day."
+        },
+        {
+          "chunk_id": "load-recovery-balance-varies-v1",
+          "heading": "The same load can produce different responses",
+          "intents": ["training_load_recovery", "recovery_variability"],
+          "search_terms": ["same workout different recovery", "individual response", "load tolerance", "baseline", "day to day"],
+          "text": "The response to a given training load varies between people and within the same person over time. Training history, sleep, stress, recent sessions, and ordinary day-to-day variation can all change the response. Personal baselines and repeated trends are more informative than universal readiness cutoffs."
+        }
+      ]
+    },
+    {
+      "source_id": "motivation-and-physical-readiness",
+      "title": "Motivation and physical readiness",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/",
+        "https://pubmed.ncbi.nlm.nih.gov/32991706/"
+      ],
+      "topic_tags": ["motivation", "readiness", "perceived_recovery"],
+      "chunks": [
+        {
+          "chunk_id": "motivation-is-one-signal-v1",
+          "heading": "Motivation is one recovery-context signal",
+          "intents": ["motivation_readiness", "perceived_recovery"],
+          "search_terms": ["low motivation", "do not feel like training", "readiness", "willingness", "recovery signal"],
+          "text": "Training motivation describes willingness or drive to train. It can add useful context, but it is not a direct measurement of muscle recovery, performance capacity, or training safety. A low motivation rating should be considered alongside sleep, energy, soreness, stress, pain concerns, and recent training."
+        },
+        {
+          "chunk_id": "motivation-can-diverge-v1",
+          "heading": "Motivation can diverge from other recovery signals",
+          "intents": ["motivation_readiness", "recovery_variability"],
+          "search_terms": ["low motivation good recovery", "supportive recovery", "mixed signals", "physical readiness", "mental readiness"],
+          "text": "Motivation can be low even when sleep, energy, soreness, and other available recovery signals look supportive. It can also feel high on a day with less supportive physical signals. This divergence is a mixed observation, not evidence that either the motivation rating or the other signals are wrong."
+        },
+        {
+          "chunk_id": "readiness-is-multidimensional-v1",
+          "heading": "Readiness is multidimensional",
+          "intents": ["motivation_readiness", "perceived_recovery"],
+          "search_terms": ["mental versus physical readiness", "feel ready", "readiness score", "multiple signals", "whole picture"],
+          "text": "Readiness is a practical summary of several dimensions rather than a single sensation. Physical indicators, perceived energy, stress, motivation, soreness, pain concerns, and recent workload may agree or conflict. Deterministic application conclusions should define how those recorded signals are combined."
+        }
+      ]
+    },
+    {
+      "source_id": "rest-and-active-recovery",
+      "title": "Rest days and active recovery",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/29755363/",
+        "https://health.gov/sites/default/files/2019-09/Physical_Activity_Guidelines_2nd_edition.pdf"
+      ],
+      "topic_tags": ["rest_day", "active_recovery", "recovery_strategy"],
+      "chunks": [
+        {
+          "chunk_id": "complete-rest-versus-active-recovery-v1",
+          "heading": "Complete rest and active recovery differ in load",
+          "intents": ["rest_strategy", "active_recovery_comparison"],
+          "search_terms": ["active recovery versus rest", "complete rest", "easy movement", "rest day", "difference"],
+          "text": "Complete rest removes planned exercise demand, while active recovery uses easy, low-demand movement. Active recovery should feel clearly easier than training and should not become another hard session. Neither option is universally superior; the useful distinction is how much additional demand it adds in the current context."
+        },
+        {
+          "chunk_id": "rest-day-is-not-zero-stress-v1",
+          "heading": "A rest day does not remove every recovery demand",
+          "intents": ["rest_strategy", "stress_perception"],
+          "search_terms": ["rest day still tired", "life stress on rest day", "sleep", "residual fatigue", "soreness"],
+          "text": "A day without training does not erase residual fatigue or soreness, and it does not remove sleep loss, work demands, or other life stress. The value of a rest day is reduced training demand; it is not a guarantee that every recovery signal will immediately improve."
+        },
+        {
+          "chunk_id": "active-recovery-is-context-not-cure-v1",
+          "heading": "Active recovery is an optional low-demand context",
+          "intents": ["active_recovery_comparison", "soreness_timing"],
+          "search_terms": ["easy walk", "light cycling", "mobility", "soreness relief", "recovery activity"],
+          "text": "Easy walking, cycling, or comfortable mobility can be used as active recovery when it stays low demand. Some people report temporary relief in stiffness or soreness, but that response varies and does not prove faster tissue recovery. The activity should not override a logged pain concern or an application-owned training constraint."
+        }
+      ]
+    },
+    {
+      "source_id": "recovery-variability-and-monitoring",
+      "title": "Recovery variability and repeated monitoring",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/",
+        "https://pubmed.ncbi.nlm.nih.gov/28463642/"
+      ],
+      "topic_tags": ["variability", "baseline", "monitoring"],
+      "chunks": [
+        {
+          "chunk_id": "day-to-day-variability-v1",
+          "heading": "Recovery varies from day to day",
+          "intents": ["recovery_variability", "perceived_recovery"],
+          "search_terms": ["recovery changes daily", "normal variation", "one bad day", "fluctuation", "readiness"],
+          "text": "Sleep, energy, soreness, stress, and motivation naturally vary across days. A single low or high rating may be meaningful for that day but is weak evidence of a durable trend. Repeated observations and comparisons with the person's own baseline provide better context."
+        },
+        {
+          "chunk_id": "within-person-baselines-v1",
+          "heading": "Personal baselines improve interpretation",
+          "intents": ["recovery_variability", "training_load_recovery"],
+          "search_terms": ["personal baseline", "usual recovery", "compare to normal", "longitudinal", "individual variability"],
+          "text": "Recovery ratings are most interpretable relative to the same person's usual pattern and data quality. Comparing one person's score with another person's score can be misleading because rating habits, training history, and normal ranges differ."
+        },
+        {
+          "chunk_id": "multi-signal-patterns-v1",
+          "heading": "Several aligned signals strengthen an observation",
+          "intents": ["recovery_variability", "accumulated_fatigue"],
+          "search_terms": ["multiple recovery signals", "aligned pattern", "sleep energy soreness", "trend confidence", "repeated checkins"],
+          "text": "A repeated change across several recovery signals is usually more informative than an isolated rating. Even aligned sleep, energy, soreness, stress, and motivation changes remain observations: they can raise confidence that recovery context changed without establishing the cause of that change."
+        }
+      ]
+    },
+    {
+      "source_id": "hydration-recovery-context",
+      "title": "Hydration as general recovery context",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/28985128/"
+      ],
+      "topic_tags": ["hydration", "fluid_balance", "training_context"],
+      "chunks": [
+        {
+          "chunk_id": "hydration-supports-physical-activity-v1",
+          "heading": "Hydration supports exercise context",
+          "intents": ["hydration_context", "hard_training_recovery"],
+          "search_terms": ["hydration and recovery", "fluid replacement", "dehydration", "exercise performance", "sweat"],
+          "text": "Maintaining sufficient hydration supports physical activity and performance, especially when heat, duration, or sweating increase fluid loss. Hydration is one part of recovery context, not a complete explanation for fatigue, soreness, sleep quality, or readiness."
+        },
+        {
+          "chunk_id": "hydration-needs-vary-v1",
+          "heading": "Hydration needs vary with conditions",
+          "intents": ["hydration_context", "recovery_variability"],
+          "search_terms": ["sweat rate", "heat", "exercise duration", "individual hydration", "fluid needs"],
+          "text": "Fluid needs vary with body size, sweat rate, environment, clothing, exercise duration, and intensity. A universal fluid amount cannot represent every session. General hydration context should stay qualitative unless the application has validated personal measurements."
+        },
+        {
+          "chunk_id": "more-fluid-is-not-always-better-v1",
+          "heading": "Sufficient is different from excessive",
+          "intents": ["hydration_context", "causation_boundary"],
+          "search_terms": ["too much water", "overdrinking", "sufficient hydration", "more is better", "fluid balance"],
+          "text": "Both too little and excessive fluid intake can be unhelpful, so 'more' is not a general recovery rule. Repository knowledge can explain that hydration matters, but it should not infer a personal hydration deficit from a difficult workout or a low recovery rating."
+        }
+      ]
+    },
+    {
+      "source_id": "unusually-hard-training-recovery",
+      "title": "Recovery after unusually hard training",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/12617692/",
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/"
+      ],
+      "topic_tags": ["hard_training", "novelty", "residual_fatigue"],
+      "chunks": [
+        {
+          "chunk_id": "hard-or-novel-training-v1",
+          "heading": "Hard or unfamiliar training can extend recovery demand",
+          "intents": ["hard_training_recovery", "soreness_timing"],
+          "search_terms": ["unusually hard workout", "new exercise", "high volume", "hard session recovery", "novel training"],
+          "text": "An unusually hard, high-volume, long, or unfamiliar session can create more residual fatigue and soreness than the person's typical training. The response still varies, so the session description is useful context rather than proof of how long this individual should take to recover."
+        },
+        {
+          "chunk_id": "look-at-the-following-days-v1",
+          "heading": "The following days show the response pattern",
+          "intents": ["hard_training_recovery", "accumulated_fatigue"],
+          "search_terms": ["days after hard workout", "recovery trend", "next sessions", "residual fatigue", "follow up checkins"],
+          "text": "After an unusually demanding session, the next several check-ins and training exposures show whether sleep, energy, soreness, motivation, or perceived effort returned toward the person's usual range. This longitudinal pattern is more informative than predicting recovery from the session label alone."
+        },
+        {
+          "chunk_id": "avoid-stacking-unusual-demand-v1",
+          "heading": "Repeated unusual demand can overlap",
+          "intents": ["hard_training_recovery", "training_load_recovery"],
+          "search_terms": ["back to back hard workouts", "stacked demand", "repeat hard session", "fatigue overlap", "training frequency"],
+          "text": "When several unusually demanding sessions occur close together, their residual effects may overlap. Whether that matters for this user depends on their logged response and deterministic application conclusions; general knowledge must not independently declare that the load was excessive."
+        }
+      ]
+    },
+    {
+      "source_id": "association-and-causation-boundary",
+      "title": "Association does not establish personal causation",
+      "source_path": "knowledge/recovery_knowledge_v1.json",
+      "derived_from": [
+        "https://pubmed.ncbi.nlm.nih.gov/32991706/",
+        "https://pubmed.ncbi.nlm.nih.gov/29345524/"
+      ],
+      "topic_tags": ["association", "causation", "evidence_boundary"],
+      "chunks": [
+        {
+          "chunk_id": "coincident-signals-are-associations-v1",
+          "heading": "Signals changing together show association",
+          "intents": ["causation_boundary", "perceived_recovery"],
+          "search_terms": ["correlation", "association", "changed together", "cause", "coincident pattern"],
+          "text": "When sleep, stress, soreness, motivation, or training effort change during the same period, the records show a temporal association. They do not by themselves show that one signal caused another, because unmeasured factors and ordinary variation may also contribute."
+        },
+        {
+          "chunk_id": "general-mechanism-is-not-personal-cause-v1",
+          "heading": "A general mechanism is not a personal conclusion",
+          "intents": ["causation_boundary", "sleep_training_effect", "stress_perception"],
+          "search_terms": ["may explain", "plausible mechanism", "personal cause", "why did this happen", "cannot prove"],
+          "text": "General knowledge can explain why poor sleep or high stress may affect perceived effort in people overall. Applying that explanation to one user's day requires cautious language: it may be relevant context, but it does not establish the personal cause of a hard workout or recovery change."
+        },
+        {
+          "chunk_id": "application-observations-retain-authority-v1",
+          "heading": "Application observations retain authority",
+          "intents": ["causation_boundary", "training_load_recovery"],
+          "search_terms": ["deterministic conclusion", "application evidence", "confidence", "override", "personal records"],
+          "text": "Curated recovery knowledge can explain an application observation but cannot change its confidence, replace missing personal data, or override a deterministic readiness or training conclusion. Personal confidence must remain tied to the validated records and application logic."
+        }
+      ]
+    }
+  ]
+}
