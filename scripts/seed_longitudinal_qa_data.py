@@ -1,4 +1,4 @@
-"""Seed deterministic six-month QA data for users 101-105.
+"""Seed deterministic year-long longitudinal QA data for users 101-105.
 
 Run from the project root:
     python scripts/seed_longitudinal_qa_data.py
@@ -24,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 import database  # noqa: E402
+from scripts.longitudinal_qa_scenario_manifest import phase_id_for  # noqa: E402
 from services.exercise_catalog_service import seed_exercise_catalog  # noqa: E402
 from services.food_normalization_service import (  # noqa: E402
     ensure_starter_canonical_foods_seeded,
@@ -40,7 +41,7 @@ from services.workout_plan_persistence_service import (  # noqa: E402
 SEED_MARKER = "longitudinal_qa_seed_v1"
 QA_USER_IDS = (101, 102, 103, 104, 105)
 DEFAULT_END_DATE = date.today()
-DEFAULT_DAY_COUNT = 180
+DEFAULT_DAY_COUNT = 365
 RECOVERY_DETERIORATION_OFFSET_DAYS = 14
 TRAINING_PROGRESSION_OFFSET_DAYS = 41
 
@@ -152,21 +153,21 @@ QA_USERS = (
     ),
     LongitudinalQAUser(
         user_id=103,
-        name="Nutrition Training Mismatch Scenario User",
+        name="Fat Loss to Maintenance Scenario User",
         scenario="nutrition_training_mismatch",
         gender="Male",
         age=34,
         height_cm=178.0,
         starting_weight=185.0,
-        goal_weight=182.0,
-        primary_goal="performance",
+        goal_weight=174.0,
+        primary_goal="maintenance_and_performance",
         activity_level="moderate",
         training_environment="home_gym",
         training_days_per_week=3,
     ),
     LongitudinalQAUser(
         user_id=104,
-        name="Improving After Deload Scenario User",
+        name="Strength Plateau Deload Rebound Scenario User",
         scenario="improving_after_deload",
         gender="Male",
         age=37,
@@ -269,6 +270,13 @@ def longitudinal_insight_qa_dates(end_date: date) -> dict[str, date]:
         - timedelta(days=TRAINING_PROGRESSION_OFFSET_DAYS),
         "training_rising_effort": end_date,
         "sparse_data_control": end_date,
+        "strength_progression_phase": end_date - timedelta(days=240),
+        "strength_plateau_phase": end_date - timedelta(days=165),
+        "strength_deload_phase": end_date - timedelta(days=100),
+        "fat_loss_phase": end_date - timedelta(days=190),
+        "fat_loss_maintenance": end_date,
+        "variable_schedule_disruption": end_date - timedelta(days=270),
+        "variable_schedule_return": end_date,
     }
 
 
@@ -568,32 +576,73 @@ def _seed_users(cursor) -> None:
 def _recovery_values(
     user: LongitudinalQAUser, index: int, total_days: int
 ) -> tuple[float, int, int, str]:
+    days_remaining = total_days - 1 - index
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "recovery_limited":
-        sleep = 5.5 + ((index % 4) * 0.15)
-        energy = [4, 3, 4, 3, 5][index % 5]
-        soreness = [6, 7, 8, 7, 8][index % 5]
-        note = "Low sleep and higher soreness make recovery the limiting context."
+        phase_values = {
+            "stable_start": (7.3, 7, 3),
+            "schedule_disruption": (5.9, 5, 6),
+            "attempted_return": (6.6, 6, 5),
+            "recurring_stress": (5.6, 4, 7),
+            "missed_training": (6.1, 5, 6),
+        }
+        if phase == "recovery_swings":
+            sleep, energy, soreness = (
+                (5.8, 4, 7) if (index // 7) % 2 == 0 else (7.2, 7, 4)
+            )
+        elif phase == "productive_return" and days_remaining <= 6:
+            sleep, energy, soreness = 6.8, 6, 6
+        elif phase == "productive_return" and days_remaining <= 13:
+            sleep, energy, soreness = 5.8, 5, 7
+        elif phase == "productive_return":
+            sleep, energy, soreness = 6.5, 6, 6
+        else:
+            sleep, energy, soreness = phase_values.get(phase, (6.0, 5, 6))
+        sleep += ((index % 5) - 2) * 0.08
+        energy = max(1, min(10, energy + (-1 if index % 6 == 0 else 0)))
+        soreness = max(1, min(10, soreness + (1 if index % 8 == 0 else 0)))
+        note = "Variable schedule and sleep keep recovery relevant during a measured return."
     elif user.scenario == "aligned_managed":
         sleep = 7.6 + ((index % 5) * 0.12)
         energy = [8, 8, 9, 8, 7][index % 5]
         soreness = [2, 3, 2, 2, 3][index % 5]
         note = "Stable recovery inputs support managed training decisions."
     elif user.scenario == "nutrition_training_mismatch":
-        sleep = 7.0 + ((index % 4) * 0.1)
-        energy = [6, 6, 5, 6, 7][index % 5]
-        soreness = [4, 5, 6, 5, 6][index % 5]
-        note = "Recovery is usable while nutrition consistency is the bigger question."
+        phase_values = {
+            "baseline": (7.0, 6, 4),
+            "logging_consistency": (7.2, 7, 4),
+            "fat_loss": (7.1, 6, 5),
+            "harder_training": (6.5, 5, 6),
+            "logging_disruption": (6.2, 5, 6),
+            "maintenance_recovery": (7.6, 8, 3),
+        }
+        sleep, energy, soreness = phase_values.get(phase, (7.0, 6, 5))
+        sleep += ((index % 5) - 2) * 0.06
+        energy = max(1, min(10, energy + (1 if index % 9 == 0 else 0)))
+        soreness = max(1, min(10, soreness + (1 if index % 11 == 0 else 0)))
+        note = "Recovery follows the fat-loss, harder-training, and maintenance phases."
     elif user.scenario == "improving_after_deload":
-        story_phase = _recovery_story_phase(index, total_days)
+        story_phase = phase or _recovery_story_phase(index, total_days)
         if story_phase == "healthy_baseline":
             sleep, energy, soreness = 7.8, 8, 2
             note = "Recovery inputs are healthy before the short deterioration phase."
-        elif story_phase == "deterioration":
+        elif story_phase in {"recovery_decline", "brief_fatigue", "deterioration"}:
             sleep, energy, soreness = 5.8, 4, 7
             note = "Sleep, energy, and soreness are worsening during a hard recovery phase."
-        elif story_phase == "rebound":
+        elif story_phase == "recovery_rebound":
             sleep, energy, soreness = 8.0, 8, 2
             note = "Recovery inputs have rebounded after the short deterioration phase."
+        elif story_phase == "deload":
+            sleep, energy, soreness = 7.3, 7, 3
+            note = (
+                "Recovery is improving while training demand is deliberately reduced."
+            )
+        elif story_phase == "plateau":
+            sleep, energy, soreness = 6.9, 6, 5
+            note = "Recovery is usable but less robust while strength progress stalls."
+        elif story_phase in {"progression", "foundation", "rebound"}:
+            sleep, energy, soreness = 7.5, 7, 3
+            note = "Recovery supports consistent strength training in this phase."
         else:
             progress = index / max(total_days - 1, 1)
             sleep = 6.0 + (1.7 * progress) + ((index % 3) * 0.05)
@@ -605,6 +654,9 @@ def _recovery_values(
         energy = [5, 6, 4, 7, 5][index % 5]
         soreness = [3, 6, 4, 7, 5][index % 5]
         note = "Inputs are inconsistent, so confidence should stay limited."
+
+    if user.scenario == "improving_after_deload":
+        sleep += ((index % 5) - 2) * 0.05
 
     return round(sleep, 1), int(energy), int(soreness), note
 
@@ -625,16 +677,33 @@ def _weight_for(user: LongitudinalQAUser, index: int, total_days: int) -> float 
         return None
 
     progress = index / max(total_days - 1, 1)
+    days_remaining = total_days - 1 - index
+    phase = phase_id_for(user.user_id, days_remaining)
+    story_index = max(0, 364 - days_remaining)
     if user.scenario == "aligned_managed":
         delta = ((index % 10) - 5) * 0.03
     elif user.scenario == "improving_after_deload":
-        delta = -2.2 * progress
+        delta = -1.2 * progress + ((index % 9) - 4) * 0.04
     elif user.scenario == "nutrition_training_mismatch":
-        delta = -0.8 * progress
+        if phase is None:
+            delta = 0.0
+        elif phase == "baseline":
+            delta = -0.4 * min(1.0, (story_index / 60))
+        elif phase == "logging_consistency":
+            delta = -0.4 - (story_index - 60) * 0.015
+        elif phase == "fat_loss":
+            delta = -1.3 - (story_index - 121) * 0.065
+        elif phase == "harder_training":
+            delta = -7.2 - (story_index - 212) * 0.025
+        elif phase == "logging_disruption":
+            delta = -8.7 - (story_index - 273) * 0.01
+        else:
+            delta = -9.0 + ((index % 8) - 4) * 0.05
+        delta += ((index % 7) - 3) * 0.04
     elif user.scenario == "data_quality_limited":
         delta = -1.0 * progress if index % 3 != 0 else 0.4
     else:
-        delta = 0.6 * progress
+        delta = 0.6 * progress + ((index % 9) - 4) * 0.04
 
     return round(user.starting_weight + delta, 1)
 
@@ -650,12 +719,23 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
                 continue
         if user.scenario == "nutrition_training_mismatch" and index % 9 == 0:
             continue
+        phase = phase_id_for(user.user_id, days_remaining)
+        if user.scenario == "recovery_limited":
+            if phase in {"schedule_disruption", "recurring_stress"} and index % 5 == 0:
+                continue
+            if phase == "missed_training" and index % 4 == 0:
+                continue
 
         sleep, energy, soreness, note = _recovery_values(user, index, len(days))
         if user.scenario == "recovery_limited":
-            sleep_quality = 2 if index % 3 else 3
-            stress_level = 5
-            training_motivation = 2 if index % 2 else 3
+            strained = phase in {
+                "schedule_disruption",
+                "recurring_stress",
+                "missed_training",
+            } or (phase == "recovery_swings" and (index // 7) % 2 == 0)
+            sleep_quality = 2 if strained else 3
+            stress_level = 5 if strained else 3
+            training_motivation = 2 if strained else 4
             pain_concern = "mild" if index % 8 == 0 else "none"
             pain_area = "knee" if pain_concern == "mild" else None
         elif user.scenario == "aligned_managed":
@@ -665,16 +745,17 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
             pain_concern = "none"
             pain_area = None
         elif user.scenario == "nutrition_training_mismatch":
-            sleep_quality = 3
-            stress_level = 4
-            training_motivation = 3
+            strained = phase in {"harder_training", "logging_disruption"}
+            sleep_quality = 3 if strained else 4
+            stress_level = 4 if strained else 2
+            training_motivation = 3 if strained else 4
             pain_concern = "none"
             pain_area = None
         elif user.scenario == "improving_after_deload":
-            story_phase = _recovery_story_phase(index, len(days))
-            if story_phase == "deterioration":
+            story_phase = phase or _recovery_story_phase(index, len(days))
+            if story_phase in {"recovery_decline", "brief_fatigue", "deterioration"}:
                 sleep_quality, stress_level, training_motivation = 2, 5, 2
-            elif story_phase in {"healthy_baseline", "rebound"}:
+            elif story_phase in {"healthy_baseline", "rebound", "recovery_rebound"}:
                 sleep_quality, stress_level, training_motivation = 4, 2, 4
             else:
                 progress = index / max(len(days) - 1, 1)
@@ -732,8 +813,10 @@ def _seed_recovery(cursor, user: LongitudinalQAUser, days: list[date]) -> int:
 
 
 def _nutrition_food_plan(
-    user: LongitudinalQAUser, index: int
+    user: LongitudinalQAUser, index: int, total_days: int
 ) -> list[tuple[str, float]]:
+    days_remaining = total_days - 1 - index
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "aligned_managed":
         return [
             ("Oats, Dry", 80 + (index % 3) * 5),
@@ -744,28 +827,61 @@ def _nutrition_food_plan(
             ("Blueberries", 100),
         ]
     if user.scenario == "recovery_limited":
+        if phase in {"schedule_disruption", "recurring_stress", "missed_training"}:
+            if index % 3 == 0:
+                return [("Greek Yogurt, Plain", 180)]
+            return [
+                ("Chicken Breast, Cooked, Skinless", 150),
+                ("Brown Rice, Cooked", 150),
+            ]
+        if phase == "recovery_swings" and (index // 7) % 2 == 0:
+            return [("Egg, Large", 110), ("Banana", 100)]
         return [
-            ("Chicken Breast, Cooked, Skinless", 145),
-            ("Brown Rice, Cooked", 140),
+            ("Chicken Breast, Cooked, Skinless", 155 + (index % 3) * 5),
+            ("Brown Rice, Cooked", 160 + (index % 4) * 10),
             ("Banana", 120),
-            ("Greek Yogurt, Plain", 120),
+            ("Greek Yogurt, Plain", 160),
+            ("Olive Oil", 10),
         ]
     if user.scenario == "nutrition_training_mismatch":
-        if index % 4 == 0:
-            return [("Tuna, Canned in Water", 120)]
+        if phase == "baseline":
+            if index % 3 == 0:
+                return [("Tuna, Canned in Water", 120)]
+            return [("Turkey Breast, Cooked", 130), ("White Rice, Cooked", 140)]
+        if phase == "logging_disruption":
+            if index % 2 == 0:
+                return [("Greek Yogurt, Plain", 180)]
+            return [("Turkey Breast, Cooked", 140), ("Banana", 100)]
+        rice_grams = 170
+        if phase == "fat_loss":
+            rice_grams = 145 + (index % 3) * 10
+        elif phase == "harder_training":
+            rice_grams = 220 + (index % 4) * 10
+        elif phase == "maintenance_recovery":
+            rice_grams = 240 + (index % 3) * 10
         return [
-            ("Turkey Breast, Cooked", 130),
-            ("White Rice, Cooked", 120 if index % 3 else 80),
+            ("Oats, Dry", 60 + (index % 3) * 5),
+            ("Turkey Breast, Cooked", 155 + (index % 2) * 10),
+            ("White Rice, Cooked", rice_grams),
             ("Banana", 100),
+            ("Greek Yogurt, Plain", 200),
+            ("Olive Oil", 8 if phase == "fat_loss" else 12),
         ]
     if user.scenario == "improving_after_deload":
-        if index < 75 and index % 3 == 0:
-            return [("Greek Yogurt, Plain", 160), ("Banana", 100)]
+        if phase in {"recovery_decline", "brief_fatigue"} and index % 5 == 0:
+            return [("Greek Yogurt, Plain", 180), ("Banana", 100)]
+        rice_grams = 220
+        if phase == "deload":
+            rice_grams = 170
+        elif phase in {"progression", "rebound", "recovery_rebound"}:
+            rice_grams = 250
         return [
-            ("Chicken Breast, Cooked, Skinless", 170),
-            ("Brown Rice, Cooked", 210),
+            ("Oats, Dry", 70 + (index % 3) * 5),
+            ("Chicken Breast, Cooked, Skinless", 170 + (index % 2) * 10),
+            ("Brown Rice, Cooked", rice_grams),
             ("Broccoli, Cooked", 130),
             ("Greek Yogurt, Plain", 180),
+            ("Olive Oil", 10),
         ]
     if index % 5 in {0, 1}:
         return []
@@ -777,15 +893,24 @@ def _nutrition_food_plan(
 def _should_seed_nutrition(
     user: LongitudinalQAUser, index: int, total_days: int
 ) -> bool:
+    days_remaining = total_days - 1 - index
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "aligned_managed":
         return index % 12 != 0
     if user.scenario == "recovery_limited":
-        return index % 4 != 0
+        if phase in {"schedule_disruption", "recurring_stress", "missed_training"}:
+            return index % 3 != 0
+        return index % 8 != 0
     if user.scenario == "nutrition_training_mismatch":
-        return index % 3 != 0
+        if phase == "baseline":
+            return index % 3 != 0
+        if phase == "logging_disruption":
+            return index % 2 == 0
+        return index % 10 != 0
     if user.scenario == "improving_after_deload":
-        return index >= 75 or index % 2 == 0
-    days_remaining = total_days - 1 - index
+        if phase in {"recovery_decline", "brief_fatigue"}:
+            return index % 5 != 0
+        return index % 12 != 0
     if days_remaining < 28:
         return days_remaining == 0
     return index % 3 == 0 or index % 7 == 0
@@ -802,7 +927,7 @@ def _seed_nutrition(
     for index, day in enumerate(days):
         if not _should_seed_nutrition(user, index, len(days)):
             continue
-        entries = _nutrition_food_plan(user, index)
+        entries = _nutrition_food_plan(user, index, len(days))
         if not entries:
             continue
         nutrition_days += 1
@@ -835,28 +960,53 @@ def _workout_days(user: LongitudinalQAUser, days: list[date]) -> list[date]:
     for index, day in enumerate(days):
         if day.weekday() not in target_weekdays:
             continue
+        days_remaining = (days[-1] - day).days
+        phase = phase_id_for(user.user_id, days_remaining)
         if user.scenario == "data_quality_limited" and index % 5 == 0:
+            continue
+        if user.scenario == "recovery_limited":
+            if phase in {"schedule_disruption", "recurring_stress"} and index % 3 == 0:
+                continue
+            if phase == "missed_training" and index % 2 == 0:
+                continue
+        if (
+            user.scenario == "nutrition_training_mismatch"
+            and phase == "logging_disruption"
+            and index % 4 == 0
+        ):
+            continue
+        if (
+            user.scenario == "improving_after_deload"
+            and phase == "deload"
+            and day.weekday() == 5
+        ):
             continue
         selected.append(day)
     return selected
 
 
 def _plan_exercises_for(
-    user: LongitudinalQAUser, workout_index: int
+    user: LongitudinalQAUser, workout_index: int, *, days_remaining: int
 ) -> list[dict[str, Any]]:
     exercises = [dict(exercise) for exercise in BASE_PLAN_EXERCISES]
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "recovery_limited":
         for exercise in exercises:
             exercise["rir_min"] = 2
             exercise["rir_max"] = 4
     elif user.scenario == "nutrition_training_mismatch":
         for exercise in exercises:
-            exercise["rir_min"] = 1
-            exercise["rir_max"] = 3
-    elif user.scenario == "improving_after_deload" and workout_index < 20:
+            exercise["rir_min"] = 1 if phase == "harder_training" else 2
+            exercise["rir_max"] = 3 if phase == "harder_training" else 4
+    elif user.scenario == "improving_after_deload":
         for exercise in exercises:
-            exercise["rir_min"] = 1
-            exercise["rir_max"] = 2
+            if phase == "deload":
+                exercise["sets"] = max(2, exercise["sets"] - 1)
+                exercise["rir_min"] = 3
+                exercise["rir_max"] = 5
+            elif phase in {"plateau", "recovery_decline", "brief_fatigue"}:
+                exercise["rir_min"] = 1
+                exercise["rir_max"] = 3
     elif user.scenario == "data_quality_limited":
         exercises = exercises[:3]
         for exercise in exercises:
@@ -866,7 +1016,10 @@ def _plan_exercises_for(
     return exercises
 
 
-def _workout_title_for(user: LongitudinalQAUser, workout_index: int) -> str:
+def _workout_title_for(
+    user: LongitudinalQAUser, workout_index: int, *, days_remaining: int
+) -> str:
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "recovery_limited":
         titles = (
             "Recovery-Aware Strength Session",
@@ -886,6 +1039,8 @@ def _workout_title_for(user: LongitudinalQAUser, workout_index: int) -> str:
             "Manageable Baseline Session",
         )
     elif user.scenario == "improving_after_deload":
+        if phase == "deload":
+            return "Recovery-Aware Strength Session"
         titles = (
             "Controlled Progression Session",
             "Recovery-Aware Strength Session",
@@ -942,7 +1097,10 @@ def _actual_rir_for(
     *,
     days_remaining: int,
 ) -> int | None:
+    phase = phase_id_for(user.user_id, days_remaining)
     if user.scenario == "recovery_limited":
+        if phase in {"stable_start", "attempted_return", "productive_return"}:
+            return [2, 3, 2][(workout_index + set_index) % 3]
         return [1, 1, 0, 2][(workout_index + set_index) % 4]
     if user.scenario == "aligned_managed":
         if days_remaining <= 1:
@@ -951,10 +1109,18 @@ def _actual_rir_for(
             return 3
         return 2
     if user.scenario == "nutrition_training_mismatch":
+        if phase == "maintenance_recovery":
+            return [2, 3, 2][(workout_index + set_index) % 3]
+        if phase == "harder_training":
+            return [1, 1, 2, 0][(workout_index + set_index) % 4]
         return [1, 2, 1, 2][(workout_index + set_index) % 4]
     if user.scenario == "improving_after_deload":
-        if 7 <= days_remaining <= 15:
+        if phase in {"recovery_decline", "brief_fatigue"}:
             return 1
+        if phase == "deload":
+            return [4, 3, 4][set_index % 3]
+        if phase == "recovery_rebound":
+            return [3, 3, 2][set_index % 3]
         return [2, 3, 2][set_index % 3]
     if days_remaining <= 28:
         return None
@@ -977,8 +1143,41 @@ def _actual_weight_for(
         "improving_after_deload": 45.0,
         "data_quality_limited": 30.0,
     }[user.scenario]
+    phase = phase_id_for(user.user_id, days_remaining)
+    story_index = max(0, 364 - days_remaining)
     if user.scenario == "aligned_managed":
         progression = 10.0 if days_remaining <= 43 else min(workout_index * 0.12, 5.0)
+    elif user.scenario == "improving_after_deload":
+        if phase is None:
+            progression = 0.0
+        elif phase == "foundation":
+            progression = (story_index // 28) * 2.5
+        elif phase == "progression":
+            progression = 5.0 + ((story_index - 60) // 21) * 2.5
+        elif phase in {"plateau", "recovery_decline"}:
+            progression = 17.5
+        elif phase == "deload":
+            progression = 7.5
+        else:
+            progression = 20.0 + min(5.0, max(0, story_index - 273) * 0.05)
+    elif user.scenario == "nutrition_training_mismatch":
+        if phase == "harder_training":
+            progression = 7.5
+        elif phase == "maintenance_recovery":
+            progression = 10.0
+        else:
+            progression = min(7.5, story_index * 0.035)
+    elif user.scenario == "recovery_limited":
+        phase_adjustment = {
+            "stable_start": 2.5,
+            "schedule_disruption": 0.0,
+            "attempted_return": 3.0,
+            "recurring_stress": 1.0,
+            "missed_training": -1.0,
+            "recovery_swings": 2.0,
+            "productive_return": 4.0,
+        }
+        progression = phase_adjustment.get(phase, 0.0)
     else:
         progression = workout_index * (
             0.12 if user.scenario != "data_quality_limited" else 0.04
@@ -995,8 +1194,16 @@ def _seed_workouts(
 
     for workout_index, day in enumerate(_workout_days(user, days)):
         days_remaining = (days[-1] - day).days
-        exercises = _plan_exercises_for(user, workout_index)
-        title = _workout_title_for(user, workout_index)
+        exercises = _plan_exercises_for(
+            user,
+            workout_index,
+            days_remaining=days_remaining,
+        )
+        title = _workout_title_for(
+            user,
+            workout_index,
+            days_remaining=days_remaining,
+        )
         duration = 45 if user.scenario == "data_quality_limited" else 55
         timestamp = _timestamp(day, hour=18, minute=workout_index % 50)
         approved_plan = _approved_plan_payload(
@@ -1158,6 +1365,7 @@ def _seed_workouts(
                 )
                 if (
                     user.scenario == "nutrition_training_mismatch"
+                    and phase_id_for(user.user_id, days_remaining) == "harder_training"
                     and set_number == logged_sets
                     and exercise_index % 2 == 0
                 ):
@@ -1253,8 +1461,8 @@ def seed_longitudinal_qa_data(
 ) -> list[SeededLongitudinalQAUser]:
     """Seed users 101-105 with deterministic longitudinal QA data."""
 
-    if day_count < 120:
-        raise ValueError("day_count must be at least 120 for longitudinal QA data.")
+    if day_count < 365:
+        raise ValueError("day_count must be at least 365 for longitudinal QA data.")
 
     database.initialize_database()
     ensure_workout_plan_persistence_tables()
@@ -1342,6 +1550,13 @@ def main() -> None:
         "training_progression": 102,
         "training_rising_effort": 102,
         "sparse_data_control": 105,
+        "strength_progression_phase": 104,
+        "strength_plateau_phase": 104,
+        "strength_deload_phase": 104,
+        "fat_loss_phase": 103,
+        "fat_loss_maintenance": 103,
+        "variable_schedule_disruption": 101,
+        "variable_schedule_return": 101,
     }
     for label, as_of_date in longitudinal_insight_qa_dates(args.end_date).items():
         user_id = smoke_user_ids[label]
