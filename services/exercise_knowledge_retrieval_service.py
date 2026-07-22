@@ -66,15 +66,25 @@ _STOP_WORDS = {
     "with",
 }
 _MECHANICS_TERMS = {
+    "alignment",
     "brace",
     "bracing",
+    "control",
     "cue",
     "cues",
+    "deep",
+    "depth",
     "focus",
     "form",
     "mechanics",
+    "motion",
     "position",
+    "range",
+    "rom",
     "setup",
+    "stability",
+    "stabilize",
+    "tempo",
     "technique",
     "torso",
     "working",
@@ -88,6 +98,10 @@ _ANATOMY_TERMS = {
     "hamstrings",
     "hip",
     "hips",
+    "ankle",
+    "ankles",
+    "calf",
+    "calves",
     "knee",
     "knees",
     "lower back",
@@ -101,6 +115,7 @@ _MISTAKE_TERMS = {"avoid", "error", "errors", "mistake", "mistakes", "wrong"}
 _COMPARISON_PHRASES = (
     "compare",
     "compared with",
+    "differ",
     "different from",
     "difference between",
     "versus",
@@ -112,9 +127,12 @@ _SUBSTITUTION_TERMS = {
     "instead",
     "regress",
     "regression",
+    "replacement",
+    "swap",
     "substitute",
     "substitution",
     "variation",
+    "variations",
 }
 _DISCOMFORT_TERMS = {
     "ache",
@@ -132,6 +150,10 @@ _DISCOMFORT_TERMS = {
     "unstable",
 }
 _QUERY_EXPANSIONS = {
+    "back than": "trunk lumbar brace load range position drift",
+    "bracing": "brace trunk ribs pelvis breathing tension stability",
+    "brace": "bracing trunk ribs pelvis breathing tension stability",
+    "fatigue": "technique form drift range path tempo control load",
     "lower back": "trunk lumbar hinge brace torso fatigue",
     "working hard": "demand fatigue mechanics technique",
     "work so hard": "demand fatigue mechanics technique",
@@ -140,7 +162,13 @@ _QUERY_EXPANSIONS = {
     "uncomfortable": "discomfort substitution regression support range load",
     "alternative": "substitution regression variation support",
     "different": "comparison difference versus",
+    "overhead press": "vertical press shoulder ribs pelvis grip range support",
     "rdl": "romanian deadlift hip hinge hamstrings",
+    "squat depth": "range motion comfortable control balance stance heel",
+    "supported row": "chest supported horizontal pull trunk hinge bench support",
+    "unilateral": "single side one arm one leg balance anti rotation bilateral",
+    "bilateral": "both sides two arm two leg stable unilateral",
+    "vertical pull": "pull up pulldown elbows ribs shoulder blades control",
 }
 
 
