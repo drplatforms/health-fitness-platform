@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from models.ai_run_models import AIRunTelemetry
+from models.measurement_display_models import QuantityPresentation
 
 MEAL_IDEA_PROVIDERS = ("local", "openai")
 MEAL_IDEA_STEERING_OPTIONS = (
@@ -54,9 +55,20 @@ class GroundedMealIngredient:
     protein_g: float
     carbs_g: float
     fat_g: float
+    quantity_display: QuantityPresentation | None = None
 
     def to_public_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        payload = asdict(self)
+        quantity_display = self.quantity_display
+        if quantity_display is None:
+            from services.measurement_display_service import present_food_quantity
+
+            quantity_display = present_food_quantity(
+                canonical_food_id=self.canonical_food_id,
+                grams=self.amount_grams,
+            )
+        payload["quantity_display"] = quantity_display.to_public_dict()
+        return payload
 
 
 @dataclass(frozen=True)

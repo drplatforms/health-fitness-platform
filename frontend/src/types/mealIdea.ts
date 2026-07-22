@@ -1,4 +1,5 @@
 import { AIRunTelemetry } from "@/types/aiRunTelemetry";
+import { QuantityPresentation } from "@/types/measurementDisplay";
 
 export type MealIdeaProvider = "local" | "openai";
 
@@ -23,6 +24,7 @@ export interface GroundedMealIdeaIngredient {
   canonical_food_id: number;
   display_name: string;
   amount_grams: number;
+  quantity_display: QuantityPresentation;
   is_available: boolean;
   calories: number;
   protein_g: number;

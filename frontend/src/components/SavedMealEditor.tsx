@@ -31,6 +31,7 @@ interface DraftItem {
   displayName: string;
   mutation: SavedMealItemMutation;
   resolvedGrams: number;
+  quantityDisplay: string;
   macros: SavedMealMacros;
 }
 
@@ -70,6 +71,7 @@ function initialDraftItems(meal?: SavedMeal): DraftItem[] {
               grams: item.resolved_grams,
             },
     resolvedGrams: item.resolved_grams,
+    quantityDisplay: item.quantity_display.display_text,
     macros: {
       calories: item.calories,
       protein_g: item.protein_g,
@@ -199,6 +201,7 @@ export function SavedMealEditor({
             grams,
           },
           resolvedGrams: grams,
+          quantityDisplay: `${formatDraftGrams(grams)} g`,
           macros: scaleMacros(item.macros, scale),
         };
       }),
@@ -330,8 +333,11 @@ export function SavedMealEditor({
               <p className="truncate text-sm font-semibold text-text-strong">
                 {index + 1}. {item.displayName}
               </p>
+              <p className="mt-0.5 text-xs font-medium text-text-body">
+                {item.quantityDisplay}
+              </p>
               <label className="mt-1 flex items-center gap-2 text-xs text-text-muted">
-                Grams
+                Canonical grams
                 <input
                   type="number"
                   min="0.01"
@@ -400,6 +406,7 @@ export function SavedMealEditor({
 function draftFromChoice(choice: SearchChoice, amountMode: string, amount: number, servingUnits: CanonicalFoodServingUnit[]): DraftItem | null {
   let mutation: SavedMealItemMutation;
   let grams: number;
+  let quantityDisplay: string;
   let per100: SavedMealMacros;
   if (choice.foodType === "canonical") {
     const nutrients = choice.result.nutrient_summary;
@@ -409,9 +416,12 @@ function draftFromChoice(choice: SearchChoice, amountMode: string, amount: numbe
       if (!unit) return null;
       grams = unit.grams_per_unit * amount;
       mutation = { food_type: "canonical", canonical_food_id: choice.result.canonical_food_id, serving_unit_id: unit.id, serving_quantity: amount };
+      const primary = amount === 1 ? unit.display_name : `${amount} × ${unit.display_name}`;
+      quantityDisplay = `${primary} (${formatDraftGrams(grams)} g)`;
     } else {
       grams = amount;
       mutation = { food_type: "canonical", canonical_food_id: choice.result.canonical_food_id, grams };
+      quantityDisplay = `${formatDraftGrams(grams)} g`;
     }
   } else {
     const revision = choice.result.current_revision;
@@ -419,12 +429,19 @@ function draftFromChoice(choice: SearchChoice, amountMode: string, amount: numbe
     if (amountMode === "personal-serving" && revision.serving_grams) {
       grams = revision.serving_grams * amount;
       mutation = { food_type: "personal", personal_food_id: choice.result.id, personal_serving_quantity: amount };
+      const servingName = revision.serving_name ?? "serving";
+      quantityDisplay = `${amount} ${servingName}${amount === 1 ? "" : "s"} (${formatDraftGrams(grams)} g)`;
     } else {
       grams = amount;
       mutation = { food_type: "personal", personal_food_id: choice.result.id, grams };
+      quantityDisplay = `${formatDraftGrams(grams)} g`;
     }
   }
-  return { key: `${choice.foodType}-${Date.now()}-${Math.random()}`, displayName: choice.result.display_name, mutation, resolvedGrams: grams, macros: scaleMacros(per100, grams / 100) };
+  return { key: `${choice.foodType}-${Date.now()}-${Math.random()}`, displayName: choice.result.display_name, mutation, resolvedGrams: grams, quantityDisplay, macros: scaleMacros(per100, grams / 100) };
+}
+
+function formatDraftGrams(value: number): string {
+  return value.toFixed(2).replace(/\.00$/, "").replace(/(\.\d)0$/, "$1");
 }
 
 function scaleMacros(macros: SavedMealMacros, scale: number): SavedMealMacros {

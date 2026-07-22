@@ -188,7 +188,6 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
     meal: SavedMeal,
     multiplier: (typeof RECIPE_SCALES)[number],
   ) {
-    setRecipeScales((current) => ({ ...current, [meal.id]: multiplier }));
     setError(null);
     try {
       const scaled = await fetchScaledSavedMeal({
@@ -197,6 +196,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
         multiplier,
       });
       setScaledRecipes((current) => ({ ...current, [meal.id]: scaled }));
+      setRecipeScales((current) => ({ ...current, [meal.id]: multiplier }));
     } catch (scaleError) {
       setError(
         scaleError instanceof Error ? scaleError.message : "Unable to scale recipe.",
@@ -319,6 +319,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
         personal_food_id: item.personal_food_id,
         display_name: item.display_name,
         amount_grams: item.resolved_grams * selectedScale,
+        quantity_display: item.quantity_display,
       }))
     : [];
 
@@ -608,7 +609,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
                       >
                         <span>{ingredient.display_name}</span>
                         <span className="shrink-0 text-xs text-text-muted">
-                          {formatAmount(ingredient.amount_grams)} g
+                          {ingredient.quantity_display.display_text}
                         </span>
                       </li>
                     ))}
@@ -838,8 +839,4 @@ function scaledMacroLine(
   return `${multiplier}x · ${Math.round(source.calories ?? 0)} cal · ${Math.round(
     source.protein_g ?? 0,
   )}P · ${Math.round(source.carbs_g ?? 0)}C · ${Math.round(source.fat_g ?? 0)}F`;
-}
-
-function formatAmount(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }

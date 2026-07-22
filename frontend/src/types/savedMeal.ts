@@ -1,4 +1,5 @@
 import { AIRunTelemetry } from "@/types/aiRunTelemetry";
+import { QuantityPresentation } from "@/types/measurementDisplay";
 
 export type SavedMealFoodType = "canonical" | "personal";
 
@@ -20,6 +21,7 @@ export interface SavedMealItem {
   display_name: string;
   active: boolean;
   resolved_grams: number;
+  quantity_display: QuantityPresentation;
   canonical_serving_unit_id: number | null;
   serving_quantity: number | null;
   serving_display_snapshot: string | null;
@@ -83,6 +85,7 @@ export interface ScaledSavedMealRecipe {
     personal_food_id: number | null;
     display_name: string;
     amount_grams: number;
+    quantity_display: QuantityPresentation;
   }>;
   current_macros: SavedMealMacros;
 }

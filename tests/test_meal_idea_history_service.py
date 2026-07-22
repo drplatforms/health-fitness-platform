@@ -116,6 +116,20 @@ def test_generation_history_round_trips_exact_grounded_result_and_run_metadata(
         "protein_g": 41.2,
         "carbs_g": 0.0,
         "fat_g": 11.0,
+        "quantity_display": {
+            "canonical_grams": 137.25,
+            "primary_quantity": "4.75",
+            "primary_unit": "oz",
+            "primary_text": "4.75 oz",
+            "secondary_grams": 137.25,
+            "secondary_text": "137.25 g",
+            "display_text": "4.75 oz (137.25 g)",
+            "conversion_source": "exact_mass_conversion",
+            "reliability": "Exact",
+            "source": "NIST_mass_conversion",
+            "source_note": None,
+            "serving_unit_id": None,
+        },
     }
     assert restored[0].result["telemetry"]["estimated_api_cost_usd"] == 0.00042
 

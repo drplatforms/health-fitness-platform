@@ -22,6 +22,7 @@ from services.meal_instruction_service import (
     generate_and_save_cooking_instructions,
     generate_cooking_instructions,
 )
+from services.nutrition_serving_unit_service import create_or_update_serving_unit
 from services.saved_meal_service import (
     create_saved_meal,
     get_saved_meal,
@@ -241,12 +242,14 @@ def test_instruction_generation_uses_exact_grounded_facts_without_mutating_them(
         {
             "amount_grams": 125.5,
             "canonical_food_id": chicken.id,
+            "display_quantity": "4.5 oz (125.5 g)",
             "display_name": chicken.display_name,
             "personal_food_id": None,
         },
         {
             "amount_grams": 88.25,
             "canonical_food_id": rice.id,
+            "display_quantity": "88.25 g",
             "display_name": rice.display_name,
             "personal_food_id": None,
         },
@@ -442,3 +445,55 @@ def test_recipe_scaling_is_deterministic_and_preserves_food_identity(
     assert (
         get_saved_meal(user_id=1, saved_meal_id=meal.id).items[0].resolved_grams == 75.5
     )
+
+
+def test_recipe_scaling_recomputes_display_from_scaled_canonical_grams(
+    recipe_db,
+) -> None:
+    food = _food("Scaled Cooked Rice", 130)
+    create_or_update_serving_unit(
+        canonical_food_id=food.id,
+        unit_name="cup",
+        unit_quantity=1,
+        display_name="1 cup cooked rice",
+        grams_default=185,
+        grams_min=180,
+        grams_max=190,
+        confidence="High",
+        source="test_catalog_measure",
+    )
+    meal = create_saved_meal(
+        user_id=1,
+        mutation=SavedMealMutationInput(
+            display_name="Scaled Rice",
+            items=(
+                SavedMealItemInput(
+                    food_type="canonical",
+                    canonical_food_id=food.id,
+                    grams=185,
+                ),
+            ),
+        ),
+    )
+
+    expected = {
+        1: "1 cup (185 g)",
+        2: "2 cups (370 g)",
+        3: "3 cups (555 g)",
+        4: "4 cups (740 g)",
+    }
+    for multiplier, display_text in expected.items():
+        scaled = scale_saved_meal_recipe(
+            user_id=1,
+            saved_meal_id=meal.id,
+            multiplier=multiplier,
+        )
+        ingredient = scaled["ingredients"][0]
+        assert ingredient["amount_grams"] == 185 * multiplier
+        assert ingredient["quantity_display"]["canonical_grams"] == 185 * multiplier
+        assert ingredient["quantity_display"]["display_text"] == display_text
+        assert scaled["current_macros"]["calories"] == 130 * 1.85 * multiplier
+
+    persisted = get_saved_meal(user_id=1, saved_meal_id=meal.id)
+    assert persisted.items[0].resolved_grams == 185
+    assert persisted.calories == 240.5

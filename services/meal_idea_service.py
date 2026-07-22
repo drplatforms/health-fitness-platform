@@ -42,6 +42,7 @@ from services.meal_idea_model_service import (
     configured_meal_idea_model,
     validate_selected_meal_idea_model,
 )
+from services.measurement_display_service import present_food_quantity
 from services.nutrition_target_vs_actual_service import (
     build_target_vs_actual_nutrition_summary,
 )
@@ -1215,6 +1216,10 @@ def _ground_proposed_ideas(
                     canonical_food_id=food.canonical_food_id,
                     display_name=food.display_name,
                     amount_grams=round(proposed_ingredient.amount_grams, 1),
+                    quantity_display=present_food_quantity(
+                        canonical_food_id=food.canonical_food_id,
+                        grams=round(proposed_ingredient.amount_grams, 1),
+                    ),
                     is_available=food.canonical_food_id in context.available_ids,
                     calories=round(food.macros_per_100g["calories"] * scale, 1),
                     protein_g=round(food.macros_per_100g["protein_g"] * scale, 1),
