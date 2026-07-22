@@ -57,7 +57,7 @@ def test_sparse_vector_index_is_deterministic_and_rebuildable() -> None:
     assert first.to_rebuild_dict() == second.to_rebuild_dict()
     assert first.corpus_version == "exercise_knowledge_corpus_v1"
     assert first.index_version == "exercise_knowledge_sparse_vector_v1"
-    assert len(first.chunks) == 15
+    assert len(first.chunks) == 57
     assert len(first.corpus_digest) == 64
 
 

@@ -2,11 +2,35 @@
   "corpus_version": "exercise_knowledge_corpus_v1",
   "exercise_aliases": {
     "rdl": "Romanian Deadlift",
+    "rdls": "Romanian Deadlift",
     "romanian deadlifts": "Romanian Deadlift",
+    "bench press": "Barbell Bench Press",
+    "bench presses": "Barbell Bench Press",
+    "ohp": "Overhead Press",
+    "overhead presses": "Overhead Press",
+    "pullup": "Pull-Up",
+    "pullups": "Pull-Up",
+    "pull ups": "Pull-Up",
+    "pulldowns": "Lat Pulldown",
+    "lat pulldowns": "Lat Pulldown",
     "barbell rows": "Barbell Row",
+    "unsupported row": "Barbell Row",
+    "unsupported rows": "Barbell Row",
     "pendlay rows": "Pendlay Row",
+    "chest supported row": "Chest-Supported Dumbbell Row",
+    "chest supported rows": "Chest-Supported Dumbbell Row",
     "back squat": "Barbell Squat",
-    "back squats": "Barbell Squat"
+    "back squats": "Barbell Squat",
+    "squat": "Barbell Squat",
+    "squats": "Barbell Squat",
+    "split squats": "Split Squat",
+    "lunges": "Reverse Lunge",
+    "hip thrusts": "Hip Thrust",
+    "glute bridges": "Glute Bridge",
+    "farmers carry": "Farmer Carry",
+    "farmer's carry": "Farmer Carry",
+    "suitcase carries": "Suitcase Carry",
+    "calf raises": "Standing Calf Raise"
   },
   "documents": [
     {
@@ -46,6 +70,20 @@
           "intents": ["comparison", "mechanics"],
           "search_terms": ["difference", "dead stop", "from floor", "reset", "regular row"],
           "text": "A Pendlay Row starts each repetition from a settled bar on the floor, so the lifter re-establishes position and produces the pull from a dead stop. A regular bent-over Barbell Row usually keeps the bar off the floor and maintains continuous tension through repeated lowering and lifting. The Pendlay setup normally uses a more horizontal torso and requires enough mobility and control to reach the floor without changing spinal position. Neither version is automatically better; the useful choice depends on the intended range, available setup, and ability to repeat the position."
+        },
+        {
+          "chunk_id": "supported-row-substitution-v1",
+          "heading": "Supported row substitutions",
+          "intents": ["substitution", "regression", "comparison"],
+          "search_terms": ["chest supported row", "bench support", "lower back fatigue", "barbell row alternative", "torso support"],
+          "text": "A Chest-Supported Dumbbell Row or supported machine row keeps horizontal pulling while reducing the work required to hold a hip hinge. It is useful when trunk fatigue, balance, or setup is the limiting feature of an unsupported row. Support changes the stability demand, not the basic goal of drawing the elbows back under control. Match grip and elbow path to a comfortable pulling path and keep the chest in contact with the support."
+        },
+        {
+          "chunk_id": "one-arm-row-control-v1",
+          "heading": "One-arm row support and rotation control",
+          "intents": ["mechanics", "technique", "comparison"],
+          "search_terms": ["one arm row", "single arm row", "unilateral row", "bench supported", "torso rotation", "hips square"],
+          "text": "A One-Arm Dumbbell Row allows each side to work separately and commonly uses the free hand or a bench for support. Keep the hips and ribs facing the floor while the working elbow travels toward the hip; rotating the torso to lift the weight changes the movement. Compared with a two-arm unsupported row, the supported one-arm setup usually lowers balance and trunk-holding demand but takes more time because the sides are trained separately."
         }
       ]
     },
@@ -68,7 +106,7 @@
           "chunk_id": "rdl-position-and-range-v1",
           "heading": "RDL position and range",
           "intents": ["mechanics", "technique"],
-          "search_terms": ["rdl", "hamstrings", "hips back", "soft knees", "bar close"],
+          "search_terms": ["rdl", "hamstrings", "hips back", "soft knees", "bar close", "focus", "setup", "technique cues"],
           "text": "In a Romanian Deadlift, begin standing, soften the knees, brace the trunk, and push the hips backward while keeping the bar close to the legs. Keep the slight knee bend fairly steady rather than turning the movement into a squat. Lower only as far as you can preserve the position and feel the hamstrings limit the hinge; reaching a particular floor height is not the goal. Stand by pressing through the feet and bringing the hips forward without leaning back at the top."
         },
         {
@@ -77,6 +115,20 @@
           "intents": ["mistakes", "technique"],
           "search_terms": ["rounding", "squatting", "bar drifting", "overextending", "common mistakes"],
           "text": "Common hinge errors are bending the knees progressively until the movement becomes a squat, letting the load drift away from the legs, chasing extra depth by rounding, and finishing by leaning the torso behind the hips. Fatigue or excess load can make these changes more likely. Shortening the range, slowing the lowering phase, or using a lighter load can make the intended hip movement easier to repeat."
+        },
+        {
+          "chunk_id": "rdl-back-demand-boundary-v1",
+          "heading": "Back involvement during an RDL",
+          "intents": ["mechanics", "discomfort", "technique"],
+          "search_terms": ["back involvement", "lower back working", "back more than hamstrings", "lumbar fatigue", "hinge discomfort"],
+          "text": "The trunk muscles work during an RDL to keep the load and spine in a repeatable relationship, but the hips should still travel backward and the hamstrings should usually limit the range. Back demand tends to rise when the load drifts forward, the bar travels below the controllable hinge range, or the torso position changes across repetitions. Reduce load or range and keep the bar close. Exercise context cannot diagnose a specific back sensation; stop for sharp, escalating, radiating, numb, or tingling symptoms."
+        },
+        {
+          "chunk_id": "rdl-versus-floor-deadlift-v1",
+          "heading": "RDL versus a deadlift from the floor",
+          "intents": ["comparison", "mechanics"],
+          "search_terms": ["rdl vs deadlift", "romanian deadlift difference", "from floor", "knee bend", "continuous hinge"],
+          "text": "An RDL begins from standing and uses a controlled hip hinge with a fairly constant soft knee bend, stopping at the lowest repeatable hamstring-limited position. A conventional deadlift begins from the floor and coordinates more knee and hip movement to move the load from a dead stop. The two lifts share bracing and close-load principles but use different start positions and ranges, so one should not be judged by the depth or loading of the other."
         }
       ]
     },
@@ -107,6 +159,20 @@
           "intents": ["mistakes", "substitution", "regression"],
           "search_terms": ["knees cave", "chest collapse", "heel lift", "goblet", "box squat"],
           "text": "Useful squat checks include whether the knees collapse inward, the feet lose balanced pressure, the chest drops much faster than the hips, or the load moves ahead of the feet. Reducing load or depth is the simplest regression. A controlled Bodyweight Squat, Goblet Squat, or Box Squat can also make balance, depth, or load position easier to practice while preserving the squat pattern."
+        },
+        {
+          "chunk_id": "squat-depth-and-range-v1",
+          "heading": "Squat depth is an individual controlled range",
+          "intents": ["mechanics", "technique", "discomfort"],
+          "search_terms": ["how deep squat", "squat depth", "range of motion", "parallel", "comfortable depth", "heel lift"],
+          "text": "Squat depth is useful only while balance, foot pressure, and a controllable trunk position remain consistent. Hip structure, stance, ankle motion, load position, and training purpose can all change the workable depth. Use the deepest comfortable range you can repeat without the heels lifting, the load drifting away from midfoot, or the pelvis and trunk changing abruptly. A box target or lighter Goblet Squat can help practice a chosen range without forcing depth."
+        },
+        {
+          "chunk_id": "squat-stance-adjustments-v1",
+          "heading": "Squat stance and toe angle",
+          "intents": ["mechanics", "technique", "comparison"],
+          "search_terms": ["squat stance", "feet width", "toe angle", "wide stance", "narrow stance", "knees track"],
+          "text": "There is no single required squat stance. A modest change in foot width or toe angle can improve balance and allow the knees and hips to move comfortably, provided the knees continue in the direction of the toes and pressure stays across the whole foot. Compare stance options with light, controlled repetitions; do not use a wider or narrower stance merely to force extra depth that cannot otherwise be controlled."
         }
       ]
     },
@@ -161,6 +227,20 @@
           "intents": ["mechanics", "technique"],
           "search_terms": ["brace", "core", "trunk", "ribs pelvis", "breathing"],
           "text": "Bracing is the deliberate trunk tension used to keep the rib cage, pelvis, and load in a repeatable relationship while the hips, knees, shoulders, or elbows move. It is not a requirement to hold the breath for an entire set. Set the position before the hardest part of a repetition, keep enough tension to prevent unwanted bending or rotation, and reset between repetitions when needed. The amount of tension should match the task rather than being maximal for every exercise."
+        },
+        {
+          "chunk_id": "anti-extension-core-control-v1",
+          "heading": "Anti-extension core control",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["plank", "dead bug", "anti extension", "ribs flaring", "lower back arch", "core control"],
+          "text": "Anti-extension exercises such as a Plank or Dead Bug challenge the trunk to resist excessive arching while the limbs or leverage change. Set the ribs over the pelvis, keep steady abdominal tension, and use a range that does not pull the lower back into a larger arch. Shorten the lever, elevate the hands, or move one limb at a time when the position cannot be held while breathing normally."
+        },
+        {
+          "chunk_id": "anti-rotation-core-control-v1",
+          "heading": "Anti-rotation core control",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["pallof press", "anti rotation", "band hold", "torso turning", "hips square", "rotation control"],
+          "text": "Anti-rotation work uses an off-center pull or one-sided movement while the pelvis and rib cage stay facing forward. In a Band Anti-Rotation Hold or Pallof Press, use a stable stance, extend the arms only as far as the trunk can remain quiet, and keep breathing behind the brace. Move closer to the anchor, reduce resistance, widen the stance, or shorten the arm reach to regress the stability demand."
         }
       ]
     },
@@ -178,6 +258,20 @@
           "intents": ["mechanics", "technique", "mistakes"],
           "search_terms": ["fatigue", "form breakdown", "last reps", "tempo", "load"],
           "text": "As a set becomes demanding, speed and range can change and the body may recruit extra movement to finish repetitions. A useful technique boundary is whether the intended position and range remain repeatable, not whether every repetition looks identical. If the torso, joint path, or range changes abruptly, reduce the load or end the set rather than practicing increasingly different repetitions. Logged effort can show that a set was hard, but it cannot by itself establish why technique changed."
+        },
+        {
+          "chunk_id": "tempo-and-control-v1",
+          "heading": "Tempo is a tool for repeatable control",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["tempo", "slow reps", "controlled lowering", "eccentric", "pause", "speed"],
+          "text": "Tempo describes how quickly each part of a repetition is performed. A controlled lowering phase or brief pause can make position and range easier to observe, but slower is not automatically better and it usually makes a given load feel harder. Choose a pace that keeps the intended path repeatable without bouncing or deliberately stretching a repetition longer than you can control. Reduce load when adding a slower tempo or pause."
+        },
+        {
+          "chunk_id": "fatigue-range-drift-v1",
+          "heading": "Range and path drift under fatigue",
+          "intents": ["mechanics", "technique", "mistakes"],
+          "search_terms": ["shorter reps", "range shrinking", "path changes", "fatigue drift", "form changes", "end set"],
+          "text": "Fatigue often first appears as a shorter range, a less controlled lowering phase, or a changed joint or torso path. Small speed changes are expected, but repeated loss of the intended range or position means the set is training a different repetition than it began with. End the set, reduce the next load, or use fewer repetitions when the drift cannot be corrected with a brief reset."
         }
       ]
     },
@@ -229,6 +323,435 @@
           "intents": ["substitution", "regression", "technique"],
           "search_terms": ["easier variation", "reduce load", "range", "tempo", "assistance"],
           "text": "Before replacing a movement entirely, consider reducing load, shortening to a comfortable range, slowing the repetition, reducing set fatigue, or adding external support. If the movement still cannot be performed comfortably and repeatably, select a related variation with a lower balance, mobility, or trunk-stability demand. Progression or substitution decisions already calculated by the application should not be overridden by general knowledge."
+        },
+        {
+          "chunk_id": "supported-versus-unsupported-v1",
+          "heading": "Supported versus unsupported variations",
+          "intents": ["comparison", "substitution", "regression"],
+          "search_terms": ["supported vs unsupported", "bench support", "machine support", "free standing", "stability demand", "trunk demand"],
+          "text": "External support can reduce balance or trunk demand so the target movement is easier to repeat. Unsupported variations ask more of the body to organize the load, but that extra demand is not automatically more useful for every goal. Choose support when stability is limiting the intended muscles or range, and choose less support when practicing whole-body control is part of the exercise purpose. Keep the movement pattern and training role clear when comparing them."
+        },
+        {
+          "chunk_id": "unilateral-versus-bilateral-v1",
+          "heading": "Unilateral versus bilateral variations",
+          "intents": ["comparison", "substitution", "mechanics"],
+          "search_terms": ["unilateral vs bilateral", "single side", "one leg", "one arm", "both sides", "balance", "asymmetry"],
+          "text": "Unilateral variations train one side at a time and can expose side-to-side differences while increasing balance and anti-rotation demands. Bilateral variations train both sides together, are usually faster to perform, and often allow a more stable setup or greater total load. Neither format is universally superior. Match the choice to the intended movement, available time, stability, and whether separate-side practice is useful."
+        }
+      ]
+    },
+    {
+      "source_id": "horizontal-pressing-mechanics",
+      "title": "Horizontal pressing mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Barbell Bench Press",
+        "services/exercise_instruction_seed_data.py#Dumbbell Bench Press",
+        "services/exercise_instruction_seed_data.py#Push-Up"
+      ],
+      "related_exercises": [
+        "Barbell Bench Press",
+        "Dumbbell Bench Press",
+        "Dumbbell Floor Press",
+        "Push-Up",
+        "Incline Push-Up"
+      ],
+      "taxonomy_tags": ["horizontal_press", "horizontal_push", "chest_press"],
+      "chunks": [
+        {
+          "chunk_id": "bench-press-setup-and-path-v1",
+          "heading": "Bench press setup and path",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["bench press form", "touch point", "forearms vertical", "upper back support", "bar path", "wrist stack"],
+          "text": "For a bench press, plant the feet, keep the head and upper back supported, and use a grip that stacks the wrists over the forearms. Lower to a consistent, comfortable chest touch point while the elbows travel below the bar, then press back over the shoulders. The exact path is slightly diagonal rather than forced perfectly vertical. Avoid bouncing, changing the touch point, or letting the wrists fold back as effort rises."
+        },
+        {
+          "chunk_id": "barbell-versus-dumbbell-press-v1",
+          "heading": "Barbell versus dumbbell bench pressing",
+          "intents": ["comparison", "substitution", "mechanics"],
+          "search_terms": ["barbell vs dumbbell bench", "independent arms", "press comparison", "grip freedom", "load", "substitute"],
+          "text": "A barbell links both hands to one implement and usually provides a stable path for progressing total load. Dumbbells let each arm move independently and allow more freedom in grip and elbow path, but they add setup and side-to-side control demands. Both preserve horizontal pressing. Choose the version whose setup, available equipment, range, and joint path can be repeated comfortably rather than assuming one is universally safer or better."
+        },
+        {
+          "chunk_id": "push-up-regression-and-progression-v1",
+          "heading": "Push-up regression and progression",
+          "intents": ["regression", "substitution", "technique"],
+          "search_terms": ["push up easier", "incline push up", "knee push up", "hand elevation", "plank position", "progression"],
+          "text": "A Push-Up combines horizontal pressing with a moving plank. Elevating the hands reduces the share of body weight being pressed while preserving the straight-body position and is a useful regression. Progress by lowering the hand support or adding controlled range only while the ribs and hips continue to move together. Hand position may change modestly for comfort, but avoid allowing the elbows to flare abruptly or the hips to sag."
+        }
+      ]
+    },
+    {
+      "source_id": "vertical-pressing-mechanics",
+      "title": "Vertical pressing mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Overhead Press",
+        "services/exercise_instruction_seed_data.py#Dumbbell Shoulder Press",
+        "services/exercise_instruction_seed_data.py#Seated Dumbbell Shoulder Press"
+      ],
+      "related_exercises": [
+        "Overhead Press",
+        "Dumbbell Shoulder Press",
+        "Seated Dumbbell Shoulder Press"
+      ],
+      "taxonomy_tags": ["vertical_press", "vertical_push", "overhead_press"],
+      "chunks": [
+        {
+          "chunk_id": "overhead-press-stack-and-path-v1",
+          "heading": "Overhead press stack and bar path",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["overhead press form", "bar overhead", "ribs pelvis", "lockout", "bar path", "leaning back"],
+          "text": "In an Overhead Press, begin with the forearms supporting the load, brace with the ribs over the pelvis, and move the head only enough for the bar to pass. Finish with the load balanced over the shoulders and middle of the feet rather than leaning the torso back to create clearance. A repeatable grip and path matter more than forcing an exact elbow angle that does not fit the lifter."
+        },
+        {
+          "chunk_id": "overhead-press-discomfort-boundary-v1",
+          "heading": "Conservative overhead pressing adjustments",
+          "intents": ["discomfort", "substitution", "regression"],
+          "search_terms": ["overhead press shoulder discomfort", "pain overhead", "pinching press", "comfortable grip", "neutral grip", "landmine press", "reduced range"],
+          "text": "If overhead pressing is uncomfortable, first reduce the load and use only a smooth, comfortable range. Dumbbells with a neutral or semi-neutral grip, a supported seated press, or a more forward pressing path can change the joint and stability demands while retaining a pressing role. Stop rather than pushing through sharp, pinching, unstable, numb, or tingling symptoms. General variation advice cannot identify the cause of shoulder discomfort or prescribe treatment."
+        },
+        {
+          "chunk_id": "standing-versus-seated-overhead-press-v1",
+          "heading": "Standing versus seated overhead pressing",
+          "intents": ["comparison", "substitution", "mechanics"],
+          "search_terms": ["standing vs seated press", "bench supported press", "trunk demand", "shoulder press variation", "back support", "overhead stability"],
+          "text": "Standing overhead pressing asks the feet, hips, and trunk to organize the load without external support. A seated version reduces balance demand, and a bench backrest can further limit torso movement, though it does not remove the need to control the ribs and press path. Select the setup according to whether whole-body stability or a more supported shoulder press is the intended training focus."
+        }
+      ]
+    },
+    {
+      "source_id": "vertical-pulling-mechanics",
+      "title": "Vertical pulling mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Pull-Up",
+        "services/exercise_instruction_seed_data.py#Chin-Up",
+        "services/exercise_instruction_seed_data.py#Lat Pulldown"
+      ],
+      "related_exercises": [
+        "Pull-Up",
+        "Chin-Up",
+        "Band-Assisted Pull-Up",
+        "Lat Pulldown",
+        "Cable Lat Pulldown"
+      ],
+      "taxonomy_tags": ["vertical_pull", "pull_up", "lat_pulldown"],
+      "chunks": [
+        {
+          "chunk_id": "vertical-pull-shoulder-and-elbow-path-v1",
+          "heading": "Vertical pull shoulder and elbow path",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["vertical pull mechanics", "pull up form", "lat pulldown form", "elbows to ribs", "shoulder blades", "long arms"],
+          "text": "A controlled vertical pull begins from a comfortable long-arm position and brings the elbows down toward the ribs as the torso stays quiet. Let the shoulder blades move rather than holding them rigidly down for the whole repetition, but avoid dropping suddenly into the bottom. Finish only as high as the elbows can continue the pull without the shoulders shrugging or the neck reaching toward the bar."
+        },
+        {
+          "chunk_id": "pull-up-versus-pulldown-v1",
+          "heading": "Pull-Up versus Lat Pulldown",
+          "intents": ["comparison", "substitution", "regression"],
+          "search_terms": ["pull up vs pulldown", "bodyweight pull", "adjustable load", "assisted pull up", "vertical pull alternative", "regression"],
+          "text": "Pull-Ups move the body toward a fixed bar and require whole-body control at bodyweight. A Lat Pulldown moves an adjustable load toward a supported body, making resistance and repetition range easier to scale. Both train vertical pulling when the elbows travel down under control. A pulldown or assisted Pull-Up is a practical regression when full bodyweight repetitions require swinging or an inconsistent range."
+        },
+        {
+          "chunk_id": "vertical-pull-grip-changes-v1",
+          "heading": "Grip changes in vertical pulling",
+          "intents": ["comparison", "mechanics", "discomfort"],
+          "search_terms": ["wide grip", "narrow grip", "neutral grip", "chin up grip", "pull up grip", "pulldown grip", "shoulder comfort"],
+          "text": "Pronated, supinated, and neutral grips change forearm position and can shift how the elbows travel, but all can support a vertical pull. Use a grip width that permits a controlled long-arm position and lets the elbows move down without forcing the wrists or shoulders. An extremely wide grip usually shortens the available range rather than making the exercise inherently better. Choose the grip that is repeatable and comfortable."
+        }
+      ]
+    },
+    {
+      "source_id": "unilateral-lower-body-mechanics",
+      "title": "Lunge and unilateral lower-body mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Reverse Lunge",
+        "services/exercise_instruction_seed_data.py#Split Squat",
+        "services/exercise_instruction_seed_data.py#Walking Lunge",
+        "services/exercise_instruction_seed_data.py#Dumbbell Step-Up"
+      ],
+      "related_exercises": [
+        "Reverse Lunge",
+        "Split Squat",
+        "Walking Lunge",
+        "Lateral Lunge",
+        "Dumbbell Split Squat",
+        "Dumbbell Reverse Lunge",
+        "Dumbbell Step-Up"
+      ],
+      "taxonomy_tags": ["unilateral_knee_dominant", "lunge", "split_squat"],
+      "chunks": [
+        {
+          "chunk_id": "split-stance-balance-and-tracking-v1",
+          "heading": "Split-stance balance and knee tracking",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["split squat form", "lunge balance", "front knee", "knee tracks toes", "stance width", "rear foot"],
+          "text": "In a split squat or lunge, use enough side-to-side stance width to balance rather than placing both feet on one tight line. Keep most working pressure through the whole front foot and let the front knee travel in the direction of its toes while both hips lower under control. Step length changes the joint positions, so choose one that allows the front heel to stay down and the pelvis to remain controlled."
+        },
+        {
+          "chunk_id": "lunge-direction-comparison-v1",
+          "heading": "Reverse, walking, and lateral lunge differences",
+          "intents": ["comparison", "mechanics", "substitution"],
+          "search_terms": ["reverse vs walking lunge", "lunge direction", "lateral lunge", "step backward", "step forward", "frontal plane"],
+          "text": "A Reverse Lunge steps back and returns to the same stance, which makes the landing easier to control for many people. A Walking Lunge adds forward travel and repeated deceleration. A Lateral Lunge moves side to side and loads the hip and knee in a different plane. They share unilateral leg work but are not identical substitutions; choose the direction that matches the intended movement and can be balanced comfortably."
+        },
+        {
+          "chunk_id": "unilateral-lower-body-regressions-v1",
+          "heading": "Regressing unilateral lower-body work",
+          "intents": ["regression", "substitution", "technique"],
+          "search_terms": ["easier lunge", "split squat support", "hold rack", "reduce depth", "bodyweight", "step height", "balance help"],
+          "text": "For unilateral lower-body work, first remove external load, shorten the range, or use one hand on a stable support. A stationary Split Squat usually has less coordination demand than a traveling lunge, and a lower step reduces the balance and range required for a Step-Up. Support should help preserve foot pressure and knee tracking, not be used to pull through a range the working leg cannot control."
+        }
+      ]
+    },
+    {
+      "source_id": "hip-extension-mechanics",
+      "title": "Hip extension mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Glute Bridge",
+        "services/exercise_instruction_seed_data.py#Hip Thrust",
+        "services/exercise_instruction_seed_data.py#Single-Leg Glute Bridge"
+      ],
+      "related_exercises": [
+        "Glute Bridge",
+        "Hip Thrust",
+        "Dumbbell Hip Thrust",
+        "Single-Leg Glute Bridge",
+        "Cable Pull-Through"
+      ],
+      "taxonomy_tags": ["hip_extension", "glute_bridge", "hip_thrust"],
+      "chunks": [
+        {
+          "chunk_id": "bridge-and-hip-thrust-position-v1",
+          "heading": "Bridge and hip thrust position",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["hip thrust form", "glute bridge form", "ribs down", "shin angle", "lockout", "lower back arch"],
+          "text": "In a bridge or Hip Thrust, press through stable feet and extend the hips while the ribs and pelvis stay controlled. Finish when the hips are extended, not by arching the lower back or throwing the ribs upward. Foot distance affects the knee angle and which tissues feel most challenged; adjust it modestly so the feet stay planted and the top position can be held without cramping or sliding."
+        },
+        {
+          "chunk_id": "hip-extension-versus-hinge-v1",
+          "heading": "Hip extension versus a loaded hinge",
+          "intents": ["comparison", "substitution", "mechanics"],
+          "search_terms": ["hip thrust vs rdl", "bridge vs hinge", "hip extension", "horizontal torso", "hamstring stretch", "trunk demand"],
+          "text": "Hip Thrusts and bridges emphasize hip extension with the torso supported by the floor or bench and the greatest challenge near the top. RDLs and other hinges load the hips while the torso inclines and usually create more hamstring length and trunk-holding demand. Both train the posterior chain, but they are not mechanically identical. Choose according to the desired range, support, equipment, and tolerance."
+        },
+        {
+          "chunk_id": "single-leg-hip-extension-v1",
+          "heading": "Single-leg hip extension control",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["single leg bridge", "unilateral hip thrust", "pelvis level", "hip rotation", "hamstring cramp", "regress"],
+          "text": "A single-leg bridge adds pelvic and rotation control to hip extension. Keep the pelvis level, press through the working foot, and use only the height that can be reached without twisting or pushing from the free leg. If the pelvis drops or the hamstring repeatedly cramps before the hip can extend, return to a two-leg bridge, shorten the range, or move the working foot slightly closer while control is rebuilt."
+        }
+      ]
+    },
+    {
+      "source_id": "loaded-carry-mechanics",
+      "title": "Loaded carry mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Farmer Carry",
+        "services/exercise_instruction_seed_data.py#Suitcase Carry",
+        "services/exercise_instruction_seed_data.py#Dumbbell Front Rack Carry"
+      ],
+      "related_exercises": [
+        "Farmer Carry",
+        "Suitcase Carry",
+        "Dumbbell Front Rack Carry",
+        "Dumbbell Farmer March",
+        "Dumbbell Suitcase March"
+      ],
+      "taxonomy_tags": ["loaded_carry", "carry", "trunk_stability"],
+      "chunks": [
+        {
+          "chunk_id": "farmer-carry-posture-and-gait-v1",
+          "heading": "Farmer carry posture and gait",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["farmer carry form", "loaded carry", "walking posture", "grip", "short steps", "shoulders"],
+          "text": "For a Farmer Carry, stand tall with a load in each hand, keep the ribs stacked over the pelvis, and take controlled steps without letting the weights swing. The shoulders can remain naturally set rather than forcefully shrugged or pinned down. Turn only where there is clear space and set the loads down before grip or posture deteriorates. Carry distance and load should allow the same gait from start to finish."
+        },
+        {
+          "chunk_id": "suitcase-carry-anti-lean-v1",
+          "heading": "Suitcase carry anti-lean control",
+          "intents": ["mechanics", "technique", "comparison"],
+          "search_terms": ["suitcase carry", "one sided carry", "anti lateral flexion", "leaning", "hips level", "unilateral carry"],
+          "text": "A Suitcase Carry loads one side and challenges the trunk to resist leaning toward or away from the weight. Walk with the zipper line of the torso upright, hips level, and the unloaded arm moving naturally. Compared with a two-hand Farmer Carry, the one-sided version generally needs less total load to create a trunk-stability challenge. Train both sides separately and stop when posture changes."
+        },
+        {
+          "chunk_id": "carry-selection-and-fatigue-v1",
+          "heading": "Selecting and ending loaded carries",
+          "intents": ["substitution", "regression", "technique"],
+          "search_terms": ["carry distance", "carry fatigue", "grip fails", "march in place", "lighter carry", "front rack carry"],
+          "text": "Choose a carry by the intended demand: two-hand carries emphasize total loading and grip, one-hand carries add anti-lean control, and front-rack carries change trunk and shoulder demands. Reduce load, shorten the distance, or march in place when space or gait control is limited. End the effort before the hands open, the steps rush, the load swings, or the torso can no longer remain organized."
+        }
+      ]
+    },
+    {
+      "source_id": "shoulder-stability-and-rotation",
+      "title": "Shoulder stability and rotation",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Scapular Push-Up",
+        "services/exercise_instruction_seed_data.py#Band External Rotation",
+        "services/exercise_instruction_seed_data.py#Cable 90/90 External Rotation"
+      ],
+      "related_exercises": [
+        "Scapular Push-Up",
+        "Band External Rotation",
+        "Cable External Rotation",
+        "Cable Internal Rotation",
+        "Cable 90/90 External Rotation",
+        "Cable Face Pull"
+      ],
+      "taxonomy_tags": ["shoulder_stability", "shoulder_rotation", "scapular_control"],
+      "chunks": [
+        {
+          "chunk_id": "scapular-control-without-rigidity-v1",
+          "heading": "Shoulder-blade control without rigidity",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["scapular control", "shoulder blades", "scapular push up", "protraction", "retraction", "shrugging"],
+          "text": "The shoulder blades normally move on the rib cage during pressing and pulling. Stability means controlling that movement, not pinning the blades into one position for every exercise. In a Scapular Push-Up, keep the elbows straight and let only the shoulder blades draw together and spread apart while the head, ribs, and hips remain quiet. Use a small range that is clearly driven by the upper back."
+        },
+        {
+          "chunk_id": "external-rotation-control-v1",
+          "heading": "External rotation uses light controlled resistance",
+          "intents": ["mechanics", "technique", "regression"],
+          "search_terms": ["external rotation", "rotator cuff", "band rotation", "cable rotation", "elbow fixed", "light resistance"],
+          "text": "External-rotation exercises use small shoulder muscles and usually need only light resistance. Keep the upper arm in the chosen position, rotate the forearm without turning the torso, and stop before the shoulder rolls forward or the elbow drifts. A towel between the elbow and ribs can clarify position in an arm-at-side variation. Reduce resistance or range when the motion cannot stay smooth."
+        },
+        {
+          "chunk_id": "shoulder-stability-discomfort-boundary-v1",
+          "heading": "Shoulder stability discomfort boundary",
+          "intents": ["discomfort", "safety", "regression"],
+          "search_terms": ["shoulder pinching", "unstable shoulder", "rotation pain", "comfortable range", "stop exercise", "shoulder discomfort"],
+          "text": "Shoulder stability or rotation work should use a comfortable range that can be controlled without the shoulder feeling pinched or unstable. Lower resistance and move closer to the side of the body when a higher-arm position is not comfortable. Stop for sharp, escalating, unstable, numb, or tingling symptoms. General exercise knowledge cannot diagnose the source of shoulder symptoms or determine a rehabilitation plan."
+        }
+      ]
+    },
+    {
+      "source_id": "arm-isolation-mechanics",
+      "title": "Arm isolation mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Dumbbell Curl",
+        "services/exercise_instruction_seed_data.py#Dumbbell Hammer Curl",
+        "services/exercise_instruction_seed_data.py#Cable Triceps Pressdown",
+        "services/exercise_instruction_seed_data.py#Dumbbell Triceps Extension"
+      ],
+      "related_exercises": [
+        "Dumbbell Curl",
+        "Dumbbell Hammer Curl",
+        "Cable Curl",
+        "Cable Triceps Pressdown",
+        "Dumbbell Triceps Extension",
+        "Dumbbell Skull Crusher"
+      ],
+      "taxonomy_tags": ["elbow_flexion", "elbow_extension", "arm_isolation"],
+      "chunks": [
+        {
+          "chunk_id": "curl-elbow-and-wrist-control-v1",
+          "heading": "Curl elbow and wrist control",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["biceps curl form", "curl elbow", "wrist position", "swinging", "full range", "lower slowly"],
+          "text": "During a curl, keep the wrist supported and let the elbow bend without the shoulder repeatedly swinging the weight forward. The elbow does not need to be frozen to one exact point, but large torso or upper-arm movement usually means momentum is replacing the intended elbow action. Use a load that allows a controlled lowering phase and a comfortable straight-arm bottom rather than dropping into it."
+        },
+        {
+          "chunk_id": "triceps-isolation-path-v1",
+          "heading": "Triceps isolation path",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["triceps pressdown form", "triceps extension", "elbow position", "cable pressdown", "overhead extension", "lockout"],
+          "text": "Triceps isolation centers on extending the elbow while the shoulder and torso remain controlled. In a pressdown, keep the upper arms near the sides and avoid leaning farther over the cable to finish. In an overhead extension, use a rib and shoulder position that permits a comfortable bend and straighten. Choose the cable or dumbbell path that keeps the wrists supported and the elbow motion smooth."
+        },
+        {
+          "chunk_id": "arm-grip-and-variation-changes-v1",
+          "heading": "Grip and variation changes for arm work",
+          "intents": ["comparison", "substitution", "discomfort"],
+          "search_terms": ["hammer curl vs curl", "neutral grip", "supinated grip", "cable vs dumbbell arms", "elbow discomfort", "arm alternative"],
+          "text": "A palms-up curl, neutral-grip Hammer Curl, cable curl, and supported curl all train elbow flexion with different grip and stability demands. Cable and dumbbell triceps variations likewise change where resistance is greatest. These differences can guide variety or comfort, but they do not make one variation universally superior. Use the grip and path that stay controlled and stop rather than forcing painful elbow or wrist positions."
+        }
+      ]
+    },
+    {
+      "source_id": "calf-and-ankle-mechanics",
+      "title": "Calf and ankle mechanics",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py#Standing Calf Raise",
+        "services/exercise_instruction_seed_data.py#Dumbbell Calf Raise",
+        "services/exercise_instruction_seed_data.py#Dumbbell Seated Calf Raise",
+        "services/exercise_instruction_seed_data.py#Dumbbell Single-Leg Calf Raise"
+      ],
+      "related_exercises": [
+        "Standing Calf Raise",
+        "Dumbbell Calf Raise",
+        "Dumbbell Seated Calf Raise",
+        "Dumbbell Single-Leg Calf Raise"
+      ],
+      "taxonomy_tags": ["ankle_plantarflexion", "calf_raise", "ankle_control"],
+      "chunks": [
+        {
+          "chunk_id": "calf-raise-range-and-control-v1",
+          "heading": "Calf raise range and control",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["calf raise form", "ankle range", "heel lower", "top pause", "bouncing", "foot pressure"],
+          "text": "A calf raise moves through the ankle while pressure stays across the forefoot rather than rolling to the outside edge. Rise smoothly, pause briefly at a controlled top, and lower without bouncing. Use only the range the ankle can control; a step can increase the available lowering range, but extra depth is not useful if the foot collapses, the knee shifts unpredictably, or the Achilles area is forced into discomfort."
+        },
+        {
+          "chunk_id": "standing-versus-seated-calf-raise-v1",
+          "heading": "Standing versus seated calf raises",
+          "intents": ["comparison", "mechanics"],
+          "search_terms": ["standing vs seated calf raise", "straight knee", "bent knee", "soleus", "gastrocnemius", "calf variation"],
+          "text": "Standing calf raises train plantarflexion with a relatively straight knee, while seated calf raises use a bent-knee position. Both train the calf complex, but the changed knee angle alters the relative contribution of the calf muscles. Neither needs to replace the other in every plan. Compare them using controlled ankle range rather than judging only by the amount of load moved."
+        },
+        {
+          "chunk_id": "single-leg-calf-support-v1",
+          "heading": "Single-leg calf raises and external support",
+          "intents": ["mechanics", "regression", "substitution"],
+          "search_terms": ["single leg calf raise", "calf balance", "hold support", "one leg ankle", "bodyweight calf", "regression"],
+          "text": "A single-leg calf raise increases the load per ankle and adds balance demand. Light fingertip support is useful when it keeps the path vertical and prevents balance from ending the set before the calf is trained. Regress to two legs, reduce the range, or use a stable machine when the ankle path cannot remain controlled. Train both sides without forcing equal repetitions through unequal-quality range."
+        }
+      ]
+    },
+    {
+      "source_id": "conditioning-fundamentals",
+      "title": "Conditioning fundamentals",
+      "source_path": "knowledge/exercise_knowledge_v1.json",
+      "derived_from": [
+        "services/exercise_instruction_seed_data.py",
+        "https://health.gov/sites/default/files/2019-09/Physical_Activity_Guidelines_2nd_edition.pdf",
+        "https://www.cdc.gov/physical-activity-basics/measuring/index.html"
+      ],
+      "related_exercises": [
+        "Treadmill Walk",
+        "Treadmill Easy Intervals",
+        "Bike Steady State",
+        "Bike Intervals",
+        "Bike Cadence Drill",
+        "Mountain Climber"
+      ],
+      "taxonomy_tags": ["conditioning", "aerobic", "intervals"],
+      "chunks": [
+        {
+          "chunk_id": "conditioning-relative-intensity-v1",
+          "heading": "Use relative effort to describe conditioning intensity",
+          "intents": ["mechanics", "technique"],
+          "search_terms": ["cardio intensity", "conditioning effort", "talk test", "moderate intensity", "vigorous intensity", "breathing"],
+          "text": "Conditioning intensity is relative to the person's current capacity. A practical talk test treats an effort where conversation is possible but singing is difficult as moderate, while vigorous work usually permits only a few words before a breath. Pace, incline, resistance, and cadence are tools for reaching an intended effort; no single speed or machine setting represents the same intensity for everyone."
+        },
+        {
+          "chunk_id": "steady-state-versus-intervals-v1",
+          "heading": "Steady-state work versus intervals",
+          "intents": ["comparison", "mechanics", "substitution"],
+          "search_terms": ["steady state vs intervals", "cardio intervals", "work recovery", "continuous pace", "conditioning comparison", "bike treadmill"],
+          "text": "Steady-state conditioning holds a relatively consistent effort, while intervals alternate planned work and recovery periods. Intervals are not automatically harder; their total demand depends on work intensity, duration, recovery, and number of rounds. Choose the format that matches the session goal and can be completed with repeatable movement. Walking, cycling, and other modalities can fill either role when effort is scaled appropriately."
+        },
+        {
+          "chunk_id": "conditioning-progression-and-technique-v1",
+          "heading": "Progress conditioning one variable at a time",
+          "intents": ["technique", "regression", "discomfort"],
+          "search_terms": ["increase cardio", "conditioning progression", "more speed", "more incline", "longer duration", "cadence control", "fatigue"],
+          "text": "Progress conditioning gradually by changing one main variable such as duration, pace, resistance, incline, or interval count while the movement remains controlled. When fatigue causes the stride, pedal stroke, posture, or machine control to deteriorate, reduce the intensity or recover before continuing. Stop for chest pressure, faintness, severe unexplained shortness of breath, or other acute concerning symptoms and seek appropriate medical help."
         }
       ]
     }
