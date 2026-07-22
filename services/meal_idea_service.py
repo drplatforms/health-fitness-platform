@@ -9,9 +9,11 @@ import urllib.request
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date as date_cls
+from time import perf_counter
 from typing import Any
 
 from database import get_connection
+from models.ai_run_models import AIProviderTextResult
 from models.meal_idea_models import (
     MEAL_IDEA_MEAL_TYPES,
     MEAL_IDEA_PROVIDERS,
@@ -23,6 +25,11 @@ from models.meal_idea_models import (
     ProposedMealIdea,
     ProposedMealIngredient,
 )
+from services.ai_run_telemetry_service import (
+    local_provider_text_result,
+    normalize_ai_run_telemetry,
+    openai_provider_text_result,
+)
 from services.available_ingredient_service import list_available_ingredients
 from services.food_logging_recents_service import get_recent_canonical_foods
 from services.food_normalization_service import (
@@ -30,6 +37,7 @@ from services.food_normalization_service import (
     normalize_food_name,
 )
 from services.food_preference_service import list_food_preferences
+from services.meal_idea_history_service import persist_successful_generation
 from services.meal_idea_model_service import (
     configured_meal_idea_model,
     validate_selected_meal_idea_model,
@@ -59,7 +67,9 @@ MAX_PROMPT_CATALOG_FOODS = 400
 MAX_LOCAL_PROMPT_CATALOG_FOODS = 140
 MAX_RETURNED_IDEAS = 4
 
-ProviderGenerate = Callable[[str, str, float, dict[str, Any]], str]
+ProviderGenerate = Callable[
+    [str, str, float, dict[str, Any]], str | AIProviderTextResult
+]
 
 _NUTRIENT_ALIASES = {
     "calorie": "calories",
@@ -200,7 +210,108 @@ class _GenerationContext:
     available_ids: frozenset[int]
     preferences_by_id: dict[int, str]
     recent_ids: tuple[int, ...]
-    nutrition: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _MealPortionBounds:
+    min_total_grams: float
+    max_total_grams: float
+    min_total_calories: float
+    max_total_calories: float
+    min_largest_ingredient_grams: float
+    max_single_ingredient_grams: float
+
+
+_MEAL_PORTION_BOUNDS = {
+    "breakfast": _MealPortionBounds(100, 1_000, 100, 900, 30, 600),
+    "lunch": _MealPortionBounds(150, 1_400, 100, 1_100, 40, 800),
+    "dinner": _MealPortionBounds(150, 1_600, 100, 1_250, 40, 900),
+    "snack": _MealPortionBounds(25, 600, 30, 600, 10, 350),
+    "dessert": _MealPortionBounds(30, 750, 40, 700, 12, 500),
+}
+
+_MIN_ROLE_PORTION_GRAMS = {
+    "breakfast": 15.0,
+    "lunch": 20.0,
+    "dinner": 20.0,
+    "snack": 8.0,
+    "dessert": 8.0,
+}
+
+_SMALL_QUANTITY_FOOD_TERMS = (
+    "salt",
+    "pepper",
+    "spice",
+    "seasoning",
+    "cinnamon",
+    "paprika",
+    "cumin",
+    "turmeric",
+    "oregano",
+    "basil",
+    "thyme",
+    "rosemary",
+    "parsley",
+    "cilantro",
+    "dill",
+    "masala",
+    "garlic",
+    "ginger",
+    "scallion",
+    "green onion",
+    "oil",
+    "butter",
+    "ghee",
+    "mayonnaise",
+    "mayo",
+    "mustard",
+    "ketchup",
+    "sauce",
+    "dressing",
+    "vinegar",
+    "syrup",
+    "honey",
+    "sugar",
+    "jam",
+    "jelly",
+    "salsa",
+    "pesto",
+    "tahini",
+    "cheese",
+    "chocolate",
+    "coconut",
+    "nut",
+    "almond",
+    "walnut",
+    "pecan",
+    "peanut",
+    "cashew",
+    "seed",
+    "bacon",
+    "lemon juice",
+    "lime juice",
+)
+
+_MEAL_NAME_STOP_WORDS = {
+    "and",
+    "with",
+    "the",
+    "bowl",
+    "plate",
+    "meal",
+    "cooked",
+    "raw",
+    "fresh",
+    "plain",
+    "whole",
+    "large",
+    "small",
+    "medium",
+    "chopped",
+    "sliced",
+    "boneless",
+    "skinless",
+}
 
 
 def generate_meal_ideas(
@@ -240,8 +351,9 @@ def generate_meal_ideas(
         if request.provider == "local"
         else OPENAI_MEAL_IDEAS_PROVIDER_SCHEMA
     )
+    generation_started = perf_counter()
     try:
-        raw_output = generate(
+        provider_output = generate(
             model,
             prompt,
             timeout_seconds,
@@ -255,12 +367,18 @@ def generate_meal_ideas(
             f"{request.provider}_provider_failed",
             f"{provider_label} could not generate meal ideas. Retry or switch providers.",
         ) from exc
+    raw_output, telemetry = normalize_ai_run_telemetry(
+        provider=request.provider,
+        requested_model=model,
+        runtime_seconds=perf_counter() - generation_started,
+        provider_result=provider_output,
+    )
 
     proposed, normalization_rejections, normalization_reasons = (
         _parse_provider_response(
             raw_output,
             provider=request.provider,
-            model=model,
+            model=telemetry.model,
         )
     )
     grounded, grounding_reasons = _ground_proposed_ideas(
@@ -272,7 +390,7 @@ def generate_meal_ideas(
             raise MealIdeaProviderError(
                 "local_grounding_rejected",
                 _local_grounding_failure_message(
-                    model=model,
+                    model=telemetry.model,
                     normalization_reasons=normalization_reasons,
                     grounding_reasons=grounding_reasons,
                 ),
@@ -283,9 +401,9 @@ def generate_meal_ideas(
             f"{provider_label} returned ideas that could not be matched reliably to your food catalog. Retry for a new set or switch providers.",
         )
 
-    return MealIdeasResult(
+    result = MealIdeasResult(
         provider=request.provider,
-        model=model,
+        model=telemetry.model,
         target_date=target_date,
         ideas=tuple(grounded[:MAX_RETURNED_IDEAS]),
         rejected_concept_count=(
@@ -298,9 +416,17 @@ def generate_meal_ideas(
             "available_ingredient_count": len(context.available_ids),
             "food_preference_count": len(context.preferences_by_id),
             "recent_food_count": len(context.recent_ids),
-            "nutrition_context_available": bool(context.nutrition),
+            "nutrition_context_available": False,
         },
+        telemetry=telemetry,
     )
+    persist_successful_generation(
+        user_id=user_id,
+        selected_model=model,
+        request=request,
+        result=result,
+    )
+    return result
 
 
 def _validate_generation_input(
@@ -345,6 +471,7 @@ def _validate_generation_input(
 
 
 def _build_generation_context(*, user_id: int, target_date: str) -> _GenerationContext:
+    del target_date  # Normal Meal Ideas intentionally ignores daily macro headroom.
     catalog = _load_catalog(user_id=user_id)
     available = list_available_ingredients(user_id=user_id)
     preferences = list_food_preferences(user_id=user_id)
@@ -357,7 +484,6 @@ def _build_generation_context(*, user_id: int, target_date: str) -> _GenerationC
             for item in preferences
         },
         recent_ids=tuple(int(item["canonical_food_id"]) for item in recent),
-        nutrition=_remaining_nutrition_context(user_id, target_date),
     )
 
 
@@ -516,7 +642,6 @@ def _build_local_prompt(
         "intent": request.intent,
         "catalog_food_names": [food.display_name for food in prompt_catalog],
         "full_usable_catalog_count": len(usable_catalog),
-        "nutrition": context.nutrition,
         "preferences": preferences,
         "recent_logged_foods_soft": names_for_ids(context.recent_ids),
         "recent_generated_foods_soft": list(request.recent_generated_food_names),
@@ -542,6 +667,11 @@ def _build_local_prompt(
         "recent food when it is genuinely appropriate; never force an incoherent swap. "
         "Never use never_suggest foods. Explicit intent overrides all soft hints but not "
         "never_suggest.\n"
+        "This is normal Meal Ideas mode, not macro-target closure. Choose coherent, "
+        "plausible human portions for the meal type. Do not shrink or inflate portions "
+        "based on daily calorie or macro headroom. Small gram amounts are appropriate "
+        "only for genuine seasonings, condiments, or dense toppings, never for a core "
+        "protein, starch, fruit, or vegetable.\n"
         "The catalog list is a broad sample, not a restriction; familiar foods from "
         "the full catalog are allowed if you use their exact canonical name.\n"
         f"CONTEXT:\n{json.dumps(compact_context, ensure_ascii=False)}\n"
@@ -591,7 +721,6 @@ def _build_openai_prompt(
             for food in prompt_catalog
         ],
         "usable_catalog_food_count": len(usable_catalog),
-        "remaining_nutrition_context": context.nutrition,
         "food_preferences": preferences,
         "recent_logged_foods_soft_repetition_signal": names_for_ids(context.recent_ids),
         "recent_generated_foods_soft_repetition_signal": list(
@@ -617,6 +746,11 @@ def _build_openai_prompt(
         "include a plausible amount_grams. Prefer names shown in catalog examples, but "
         "the full usable canonical catalog remains allowed; examples are a rotating, "
         "broad prompt sample rather than an ingredient restriction.\n"
+        "This is normal Meal Ideas mode, not Meet My Macros. Choose coherent, plausible "
+        "human portions for the meal type, independent of remaining daily calorie or "
+        "macro targets. Do not shrink a meal near a daily target or inflate it to use "
+        "available headroom. Reserve very small gram amounts for genuine seasonings, "
+        "condiments, or dense toppings rather than core ingredients.\n"
         "Start from the full catalog and creative request, not from Available Ingredients. "
         "Available is optional convenience context only: do not maximize overlap, do not "
         "build primarily from it, and allow ideas that use none. Love and Like are small "
@@ -680,13 +814,14 @@ def _selected_provider_runtime(
 
         def generate(
             model_name: str, prompt: str, seconds: float, schema: dict[str, Any]
-        ) -> str:
+        ) -> AIProviderTextResult:
             return _call_local_provider(
                 model_name,
                 prompt,
                 seconds,
                 schema,
                 base_url=env.get(OLLAMA_BASE_URL_ENV),
+                with_metadata=True,
             )
 
         return model, timeout, generate
@@ -710,7 +845,7 @@ def _selected_provider_runtime(
 
         def generate(
             model_name: str, prompt: str, seconds: float, schema: dict[str, Any]
-        ) -> str:
+        ) -> AIProviderTextResult:
             return _call_openai_provider(
                 model_name,
                 prompt,
@@ -718,6 +853,7 @@ def _selected_provider_runtime(
                 schema,
                 api_key=api_key,
                 base_url=env.get(OPENAI_BASE_URL_ENV),
+                with_metadata=True,
             )
 
         return model, timeout, generate
@@ -732,7 +868,9 @@ def _call_local_provider(
     schema: dict[str, Any],
     *,
     base_url: str | None,
-) -> str:
+    with_metadata: bool = False,
+    temperature: float = 0.7,
+) -> str | AIProviderTextResult:
     policy = resolve_provider_lifecycle_policy(
         provider_name="meal_ideas_local",
         model_name=model,
@@ -744,7 +882,7 @@ def _call_local_provider(
         "format": schema,
         "think": False,
         "keep_alive": policy.keep_alive_value,
-        "options": {"temperature": 0.7},
+        "options": {"temperature": temperature},
     }
     endpoint = resolve_ollama_base_url(base_url=base_url).rstrip("/") + "/api/chat"
     request = urllib.request.Request(
@@ -792,7 +930,12 @@ def _call_local_provider(
             "local_empty_response",
             f"Ollama returned no structured content for Local model {model}.",
         )
-    return raw_text
+    result = local_provider_text_result(
+        response_payload,
+        text=raw_text,
+        requested_model=model,
+    )
+    return result if with_metadata else result.text
 
 
 def _bounded_ollama_error_body(exc: urllib.error.HTTPError) -> str:
@@ -815,7 +958,13 @@ def _call_openai_provider(
     *,
     api_key: str,
     base_url: str | None,
-) -> str:
+    with_metadata: bool = False,
+    task_instructions: str = (
+        "Return exact JSON only for the supplied meal-idea schema."
+    ),
+    schema_name: str = "meal_ideas_v1",
+    max_output_tokens: int = 2200,
+) -> str | AIProviderTextResult:
     client_kwargs: dict[str, Any] = {"api_key": api_key}
     if base_url:
         client_kwargs["base_url"] = base_url.rstrip("/")
@@ -825,13 +974,13 @@ def _call_openai_provider(
         client = OpenAI(**client_kwargs)
         response = client.responses.create(
             model=model,
-            instructions="Return exact JSON only for the supplied meal-idea schema.",
+            instructions=task_instructions,
             input=prompt,
-            max_output_tokens=2200,
+            max_output_tokens=max_output_tokens,
             text={
                 "format": {
                     "type": "json_schema",
-                    "name": "meal_ideas_v1",
+                    "name": schema_name,
                     "schema": schema,
                     "strict": True,
                 }
@@ -849,7 +998,12 @@ def _call_openai_provider(
             "openai_empty_response",
             "OpenAI returned an empty response. Retry or switch providers.",
         )
-    return raw_text
+    result = openai_provider_text_result(
+        response,
+        text=raw_text,
+        requested_model=model,
+    )
+    return result if with_metadata else result.text
 
 
 def _extract_openai_text(response: Any) -> str | None:
@@ -1072,6 +1226,16 @@ def _ground_proposed_ideas(
             reason = rejection_reason or "too_few_grounded_ingredients"
             rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
             continue
+        plausibility_rejection = _meal_portion_rejection(
+            idea.meal_type,
+            idea.name,
+            tuple(ingredients),
+        )
+        if plausibility_rejection is not None:
+            rejection_reasons[plausibility_rejection] = (
+                rejection_reasons.get(plausibility_rejection, 0) + 1
+            )
+            continue
         grounded.append(
             GroundedMealIdea(
                 name=idea.name,
@@ -1087,6 +1251,98 @@ def _ground_proposed_ideas(
             )
         )
     return grounded, rejection_reasons
+
+
+def _meal_portion_rejection(
+    meal_type: str,
+    meal_name: str,
+    ingredients: tuple[GroundedMealIngredient, ...],
+) -> str | None:
+    bounds = _MEAL_PORTION_BOUNDS[meal_type]
+    total_grams = sum(item.amount_grams for item in ingredients)
+    total_calories = sum(item.calories for item in ingredients)
+    largest_amount = max(item.amount_grams for item in ingredients)
+    if total_grams < bounds.min_total_grams:
+        return "microscopic_meal_total"
+    if largest_amount < bounds.min_largest_ingredient_grams:
+        return "missing_plausible_core_portion"
+    if total_calories < bounds.min_total_calories:
+        return "implausibly_low_meal_energy"
+    if total_grams > bounds.max_total_grams:
+        return "excessive_meal_total"
+    if total_calories > bounds.max_total_calories:
+        return "excessive_meal_energy"
+    if any(
+        item.amount_grams > bounds.max_single_ingredient_grams for item in ingredients
+    ):
+        return "excessive_single_ingredient"
+
+    role_minimum = _MIN_ROLE_PORTION_GRAMS[meal_type]
+    meal_name_tokens = _meaningful_food_tokens(meal_name)
+    for item in ingredients:
+        if _allows_small_quantity(item.display_name):
+            continue
+        if item.amount_grams < (2.0 if meal_type in {"snack", "dessert"} else 3.0):
+            return "implausibly_tiny_ingredient"
+        calories_per_100g = item.calories * 100 / item.amount_grams
+        protein_per_100g = item.protein_g * 100 / item.amount_grams
+        carbs_per_100g = item.carbs_g * 100 / item.amount_grams
+        named_as_core = bool(
+            meal_name_tokens & _meaningful_food_tokens(item.display_name)
+        )
+        nutrient_role_is_core = protein_per_100g >= 8 or (
+            carbs_per_100g >= 15 and calories_per_100g >= 60
+        )
+        if named_as_core and item.amount_grams < role_minimum:
+            return "implausibly_tiny_core_ingredient"
+        inferred_minimum = _density_adjusted_core_minimum(
+            meal_type=meal_type,
+            calories_per_100g=calories_per_100g,
+        )
+        if nutrient_role_is_core and item.amount_grams < inferred_minimum:
+            return "implausibly_tiny_core_ingredient"
+
+    highest_calorie_item = max(ingredients, key=lambda item: item.calories)
+    for item in ingredients:
+        if _allows_small_quantity(item.display_name):
+            continue
+        is_core = item is highest_calorie_item or (
+            total_calories > 0 and item.calories / total_calories >= 0.15
+        )
+        if not is_core:
+            continue
+        calories_per_100g = item.calories * 100 / item.amount_grams
+        minimum_core_grams = _density_adjusted_core_minimum(
+            meal_type=meal_type,
+            calories_per_100g=calories_per_100g,
+        )
+        if item.amount_grams < minimum_core_grams:
+            return "implausibly_tiny_core_ingredient"
+    return None
+
+
+def _allows_small_quantity(display_name: str) -> bool:
+    normalized = f" {normalize_food_name(display_name)} "
+    return any(f" {term} " in normalized for term in _SMALL_QUANTITY_FOOD_TERMS)
+
+
+def _density_adjusted_core_minimum(
+    *, meal_type: str, calories_per_100g: float
+) -> float:
+    minimum = (
+        5.0 if calories_per_100g >= 500 else 10.0 if calories_per_100g >= 250 else 20.0
+    )
+    if meal_type in {"snack", "dessert"}:
+        return max(5.0, minimum / 2)
+    return minimum
+
+
+def _meaningful_food_tokens(value: str) -> set[str]:
+    return {
+        token
+        for token in normalize_food_name(value).split()
+        if len(token) >= 3 and token not in _MEAL_NAME_STOP_WORDS
+    }
 
 
 def _local_grounding_failure_message(

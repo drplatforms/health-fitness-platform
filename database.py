@@ -375,6 +375,13 @@ def initialize_database():
             default_meal_type IS NULL
             OR default_meal_type IN ('breakfast', 'lunch', 'dinner', 'snack', 'other')
         ),
+        cooking_instructions_json TEXT,
+        instruction_telemetry_json TEXT,
+        source_type TEXT NOT NULL DEFAULT 'manual' CHECK (
+            source_type IN ('manual', 'ai')
+        ),
+        source_provider TEXT,
+        source_model TEXT,
         active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -383,6 +390,21 @@ def initialize_database():
         FOREIGN KEY (user_id) REFERENCES users(id)
     )
     """)
+
+    _ensure_table_columns(
+        cursor,
+        "saved_meals",
+        {
+            "cooking_instructions_json": "cooking_instructions_json TEXT",
+            "instruction_telemetry_json": "instruction_telemetry_json TEXT",
+            "source_type": (
+                "source_type TEXT NOT NULL DEFAULT 'manual' "
+                "CHECK (source_type IN ('manual', 'ai'))"
+            ),
+            "source_provider": "source_provider TEXT",
+            "source_model": "source_model TEXT",
+        },
+    )
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS saved_meal_items (
@@ -432,6 +454,27 @@ def initialize_database():
     cursor.execute("""
     CREATE INDEX IF NOT EXISTS idx_saved_meal_items_meal_order
     ON saved_meal_items(saved_meal_id, item_order, id)
+    """)
+
+    # -----------------------------
+    # Meal Idea Generation History
+    # -----------------------------
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS meal_idea_generation_sets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        request_json TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE INDEX IF NOT EXISTS idx_meal_idea_generation_sets_user_recent
+    ON meal_idea_generation_sets(user_id, id DESC)
     """)
 
     # -----------------------------

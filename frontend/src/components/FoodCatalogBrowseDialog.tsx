@@ -13,6 +13,7 @@ import { createPortal } from "react-dom";
 import {
   browseCanonicalFoods,
   fetchFoodPreferences,
+  setCanonicalFoodDisplayName,
   setFoodPreference,
 } from "@/lib/canonicalFoodApi";
 import {
@@ -48,12 +49,14 @@ export type FoodCatalogBrowseChoice =
 interface FoodCatalogBrowseDialogProps {
   open: boolean;
   userId: number;
+  mode?: "select" | "manage";
   pinnedFoods: PinnedFood[];
   pinnedKeys: Set<string>;
   updatingPinnedKey: string | null;
   onClose: () => void;
-  onSelect: (choice: FoodCatalogBrowseChoice) => void;
+  onSelect?: (choice: FoodCatalogBrowseChoice) => void;
   onTogglePinned: (choice: FoodCatalogBrowseChoice) => void;
+  onDisplayNameChanged?: () => void;
 }
 
 function choiceKey(choice: FoodCatalogBrowseChoice) {
@@ -64,6 +67,14 @@ function choiceKey(choice: FoodCatalogBrowseChoice) {
 
 function choiceName(choice: FoodCatalogBrowseChoice) {
   return choice.food.display_name;
+}
+
+function choiceCustomDisplayName(choice: FoodCatalogBrowseChoice) {
+  return choice.food.custom_display_name ?? null;
+}
+
+function choiceOriginalDisplayName(choice: FoodCatalogBrowseChoice) {
+  return choice.food.original_display_name ?? choice.food.display_name;
 }
 
 function choiceNutrients(choice: FoodCatalogBrowseChoice) {
@@ -149,12 +160,14 @@ function PinIcon({ active }: { active: boolean }) {
 export function FoodCatalogBrowseDialog({
   open,
   userId,
+  mode = "select",
   pinnedFoods,
   pinnedKeys,
   updatingPinnedKey,
   onClose,
   onSelect,
   onTogglePinned,
+  onDisplayNameChanged,
 }: FoodCatalogBrowseDialogProps) {
   const [filter, setFilter] = useState<BrowseFilter>("all");
   const [query, setQuery] = useState("");
@@ -166,6 +179,9 @@ export function FoodCatalogBrowseDialog({
   const [updatingPreferenceFoodId, setUpdatingPreferenceFoodId] = useState<
     number | null
   >(null);
+  const [renamingFoodId, setRenamingFoodId] = useState<number | null>(null);
+  const [updatingNameFoodId, setUpdatingNameFoodId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const deferredQuery = useDeferredValue(query.trim());
   const requestIdRef = useRef(0);
@@ -173,6 +189,56 @@ export function FoodCatalogBrowseDialog({
   const surfaceRef = useRef<HTMLElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const loadSentinelRef = useRef<HTMLDivElement>(null);
+
+  async function handleDisplayNameChange(
+    choice: FoodCatalogBrowseChoice,
+    displayName: string | null,
+  ) {
+    const canonicalFoodId = choiceCanonicalFoodId(choice);
+    if (canonicalFoodId === null) return;
+    const normalizedName = displayName?.trim() || null;
+    setUpdatingNameFoodId(canonicalFoodId);
+    setMessage(null);
+    try {
+      const response = await setCanonicalFoodDisplayName({
+        userId,
+        canonicalFoodId,
+        displayName: normalizedName,
+      });
+      const originalName = choiceOriginalDisplayName(choice);
+      const resolvedName = response.food_name?.display_name ?? originalName;
+      setCatalogFoods((current) =>
+        current.map((food) =>
+          food.canonical_food_id === canonicalFoodId
+            ? {
+                ...food,
+                display_name: resolvedName,
+                custom_display_name: normalizedName,
+              }
+            : food,
+        ),
+      );
+      setPreferenceFoods((current) =>
+        current.map((food) =>
+          food.canonical_food_id === canonicalFoodId
+            ? {
+                ...food,
+                display_name: resolvedName,
+                custom_display_name: normalizedName,
+              }
+            : food,
+        ),
+      );
+      setRenamingFoodId(null);
+      onDisplayNameChanged?.();
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Unable to update this food name.",
+      );
+    } finally {
+      setUpdatingNameFoodId(null);
+    }
+  }
 
   const loadPage = useCallback(
     async (offset: number) => {
@@ -452,7 +518,9 @@ export function FoodCatalogBrowseDialog({
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-text-muted">Food catalog</p>
-              <h2 id="food-browse-title" className="text-xl font-semibold text-text-strong">Browse foods</h2>
+              <h2 id="food-browse-title" className="text-xl font-semibold text-text-strong">
+                {mode === "manage" ? "Food Library" : "Browse foods"}
+              </h2>
             </div>
             <button
               type="button"
@@ -572,16 +640,82 @@ export function FoodCatalogBrowseDialog({
                       : preferenceByFoodId.get(canonicalFoodId) ?? "neutral";
                   return (
                     <div key={key} className="flex min-h-[4.25rem] items-stretch">
-                      <button
-                        type="button"
-                        onClick={() => onSelect(choice)}
-                        className="min-w-0 flex-1 py-3 pr-3 text-left transition hover:bg-surface-subtle"
-                      >
-                        <span className="block text-sm font-semibold text-text-strong">{name}</span>
-                        <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
-                          {formatMacroLine(choiceNutrients(choice))}
-                        </span>
-                      </button>
+                      {mode === "select" ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelect?.(choice)}
+                          className="min-w-0 flex-1 py-3 pr-3 text-left transition hover:bg-surface-subtle"
+                        >
+                          <span className="block text-sm font-semibold text-text-strong">{name}</span>
+                          <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
+                            {formatMacroLine(choiceNutrients(choice))}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="min-w-0 flex-1 py-3 pr-2 text-left">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text-strong">
+                              {name}
+                            </span>
+                            {canonicalFoodId !== null ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRenamingFoodId(canonicalFoodId);
+                                  setRenameValue(choiceCustomDisplayName(choice) ?? name);
+                                }}
+                                className="shrink-0 rounded-md px-1.5 py-1 text-[0.68rem] font-semibold text-accent-text hover:bg-surface-highlighted"
+                              >
+                                Rename
+                              </button>
+                            ) : null}
+                          </div>
+                          <span className="mt-0.5 block text-xs leading-4 text-text-secondary">
+                            {formatMacroLine(choiceNutrients(choice))}
+                          </span>
+                          {canonicalFoodId !== null && renamingFoodId === canonicalFoodId ? (
+                            <form
+                              className="mt-2 flex flex-wrap gap-1.5"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                void handleDisplayNameChange(choice, renameValue);
+                              }}
+                            >
+                              <input
+                                value={renameValue}
+                                maxLength={120}
+                                onChange={(event) => setRenameValue(event.target.value)}
+                                aria-label={`Custom display name for ${name}`}
+                                className="min-h-9 min-w-32 flex-1 rounded-lg border border-border bg-surface px-2 text-xs text-text-strong"
+                              />
+                              <button
+                                type="submit"
+                                disabled={updatingNameFoodId === canonicalFoodId || !renameValue.trim()}
+                                className="rounded-lg bg-action-primary px-2.5 py-1.5 text-xs font-semibold text-action-primary-foreground disabled:opacity-50"
+                              >
+                                Save
+                              </button>
+                              {choiceCustomDisplayName(choice) ? (
+                                <button
+                                  type="button"
+                                  disabled={updatingNameFoodId === canonicalFoodId}
+                                  onClick={() => void handleDisplayNameChange(choice, null)}
+                                  className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold text-text-body disabled:opacity-50"
+                                >
+                                  Reset
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={() => setRenamingFoodId(null)}
+                                className="rounded-lg px-2 py-1.5 text-xs font-semibold text-text-muted"
+                              >
+                                Cancel
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      )}
                       {canonicalFoodId !== null ? (
                         <label className="flex shrink-0 items-center px-1">
                           <span className="sr-only">Preference for {name}</span>

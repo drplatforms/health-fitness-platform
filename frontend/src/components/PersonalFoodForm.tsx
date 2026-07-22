@@ -167,7 +167,8 @@ export function PersonalFoodForm({
         if (targetDate) {
           params.set("date", targetDate);
         }
-        router.push(`/personal-foods?${params.toString()}`);
+        params.set("view", "library");
+        router.push(`/food?${params.toString()}`);
         return;
       }
       if (personalFoodId === undefined) {

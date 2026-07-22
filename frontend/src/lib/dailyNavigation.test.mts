@@ -6,9 +6,10 @@ import {
   buildDailyWorkspaceHref,
 } from "./dailyNavigation.ts";
 
-test("builds the four primary daily workspace routes", () => {
+test("builds the five primary daily workspace routes", () => {
   assert.equal(buildDailyWorkspaceHref("today", 101), "/?user_id=101");
   assert.equal(buildDailyWorkspaceHref("food", 101), "/food?user_id=101");
+  assert.equal(buildDailyWorkspaceHref("meals", 101), "/meals?user_id=101");
   assert.equal(
     buildDailyWorkspaceHref("workout", 101),
     "/today/workout?user_id=101",
@@ -37,6 +38,8 @@ test("keeps live navigation unpinned and preserves explicit dates", () => {
 test("maps nested personal-food routes to the Food destination", () => {
   assert.equal(activeDailyWorkspace("/"), "today");
   assert.equal(activeDailyWorkspace("/food"), "food");
+  assert.equal(activeDailyWorkspace("/meals"), "meals");
+  assert.equal(activeDailyWorkspace("/meals/history"), "meals");
   assert.equal(activeDailyWorkspace("/personal-foods"), "food");
   assert.equal(activeDailyWorkspace("/personal-foods/new"), "food");
   assert.equal(activeDailyWorkspace("/personal-foods/42"), "food");

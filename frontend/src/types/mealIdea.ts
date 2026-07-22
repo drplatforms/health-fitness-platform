@@ -1,3 +1,5 @@
+import { AIRunTelemetry } from "@/types/aiRunTelemetry";
+
 export type MealIdeaProvider = "local" | "openai";
 
 export type MealIdeaSteering =
@@ -53,6 +55,34 @@ export interface MealIdeasResponse {
     recent_food_count: number;
     nutrition_context_available: boolean;
   };
+  telemetry: AIRunTelemetry;
+}
+
+export interface MealIdeaGenerationHistoryItem {
+  id: number;
+  created_at: string;
+  request: {
+    provider: MealIdeaProvider;
+    model: string;
+    creative_steering: MealIdeaSteering;
+    meal_type: MealIdeaMealType | null;
+    intent: string | null;
+  };
+  result: MealIdeasResponse;
+}
+
+export interface MealIdeaGenerationHistoryResponse {
+  success: true;
+  user_id: number;
+  results: MealIdeaGenerationHistoryItem[];
+}
+
+export interface MealInstructionsResponse {
+  success: true;
+  provider: MealIdeaProvider;
+  model: string;
+  instructions: string[];
+  telemetry: AIRunTelemetry;
 }
 
 export interface MealIdeaModelOption {

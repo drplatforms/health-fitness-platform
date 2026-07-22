@@ -36,9 +36,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   );
 }
 
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const { mealId } = await context.params;
+  const payload = (await request.json().catch(() => null)) as
+    | Record<string, unknown>
+    | null;
+  const userId = payload?.user_id;
+  if (typeof userId !== "number" || userId <= 0) {
+    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  }
+  return forward(
+    `${getApiBaseUrl()}/nutrition/${userId}/saved-meals/${mealId}`,
+    "DELETE",
+  );
+}
+
 async function forward(
   endpoint: string,
-  method: "GET" | "PATCH",
+  method: "GET" | "PATCH" | "DELETE",
   body?: Record<string, unknown>,
 ) {
   try {

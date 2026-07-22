@@ -159,12 +159,12 @@ export function PersonalFoodsList({
         <div>
           {variant === "standalone" ? (
             <h1 className="text-2xl font-semibold tracking-tight text-text-strong">
-              My Foods
+              Foods You Added
             </h1>
           ) : null}
           {variant === "standalone" ? (
             <p className="mt-1 text-sm text-text-secondary">
-              Foods you can find in the normal food search.
+              Scanned and user-added foods available throughout the catalog.
             </p>
           ) : null}
         </div>

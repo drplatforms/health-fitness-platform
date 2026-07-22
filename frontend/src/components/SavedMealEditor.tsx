@@ -89,6 +89,9 @@ export function SavedMealEditor({
   const [defaultMealType, setDefaultMealType] = useState(
     initialMeal?.default_meal_type ?? "",
   );
+  const [instructionsText, setInstructionsText] = useState(
+    (initialMeal?.cooking_instructions ?? []).join("\n"),
+  );
   const [items, setItems] = useState<DraftItem[]>(() => initialDraftItems(initialMeal));
   const [query, setQuery] = useState("");
   const [canonicalResults, setCanonicalResults] = useState<
@@ -226,6 +229,13 @@ export function SavedMealEditor({
       user_id: userId,
       display_name: name,
       default_meal_type: defaultMealType || null,
+      cooking_instructions: instructionsText
+        .split("\n")
+        .map((step) => step.trim())
+        .filter(Boolean),
+      source_type: initialMeal?.source_type ?? "manual",
+      source_provider: initialMeal?.source_provider ?? null,
+      source_model: initialMeal?.source_model ?? null,
       items: items.map((item) => item.mutation),
     };
     try {
@@ -241,13 +251,15 @@ export function SavedMealEditor({
   }
 
   return (
-    <form onSubmit={handleSave} className="space-y-4" aria-label="Meal editor">
+    <form onSubmit={handleSave} className="space-y-4" aria-label="Recipe editor">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-text-strong">
-            {initialMeal ? "Edit meal" : "Create meal"}
+            {initialMeal ? "Edit recipe" : "Create recipe manually"}
           </h3>
-          <p className="text-xs text-text-muted">Amounts are saved as stable grams.</p>
+          <p className="text-xs text-text-muted">
+            Amounts are saved as stable grams in the shared recipe system.
+          </p>
         </div>
         <button
           type="button"
@@ -257,6 +269,17 @@ export function SavedMealEditor({
           Cancel
         </button>
       </div>
+
+      <label className="block text-sm font-medium text-text-body">
+        Cooking instructions <span className="font-normal text-text-muted">Optional</span>
+        <textarea
+          value={instructionsText}
+          onChange={(event) => setInstructionsText(event.target.value)}
+          rows={4}
+          placeholder="Enter one step per line."
+          className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2.5 text-text-strong"
+        />
+      </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-medium text-text-body">

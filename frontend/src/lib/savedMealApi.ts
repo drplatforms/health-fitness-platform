@@ -1,16 +1,29 @@
 import {
+  ScaledSavedMealRecipe,
   SavedMealLogResponse,
   SavedMealMutation,
   SavedMealResponse,
   SavedMealsResponse,
 } from "@/types/savedMeal";
+import { MealIdeaProvider, MealInstructionsResponse } from "@/types/mealIdea";
 
 async function requireJson<T>(response: Response, fallback: string): Promise<T> {
   const payload = (await response.json().catch(() => null)) as
     | { detail?: unknown }
     | null;
   if (!response.ok) {
-    throw new Error(typeof payload?.detail === "string" ? payload.detail : fallback);
+    const detail = payload?.detail;
+    const nestedMessage =
+      detail && typeof detail === "object" && "message" in detail
+        ? (detail as { message?: unknown }).message
+        : null;
+    throw new Error(
+      typeof detail === "string"
+        ? detail
+        : typeof nestedMessage === "string"
+          ? nestedMessage
+          : fallback,
+    );
   }
   return payload as T;
 }
@@ -70,6 +83,19 @@ export async function restoreSavedMeal(
   return savedMealAction(userId, savedMealId, "restore");
 }
 
+export async function deleteSavedMeal(
+  userId: number,
+  savedMealId: number,
+): Promise<void> {
+  const response = await fetch(`/api/nutrition-saved-meals/${savedMealId}`, {
+    method: "DELETE",
+    cache: "no-store",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId }),
+  });
+  await requireJson(response, "Unable to delete this recipe.");
+}
+
 async function savedMealAction(
   userId: number,
   savedMealId: number,
@@ -107,4 +133,51 @@ export async function logSavedMeal({
     }),
   });
   return requireJson(response, "Unable to log this saved meal.");
+}
+
+export async function fetchScaledSavedMeal({
+  userId,
+  savedMealId,
+  multiplier,
+}: {
+  userId: number;
+  savedMealId: number;
+  multiplier: 1 | 2 | 3 | 4;
+}): Promise<ScaledSavedMealRecipe> {
+  const params = new URLSearchParams({
+    user_id: String(userId),
+    multiplier: String(multiplier),
+  });
+  const response = await fetch(
+    `/api/nutrition-saved-meals/${savedMealId}/scaled?${params.toString()}`,
+    { cache: "no-store", headers: { Accept: "application/json" } },
+  );
+  const payload = await requireJson<{ scaled_recipe: ScaledSavedMealRecipe }>(
+    response,
+    "Unable to scale this recipe.",
+  );
+  return payload.scaled_recipe;
+}
+
+export async function generateSavedMealInstructions({
+  userId,
+  savedMealId,
+  provider,
+  model,
+}: {
+  userId: number;
+  savedMealId: number;
+  provider: MealIdeaProvider;
+  model: string;
+}): Promise<MealInstructionsResponse & { saved_meal: SavedMealResponse["saved_meal"] }> {
+  const response = await fetch(
+    `/api/nutrition-saved-meals/${savedMealId}/instructions`,
+    {
+      method: "POST",
+      cache: "no-store",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, provider, model }),
+    },
+  );
+  return requireJson(response, "Unable to generate cooking instructions.");
 }

@@ -1,4 +1,8 @@
+import { AIRunTelemetry } from "@/types/aiRunTelemetry";
+
 export type SavedMealFoodType = "canonical" | "personal";
+
+export const SAVED_MEAL_CHANGED_EVENT = "fitness-ai:saved-meal-changed";
 
 export interface SavedMealMacros {
   calories: number | null;
@@ -36,6 +40,11 @@ export interface SavedMeal {
   active: boolean;
   created_at: string;
   updated_at: string;
+  cooking_instructions: string[];
+  instruction_telemetry: AIRunTelemetry | null;
+  source_type: "manual" | "ai";
+  source_provider: string | null;
+  source_model: string | null;
   item_count: number;
   items: SavedMealItem[];
   current_macros: SavedMealMacros;
@@ -57,7 +66,25 @@ export interface SavedMealMutation {
   user_id: number;
   display_name: string;
   default_meal_type?: string | null;
+  cooking_instructions?: string[];
+  instruction_telemetry?: AIRunTelemetry | null;
+  source_type?: "manual" | "ai";
+  source_provider?: string | null;
+  source_model?: string | null;
   items: SavedMealItemMutation[];
+}
+
+export interface ScaledSavedMealRecipe {
+  saved_meal_id: number;
+  multiplier: 1 | 2 | 3 | 4;
+  ingredients: Array<{
+    food_type: SavedMealFoodType;
+    canonical_food_id: number | null;
+    personal_food_id: number | null;
+    display_name: string;
+    amount_grams: number;
+  }>;
+  current_macros: SavedMealMacros;
 }
 
 export interface SavedMealResponse {

@@ -8,6 +8,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, BeforeValidator
 
+from models.ai_run_models import AIRunTelemetry
 from models.personal_food_models import PersonalFoodRevisionInput
 from models.saved_meal_models import (
     SavedMealItemInput,
@@ -88,9 +89,11 @@ from services.saved_meal_service import (
     SavedMealValidationError,
     archive_saved_meal,
     create_saved_meal,
+    delete_saved_meal,
     get_saved_meal,
     list_saved_meals,
     restore_saved_meal,
+    scale_saved_meal_recipe,
     update_saved_meal,
 )
 from services.user_canonical_food_name_service import (
@@ -208,10 +211,26 @@ class SavedMealItemRequest(BaseModel):
     personal_serving_quantity: PersonalFoodNumber | None = None
 
 
+class AIRunTelemetryRequest(BaseModel):
+    provider: str
+    model: str
+    runtime_seconds: float
+    input_tokens: int | None = None
+    cached_input_tokens: int | None = None
+    output_tokens: int | None = None
+    estimated_api_cost_usd: float | None = None
+    pricing_version: str | None = None
+
+
 class SavedMealMutationRequest(BaseModel):
     display_name: str
     default_meal_type: str | None = None
     items: list[SavedMealItemRequest]
+    cooking_instructions: list[str] | None = None
+    instruction_telemetry: AIRunTelemetryRequest | None = None
+    source_type: str | None = None
+    source_provider: str | None = None
+    source_model: str | None = None
 
 
 class SavedMealLogRequest(BaseModel):
@@ -646,6 +665,21 @@ def read_owned_saved_meal(user_id: int, saved_meal_id: int):
     }
 
 
+@router.get("/nutrition/{user_id}/saved-meals/{saved_meal_id}/scaled")
+def read_scaled_owned_saved_meal(user_id: int, saved_meal_id: int, multiplier: int = 1):
+    try:
+        scaled_recipe = scale_saved_meal_recipe(
+            user_id=user_id,
+            saved_meal_id=saved_meal_id,
+            multiplier=multiplier,
+        )
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "user_id": user_id, "scaled_recipe": scaled_recipe}
+
+
 @router.patch("/nutrition/{user_id}/saved-meals/{saved_meal_id}")
 def update_owned_saved_meal(
     user_id: int,
@@ -668,6 +702,24 @@ def update_owned_saved_meal(
         "success": True,
         "user_id": user_id,
         "saved_meal": saved_meal.to_public_dict(),
+    }
+
+
+@router.delete("/nutrition/{user_id}/saved-meals/{saved_meal_id}")
+def delete_owned_saved_meal(user_id: int, saved_meal_id: int):
+    try:
+        deleted_saved_meal_id = delete_saved_meal(
+            user_id=user_id,
+            saved_meal_id=saved_meal_id,
+        )
+    except (PersonalFoodUserNotFoundError, SavedMealNotFoundError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SavedMealValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {
+        "success": True,
+        "user_id": user_id,
+        "deleted_saved_meal_id": deleted_saved_meal_id,
     }
 
 
@@ -733,6 +785,30 @@ def _saved_meal_mutation_input(
     return SavedMealMutationInput(
         display_name=request.display_name,
         default_meal_type=request.default_meal_type,
+        cooking_instructions=(
+            tuple(request.cooking_instructions)
+            if request.cooking_instructions is not None
+            else None
+        ),
+        instruction_telemetry=(
+            AIRunTelemetry(
+                provider=request.instruction_telemetry.provider,
+                model=request.instruction_telemetry.model,
+                runtime_seconds=request.instruction_telemetry.runtime_seconds,
+                input_tokens=request.instruction_telemetry.input_tokens,
+                cached_input_tokens=request.instruction_telemetry.cached_input_tokens,
+                output_tokens=request.instruction_telemetry.output_tokens,
+                estimated_api_cost_usd=(
+                    request.instruction_telemetry.estimated_api_cost_usd
+                ),
+                pricing_version=request.instruction_telemetry.pricing_version,
+            )
+            if request.instruction_telemetry is not None
+            else None
+        ),
+        source_type=request.source_type,
+        source_provider=request.source_provider,
+        source_model=request.source_model,
         items=tuple(
             SavedMealItemInput(
                 food_type=item.food_type,

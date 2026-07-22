@@ -256,6 +256,7 @@ export interface CanonicalFoodLogResponse {
 }
 
 export const CANONICAL_FOOD_LOGGED_EVENT = "canonical-food-logged";
+export const FOOD_LIBRARY_CHANGED_EVENT = "food-library-changed";
 
 export interface CanonicalFoodLoggedEntry {
   entry_id: number;

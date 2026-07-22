@@ -29,6 +29,7 @@ import {
 import { logPersonalFood, searchPersonalFoods } from "@/lib/personalFoodApi";
 import {
   CANONICAL_FOOD_LOGGED_EVENT,
+  FOOD_LIBRARY_CHANGED_EVENT,
   CanonicalFoodNutrientSummary,
   CanonicalFoodSearchResult,
   CanonicalFoodServingUnit,
@@ -366,6 +367,17 @@ export function FoodLoggingCard({
   }, [userId]);
 
   useEffect(() => {
+    const handleLibraryChanged = () => {
+      void Promise.all([refreshPinnedFoods(), refreshRecentFoods()]).catch(() => {
+        // Keep the current quick-access foods when a background refresh fails.
+      });
+    };
+    window.addEventListener(FOOD_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
+    return () =>
+      window.removeEventListener(FOOD_LIBRARY_CHANGED_EVENT, handleLibraryChanged);
+  }, [refreshPinnedFoods, refreshRecentFoods]);
+
+  useEffect(() => {
     if (!deferredQuery) {
       return;
     }
@@ -635,6 +647,7 @@ export function FoodLoggingCard({
         pinned: !isPinned,
       });
       await Promise.all([refreshPinnedFoods(), refreshRecentFoods()]);
+      window.dispatchEvent(new Event(FOOD_LIBRARY_CHANGED_EVENT));
     } catch (error) {
       setSearchMessage(
         error instanceof Error ? error.message : "Unable to update this pinned food.",
@@ -688,6 +701,7 @@ export function FoodLoggingCard({
         ),
       );
       await Promise.all([refreshPinnedFoods(), refreshRecentFoods()]);
+      window.dispatchEvent(new Event(FOOD_LIBRARY_CHANGED_EVENT));
       setIsRenaming(false);
     } catch (error) {
       setErrorMessage(
@@ -852,13 +866,14 @@ export function FoodLoggingCard({
       {variant === "card" ? (
         <div className="flex justify-end">
           <Link
-            href={`/personal-foods?${new URLSearchParams({
+            href={`/food?${new URLSearchParams({
               user_id: String(userId),
               ...(navigationDate ? { date: navigationDate } : {}),
+              view: "library",
             }).toString()}`}
             className="text-sm font-semibold !text-accent-text transition hover:!text-accent-text-hover"
           >
-            My Foods
+            Food Library
           </Link>
         </div>
       ) : null}

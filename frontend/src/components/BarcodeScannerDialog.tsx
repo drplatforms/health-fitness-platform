@@ -470,13 +470,13 @@ export function BarcodeScannerDialog({
                 Search foods
               </button>
               <Link
-                href={`/personal-foods?${new URLSearchParams({
+                href={`/personal-foods/new?${new URLSearchParams({
                   user_id: String(userId),
                   date: targetDate,
                 }).toString()}`}
                 className="rounded-2xl border border-border px-4 py-3 text-center text-sm font-semibold !text-text-primary"
               >
-                Create My Food
+                Create food
               </Link>
               <button
                 type="button"

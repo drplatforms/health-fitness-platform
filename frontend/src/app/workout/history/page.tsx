@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { MobilePrimaryNav } from "@/components/MobilePrimaryNav";
+import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { WorkoutHistoryAnalytics } from "@/components/WorkoutHistoryAnalytics";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
@@ -69,9 +69,10 @@ export default async function WorkoutHistoryPage({
           </div>
         </section>
 
+        <PrimaryNavigation userId={userId} />
+
         <WorkoutHistoryAnalytics userId={userId} />
       </div>
-      <MobilePrimaryNav userId={userId} />
     </main>
   );
 }
