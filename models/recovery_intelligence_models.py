@@ -10,6 +10,18 @@ READINESS_LEVEL_VALUES = {"unknown", "low", "moderate", "high"}
 FATIGUE_RISK_VALUES = {"unknown", "low", "moderate", "high"}
 TREND_DIRECTION_VALUES = {"unknown", "improving", "stable", "worsening", "mixed"}
 CONFIDENCE_VALUES = {"Limited", "Low", "Moderate", "High"}
+PAIN_AREA_VALUES = {
+    "neck",
+    "shoulder",
+    "elbow",
+    "wrist_hand",
+    "upper_back",
+    "lower_back",
+    "hip",
+    "knee",
+    "ankle_foot",
+    "other",
+}
 
 
 @dataclass(frozen=True)
@@ -21,6 +33,11 @@ class RecoverySignalDay:
     body_weight_lb: float | None
     mood: str | None
     notes_present: bool
+    sleep_quality: float | None = None
+    stress_level: float | None = None
+    training_motivation: float | None = None
+    pain_concern: str | None = None
+    pain_area: str | None = None
     data_quality_flags: list[str] = field(default_factory=list)
 
     def __post_init__(self) -> None:
@@ -29,6 +46,18 @@ class RecoverySignalDay:
         _validate_optional_non_negative("energy_level", self.energy_level)
         _validate_optional_non_negative("soreness_level", self.soreness_level)
         _validate_optional_non_negative("body_weight_lb", self.body_weight_lb)
+        _validate_optional_scale("sleep_quality", self.sleep_quality)
+        _validate_optional_scale("stress_level", self.stress_level)
+        _validate_optional_scale("training_motivation", self.training_motivation)
+        if self.pain_concern not in {None, "none", "mild", "significant"}:
+            raise ValueError("pain_concern has an unsupported value")
+        if self.pain_area is not None and self.pain_area not in PAIN_AREA_VALUES:
+            raise ValueError("pain_area has an unsupported value")
+        if self.pain_area is not None and self.pain_concern not in {
+            "mild",
+            "significant",
+        }:
+            raise ValueError("pain_area requires a mild or significant pain_concern")
         _validate_safe_text_list("data_quality_flags", self.data_quality_flags)
 
     def to_dict(self) -> dict[str, Any]:
@@ -233,3 +262,9 @@ def _validate_optional_non_negative(name: str, value: float | None) -> None:
 def _validate_rate(name: str, value: float) -> None:
     if not isinstance(value, int | float) or value < 0 or value > 1:
         raise ValueError(f"{name} must be between 0 and 1")
+
+
+def _validate_optional_scale(name: str, value: float | None) -> None:
+    _validate_optional_number(name, value)
+    if value is not None and (value < 1 or value > 5):
+        raise ValueError(f"{name} must be between 1 and 5 when present")

@@ -292,6 +292,20 @@ def _seed_recovery_series(
     for index in range(days):
         day = TODAY - timedelta(days=days - index - 1)
         weight = start_weight + (index * 0.08)
+        sleep = sleep_list[index % len(sleep_list)]
+        energy = energy_list[index % len(energy_list)]
+        soreness = soreness_list[index % len(soreness_list)]
+        sleep_quality = 2 if sleep < 6 else 3 if sleep < 7 else 4
+        stress_level = 5 if energy <= 4 else 4 if soreness >= 5 else 2
+        training_motivation = 2 if energy <= 4 else 3 if energy <= 6 else 4
+        pain_concern = "none"
+        pain_area = None
+        if "under-recovered" in note and index % 4 == 0:
+            pain_concern = "mild"
+            pain_area = "lower_back"
+        elif "messy logging" in note and index % 5 == 1:
+            pain_concern = "mild"
+            pain_area = "shoulder"
         cursor.execute(
             """
             INSERT INTO daily_checkins (
@@ -299,22 +313,32 @@ def _seed_recovery_series(
                 checkin_date,
                 body_weight,
                 sleep_hours,
+                sleep_quality,
                 energy_level,
                 soreness_level,
+                stress_level,
+                training_motivation,
+                pain_concern,
+                pain_area,
                 mood,
                 notes,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
                 _iso(day),
                 round(weight, 1),
-                sleep_list[index % len(sleep_list)],
-                energy_list[index % len(energy_list)],
-                soreness_list[index % len(soreness_list)],
-                "qa",
+                sleep,
+                sleep_quality,
+                energy,
+                soreness,
+                stress_level,
+                training_motivation,
+                pain_concern,
+                pain_area,
+                "steady" if stress_level <= 3 else "low",
                 note,
                 _timestamp(day),
             ),

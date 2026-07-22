@@ -35,12 +35,17 @@ def _seed_test_db(tmp_path, monkeypatch) -> None:
             checkin_date,
             body_weight,
             sleep_hours,
+            sleep_quality,
             energy_level,
-            soreness_level
+            soreness_level,
+            stress_level,
+            training_motivation,
+            pain_concern,
+            pain_area
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (1, "2026-06-14", 190.0, 7.0, 6, 3),
+        (1, "2026-06-14", 190.0, 7.0, 2, 6, 3, 4, 2, "mild", "shoulder"),
     )
     conn.commit()
     conn.close()
@@ -205,6 +210,21 @@ def test_snapshot_to_dict_includes_recovery_intelligence_v2(
     assert payload["recovery_intelligence_v2"] is not None
     assert payload["recovery_intelligence_v2"]["target_date"] == "2026-06-14"
     assert "data_quality" in payload["recovery_intelligence_v2"]
+    assert payload["recovery_intelligence_v2"]["current_day"]["sleep_quality"] == 2.0
+    assert payload["recovery_intelligence_v2"]["current_day"]["stress_level"] == 4.0
+    assert (
+        payload["recovery_intelligence_v2"]["current_day"]["training_motivation"] == 2.0
+    )
+    assert payload["recovery_intelligence_v2"]["signal_context"] == {
+        "sleep_duration_context": "typical",
+        "sleep_quality_context": "poor",
+        "energy_context": "moderate",
+        "stress_context": "high",
+        "motivation_context": "low",
+        "soreness_context": "low",
+        "pain_context": "mild",
+        "pain_area": "shoulder",
+    }
 
 
 def test_recovery_intelligence_v2_unavailable_fallback_returns_context(

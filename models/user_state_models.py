@@ -12,6 +12,11 @@ class UserRecoveryState:
     readiness_level: str
     sleep_trend: str
     weight_trend: str
+    latest_sleep_quality: int | None = None
+    latest_stress_level: int | None = None
+    latest_training_motivation: int | None = None
+    latest_pain_concern: str | None = None
+    latest_pain_area: str | None = None
 
 
 @dataclass

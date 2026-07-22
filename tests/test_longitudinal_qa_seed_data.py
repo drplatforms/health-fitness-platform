@@ -169,6 +169,24 @@ def test_seed_creates_six_month_recovery_and_nutrition_ranges(tmp_path, monkeypa
         else:
             assert rows["count"] >= 150
 
+    structured = _all_rows(
+        """
+        SELECT
+            COUNT(sleep_quality) AS sleep_quality_count,
+            COUNT(stress_level) AS stress_count,
+            COUNT(training_motivation) AS motivation_count,
+            SUM(pain_concern = 'mild' AND pain_area IS NOT NULL) AS localized_pain_count,
+            SUM(pain_concern IS NULL) AS unknown_pain_count
+        FROM daily_checkins
+        WHERE user_id IN (101,102,103,104,105)
+        """
+    )[0]
+    assert structured["sleep_quality_count"] > 0
+    assert structured["stress_count"] > 0
+    assert structured["motivation_count"] > 0
+    assert structured["localized_pain_count"] > 0
+    assert structured["unknown_pain_count"] > 0
+
     nutrition_counts = {
         row["user_id"]: row["nutrition_days"]
         for row in _all_rows(

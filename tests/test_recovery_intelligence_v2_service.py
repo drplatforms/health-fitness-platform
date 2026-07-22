@@ -30,6 +30,11 @@ def _insert_checkin(
     sleep: float | None = 7.0,
     energy: int | None = 6,
     soreness: int | None = 3,
+    sleep_quality: int | None = None,
+    stress: int | None = None,
+    motivation: int | None = None,
+    pain_concern: str | None = None,
+    pain_area: str | None = None,
     weight: float | None = 190.0,
     created_at: str = "2026-06-14T08:00:00",
     notes: str | None = None,
@@ -43,21 +48,31 @@ def _insert_checkin(
             checkin_date,
             body_weight,
             sleep_hours,
+            sleep_quality,
             energy_level,
             soreness_level,
+            stress_level,
+            training_motivation,
+            pain_concern,
+            pain_area,
             mood,
             notes,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             user_id,
             target_date,
             weight,
             sleep,
+            sleep_quality,
             energy,
             soreness,
+            stress,
+            motivation,
+            pain_concern,
+            pain_area,
             "okay",
             notes,
             created_at,
@@ -87,7 +102,7 @@ def test_service_returns_recovery_intelligence_v2_summary(
     summary = build_recovery_intelligence_v2(user_id=1, target_date="2026-06-14")
 
     assert isinstance(summary, RecoveryIntelligenceV2Summary)
-    assert summary.model_version == "recovery_intelligence_v2_service_v1"
+    assert summary.model_version == "recovery_intelligence_v2_service_v2"
     assert summary.source_table == "daily_checkins"
     assert summary.current_day is not None
     assert summary.windows["recent_7_days"]["checkin_days"] == 7
@@ -169,6 +184,19 @@ def test_missing_values_remain_none_not_zero(tmp_path, monkeypatch) -> None:
     assert summary.current_day.energy_level is None
     assert summary.current_day.soreness_level is None
     assert summary.current_day.body_weight_lb is None
+    assert summary.current_day.sleep_quality is None
+    assert summary.current_day.stress_level is None
+    assert summary.current_day.training_motivation is None
+    assert summary.current_day.pain_concern is None
+    assert summary.signal_context is not None
+    assert summary.signal_context.sleep_quality_context == "unknown"
+    assert summary.signal_context.stress_context == "unknown"
+    assert summary.signal_context.motivation_context == "unknown"
+    assert summary.signal_context.pain_context == "unknown"
+    assert summary.windows["recent_7_days"]["sleep_quality_value_days"] == 0
+    assert summary.windows["recent_7_days"]["stress_value_days"] == 0
+    assert summary.windows["recent_7_days"]["training_motivation_value_days"] == 0
+    assert summary.windows["recent_7_days"]["pain_concern_value_days"] == 0
     assert summary.sleep_interpretation.current_value is None
     assert summary.sleep_interpretation.recent_average is None
     assert summary.body_weight_interpretation is not None
@@ -235,8 +263,12 @@ def test_source_facts_are_public_safe_and_no_raw_rows(tmp_path, monkeypatch) -> 
         assert fact.field_name in {
             "checkin_date",
             "sleep_hours",
+            "sleep_quality",
             "energy_level",
             "soreness_level",
+            "stress_level",
+            "training_motivation",
+            "pain_concern",
             "body_weight",
         }
         assert "private note" not in fact.value_summary
@@ -270,6 +302,51 @@ def test_forbidden_recovery_language_is_not_emitted(tmp_path, monkeypatch) -> No
     assert all(term not in public_text for term in forbidden)
     assert summary.recovery_pressure == "high"
     assert summary.readiness_classification == "recovery_limited"
+
+
+def test_richer_signal_context_keeps_distinct_raw_and_derived_meanings(
+    tmp_path, monkeypatch
+) -> None:
+    _seed_test_db(tmp_path, monkeypatch)
+    _insert_checkin(
+        target_date="2026-06-14",
+        sleep=8.0,
+        sleep_quality=2,
+        energy=7,
+        stress=5,
+        motivation=2,
+        soreness=8,
+        pain_concern="mild",
+        pain_area="knee",
+    )
+
+    summary = build_recovery_intelligence_v2(user_id=1, target_date="2026-06-14")
+
+    assert summary.current_day is not None
+    assert summary.current_day.sleep_hours == 8.0
+    assert summary.current_day.sleep_quality == 2.0
+    assert summary.current_day.stress_level == 5.0
+    assert summary.current_day.training_motivation == 2.0
+    assert summary.current_day.soreness_level == 8.0
+    assert summary.current_day.pain_concern == "mild"
+    assert summary.current_day.pain_area == "knee"
+    assert summary.signal_context is not None
+    assert summary.signal_context.sleep_duration_context == "typical"
+    assert summary.signal_context.sleep_quality_context == "poor"
+    assert summary.signal_context.energy_context == "moderate"
+    assert summary.signal_context.stress_context == "high"
+    assert summary.signal_context.motivation_context == "low"
+    assert summary.signal_context.soreness_context == "high"
+    assert summary.signal_context.pain_context == "mild"
+    assert summary.signal_context.pain_area == "knee"
+    assert summary.windows["recent_7_days"]["average_sleep_quality"] == 2.0
+    assert summary.windows["recent_7_days"]["average_stress_level"] == 5.0
+    assert summary.windows["recent_7_days"]["average_training_motivation"] == 2.0
+    assert summary.windows["recent_7_days"]["sleep_quality_value_days"] == 1
+    assert summary.windows["recent_7_days"]["stress_value_days"] == 1
+    assert summary.windows["recent_7_days"]["training_motivation_value_days"] == 1
+    assert summary.windows["recent_7_days"]["pain_concern_value_days"] == 1
+    assert summary.windows["recent_7_days"]["pain_concern_counts"]["mild"] == 1
 
 
 def test_low_or_limited_confidence_includes_reasons_or_limitations(

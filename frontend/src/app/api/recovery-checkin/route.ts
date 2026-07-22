@@ -7,8 +7,13 @@ interface RecoveryCheckInRequestPayload {
   target_date?: string;
   body_weight?: number | null;
   sleep_hours?: number;
+  sleep_quality?: number | null;
   energy_level?: number;
   soreness_level?: number;
+  stress_level?: number | null;
+  training_motivation?: number | null;
+  pain_concern?: "none" | "mild" | "significant" | null;
+  pain_area?: string | null;
   mood?: string | null;
   notes?: string | null;
 }

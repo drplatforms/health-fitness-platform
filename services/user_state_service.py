@@ -181,6 +181,11 @@ def build_user_health_state(user_id: int) -> UserHealthState:
             readiness_level="Unknown",
             sleep_trend="Unknown",
             weight_trend="Unknown",
+            latest_sleep_quality=None,
+            latest_stress_level=None,
+            latest_training_motivation=None,
+            latest_pain_concern=None,
+            latest_pain_area=None,
         )
 
     else:
@@ -273,6 +278,11 @@ def build_user_health_state(user_id: int) -> UserHealthState:
             readiness_level=readiness_level,
             sleep_trend=sleep_trend,
             weight_trend=weight_trend,
+            latest_sleep_quality=recovery_data.get("latest_sleep_quality"),
+            latest_stress_level=recovery_data.get("latest_stress_level"),
+            latest_training_motivation=recovery_data.get("latest_training_motivation"),
+            latest_pain_concern=recovery_data.get("latest_pain_concern"),
+            latest_pain_area=recovery_data.get("latest_pain_area"),
         )
 
     # ---------------------------------

@@ -68,8 +68,46 @@ def initialize_database():
 
         body_weight REAL,
         sleep_hours REAL,
+        -- Stable five-point subjective scales. Higher means more of the
+        -- named concept: better sleep quality, more stress, or more desire
+        -- to train. NULL means unknown / not reported.
+        sleep_quality INTEGER CHECK (
+            sleep_quality IS NULL OR sleep_quality BETWEEN 1 AND 5
+        ),
         energy_level INTEGER,
         soreness_level INTEGER,
+        stress_level INTEGER CHECK (
+            stress_level IS NULL OR stress_level BETWEEN 1 AND 5
+        ),
+        training_motivation INTEGER CHECK (
+            training_motivation IS NULL OR training_motivation BETWEEN 1 AND 5
+        ),
+
+        pain_concern TEXT CHECK (
+            pain_concern IS NULL
+            OR pain_concern IN ('none', 'mild', 'significant')
+        ),
+        pain_area TEXT CHECK (
+            (
+                pain_area IS NULL
+                OR pain_area IN (
+                    'neck',
+                    'shoulder',
+                    'elbow',
+                    'wrist_hand',
+                    'upper_back',
+                    'lower_back',
+                    'hip',
+                    'knee',
+                    'ankle_foot',
+                    'other'
+                )
+            )
+            AND (
+                pain_area IS NULL
+                OR pain_concern IN ('mild', 'significant')
+            )
+        ),
 
         mood TEXT,
         notes TEXT,
@@ -79,6 +117,38 @@ def initialize_database():
         FOREIGN KEY (user_id) REFERENCES users(id)
     )
     """)
+
+    _ensure_table_columns(
+        cursor,
+        "daily_checkins",
+        {
+            "sleep_quality": (
+                "sleep_quality INTEGER CHECK ("
+                "sleep_quality IS NULL OR sleep_quality BETWEEN 1 AND 5)"
+            ),
+            "stress_level": (
+                "stress_level INTEGER CHECK ("
+                "stress_level IS NULL OR stress_level BETWEEN 1 AND 5)"
+            ),
+            "training_motivation": (
+                "training_motivation INTEGER CHECK ("
+                "training_motivation IS NULL OR training_motivation BETWEEN 1 AND 5)"
+            ),
+            "pain_concern": (
+                "pain_concern TEXT CHECK ("
+                "pain_concern IS NULL OR pain_concern IN "
+                "('none', 'mild', 'significant'))"
+            ),
+            "pain_area": (
+                "pain_area TEXT CHECK ("
+                "(pain_area IS NULL OR pain_area IN "
+                "('neck', 'shoulder', 'elbow', 'wrist_hand', 'upper_back', "
+                "'lower_back', 'hip', 'knee', 'ankle_foot', 'other')) "
+                "AND (pain_area IS NULL OR pain_concern IN "
+                "('mild', 'significant')))"
+            ),
+        },
+    )
 
     # -----------------------------
     # Recovery Reports

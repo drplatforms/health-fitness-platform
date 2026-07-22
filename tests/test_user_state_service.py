@@ -42,6 +42,33 @@ def test_health_state_works_when_recovery_data_is_missing(monkeypatch):
     assert health_state.recovery_state.readiness_level == "Unknown"
 
 
+def test_health_state_carries_latest_structured_recovery_context_without_regrading(
+    monkeypatch,
+):
+    recovery_data = {
+        "avg_sleep": 7.5,
+        "avg_energy": 7.0,
+        "avg_soreness": 3.0,
+        "latest_weight": None,
+        "weight_change": 0.0,
+        "latest_sleep_quality": 2,
+        "latest_stress_level": 4,
+        "latest_training_motivation": 2,
+        "latest_pain_concern": "mild",
+        "latest_pain_area": "shoulder",
+    }
+    _patch_state_inputs(monkeypatch, recovery_data=recovery_data)
+
+    health_state = user_state_service.build_user_health_state(1)
+
+    assert health_state.recovery_state.recovery_score == 100
+    assert health_state.recovery_state.latest_sleep_quality == 2
+    assert health_state.recovery_state.latest_stress_level == 4
+    assert health_state.recovery_state.latest_training_motivation == 2
+    assert health_state.recovery_state.latest_pain_concern == "mild"
+    assert health_state.recovery_state.latest_pain_area == "shoulder"
+
+
 def test_missing_nutrition_fields_remain_unknown_not_zero(monkeypatch):
     nutrition_data = {
         "Protein": {"amount": 110, "unit": "g"},
