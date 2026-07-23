@@ -12,14 +12,28 @@ export async function GET(request: NextRequest) {
   }
 
   const backendParams = new URLSearchParams();
-  for (const name of ["lookback_days", "exercise_limit", "session_limit"]) {
+  for (const name of [
+    "lookback_days",
+    "exercise_limit",
+    "session_limit",
+    "include_set_details",
+  ]) {
     const value = request.nextUrl.searchParams.get(name);
     if (value !== null) {
       backendParams.set(name, value);
     }
   }
   const query = backendParams.toString();
-  const endpoint = `${getApiBaseUrl()}/workout-plans/${userId}/exercise-history-analytics${query ? `?${query}` : ""}`;
+  const sessionKey = request.nextUrl.searchParams.get("session_key");
+  if (sessionKey !== null && !/^[a-f0-9]{20}$/.test(sessionKey)) {
+    return NextResponse.json(
+      { detail: "A valid session_key is required." },
+      { status: 400 },
+    );
+  }
+  const endpoint = sessionKey
+    ? `${getApiBaseUrl()}/workout-plans/${userId}/exercise-history-analytics/sessions/${sessionKey}${query ? `?${query}` : ""}`
+    : `${getApiBaseUrl()}/workout-plans/${userId}/exercise-history-analytics${query ? `?${query}` : ""}`;
 
   try {
     const response = await fetch(endpoint, {

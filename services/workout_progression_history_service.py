@@ -61,8 +61,13 @@ class ExerciseProgressionSession:
     planned_reps_max: int | None
     planned_rir_min: int | None
     planned_rir_max: int | None
+    measurement_type: str
+    planned_duration_seconds: int | None
+    planned_distance_meters: float | None
     effective_exercise_name: str
     effective_catalog_exercise_id: int | None
+    exercise_type: str | None
+    movement_pattern: str | None
     actual_rows: list[dict[str, Any]]
 
 
@@ -151,6 +156,7 @@ def load_completed_exercise_progression_sessions(
         normalized_target=normalized_target,
         catalog_exercise_id=catalog_exercise_id,
         end_date=None,
+        include_all_measurement_types=False,
     )
 
 
@@ -159,8 +165,13 @@ def load_completed_user_progression_sessions(
     user_id: int,
     lookback_days: int,
     end_date: str | date | None = None,
+    include_all_measurement_types: bool = False,
 ) -> list[ExerciseProgressionSession]:
-    """Load all effective exercise exposures from completed planned workouts."""
+    """Load effective exercise exposures from completed planned workouts.
+
+    Progression consumers retain rep-only evidence by default. Read-only
+    descriptive consumers can opt into duration and distance sessions.
+    """
 
     return _load_completed_progression_sessions(
         user_id=user_id,
@@ -169,6 +180,7 @@ def load_completed_user_progression_sessions(
         normalized_target=None,
         catalog_exercise_id=None,
         end_date=end_date,
+        include_all_measurement_types=include_all_measurement_types,
     )
 
 
@@ -180,6 +192,7 @@ def _load_completed_progression_sessions(
     normalized_target: str | None,
     catalog_exercise_id: int | None,
     end_date: str | date | None,
+    include_all_measurement_types: bool,
 ) -> list[ExerciseProgressionSession]:
     """Load shared substitution-aware completed-session evidence."""
 
@@ -203,6 +216,16 @@ def _load_completed_progression_sessions(
         if "measurement_type" in pwe_columns
         else "'reps'"
     )
+    planned_duration_expr = (
+        "pwe.target_duration_seconds"
+        if "target_duration_seconds" in pwe_columns
+        else "NULL"
+    )
+    planned_distance_expr = (
+        "pwe.target_distance_meters"
+        if "target_distance_meters" in pwe_columns
+        else "NULL"
+    )
     plan_completed_at = "wpi.completed_at" if "completed_at" in wpi_columns else "NULL"
     performed_at_expr = f"COALESCE(wes.completed_at, {plan_completed_at}, wpi.selected_at, wpi.created_at)"
     rows = cursor.execute(
@@ -218,6 +241,8 @@ def _load_completed_progression_sessions(
                pwe.rir_min AS planned_rir_min,
                pwe.rir_max AS planned_rir_max,
                {planned_measurement_expr} AS planned_measurement_type,
+               {planned_duration_expr} AS planned_duration_seconds,
+               {planned_distance_expr} AS planned_distance_meters,
                {planned_catalog_expr} AS planned_catalog_exercise_id
         FROM workout_plan_instances AS wpi
         JOIN workout_execution_sessions AS wes
@@ -237,9 +262,40 @@ def _load_completed_progression_sessions(
     substitution_table_exists = _table_exists(
         cursor, "workout_plan_exercise_substitutions"
     )
+    actual_columns = _column_names(cursor, "workout_execution_set_actuals")
+    actual_measurement_expr = (
+        "COALESCE(measurement_type, 'reps')"
+        if "measurement_type" in actual_columns
+        else "'reps'"
+    )
+    actual_planned_duration_expr = (
+        "planned_duration_seconds"
+        if "planned_duration_seconds" in actual_columns
+        else "NULL"
+    )
+    actual_planned_distance_expr = (
+        "planned_distance_meters"
+        if "planned_distance_meters" in actual_columns
+        else "NULL"
+    )
+    actual_duration_expr = (
+        "actual_duration_seconds"
+        if "actual_duration_seconds" in actual_columns
+        else "NULL"
+    )
+    actual_distance_expr = (
+        "actual_distance_meters"
+        if "actual_distance_meters" in actual_columns
+        else "NULL"
+    )
     matches: list[ExerciseProgressionSession] = []
+    catalog_metadata_cache: dict[
+        int | None,
+        tuple[str | None, str | None],
+    ] = {}
     for row in rows:
-        if row["planned_measurement_type"] != "reps":
+        measurement_type = str(row["planned_measurement_type"] or "reps")
+        if not include_all_measurement_types and measurement_type != "reps":
             continue
         planned_name = str(row["planned_exercise_name"] or "")
         replacement_name: str | None = None
@@ -276,6 +332,16 @@ def _load_completed_progression_sessions(
             if replacement_name is not None
             else _nullable_int(row["planned_catalog_exercise_id"])
         )
+        if effective_catalog_exercise_id not in catalog_metadata_cache:
+            catalog_metadata_cache[effective_catalog_exercise_id] = (
+                _catalog_identity_metadata(
+                    cursor,
+                    effective_catalog_exercise_id,
+                )
+            )
+        exercise_type, movement_pattern = catalog_metadata_cache[
+            effective_catalog_exercise_id
+        ]
         if normalized_target is not None or catalog_exercise_id is not None:
             if (
                 catalog_exercise_id is not None
@@ -290,7 +356,7 @@ def _load_completed_progression_sessions(
                 continue
 
         actual_rows = cursor.execute(
-            """
+            f"""
             SELECT id,
                    exercise_name,
                    set_number,
@@ -298,7 +364,12 @@ def _load_completed_progression_sessions(
                    planned_reps_max,
                    planned_rir_min,
                    planned_rir_max,
+                   {actual_measurement_expr} AS measurement_type,
+                   {actual_planned_duration_expr} AS planned_duration_seconds,
+                   {actual_planned_distance_expr} AS planned_distance_meters,
                    actual_reps,
+                   {actual_duration_expr} AS actual_duration_seconds,
+                   {actual_distance_expr} AS actual_distance_meters,
                    actual_weight,
                    actual_rir,
                    completed,
@@ -334,8 +405,13 @@ def _load_completed_progression_sessions(
                 planned_reps_max=_nullable_int(row["planned_reps_max"]),
                 planned_rir_min=_nullable_int(row["planned_rir_min"]),
                 planned_rir_max=_nullable_int(row["planned_rir_max"]),
+                measurement_type=measurement_type,
+                planned_duration_seconds=_nullable_int(row["planned_duration_seconds"]),
+                planned_distance_meters=_nullable_float(row["planned_distance_meters"]),
                 effective_exercise_name=effective_name,
                 effective_catalog_exercise_id=effective_catalog_exercise_id,
+                exercise_type=exercise_type,
+                movement_pattern=movement_pattern,
                 actual_rows=[dict(actual) for actual in actual_rows],
             )
         )
@@ -563,6 +639,30 @@ def _table_exists(cursor: Any, table_name: str) -> bool:
             (table_name,),
         ).fetchone()
         is not None
+    )
+
+
+def _catalog_identity_metadata(
+    cursor: Any,
+    catalog_exercise_id: int | None,
+) -> tuple[str | None, str | None]:
+    if catalog_exercise_id is None or not _table_exists(
+        cursor, "exercise_catalog_exercises"
+    ):
+        return None, None
+    row = cursor.execute(
+        """
+        SELECT exercise_type, movement_pattern
+        FROM exercise_catalog_exercises
+        WHERE id = ?
+        """,
+        (catalog_exercise_id,),
+    ).fetchone()
+    if row is None:
+        return None, None
+    return (
+        str(row["exercise_type"] or "").strip() or None,
+        str(row["movement_pattern"] or "").strip() or None,
     )
 
 
