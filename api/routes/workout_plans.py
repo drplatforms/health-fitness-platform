@@ -45,6 +45,7 @@ from services.workout_exercise_history_analytics_service import (
     MAX_ANALYTICS_LOOKBACK_DAYS,
     MAX_ANALYTICS_SESSION_LIMIT,
     build_workout_exercise_history_analytics,
+    build_workout_exercise_history_session_detail,
 )
 from services.workout_exercise_memory_service import (
     MAX_WORKOUT_EXERCISE_MEMORY_BATCH_SIZE,
@@ -648,12 +649,14 @@ def workout_exercise_history_analytics(
         ge=1,
         le=MAX_ANALYTICS_SESSION_LIMIT,
     ),
+    include_set_details: bool = Query(False),
 ):
     analytics = build_workout_exercise_history_analytics(
         user_id=user_id,
         lookback_days=lookback_days,
         exercise_limit=exercise_limit,
         session_limit=session_limit,
+        include_set_details=include_set_details,
     )
     return {
         "success": True,
@@ -661,8 +664,36 @@ def workout_exercise_history_analytics(
         "lookback_days": lookback_days,
         "exercise_limit": exercise_limit,
         "session_limit": session_limit,
+        "include_set_details": include_set_details,
         "overview": asdict(analytics.overview),
         "exercises": [asdict(exercise) for exercise in analytics.exercises],
+    }
+
+
+@router.get(
+    "/workout-plans/{user_id}/exercise-history-analytics/sessions/{session_key}"
+)
+def workout_exercise_history_session_detail(
+    user_id: int,
+    session_key: str,
+    lookback_days: int = Query(
+        MAX_ANALYTICS_LOOKBACK_DAYS,
+        ge=1,
+        le=MAX_ANALYTICS_LOOKBACK_DAYS,
+    ),
+):
+    session = build_workout_exercise_history_session_detail(
+        user_id=user_id,
+        session_key=session_key,
+        lookback_days=lookback_days,
+    )
+    if session is None:
+        raise HTTPException(status_code=404, detail="Workout session not found.")
+    return {
+        "success": True,
+        "user_id": user_id,
+        "lookback_days": lookback_days,
+        "session": asdict(session),
     }
 
 
