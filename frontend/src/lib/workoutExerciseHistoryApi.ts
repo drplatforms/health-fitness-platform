@@ -116,13 +116,23 @@ export function timelineDatePosition(
 export function nearestSessionIndex(
   positions: readonly number[],
   targetPosition: number,
+  startIndex = 0,
+  endIndex = positions.length,
 ): number {
-  if (positions.length === 0) {
+  const start = Math.min(
+    positions.length,
+    Math.max(0, Math.floor(startIndex)),
+  );
+  const end = Math.min(
+    positions.length,
+    Math.max(start, Math.ceil(endIndex)),
+  );
+  if (end <= start) {
     return -1;
   }
   const target = Math.min(1, Math.max(0, targetPosition));
-  let low = 0;
-  let high = positions.length - 1;
+  let low = start;
+  let high = end - 1;
   while (low < high) {
     const middle = Math.floor((low + high) / 2);
     if (positions[middle] < target) {
@@ -131,8 +141,8 @@ export function nearestSessionIndex(
       high = middle;
     }
   }
-  if (low === 0) {
-    return 0;
+  if (low === start) {
+    return start;
   }
   const left = low - 1;
   return target - positions[left] < positions[low] - target ? left : low;

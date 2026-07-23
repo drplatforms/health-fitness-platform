@@ -2,7 +2,7 @@
 
 import {
   type KeyboardEvent,
-  type MouseEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
   useCallback,
@@ -32,10 +32,33 @@ import {
   resolveExerciseSelectionKey,
   splitMetricRuns,
   sustainedPhaseBand,
-  timelineDatePosition,
   type WorkoutExerciseHistoryAnalyticsApiResult,
   type WorkoutExerciseHistorySessionDetailApiResult,
 } from "@/lib/workoutExerciseHistoryApi";
+import {
+  activeSelectionIndicatorsVisible,
+  classifyMouseGesture,
+  classifyTouchGesture,
+  DEFAULT_MIN_VIEWPORT_SPAN,
+  dragNavigatorViewport,
+  fitViewport,
+  isoDateRangeEndingOn,
+  isoDateToOuterPosition,
+  isoDateToViewportPosition,
+  MIN_NAVIGATOR_PAN_TARGET_PIXELS,
+  outerToViewportPosition,
+  panViewport,
+  pinchZoomViewport,
+  resizeNavigatorViewport,
+  revealOuterPosition,
+  spreadCoincidentSessionPositions,
+  type NavigatorViewportEdge,
+  type PerformanceViewport,
+  viewportPositionToIsoDate,
+  viewportToOuterPosition,
+  visibleSessionIndexRange,
+  zoomViewport,
+} from "@/lib/workoutPerformanceViewport";
 import type {
   ExerciseHistoryAnalyticsSummary,
   ExerciseHistoryRecentSession,
@@ -55,8 +78,47 @@ const PLOT_TOP = 34;
 const PLOT_BOTTOM = 300;
 const EFFORT_TOP = 330;
 const EFFORT_BOTTOM = 366;
+const ZOOM_STEP = 1.6;
+const WHEEL_ZOOM_SENSITIVITY = 0.0025;
+const NAVIGATOR_HEIGHT = 72;
+const NAVIGATOR_LINE_TOP = 12;
+const NAVIGATOR_LINE_BOTTOM = 60;
 
 type DatedSession = ExerciseHistoryRecentSession & { performed_at: string };
+
+interface PointerSample {
+  clientX: number;
+  clientY: number;
+  pointerType: string;
+}
+
+interface PinchSnapshot {
+  viewport: PerformanceViewport;
+  distance: number;
+  anchorOuterPosition: number;
+}
+
+interface ChartGestureState {
+  primaryPointerId: number;
+  pointerType: string;
+  startX: number;
+  startY: number;
+  startViewport: PerformanceViewport;
+  maximumTouchCount: number;
+  mode: "pending" | "pan" | "scroll" | "pinch";
+  pinch: PinchSnapshot | null;
+}
+
+interface NavigatorGestureState {
+  pointerId: number;
+  pointerType: string;
+  mode: "pan" | NavigatorViewportEdge;
+  startX: number;
+  startY: number;
+  startViewport: PerformanceViewport;
+  committed: boolean;
+  scrolling: boolean;
+}
 
 export function WorkoutHistoryAnalytics({ userId }: { userId: number }) {
   return <WorkoutHistoryAnalyticsForUser key={userId} userId={userId} />;
@@ -159,9 +221,14 @@ function WorkoutHistoryAnalyticsForUser({ userId }: { userId: number }) {
     exercises.find(
       (exercise) => exerciseAnalyticsKey(exercise) === selectedExerciseKey,
     ) ?? exercises[0];
-  const openSummary = selectedExercise?.recent_sessions.find(
+  const orderedSessions = chronologicalDatedSessions(
+    selectedExercise?.recent_sessions ?? [],
+  );
+  const openSessionIndex = orderedSessions.findIndex(
     (session) => session.session_key === openSessionKey,
   );
+  const openSummary =
+    openSessionIndex >= 0 ? orderedSessions[openSessionIndex] : undefined;
 
   function activateExercise(key: string) {
     const exercise = exercises.find(
@@ -180,6 +247,18 @@ function WorkoutHistoryAnalyticsForUser({ userId }: { userId: number }) {
     setActiveSessionKey(sessionKey);
     setSessionDetail(null);
     setOpenSessionKey(sessionKey);
+  }
+
+  function moveOpenSession(direction: -1 | 1) {
+    const nextIndex = moveSessionIndex(
+      openSessionIndex,
+      orderedSessions.length,
+      direction,
+    );
+    const nextSession = orderedSessions[nextIndex];
+    if (nextSession && nextIndex !== openSessionIndex) {
+      openSession(nextSession.session_key);
+    }
   }
 
   return (
@@ -207,11 +286,14 @@ function WorkoutHistoryAnalyticsForUser({ userId }: { userId: number }) {
         </StudioState>
       ) : (
         <PerformanceTimeline
+          key={`${exerciseAnalyticsKey(selectedExercise)}:${rangeDays}`}
           activeSessionKey={activeSessionKey}
+          detailOpen={openSessionKey !== null}
           exercise={selectedExercise}
           graphControlRef={graphControlRef}
           onSessionActivate={setActiveSessionKey}
           onSessionOpen={openSession}
+          rangeDays={rangeDays}
         />
       )}
 
@@ -225,6 +307,12 @@ function WorkoutHistoryAnalyticsForUser({ userId }: { userId: number }) {
         <FocusedSessionDetail
           detailResult={sessionDetail}
           exercise={selectedExercise}
+          canMoveNext={
+            openSessionIndex >= 0 &&
+            openSessionIndex < orderedSessions.length - 1
+          }
+          canMovePrevious={openSessionIndex > 0}
+          onMoveSession={moveOpenSession}
           summary={openSummary}
         />
       </ResponsiveSidecarDialog>
@@ -310,31 +398,79 @@ function StudioControls({
 function PerformanceTimeline({
   exercise,
   activeSessionKey,
+  detailOpen,
   graphControlRef,
   onSessionActivate,
   onSessionOpen,
+  rangeDays,
 }: {
   exercise: ExerciseHistoryAnalyticsSummary;
   activeSessionKey: string;
+  detailOpen: boolean;
   graphControlRef: RefObject<HTMLDivElement | null>;
   onSessionActivate: (sessionKey: string) => void;
   onSessionOpen: (sessionKey: string) => void;
+  rangeDays: PerformanceStudioRangeDays;
 }) {
   const [graphWidth, setGraphWidth] = useState(0);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
-  const instructionsId = useId();
+  const [viewport, setViewportState] =
+    useState<PerformanceViewport>(fitViewport);
+  const viewportRef = useRef(viewport);
+  const activePointersRef = useRef(new Map<number, PointerSample>());
+  const chartGestureRef = useRef<ChartGestureState | null>(null);
+  const navigatorGestureRef = useRef<NavigatorGestureState | null>(null);
+  const navigatorRef = useRef<HTMLDivElement>(null);
+  const chartId = useId();
+  const instructionsId = `${chartId}-instructions`;
+  const clipPathId = `${chartId.replaceAll(":", "")}-plot-clip`;
   const sessions = useMemo(
-    () =>
-      [...exercise.recent_sessions]
-        .filter(
-          (session): session is DatedSession => session.performed_at !== null,
-        )
-        .sort((left, right) =>
-          left.performed_at.localeCompare(right.performed_at),
-        ),
+    () => chronologicalDatedSessions(exercise.recent_sessions),
     [exercise.recent_sessions],
   );
+  const outerRange = useMemo(
+    () => isoDateRangeEndingOn(localIsoDate(), rangeDays),
+    [rangeDays],
+  );
+  const outerPositions = useMemo(
+    () =>
+      sessions.map((session) =>
+        isoDateToOuterPosition(
+          session.performed_at,
+          outerRange.startDate,
+          outerRange.endDate,
+        ),
+      ),
+    [outerRange.endDate, outerRange.startDate, sessions],
+  );
+  const plottedOuterPositions = useMemo(
+    () =>
+      spreadCoincidentSessionPositions(
+        outerPositions,
+        0.2 / rangeDays,
+        0.8 / rangeDays,
+      ),
+    [outerPositions, rangeDays],
+  );
+  const plottedPositionBySessionKey = useMemo(
+    () =>
+      new Map(
+        sessions.map((session, index) => [
+          session.session_key,
+          plottedOuterPositions[index],
+        ]),
+      ),
+    [plottedOuterPositions, sessions],
+  );
+  const applyViewport = useCallback((nextViewport: PerformanceViewport) => {
+    viewportRef.current = nextViewport;
+    setViewportState((current) =>
+      current.start === nextViewport.start && current.end === nextViewport.end
+        ? current
+        : nextViewport,
+    );
+  }, []);
 
   useEffect(() => {
     const graph = graphControlRef.current;
@@ -348,6 +484,55 @@ function PerformanceTimeline({
     return () => observer.disconnect();
   }, [graphControlRef]);
 
+  useEffect(() => {
+    const graph = graphControlRef.current;
+    if (!graph) {
+      return;
+    }
+    const handleWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      event.preventDefault();
+      const current = viewportRef.current;
+      const pointerPosition = plotPositionFromClientX(event.clientX, graph);
+      const anchor = viewportToOuterPosition(
+        pointerPosition,
+        current,
+        true,
+      );
+      const delta =
+        event.deltaMode === WheelEvent.DOM_DELTA_LINE
+          ? event.deltaY * 16
+          : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+            ? event.deltaY * graph.clientHeight
+            : event.deltaY;
+      applyViewport(
+        zoomViewport(
+          current,
+          Math.exp(-delta * WHEEL_ZOOM_SENSITIVITY),
+          anchor,
+        ),
+      );
+    };
+    graph.addEventListener("wheel", handleWheel, { passive: false });
+    return () => graph.removeEventListener("wheel", handleWheel);
+  }, [applyViewport, graphControlRef]);
+
+  useEffect(() => {
+    const activeIndex = sessions.findIndex(
+      (session) => session.session_key === activeSessionKey,
+    );
+    if (activeIndex < 0) {
+      return;
+    }
+    const position = plottedOuterPositions[activeIndex];
+    const current = viewportRef.current;
+    if (position < current.start || position > current.end) {
+      applyViewport(revealOuterPosition(current, position, 0.08));
+    }
+  }, [activeSessionKey, applyViewport, plottedOuterPositions, sessions]);
+
   if (sessions.length === 0) {
     return (
       <StudioState>
@@ -356,10 +541,17 @@ function PerformanceTimeline({
     );
   }
 
-  const startDate = sessions[0].performed_at;
-  const endDate = sessions[sessions.length - 1].performed_at;
-  const positions = sessions.map((session) =>
-    timelineDatePosition(session.performed_at, startDate, endDate),
+  const visibleStartDate = viewportPositionToIsoDate(
+    0,
+    outerRange.startDate,
+    outerRange.endDate,
+    viewport,
+  );
+  const visibleEndDate = viewportPositionToIsoDate(
+    1,
+    outerRange.startDate,
+    outerRange.endDate,
+    viewport,
   );
   const primaryMetric =
     [...sessions]
@@ -386,22 +578,48 @@ function PerformanceTimeline({
     2,
     Math.min(7, Math.floor(Math.max(plotPixelWidth, 220) / 110)),
   );
-  const calendarTicks = buildCalendarTicks(startDate, endDate, tickCount);
+  const calendarTicks = buildCalendarTicks(
+    visibleStartDate,
+    visibleEndDate,
+    tickCount,
+  );
   const phaseBands = exercise.historical_phase_segments.filter(
     sustainedPhaseBand,
   );
   const latestSession = sessions[sessions.length - 1];
-  const activeIndex = Math.max(
-    0,
-    sessions.findIndex((session) => session.session_key === activeSessionKey),
+  const requestedActiveIndex = sessions.findIndex(
+    (session) => session.session_key === activeSessionKey,
   );
+  const activeIndex =
+    requestedActiveIndex >= 0 ? requestedActiveIndex : sessions.length - 1;
   const activeSession = sessions[activeIndex] ?? latestSession;
-  const showInteraction = hovered || focused;
+  const activeOuterPosition = plottedOuterPositions[activeIndex] ?? 1;
+  const activeIsVisible =
+    activeOuterPosition >= viewport.start - Number.EPSILON &&
+    activeOuterPosition <= viewport.end + Number.EPSILON;
+  const showInteraction =
+    activeSelectionIndicatorsVisible(hovered, focused, detailOpen) &&
+    activeIsVisible;
+  const viewportSpan = viewport.end - viewport.start;
+  const isFitted = viewportSpan >= 1 - Number.EPSILON * 8;
+  const canZoomIn =
+    viewportSpan > DEFAULT_MIN_VIEWPORT_SPAN + Number.EPSILON * 8;
+
+  function sessionViewportPosition(session: DatedSession): number {
+    const outerPosition =
+      plottedPositionBySessionKey.get(session.session_key) ??
+      isoDateToOuterPosition(
+        session.performed_at,
+        outerRange.startDate,
+        outerRange.endDate,
+      );
+    return outerToViewportPosition(outerPosition, viewport);
+  }
 
   function sessionPoint(session: DatedSession): { x: number; y: number } {
     const x =
       PLOT_LEFT +
-      timelineDatePosition(session.performed_at, startDate, endDate) *
+      sessionViewportPosition(session) *
         (PLOT_RIGHT - PLOT_LEFT);
     const value =
       metricType !== null &&
@@ -419,30 +637,56 @@ function PerformanceTimeline({
     return { x, y };
   }
 
-  function nearestIndexFromClientX(clientX: number, element: HTMLElement) {
-    const bounds = element.getBoundingClientRect();
-    const viewX = ((clientX - bounds.left) / Math.max(bounds.width, 1)) * CHART_WIDTH;
-    const normalized = (viewX - PLOT_LEFT) / (PLOT_RIGHT - PLOT_LEFT);
-    return nearestSessionIndex(positions, normalized);
+  function nearestVisibleIndexFromClientX(
+    clientX: number,
+    element: HTMLElement,
+  ) {
+    const current = viewportRef.current;
+    const visibleRange = visibleSessionIndexRange(
+      plottedOuterPositions,
+      current,
+    );
+    return nearestSessionIndex(
+      plottedOuterPositions,
+      viewportToOuterPosition(
+        plotPositionFromClientX(clientX, element),
+        current,
+        true,
+      ),
+      visibleRange.startIndex,
+      visibleRange.endIndex,
+    );
   }
 
-  function activateFromPointer(
-    event: MouseEvent<HTMLDivElement>,
+  function activateAtClientX(
+    clientX: number,
+    element: HTMLDivElement,
     open: boolean,
   ) {
-    const index = nearestIndexFromClientX(
-      event.clientX,
-      event.currentTarget,
-    );
+    const index = nearestVisibleIndexFromClientX(clientX, element);
     const session = sessions[index];
     if (!session) {
       return;
     }
     onSessionActivate(session.session_key);
     if (open) {
-      event.currentTarget.focus();
+      element.focus({ preventScroll: true });
       onSessionOpen(session.session_key);
     }
+  }
+
+  function revealSession(index: number, paddingFraction = 0.08) {
+    const position = plottedOuterPositions[index];
+    if (position === undefined) {
+      return;
+    }
+    applyViewport(
+      revealOuterPosition(
+        viewportRef.current,
+        position,
+        paddingFraction,
+      ),
+    );
   }
 
   function handleGraphKeyDown(event: KeyboardEvent<HTMLDivElement>) {
@@ -462,8 +706,421 @@ function PerformanceTimeline({
     }
     if (nextIndex !== null && nextIndex >= 0) {
       event.preventDefault();
+      revealSession(nextIndex);
       onSessionActivate(sessions[nextIndex].session_key);
     }
+  }
+
+  function beginPinch(element: HTMLDivElement) {
+    const gesture = chartGestureRef.current;
+    const touchPointers = [...activePointersRef.current.entries()].filter(
+      ([, pointer]) => pointer.pointerType === "touch",
+    );
+    if (!gesture || touchPointers.length < 2) {
+      return;
+    }
+    const [[, first], [, second]] = touchPointers;
+    const centerX = (first.clientX + second.clientX) / 2;
+    const current = viewportRef.current;
+    gesture.mode = "pinch";
+    gesture.maximumTouchCount = Math.max(
+      gesture.maximumTouchCount,
+      touchPointers.length,
+    );
+    gesture.pinch = {
+      viewport: current,
+      distance: Math.max(
+        1,
+        Math.hypot(
+          second.clientX - first.clientX,
+          second.clientY - first.clientY,
+        ),
+      ),
+      anchorOuterPosition: viewportToOuterPosition(
+        plotPositionFromClientX(centerX, element),
+        current,
+        true,
+      ),
+    };
+    for (const [pointerId] of touchPointers) {
+      capturePointer(element, pointerId);
+    }
+    setHovered(false);
+  }
+
+  function updatePinch(element: HTMLDivElement) {
+    const gesture = chartGestureRef.current;
+    const pinch = gesture?.pinch;
+    const touchPointers = [...activePointersRef.current.values()].filter(
+      (pointer) => pointer.pointerType === "touch",
+    );
+    if (!gesture || !pinch || touchPointers.length < 2) {
+      return;
+    }
+    const [first, second] = touchPointers;
+    const distance = Math.max(
+      1,
+      Math.hypot(
+        second.clientX - first.clientX,
+        second.clientY - first.clientY,
+      ),
+    );
+    const centerViewportPosition = plotPositionFromClientX(
+      (first.clientX + second.clientX) / 2,
+      element,
+    );
+    applyViewport(
+      pinchZoomViewport(
+        pinch.viewport,
+        distance / pinch.distance,
+        pinch.anchorOuterPosition,
+        centerViewportPosition,
+      ),
+    );
+  }
+
+  function handleGraphPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (event.pointerType !== "touch" && event.button !== 0) {
+      return;
+    }
+    activePointersRef.current.set(event.pointerId, {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerType: event.pointerType,
+    });
+    const currentGesture = chartGestureRef.current;
+    if (!currentGesture) {
+      chartGestureRef.current = {
+        primaryPointerId: event.pointerId,
+        pointerType: event.pointerType,
+        startX: event.clientX,
+        startY: event.clientY,
+        startViewport: viewportRef.current,
+        maximumTouchCount: 1,
+        mode: "pending",
+        pinch: null,
+      };
+      if (event.pointerType !== "touch") {
+        capturePointer(event.currentTarget, event.pointerId);
+        event.currentTarget.focus({ preventScroll: true });
+      }
+      return;
+    }
+    if (
+      event.pointerType === "touch" &&
+      currentGesture.pointerType === "touch"
+    ) {
+      event.preventDefault();
+      beginPinch(event.currentTarget);
+    }
+  }
+
+  function handleGraphPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    const tracked = activePointersRef.current.has(event.pointerId);
+    if (!tracked) {
+      if (
+        (event.pointerType === "mouse" || event.pointerType === "pen") &&
+        chartGestureRef.current === null
+      ) {
+        setHovered(true);
+        activateAtClientX(event.clientX, event.currentTarget, false);
+      }
+      return;
+    }
+
+    activePointersRef.current.set(event.pointerId, {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerType: event.pointerType,
+    });
+    const gesture = chartGestureRef.current;
+    if (!gesture) {
+      return;
+    }
+    gesture.maximumTouchCount = Math.max(
+      gesture.maximumTouchCount,
+      activePointersRef.current.size,
+    );
+    if (gesture.mode === "pinch") {
+      event.preventDefault();
+      updatePinch(event.currentTarget);
+      return;
+    }
+    if (
+      event.pointerId !== gesture.primaryPointerId ||
+      gesture.mode === "scroll"
+    ) {
+      return;
+    }
+
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (gesture.mode === "pending") {
+      if (gesture.pointerType === "touch") {
+        const classification = classifyTouchGesture({
+          maximumTouchCount: gesture.maximumTouchCount,
+          deltaX,
+          deltaY,
+        });
+        if (classification === "tap") {
+          return;
+        }
+        if (classification === "scroll") {
+          gesture.mode = "scroll";
+          return;
+        }
+        if (classification !== "pan") {
+          return;
+        }
+      } else if (classifyMouseGesture(deltaX, deltaY) === "click") {
+        return;
+      }
+      gesture.mode = "pan";
+      capturePointer(event.currentTarget, event.pointerId);
+    }
+
+    event.preventDefault();
+    const plotWidth = Math.max(
+      1,
+      event.currentTarget.getBoundingClientRect().width *
+        ((PLOT_RIGHT - PLOT_LEFT) / CHART_WIDTH),
+    );
+    const startingSpan =
+      gesture.startViewport.end - gesture.startViewport.start;
+    applyViewport(
+      panViewport(
+        gesture.startViewport,
+        (-deltaX / plotWidth) * startingSpan,
+      ),
+    );
+  }
+
+  function releaseGraphPointer(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    activePointersRef.current.delete(event.pointerId);
+    releasePointer(event.currentTarget, event.pointerId);
+  }
+
+  function handleGraphPointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const gesture = chartGestureRef.current;
+    if (!gesture || !activePointersRef.current.has(event.pointerId)) {
+      return;
+    }
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    releaseGraphPointer(event);
+
+    if (
+      gesture.mode === "pinch" ||
+      gesture.maximumTouchCount >= 2
+    ) {
+      if (activePointersRef.current.size === 0) {
+        chartGestureRef.current = null;
+      }
+      return;
+    }
+    if (event.pointerId !== gesture.primaryPointerId) {
+      return;
+    }
+
+    const opensSession =
+      gesture.mode === "pending" &&
+      (gesture.pointerType === "touch"
+        ? classifyTouchGesture({
+            maximumTouchCount: gesture.maximumTouchCount,
+            deltaX,
+            deltaY,
+          }) === "tap"
+        : classifyMouseGesture(deltaX, deltaY) === "click");
+    chartGestureRef.current = null;
+    if (gesture.pointerType !== "touch") {
+      setHovered(event.currentTarget.matches(":hover"));
+    }
+    if (opensSession) {
+      activateAtClientX(event.clientX, event.currentTarget, true);
+    }
+  }
+
+  function handleGraphPointerCancel(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    releaseGraphPointer(event);
+    if (activePointersRef.current.size === 0) {
+      chartGestureRef.current = null;
+    }
+    if (event.pointerType === "touch") {
+      setHovered(false);
+    } else {
+      setHovered(event.currentTarget.matches(":hover"));
+    }
+  }
+
+  function handleGraphLostPointerCapture(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!activePointersRef.current.has(event.pointerId)) {
+      return;
+    }
+    activePointersRef.current.delete(event.pointerId);
+    chartGestureRef.current = null;
+  }
+
+  function beginNavigatorGesture(
+    event: ReactPointerEvent<HTMLDivElement>,
+    mode: "pan" | NavigatorViewportEdge,
+  ) {
+    if (event.pointerType !== "touch" && event.button !== 0) {
+      return;
+    }
+    event.stopPropagation();
+    navigatorGestureRef.current = {
+      pointerId: event.pointerId,
+      pointerType: event.pointerType,
+      mode,
+      startX: event.clientX,
+      startY: event.clientY,
+      startViewport: viewportRef.current,
+      committed: false,
+      scrolling: false,
+    };
+    capturePointer(event.currentTarget, event.pointerId);
+    if (event.pointerType !== "touch") {
+      event.preventDefault();
+    }
+  }
+
+  function handleNavigatorPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    const gesture = navigatorGestureRef.current;
+    if (
+      !gesture ||
+      gesture.pointerId !== event.pointerId ||
+      gesture.scrolling
+    ) {
+      return;
+    }
+    const deltaX = event.clientX - gesture.startX;
+    const deltaY = event.clientY - gesture.startY;
+    if (!gesture.committed) {
+      if (gesture.pointerType === "touch") {
+        const classification = classifyTouchGesture({
+          maximumTouchCount: 1,
+          deltaX,
+          deltaY,
+        });
+        if (classification === "tap") {
+          return;
+        }
+        if (classification === "scroll") {
+          gesture.scrolling = true;
+          releasePointer(event.currentTarget, event.pointerId);
+          return;
+        }
+      } else if (classifyMouseGesture(deltaX, deltaY) === "click") {
+        return;
+      }
+      gesture.committed = true;
+    }
+
+    event.preventDefault();
+    const navigator = navigatorRef.current;
+    if (!navigator) {
+      return;
+    }
+    const plotWidth = Math.max(
+      1,
+      navigator.getBoundingClientRect().width *
+        ((PLOT_RIGHT - PLOT_LEFT) / CHART_WIDTH),
+    );
+    const deltaOuterPosition = deltaX / plotWidth;
+    if (gesture.mode === "pan") {
+      applyViewport(
+        dragNavigatorViewport(
+          gesture.startViewport,
+          deltaOuterPosition,
+        ),
+      );
+      return;
+    }
+    const startingEdge =
+      gesture.mode === "start"
+        ? gesture.startViewport.start
+        : gesture.startViewport.end;
+    applyViewport(
+      resizeNavigatorViewport(
+        gesture.startViewport,
+        gesture.mode,
+        startingEdge + deltaOuterPosition,
+      ),
+    );
+  }
+
+  function endNavigatorGesture(event: ReactPointerEvent<HTMLDivElement>) {
+    const gesture = navigatorGestureRef.current;
+    if (!gesture || gesture.pointerId !== event.pointerId) {
+      return;
+    }
+    navigatorGestureRef.current = null;
+    releasePointer(event.currentTarget, event.pointerId);
+  }
+
+  function handleNavigatorKeyDown(
+    event: KeyboardEvent<HTMLDivElement>,
+    mode: "pan" | NavigatorViewportEdge,
+  ) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+      return;
+    }
+    event.preventDefault();
+    const direction = event.key === "ArrowLeft" ? -1 : 1;
+    const current = viewportRef.current;
+    const span = current.end - current.start;
+    const step = event.shiftKey ? 0.05 : Math.max(0.01, span * 0.1);
+    if (mode === "pan") {
+      applyViewport(dragNavigatorViewport(current, direction * step));
+      return;
+    }
+    applyViewport(
+      resizeNavigatorViewport(
+        current,
+        mode,
+        (mode === "start" ? current.start : current.end) +
+          direction * step,
+      ),
+    );
+  }
+
+  function navigatorPoint(session: DatedSession): { x: number; y: number } {
+    const outerPosition =
+      plottedPositionBySessionKey.get(session.session_key) ??
+      isoDateToOuterPosition(
+        session.performed_at,
+        outerRange.startDate,
+        outerRange.endDate,
+      );
+    const x =
+      PLOT_LEFT +
+      outerPosition *
+        (PLOT_RIGHT - PLOT_LEFT);
+    const value =
+      metricType !== null &&
+      session.performance_metric?.metric_type === metricType &&
+      metricScale !== null
+        ? session.performance_metric.value
+        : null;
+    const y =
+      value === null || metricScale === null
+        ? (NAVIGATOR_LINE_TOP + NAVIGATOR_LINE_BOTTOM) / 2
+        : NAVIGATOR_LINE_BOTTOM -
+          performanceMetricPosition(value, metricScale) *
+            (NAVIGATOR_LINE_BOTTOM - NAVIGATOR_LINE_TOP);
+    return { x, y };
   }
 
   const activePoint = sessionPoint(activeSession);
@@ -475,33 +1132,107 @@ function PerformanceTimeline({
       : activePoint.x < CHART_WIDTH * 0.28
         ? "translateX(0)"
         : "translateX(-50%)";
+  const navigatorStartX =
+    PLOT_LEFT + viewport.start * (PLOT_RIGHT - PLOT_LEFT);
+  const navigatorEndX =
+    PLOT_LEFT + viewport.end * (PLOT_RIGHT - PLOT_LEFT);
+  const navigatorValueText = `${formatHistoryDate(
+    visibleStartDate,
+    true,
+  )} to ${formatHistoryDate(visibleEndDate, true)}`;
 
   return (
     <section className="min-w-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
-      <div
-        ref={graphControlRef}
-        aria-describedby={instructionsId}
-        aria-label={`${exercise.exercise_name} performance graph`}
-        aria-valuemax={sessions.length}
-        aria-valuemin={1}
-        aria-valuenow={activeIndex + 1}
-        aria-valuetext={timelinePointLabel(exercise.exercise_name, activeSession)}
-        className="relative h-[27rem] min-w-0 touch-pan-y overflow-hidden bg-surface-subtle outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-subtle sm:h-[32rem] lg:h-[38rem]"
-        onBlur={() => setFocused(false)}
-        onClick={(event) => activateFromPointer(event, true)}
-        onFocus={() => setFocused(true)}
-        onKeyDown={handleGraphKeyDown}
-        onMouseLeave={() => setHovered(false)}
-        onMouseMove={(event) => {
-          setHovered(true);
-          activateFromPointer(event, false);
-        }}
-        role="slider"
-        tabIndex={0}
-      >
+      <div className="relative">
+        <div
+          aria-label="Graph zoom"
+          className="absolute right-2 top-2 z-20 flex gap-1 rounded-xl bg-surface/95 p-1 shadow-sm ring-1 ring-border backdrop-blur-sm sm:right-3 sm:top-3"
+          role="group"
+        >
+          <button
+            type="button"
+            aria-label="Zoom out"
+            disabled={isFitted}
+            onClick={() => {
+              const current = viewportRef.current;
+              applyViewport(
+                zoomViewport(
+                  current,
+                  1 / ZOOM_STEP,
+                  (current.start + current.end) / 2,
+                ),
+              );
+            }}
+            className="min-h-8 min-w-8 rounded-lg px-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            aria-label="Fit full range"
+            disabled={isFitted}
+            onClick={() => applyViewport(fitViewport())}
+            className="min-h-8 rounded-lg px-2 text-xs font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Fit
+          </button>
+          <button
+            type="button"
+            aria-label="Zoom in"
+            disabled={!canZoomIn}
+            onClick={() => {
+              const current = viewportRef.current;
+              applyViewport(
+                zoomViewport(
+                  current,
+                  ZOOM_STEP,
+                  (current.start + current.end) / 2,
+                ),
+              );
+            }}
+            className="min-h-8 min-w-8 rounded-lg px-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            +
+          </button>
+        </div>
+
+        <div
+          ref={graphControlRef}
+          aria-describedby={instructionsId}
+          aria-label={`${exercise.exercise_name} performance graph`}
+          aria-valuemax={sessions.length}
+          aria-valuemin={1}
+          aria-valuenow={activeIndex + 1}
+          aria-valuetext={timelinePointLabel(
+            exercise.exercise_name,
+            activeSession,
+          )}
+          className={`relative h-[27rem] min-w-0 touch-pan-y select-none overflow-hidden bg-surface-subtle outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus-subtle sm:h-[32rem] lg:h-[38rem] ${
+            isFitted ? "cursor-crosshair" : "cursor-grab active:cursor-grabbing"
+          }`}
+          onBlur={() => setFocused(false)}
+          onFocus={() => setFocused(true)}
+          onKeyDown={handleGraphKeyDown}
+          onLostPointerCapture={handleGraphLostPointerCapture}
+          onPointerCancel={handleGraphPointerCancel}
+          onPointerDown={handleGraphPointerDown}
+          onPointerLeave={(event) => {
+            if (
+              event.pointerType !== "touch" &&
+              !activePointersRef.current.has(event.pointerId)
+            ) {
+              setHovered(false);
+            }
+          }}
+          onPointerMove={handleGraphPointerMove}
+          onPointerUp={handleGraphPointerUp}
+          role="slider"
+          tabIndex={0}
+        >
         <span id={instructionsId} className="sr-only">
-          Use arrow keys to move between recorded sessions. Press Enter to open
-          the selected session.
+          Use Left and Right arrow keys to move between recorded sessions.
+          Press Enter to open the selected session. Use the zoom buttons or
+          Control or Command plus the mouse wheel to zoom.
         </span>
 
         <svg
@@ -510,6 +1241,16 @@ function PerformanceTimeline({
           preserveAspectRatio="none"
           viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
         >
+          <defs>
+            <clipPath id={clipPathId}>
+              <rect
+                x={PLOT_LEFT}
+                y={PLOT_TOP}
+                width={PLOT_RIGHT - PLOT_LEFT}
+                height={EFFORT_BOTTOM - PLOT_TOP}
+              />
+            </clipPath>
+          </defs>
           <rect
             x={PLOT_LEFT}
             y={PLOT_TOP}
@@ -521,11 +1262,21 @@ function PerformanceTimeline({
           {phaseBands.map((phase, index) => {
             const start =
               PLOT_LEFT +
-              timelineDatePosition(phase.start_date, startDate, endDate) *
+              isoDateToViewportPosition(
+                phase.start_date,
+                outerRange.startDate,
+                outerRange.endDate,
+                viewport,
+              ) *
                 (PLOT_RIGHT - PLOT_LEFT);
             const end =
               PLOT_LEFT +
-              timelineDatePosition(phase.end_date, startDate, endDate) *
+              isoDateToViewportPosition(
+                phase.end_date,
+                outerRange.startDate,
+                outerRange.endDate,
+                viewport,
+              ) *
                 (PLOT_RIGHT - PLOT_LEFT);
             return (
               <rect
@@ -534,6 +1285,7 @@ function PerformanceTimeline({
                 y={PLOT_TOP}
                 width={Math.max(0, end - start)}
                 height={PLOT_BOTTOM - PLOT_TOP}
+                clipPath={`url(#${clipPathId})`}
                 className={phaseBandClass(phase.code)}
                 opacity="0.26"
               />
@@ -562,7 +1314,12 @@ function PerformanceTimeline({
           {calendarTicks.map((tick) => {
             const x =
               PLOT_LEFT +
-              timelineDatePosition(tick, startDate, endDate) *
+              isoDateToViewportPosition(
+                tick,
+                outerRange.startDate,
+                outerRange.endDate,
+                viewport,
+              ) *
                 (PLOT_RIGHT - PLOT_LEFT);
             return (
               <line
@@ -590,6 +1347,7 @@ function PerformanceTimeline({
                 key={`${run[0]}-${index}`}
                 fill="none"
                 points={points.join(" ")}
+                clipPath={`url(#${clipPathId})`}
                 className="stroke-action-primary"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -614,11 +1372,7 @@ function PerformanceTimeline({
               .map((session) => {
                 const x =
                   PLOT_LEFT +
-                  timelineDatePosition(
-                    session.performed_at,
-                    startDate,
-                    endDate,
-                  ) *
+                  sessionViewportPosition(session) *
                     (PLOT_RIGHT - PLOT_LEFT);
                 const rir = Math.min(
                   5,
@@ -637,6 +1391,7 @@ function PerformanceTimeline({
                   x2={points[0].x + 4}
                   y1={points[0].y}
                   y2={points[0].y}
+                  clipPath={`url(#${clipPathId})`}
                   className="stroke-accent-text"
                   strokeLinecap="round"
                   strokeWidth="2"
@@ -649,6 +1404,7 @@ function PerformanceTimeline({
                 key={`${segment[0]}-${index}`}
                 fill="none"
                 points={points.map((point) => `${point.x},${point.y}`).join(" ")}
+                clipPath={`url(#${clipPathId})`}
                 className="stroke-accent-text"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -663,6 +1419,7 @@ function PerformanceTimeline({
             y={PLOT_TOP}
             width="8"
             height={EFFORT_BOTTOM - PLOT_TOP}
+            clipPath={`url(#${clipPathId})`}
             className="fill-action-primary"
             opacity="0.07"
           />
@@ -671,6 +1428,7 @@ function PerformanceTimeline({
             x2={latestPoint.x}
             y1={PLOT_TOP}
             y2={EFFORT_BOTTOM}
+            clipPath={`url(#${clipPathId})`}
             className="stroke-action-primary"
             opacity="0.28"
             strokeWidth="1"
@@ -683,6 +1441,7 @@ function PerformanceTimeline({
               x2={activePoint.x}
               y1={PLOT_TOP}
               y2={EFFORT_BOTTOM}
+              clipPath={`url(#${clipPathId})`}
               className="stroke-text-strong"
               strokeDasharray="3 4"
               strokeWidth="1"
@@ -726,7 +1485,12 @@ function PerformanceTimeline({
         </span>
 
         {calendarTicks.map((tick, index) => {
-          const position = timelineDatePosition(tick, startDate, endDate);
+          const position = isoDateToViewportPosition(
+            tick,
+            outerRange.startDate,
+            outerRange.endDate,
+            viewport,
+          );
           const x =
             PLOT_LEFT + position * (PLOT_RIGHT - PLOT_LEFT);
           const transform =
@@ -755,22 +1519,26 @@ function PerformanceTimeline({
           if (
             !phaseBandCanShowLabel(
               phase,
-              startDate,
-              endDate,
+              visibleStartDate,
+              visibleEndDate,
               plotPixelWidth,
             )
           ) {
             return null;
           }
-          const start = timelineDatePosition(
+          const start = isoDateToViewportPosition(
             phase.start_date,
-            startDate,
-            endDate,
+            outerRange.startDate,
+            outerRange.endDate,
+            viewport,
+            true,
           );
-          const end = timelineDatePosition(
+          const end = isoDateToViewportPosition(
             phase.end_date,
-            startDate,
-            endDate,
+            outerRange.startDate,
+            outerRange.endDate,
+            viewport,
+            true,
           );
           const left =
             PLOT_LEFT + start * (PLOT_RIGHT - PLOT_LEFT);
@@ -790,6 +1558,17 @@ function PerformanceTimeline({
             </span>
           );
         })}
+
+        {showInteraction ? (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute z-10 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-surface shadow-sm ring-2 ring-action-primary after:absolute after:inset-[0.3rem] after:rounded-full after:bg-action-primary"
+            style={{
+              left: `${(activePoint.x / CHART_WIDTH) * 100}%`,
+              top: `${(activePoint.y / CHART_HEIGHT) * 100}%`,
+            }}
+          />
+        ) : null}
 
         {showInteraction ? (
           <div
@@ -816,6 +1595,157 @@ function PerformanceTimeline({
           </div>
         ) : null}
       </div>
+      </div>
+
+      <div className="border-t border-border-subtle bg-surface px-0 py-2">
+        <div
+          ref={navigatorRef}
+          aria-label="Complete performance range navigator"
+          className="relative min-w-0 touch-pan-y select-none overflow-hidden"
+          style={{ height: `${NAVIGATOR_HEIGHT}px` }}
+        >
+          <svg
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full"
+            preserveAspectRatio="none"
+            viewBox={`0 0 ${CHART_WIDTH} ${NAVIGATOR_HEIGHT}`}
+          >
+            <rect
+              x={PLOT_LEFT}
+              y={NAVIGATOR_LINE_TOP}
+              width={PLOT_RIGHT - PLOT_LEFT}
+              height={NAVIGATOR_LINE_BOTTOM - NAVIGATOR_LINE_TOP}
+              rx="5"
+              className="fill-surface-subtle"
+            />
+            {metricRuns.map((run, index) => {
+              const points = run
+                .map((sessionKey) => sessionByKey.get(sessionKey)?.session)
+                .filter(
+                  (session): session is DatedSession =>
+                    session !== undefined,
+                )
+                .map((session) => {
+                  const point = navigatorPoint(session);
+                  return `${point.x},${point.y}`;
+                });
+              return points.length >= 2 ? (
+                <polyline
+                  key={`navigator-${run[0]}-${index}`}
+                  fill="none"
+                  points={points.join(" ")}
+                  className="stroke-action-primary"
+                  opacity="0.48"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ) : null;
+            })}
+          </svg>
+
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-[12px] top-[12px] bg-surface/70"
+            style={{
+              left: `${(PLOT_LEFT / CHART_WIDTH) * 100}%`,
+              width: `${((navigatorStartX - PLOT_LEFT) / CHART_WIDTH) * 100}%`,
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-[12px] top-[12px] bg-surface/70"
+            style={{
+              left: `${(navigatorEndX / CHART_WIDTH) * 100}%`,
+              width: `${((PLOT_RIGHT - navigatorEndX) / CHART_WIDTH) * 100}%`,
+            }}
+          />
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute bottom-[9px] top-[9px] z-10 rounded-md border-2 border-action-primary/70 bg-action-primary/5"
+            style={{
+              left: `${(navigatorStartX / CHART_WIDTH) * 100}%`,
+              width: `${((navigatorEndX - navigatorStartX) / CHART_WIDTH) * 100}%`,
+            }}
+          />
+          <div
+            aria-label="Pan visible date range"
+            aria-valuemax={100}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(viewport.start * 100)}
+            aria-valuetext={navigatorValueText}
+            className="absolute top-6 z-20 h-6 -translate-x-1/2 cursor-grab rounded-md outline-none active:cursor-grabbing focus-visible:ring-2 focus-visible:ring-focus-subtle"
+            onKeyDown={(event) =>
+              handleNavigatorKeyDown(event, "pan")
+            }
+            onLostPointerCapture={endNavigatorGesture}
+            onPointerCancel={endNavigatorGesture}
+            onPointerDown={(event) =>
+              beginNavigatorGesture(event, "pan")
+            }
+            onPointerMove={handleNavigatorPointerMove}
+            onPointerUp={endNavigatorGesture}
+            role="slider"
+            style={{
+              left: `${(((navigatorStartX + navigatorEndX) / 2) / CHART_WIDTH) * 100}%`,
+              minWidth: `${MIN_NAVIGATOR_PAN_TARGET_PIXELS}px`,
+              width: `${((navigatorEndX - navigatorStartX) / CHART_WIDTH) * 100}%`,
+            }}
+            tabIndex={0}
+          />
+          <div
+            aria-label="Resize visible date range start"
+            aria-valuemax={Math.round(viewport.end * 100)}
+            aria-valuemin={0}
+            aria-valuenow={Math.round(viewport.start * 100)}
+            aria-valuetext={formatHistoryDate(visibleStartDate, true)}
+            className="absolute top-0 z-20 flex h-6 w-11 -translate-x-1/2 touch-pan-y cursor-ew-resize items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-subtle"
+            onKeyDown={(event) =>
+              handleNavigatorKeyDown(event, "start")
+            }
+            onLostPointerCapture={endNavigatorGesture}
+            onPointerCancel={endNavigatorGesture}
+            onPointerDown={(event) =>
+              beginNavigatorGesture(event, "start")
+            }
+            onPointerMove={handleNavigatorPointerMove}
+            onPointerUp={endNavigatorGesture}
+            role="slider"
+            style={{
+              left: `${(navigatorStartX / CHART_WIDTH) * 100}%`,
+            }}
+            tabIndex={0}
+          >
+            <span className="h-4 w-1 rounded-full bg-action-primary/80" />
+          </div>
+          <div
+            aria-label="Resize visible date range end"
+            aria-valuemax={100}
+            aria-valuemin={Math.round(viewport.start * 100)}
+            aria-valuenow={Math.round(viewport.end * 100)}
+            aria-valuetext={formatHistoryDate(visibleEndDate, true)}
+            className="absolute bottom-0 z-20 flex h-6 w-11 -translate-x-1/2 touch-pan-y cursor-ew-resize items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-focus-subtle"
+            onKeyDown={(event) =>
+              handleNavigatorKeyDown(event, "end")
+            }
+            onLostPointerCapture={endNavigatorGesture}
+            onPointerCancel={endNavigatorGesture}
+            onPointerDown={(event) =>
+              beginNavigatorGesture(event, "end")
+            }
+            onPointerMove={handleNavigatorPointerMove}
+            onPointerUp={endNavigatorGesture}
+            role="slider"
+            style={{
+              left: `${(navigatorEndX / CHART_WIDTH) * 100}%`,
+            }}
+            tabIndex={0}
+          >
+            <span className="h-4 w-1 rounded-full bg-action-primary/80" />
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -824,10 +1754,16 @@ function FocusedSessionDetail({
   exercise,
   summary,
   detailResult,
+  canMovePrevious,
+  canMoveNext,
+  onMoveSession,
 }: {
   exercise: ExerciseHistoryAnalyticsSummary | undefined;
   summary: ExerciseHistoryRecentSession | undefined;
   detailResult: WorkoutExerciseHistorySessionDetailApiResult | null;
+  canMovePrevious: boolean;
+  canMoveNext: boolean;
+  onMoveSession: (direction: -1 | 1) => void;
 }) {
   if (!exercise || !summary) {
     return (
@@ -836,9 +1772,28 @@ function FocusedSessionDetail({
       </p>
     );
   }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowLeft" && canMovePrevious) {
+      event.preventDefault();
+      onMoveSession(-1);
+    } else if (event.key === "ArrowRight" && canMoveNext) {
+      event.preventDefault();
+      onMoveSession(1);
+    }
+  };
+  const navigation = (
+    <SessionDetailNavigation
+      canMoveNext={canMoveNext}
+      canMovePrevious={canMovePrevious}
+      onMoveSession={onMoveSession}
+    />
+  );
+
   if (detailResult === null) {
     return (
-      <div>
+      <div onKeyDown={handleKeyDown}>
+        {navigation}
         <DetailHeading session={summary} />
         <p className="mt-4 text-sm text-text-secondary">
           Loading recorded sets…
@@ -848,7 +1803,8 @@ function FocusedSessionDetail({
   }
   if (detailResult.error || !detailResult.data) {
     return (
-      <div>
+      <div onKeyDown={handleKeyDown}>
+        {navigation}
         <DetailHeading session={summary} />
         <p className="mt-4 rounded-xl bg-danger-surface px-3 py-3 text-sm text-danger-foreground">
           {detailResult.error?.message ?? "Session details are unavailable."}
@@ -857,10 +1813,48 @@ function FocusedSessionDetail({
     );
   }
   return (
-    <SessionDetail
-      exercise={exercise}
-      session={detailResult.data.session}
-    />
+    <div onKeyDown={handleKeyDown}>
+      {navigation}
+      <SessionDetail
+        exercise={exercise}
+        session={detailResult.data.session}
+      />
+    </div>
+  );
+}
+
+function SessionDetailNavigation({
+  canMovePrevious,
+  canMoveNext,
+  onMoveSession,
+}: {
+  canMovePrevious: boolean;
+  canMoveNext: boolean;
+  onMoveSession: (direction: -1 | 1) => void;
+}) {
+  return (
+    <div
+      aria-label="Session navigation"
+      className="mb-4 grid grid-cols-2 gap-2"
+      role="group"
+    >
+      <button
+        type="button"
+        disabled={!canMovePrevious}
+        onClick={() => onMoveSession(-1)}
+        className="min-h-10 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        Previous
+      </button>
+      <button
+        type="button"
+        disabled={!canMoveNext}
+        onClick={() => onMoveSession(1)}
+        className="min-h-10 rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        Next
+      </button>
+    </div>
   );
 }
 
@@ -1065,11 +2059,67 @@ function StudioState({ children }: { children: ReactNode }) {
 function latestDatedSession(
   sessions: ExerciseHistoryRecentSession[],
 ): DatedSession | undefined {
-  return sessions
-    .filter((session): session is DatedSession => session.performed_at !== null)
-    .sort((left, right) =>
-      right.performed_at.localeCompare(left.performed_at),
-    )[0];
+  return chronologicalDatedSessions(sessions).at(-1);
+}
+
+function chronologicalDatedSessions(
+  sessions: ExerciseHistoryRecentSession[],
+): DatedSession[] {
+  const dated = sessions.flatMap((session, sourceIndex) =>
+    session.performed_at === null
+      ? []
+      : [{ session: session as DatedSession, sourceIndex }],
+  );
+  return dated
+    .sort(
+      (left, right) =>
+        left.session.performed_at.localeCompare(
+          right.session.performed_at,
+        ) || right.sourceIndex - left.sourceIndex,
+    )
+    .map((entry) => entry.session);
+}
+
+function localIsoDate(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function plotPositionFromClientX(
+  clientX: number,
+  element: HTMLElement,
+): number {
+  const bounds = element.getBoundingClientRect();
+  const viewX =
+    ((clientX - bounds.left) / Math.max(bounds.width, 1)) * CHART_WIDTH;
+  return Math.min(
+    1,
+    Math.max(0, (viewX - PLOT_LEFT) / (PLOT_RIGHT - PLOT_LEFT)),
+  );
+}
+
+function capturePointer(element: HTMLElement, pointerId: number) {
+  if (element.hasPointerCapture(pointerId)) {
+    return;
+  }
+  try {
+    element.setPointerCapture(pointerId);
+  } catch {
+    return;
+  }
+}
+
+function releasePointer(element: HTMLElement, pointerId: number) {
+  if (!element.hasPointerCapture(pointerId)) {
+    return;
+  }
+  try {
+    element.releasePointerCapture(pointerId);
+  } catch {
+    return;
+  }
 }
 
 function timelinePointLabel(
