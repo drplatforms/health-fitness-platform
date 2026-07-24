@@ -664,7 +664,7 @@ export function FoodCatalogBrowseDialog({
                                   setRenamingFoodId(canonicalFoodId);
                                   setRenameValue(choiceCustomDisplayName(choice) ?? name);
                                 }}
-                                className="shrink-0 rounded-md px-1.5 py-1 text-[0.68rem] font-semibold text-accent-text hover:bg-surface-highlighted"
+                                className="type-compact-metadata shrink-0 rounded-md px-1.5 py-1 font-semibold text-accent-text hover:bg-surface-highlighted"
                               >
                                 Rename
                               </button>

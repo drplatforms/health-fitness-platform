@@ -114,7 +114,7 @@ function DayRow({
         <p className="text-sm font-semibold text-text-strong">
           {weekdayLabels[day.day_index]}
         </p>
-        <p className="text-[0.7rem] text-text-muted">{shortDate(day.training_date)}</p>
+        <p className="type-compact-metadata text-text-muted">{shortDate(day.training_date)}</p>
       </div>
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold text-text-primary">
@@ -130,7 +130,7 @@ function DayRow({
         ) : null}
       </div>
       <span
-        className={`whitespace-nowrap rounded-full px-2 py-1 text-[0.65rem] font-semibold uppercase tracking-[0.08em] ${
+        className={`type-compact-metadata whitespace-nowrap rounded-full px-2 py-1 font-semibold uppercase tracking-[0.08em] ${
           statusClasses[day.derived_status] ?? statusClasses.rest
         }`}
       >
@@ -403,7 +403,7 @@ export function WeeklyTrainingPlanner({
           <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 lg:grid-cols-7">
             {previewRows.map((row) => (
               <div key={row.label} className="rounded-xl bg-surface-subtle px-2 py-2">
-                <p className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-text-muted">{row.label}</p>
+                <p className="type-compact-metadata font-semibold uppercase tracking-[0.08em] text-text-muted">{row.label}</p>
                 <p className="mt-1 text-xs font-semibold text-text-primary">{row.title}</p>
               </div>
             ))}

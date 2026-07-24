@@ -15,7 +15,6 @@ import styles from "./FoodWorkspaceDeck.module.css";
 export interface WorkspaceDeckTab {
   key: string;
   label: string;
-  hint: string;
   content: ReactNode;
 }
 
@@ -195,7 +194,6 @@ export function WorkspaceDeck({
               }`}
             >
               <span className={styles.tabLabel}>{tab.label}</span>
-              <span className={styles.tabHint}>{tab.hint}</span>
             </button>
           );
         })}

@@ -115,7 +115,7 @@ export function WorkoutExerciseMemory({
       <div className="px-1 py-1">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
+            <p className="type-compact-metadata font-semibold uppercase tracking-[0.14em] text-text-muted">
               Memory
             </p>
             <p className="mt-1 whitespace-pre-wrap text-sm leading-5 text-text-body">

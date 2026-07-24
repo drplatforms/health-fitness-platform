@@ -326,12 +326,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-text-strong">Saved Recipes</h3>
-          <p className="text-xs text-text-muted">
-            Open a recipe for ingredients, prep scaling, instructions, and editing.
-          </p>
-        </div>
+        <h3 className="type-card-title text-text-strong">Saved Recipes</h3>
         <label className="flex items-center gap-2 text-xs font-medium text-text-muted">
           <input
             type="checkbox"
@@ -435,11 +430,11 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
                   ) : null}
                 </div>
                 <div className="flex shrink-0 flex-wrap justify-end gap-1">
-                  <span className="rounded-full bg-surface px-2 py-1 text-[0.68rem] font-semibold uppercase text-text-muted">
+                  <span className="type-compact-metadata rounded-full bg-surface px-2 py-1 font-semibold uppercase text-text-muted">
                     {meal.source_type === "ai" ? "AI" : "Manual"}
                   </span>
                   {!meal.active ? (
-                    <span className="rounded-full bg-surface px-2 py-1 text-[0.68rem] font-semibold uppercase text-text-muted">
+                    <span className="type-compact-metadata rounded-full bg-surface px-2 py-1 font-semibold uppercase text-text-muted">
                       Archived
                     </span>
                   ) : null}
@@ -487,7 +482,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
               >
             <div className="sticky top-0 z-10 -mx-1 mb-4 flex items-start justify-between gap-3 bg-surface/95 px-1 pb-3 backdrop-blur">
               <div className="min-w-0">
-                <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-text-muted">
+                <p className="type-compact-metadata font-semibold uppercase tracking-wide text-text-muted">
                   Saved recipe
                 </p>
                 <h3
@@ -572,7 +567,7 @@ export function SavedMealsPanel({ userId, targetDate }: SavedMealsPanelProps) {
                 ) : null}
 
                 <div>
-                  <p className="text-[0.68rem] font-semibold uppercase tracking-wide text-text-muted">
+                  <p className="type-compact-metadata font-semibold uppercase tracking-wide text-text-muted">
                     Prep scale
                   </p>
                   <div className="mt-1.5 flex gap-1.5">

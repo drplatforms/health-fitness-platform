@@ -12,12 +12,6 @@ import {
   CoachSuggestedAction,
 } from "@/types/coach";
 
-const STARTER_QUESTIONS = [
-  "Am I making progress?",
-  "What should I focus on during an RDL?",
-  "How is a Pendlay Row different from a regular Barbell Row?",
-  "What common squat mistakes should I watch for?",
-];
 const MAX_CONTEXT_TURNS = 6;
 
 type ConversationMessage =
@@ -111,13 +105,10 @@ export function CoachWorkspace({ userId }: { userId: number }) {
 
   return (
     <section className="space-y-3 sm:space-y-4" aria-label="Coach conversation">
-      <div className="rounded-2xl border border-border-subtle bg-surface p-3 shadow-sm sm:p-4">
+      <div className="rounded-2xl border border-border-subtle bg-surface p-4 shadow-sm sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-text-strong">Grounded Coach</h2>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-text-body">
-              Ask about your logged patterns or how an exercise works.
-            </p>
+            <h2 className="type-card-title text-text-strong">Coach</h2>
           </div>
           {messages.length > 0 ? (
             <button
@@ -167,11 +158,6 @@ export function CoachWorkspace({ userId }: { userId: number }) {
             </select>
           </label>
         </div>
-        {providerOptions?.message ? (
-          <p role="status" className="mt-2 text-xs text-text-muted">
-            {providerOptions.message}
-          </p>
-        ) : null}
         {modelsError ? (
           <p role="alert" className="mt-2 text-sm text-danger-foreground">
             {modelsError}
@@ -179,25 +165,7 @@ export function CoachWorkspace({ userId }: { userId: number }) {
         ) : null}
       </div>
 
-      {messages.length === 0 ? (
-        <div className="rounded-2xl border border-border-subtle bg-surface p-3 sm:p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
-            Try asking
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {STARTER_QUESTIONS.map((starter) => (
-              <button
-                key={starter}
-                type="button"
-                onClick={() => setQuestion(starter)}
-                className="rounded-xl border border-border bg-surface-muted/50 px-3 py-2 text-left text-sm text-text-body hover:border-border-accent"
-              >
-                {starter}
-              </button>
-            ))}
-          </div>
-        </div>
-      ) : (
+      {messages.length > 0 ? (
         <div className="space-y-3" aria-live="polite">
           {messages.map((message) =>
             message.role === "user" ? (
@@ -217,7 +185,7 @@ export function CoachWorkspace({ userId }: { userId: number }) {
             </div>
           ) : null}
         </div>
-      )}
+      ) : null}
 
       {answerError ? (
         <div role="alert" className="rounded-xl bg-danger-surface px-3 py-2.5 text-sm text-danger-foreground">
@@ -241,10 +209,7 @@ export function CoachWorkspace({ userId }: { userId: number }) {
           placeholder="Ask about a change or pattern in your logged data…"
           className="w-full resize-none rounded-xl border border-border bg-surface px-3 py-2.5 text-sm leading-6 text-text-strong placeholder:text-text-muted focus:border-focus focus:outline-none"
         />
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <p className="text-xs text-text-muted">
-            Personal evidence and curated exercise knowledge stay separate. Answers do not change your plan or logs.
-          </p>
+        <div className="mt-2 flex justify-end">
           <button
             type="submit"
             disabled={isAsking || !question.trim() || !selectedModel}
@@ -260,12 +225,12 @@ export function CoachWorkspace({ userId }: { userId: number }) {
 
 function CoachAnswer({ result }: { result: CoachAnswerResponse }) {
   return (
-    <article className="max-w-3xl rounded-2xl border border-border-subtle bg-surface p-4 shadow-sm">
+    <article className="max-w-3xl rounded-2xl border border-border-subtle bg-surface p-4 shadow-sm sm:p-5">
       <div className="flex items-center justify-between gap-3">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-accent-text">
           Coach
         </p>
-        <span className="rounded-full bg-surface-muted px-2.5 py-1 text-[0.68rem] font-semibold text-text-muted">
+        <span className="type-compact-metadata rounded-full bg-surface-muted px-2.5 py-1 font-semibold text-text-muted">
           {result.confidence} confidence
         </span>
       </div>
@@ -301,7 +266,7 @@ function CoachAnswer({ result }: { result: CoachAnswerResponse }) {
               <li key={item.reference_id} className="border-l-2 border-border-accent pl-3">
                 <p className="text-xs font-semibold text-text-strong">{item.label}</p>
                 <p className="mt-0.5 text-xs leading-5 text-text-body">{item.fact}</p>
-                <p className="mt-0.5 text-[0.68rem] text-text-muted">
+                <p className="type-compact-metadata mt-0.5 text-text-muted">
                   {humanize(item.domain)} · {item.confidence}
                   {item.observed_at ? ` · ${item.observed_at}` : ""}
                 </p>
@@ -327,7 +292,7 @@ function CoachAnswer({ result }: { result: CoachAnswerResponse }) {
                   <p className="mt-0.5 text-xs leading-5 text-text-body">
                     {item.passage}
                   </p>
-                  <p className="mt-0.5 text-[0.68rem] text-text-muted">
+                  <p className="type-compact-metadata mt-0.5 text-text-muted">
                     {item.source_title} · {item.reference_id}
                   </p>
                 </li>

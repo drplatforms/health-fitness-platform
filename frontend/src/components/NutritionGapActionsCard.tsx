@@ -160,7 +160,7 @@ export function NutritionGapActionsCard({
                   <p className="text-sm font-semibold text-text-strong">
                     {suggestion.display_name}
                   </p>
-                  <span className="rounded-full bg-surface px-2 py-0.5 text-[0.68rem] font-semibold text-text-secondary">
+                  <span className="type-compact-metadata rounded-full bg-surface px-2 py-0.5 font-semibold text-text-secondary">
                     {MACRO_LABELS[suggestion.macro_gap_addressed]}
                   </span>
                 </div>

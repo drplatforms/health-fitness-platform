@@ -1,15 +1,15 @@
 import Link from "next/link";
 
+import { AppPageShell } from "@/components/AppPageShell";
 import { LoggedFoodsList } from "@/components/LoggedFoodsList";
 import { LiveDayRolloverBoundary } from "@/components/LiveDayRolloverBoundary";
-import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { NutritionMacroCard } from "@/components/NutritionMacroCard";
 import { RecoveryCheckInCard } from "@/components/RecoveryCheckInCard";
 import { StatusPill } from "@/components/StatusPill";
 import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { TodayCard } from "@/components/TodayCard";
-import { UserSwitcher } from "@/components/UserSwitcher";
 import { formatLongReadableDate } from "@/lib/dateFormatting";
+import { readinessStatusLabel } from "@/lib/appUiStandards";
 import {
   fetchDailyDriverToday,
   getDefaultUserId,
@@ -324,41 +324,15 @@ export default async function Home({
         : null;
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top,var(--theme-canvas-glow),transparent_35%),linear-gradient(180deg,var(--theme-canvas-start)_0%,var(--theme-canvas)_100%)] px-3 py-3 text-text-strong sm:px-4 sm:py-6">
+    <>
       <LiveDayRolloverBoundary requestedDate={todayQuery.date} />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:gap-4 md:pb-8 lg:gap-6 lg:px-2">
-        <section className="rounded-2xl bg-[linear-gradient(160deg,var(--theme-header-surface-start),var(--theme-header-surface-end))] px-4 py-3 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-5 sm:py-4 lg:px-6 lg:py-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between lg:gap-4">
-            <div className="max-w-2xl space-y-1">
-              <p className="hidden text-[0.72rem] font-semibold uppercase tracking-[0.2em] text-text-warm md:block">
-                Today
-              </p>
-              <h1 className="text-xl font-semibold tracking-tight text-text-strong sm:text-2xl lg:text-[2rem]">
-                {displayDate}
-              </h1>
-            </div>
-
-            <div className="flex flex-col gap-2 lg:items-end">
-              <p className="hidden text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted md:block">
-                User
-              </p>
-              <div className="flex items-center gap-2 lg:justify-end">
-                <UserSwitcher
-                  currentUserId={currentUserId}
-                  showLabel={false}
-                  selectClassName="bg-surface/90 py-2.5"
-                />
-                <ThemePreferenceControl />
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <PrimaryNavigation
-          userId={currentUserId}
-          date={todayQuery.date}
-        />
-
+      <AppPageShell
+        title="Today"
+        dateLabel={displayDate}
+        userId={currentUserId}
+        navigationDate={todayQuery.date}
+        headerAction={<ThemePreferenceControl />}
+      >
         {error ? (
           <TodayCard title={error.heading} accent="warm">
             <div className="space-y-3">
@@ -470,13 +444,10 @@ export default async function Home({
                     <p className="font-semibold text-text-primary">
                       Readiness {data.readiness.score ?? "--"}
                     </p>
-                    <span className="text-sm font-semibold capitalize text-text-secondary">
-                      {data.readiness.status.replace("_", " ")}
+                    <span className="text-sm font-semibold text-text-secondary">
+                      {readinessStatusLabel(data.readiness.status)}
                     </span>
                   </div>
-                  <p className="text-sm text-text-body">
-                    {data.readiness.headline}
-                  </p>
                 </div>
               </TodayCard>
 
@@ -490,7 +461,7 @@ export default async function Home({
             </div>
           </div>
         ) : null}
-      </div>
-    </main>
+      </AppPageShell>
+    </>
   );
 }

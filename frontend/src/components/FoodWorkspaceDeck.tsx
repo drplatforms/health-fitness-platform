@@ -11,6 +11,7 @@ import {
   WorkspaceDeck,
   WorkspaceDeckTab,
 } from "@/components/WorkspaceDeck";
+import { FOOD_WORKSPACE_LABELS } from "@/lib/appUiStandards";
 
 interface FoodWorkspaceDeckProps {
   userId: number;
@@ -31,8 +32,7 @@ export function FoodWorkspaceDeck({
 }: FoodWorkspaceDeckProps) {
   const logTab: WorkspaceDeckTab = {
     key: "log",
-    label: "Log",
-    hint: "Search and log",
+    label: FOOD_WORKSPACE_LABELS.log,
     content: (
       <FoodLoggingCard
         userId={userId}
@@ -44,14 +44,12 @@ export function FoodWorkspaceDeck({
   };
   const pantryTab: WorkspaceDeckTab = {
     key: "pantry",
-    label: "Pantry",
-    hint: "Foods on hand",
+    label: FOOD_WORKSPACE_LABELS.pantry,
     content: <AvailableIngredientsPanel userId={userId} />,
   };
   const libraryTab: WorkspaceDeckTab = {
     key: "library",
-    label: "Library",
-    hint: "Manage your foods",
+    label: FOOD_WORKSPACE_LABELS.library,
     content: <FoodLibraryPanel userId={userId} targetDate={requestedDate} />,
   };
 
@@ -59,8 +57,7 @@ export function FoodWorkspaceDeck({
     logTab,
     {
       key: "logged",
-      label: "Logged Today",
-      hint: "Review and edit",
+      label: FOOD_WORKSPACE_LABELS.logged,
       content: (
         <LoggedFoodsList
           initialEntries={initialLoggedEntries}

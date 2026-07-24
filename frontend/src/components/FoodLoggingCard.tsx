@@ -245,7 +245,7 @@ function FoodResultList({
                   {food.displayName}
                 </p>
                 {food.foodType === "personal" ? (
-                  <span className="rounded-full bg-positive-surface px-2 py-0.5 text-[0.68rem] font-semibold text-positive-foreground">
+                  <span className="type-compact-metadata rounded-full bg-positive-surface px-2 py-0.5 font-semibold text-positive-foreground">
                     My food
                   </span>
                 ) : null}

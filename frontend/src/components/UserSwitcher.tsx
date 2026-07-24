@@ -37,7 +37,7 @@ export function UserSwitcher({
       className={`flex ${showLabel ? "flex-col gap-2 sm:items-end" : "items-center gap-2"} ${className}`}
     >
       {showLabel ? (
-        <span className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
+        <span className="type-field-label uppercase tracking-[0.16em] text-text-muted">
           User
         </span>
       ) : null}

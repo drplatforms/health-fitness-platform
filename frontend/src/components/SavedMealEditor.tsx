@@ -369,12 +369,12 @@ export function SavedMealEditor({
           <div className="mt-2 max-h-56 space-y-1 overflow-y-auto">
             {canonicalResults.map((food) => (
               <button key={`canonical-${food.canonical_food_id}`} type="button" onClick={() => void chooseFood({ foodType: "canonical", result: food })} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-surface-muted">
-                <span className="truncate text-sm text-text-strong">{food.display_name}</span><span className="ml-2 text-[0.68rem] font-semibold uppercase text-text-muted">Catalog</span>
+                <span className="truncate text-sm text-text-strong">{food.display_name}</span><span className="type-compact-metadata ml-2 font-semibold uppercase text-text-muted">Catalog</span>
               </button>
             ))}
             {personalResults.map((food) => (
               <button key={`personal-${food.id}`} type="button" onClick={() => void chooseFood({ foodType: "personal", result: food })} className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-left hover:bg-surface-muted">
-                <span className="truncate text-sm text-text-strong">{food.display_name}</span><span className="ml-2 text-[0.68rem] font-semibold uppercase text-text-muted">My Food</span>
+                <span className="truncate text-sm text-text-strong">{food.display_name}</span><span className="type-compact-metadata ml-2 font-semibold uppercase text-text-muted">My Food</span>
               </button>
             ))}
           </div>
@@ -454,5 +454,5 @@ function aggregateDraftMacros(items: DraftItem[]): SavedMealMacros {
 }
 
 function Macro({ label, value, suffix = "" }: { label: string; value: number | null; suffix?: string }) {
-  return <div><p className="text-[0.65rem] uppercase tracking-wide text-text-muted">{label}</p><p className="text-sm font-semibold text-text-strong">{value === null ? "—" : `${Math.round(value)}${suffix}`}</p></div>;
+  return <div><p className="type-compact-metadata uppercase tracking-wide text-text-muted">{label}</p><p className="text-sm font-semibold text-text-strong">{value === null ? "—" : `${Math.round(value)}${suffix}`}</p></div>;
 }

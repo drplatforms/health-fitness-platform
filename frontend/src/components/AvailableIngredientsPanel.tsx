@@ -337,16 +337,13 @@ export function AvailableIngredientsPanel({
     <div className="space-y-5">
       <header>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-lg font-bold text-text-strong">
+          <h2 className="type-card-title text-text-strong">
             Pantry
           </h2>
           <span className="rounded-full bg-surface-subtle px-2.5 py-1 text-xs font-semibold text-text-secondary">
             {ingredients.length} selected
           </span>
         </div>
-        <p className="mt-1 text-sm leading-5 text-text-body">
-          Foods you generally keep on hand.
-        </p>
       </header>
 
       <section
@@ -441,7 +438,7 @@ export function AvailableIngredientsPanel({
                     >
                       <span
                         aria-hidden="true"
-                        className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-current text-[0.65rem]"
+                        className="type-chart-metadata flex h-4 w-4 shrink-0 items-center justify-center rounded border border-current"
                       >
                         {isAvailable || isSelected ? "✓" : ""}
                       </span>
