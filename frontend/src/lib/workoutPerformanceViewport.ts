@@ -25,7 +25,7 @@ export interface SessionIndexRange {
 
 export type NavigatorViewportEdge = "start" | "end";
 export type MouseGesture = "click" | "drag";
-export type TouchGesture = "tap" | "pan" | "scroll" | "pinch";
+export type TouchGesture = "tap" | "scrub" | "scroll" | "pinch";
 
 export interface TouchGestureMeasurement {
   maximumTouchCount: number;
@@ -310,8 +310,36 @@ export function activeSelectionIndicatorsVisible(
   hovered: boolean,
   focused: boolean,
   detailOpen: boolean,
+  scrubbing = false,
 ): boolean {
-  return hovered || focused || detailOpen;
+  return hovered || focused || detailOpen || scrubbing;
+}
+
+export function sessionTraversalIndices(
+  fromIndex: number,
+  toIndex: number,
+  sessionCount: number,
+): number[] {
+  if (sessionCount <= 0) {
+    return [];
+  }
+  const start = Math.min(
+    sessionCount - 1,
+    Math.max(0, Math.floor(fromIndex)),
+  );
+  const end = Math.min(
+    sessionCount - 1,
+    Math.max(0, Math.floor(toIndex)),
+  );
+  const direction = end >= start ? 1 : -1;
+  return Array.from(
+    { length: Math.abs(end - start) + 1 },
+    (_, offset) => start + offset * direction,
+  );
+}
+
+export function touchGestureOpensSession(gesture: TouchGesture): boolean {
+  return gesture === "tap" || gesture === "scrub";
 }
 
 export function dragNavigatorViewport(
@@ -397,7 +425,7 @@ export function classifyTouchGesture({
       ? horizontalDominance
       : 1.15;
   return horizontalDistance >= verticalDistance * dominance
-    ? "pan"
+    ? "scrub"
     : "scroll";
 }
 

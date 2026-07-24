@@ -185,7 +185,7 @@ export function buildCalendarTicks(
 export interface PerformanceMetricScale {
   minimum: number;
   maximum: number;
-  ticks: [number, number, number];
+  ticks: number[];
 }
 
 export function buildPerformanceMetricScale(
@@ -195,43 +195,24 @@ export function buildPerformanceMetricScale(
   if (finiteValues.length === 0) {
     return null;
   }
-  const lowest = Math.min(...finiteValues);
-  const highest = Math.max(...finiteValues);
-  if (highest === lowest) {
-    const step = niceMetricStep(Math.max(Math.abs(highest) * 0.05, 1));
-    const minimum = roundMetricValue(
-      Math.floor((lowest - step) / step) * step,
-    );
-    const maximum = roundMetricValue(
-      Math.ceil((highest + step) / step) * step,
-    );
+  const highest = Math.max(0, ...finiteValues);
+  if (highest === 0) {
     return {
-      minimum,
-      maximum,
-      ticks: [
-        minimum,
-        roundMetricValue(minimum + (maximum - minimum) / 2),
-        maximum,
-      ],
+      minimum: 0,
+      maximum: 1,
+      ticks: [0, 0.5, 1],
     };
   }
-  const step = niceMetricStep((highest - lowest) / 2);
-  const minimum = roundMetricValue(Math.floor(lowest / step) * step);
-  const requiredStepCount = Math.max(
-    2,
-    Math.ceil((highest - minimum) / step),
-  );
-  const evenStepCount =
-    requiredStepCount % 2 === 0 ? requiredStepCount : requiredStepCount + 1;
-  const maximum = roundMetricValue(minimum + evenStepCount * step);
+
+  const step = niceMetricStep(highest / 4);
+  const stepCount = Math.max(2, Math.ceil(highest / step));
+  const maximum = roundMetricValue(stepCount * step);
   return {
-    minimum,
+    minimum: 0,
     maximum,
-    ticks: [
-      minimum,
-      roundMetricValue(minimum + (maximum - minimum) / 2),
-      maximum,
-    ],
+    ticks: Array.from({ length: stepCount + 1 }, (_, index) =>
+      roundMetricValue(index * step),
+    ),
   };
 }
 
@@ -480,7 +461,15 @@ function niceMetricStep(value: number): number {
   const magnitude = 10 ** exponent;
   const fraction = value / magnitude;
   const niceFraction =
-    fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10;
+    fraction <= 1
+      ? 1
+      : fraction <= 2
+        ? 2
+        : fraction <= 2.5
+          ? 2.5
+          : fraction <= 5
+            ? 5
+            : 10;
   return niceFraction * magnitude;
 }
 

@@ -39,7 +39,6 @@ import {
   activeSelectionIndicatorsVisible,
   classifyMouseGesture,
   classifyTouchGesture,
-  DEFAULT_MIN_VIEWPORT_SPAN,
   dragNavigatorViewport,
   fitViewport,
   isoDateRangeEndingOn,
@@ -51,7 +50,9 @@ import {
   pinchZoomViewport,
   resizeNavigatorViewport,
   revealOuterPosition,
+  sessionTraversalIndices,
   spreadCoincidentSessionPositions,
+  touchGestureOpensSession,
   type NavigatorViewportEdge,
   type PerformanceViewport,
   viewportPositionToIsoDate,
@@ -105,7 +106,8 @@ interface ChartGestureState {
   startY: number;
   startViewport: PerformanceViewport;
   maximumTouchCount: number;
-  mode: "pending" | "pan" | "scroll" | "pinch";
+  mode: "pending" | "pan" | "scrub" | "scroll" | "pinch";
+  lastSessionIndex: number;
   pinch: PinchSnapshot | null;
 }
 
@@ -415,6 +417,7 @@ function PerformanceTimeline({
   const [graphWidth, setGraphWidth] = useState(0);
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [scrubbing, setScrubbing] = useState(false);
   const [viewport, setViewportState] =
     useState<PerformanceViewport>(fitViewport);
   const viewportRef = useRef(viewport);
@@ -598,12 +601,15 @@ function PerformanceTimeline({
     activeOuterPosition >= viewport.start - Number.EPSILON &&
     activeOuterPosition <= viewport.end + Number.EPSILON;
   const showInteraction =
-    activeSelectionIndicatorsVisible(hovered, focused, detailOpen) &&
+    activeSelectionIndicatorsVisible(
+      hovered,
+      focused,
+      detailOpen,
+      scrubbing,
+    ) &&
     activeIsVisible;
   const viewportSpan = viewport.end - viewport.start;
   const isFitted = viewportSpan >= 1 - Number.EPSILON * 8;
-  const canZoomIn =
-    viewportSpan > DEFAULT_MIN_VIEWPORT_SPAN + Number.EPSILON * 8;
 
   function sessionViewportPosition(session: DatedSession): number {
     const outerPosition =
@@ -675,6 +681,30 @@ function PerformanceTimeline({
     }
   }
 
+  function scrubAtClientX(
+    clientX: number,
+    element: HTMLDivElement,
+    gesture: ChartGestureState,
+  ): DatedSession | undefined {
+    const nextIndex = nearestVisibleIndexFromClientX(clientX, element);
+    const nextSession = sessions[nextIndex];
+    if (!nextSession) {
+      return undefined;
+    }
+    for (const index of sessionTraversalIndices(
+      gesture.lastSessionIndex,
+      nextIndex,
+      sessions.length,
+    )) {
+      const session = sessions[index];
+      if (session) {
+        onSessionActivate(session.session_key);
+      }
+    }
+    gesture.lastSessionIndex = nextIndex;
+    return nextSession;
+  }
+
   function revealSession(index: number, paddingFraction = 0.08) {
     const position = plottedOuterPositions[index];
     if (position === undefined) {
@@ -702,6 +732,30 @@ function PerformanceTimeline({
     } else if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       onSessionOpen(activeSession.session_key);
+      return;
+    } else if (event.key === "+" || event.key === "=") {
+      event.preventDefault();
+      applyViewport(
+        zoomViewport(
+          viewportRef.current,
+          ZOOM_STEP,
+          activeOuterPosition,
+        ),
+      );
+      return;
+    } else if (event.key === "-") {
+      event.preventDefault();
+      applyViewport(
+        zoomViewport(
+          viewportRef.current,
+          1 / ZOOM_STEP,
+          activeOuterPosition,
+        ),
+      );
+      return;
+    } else if (event.key === "0") {
+      event.preventDefault();
+      applyViewport(fitViewport());
       return;
     }
     if (nextIndex !== null && nextIndex >= 0) {
@@ -745,6 +799,7 @@ function PerformanceTimeline({
     for (const [pointerId] of touchPointers) {
       capturePointer(element, pointerId);
     }
+    setScrubbing(false);
     setHovered(false);
   }
 
@@ -800,6 +855,10 @@ function PerformanceTimeline({
         startViewport: viewportRef.current,
         maximumTouchCount: 1,
         mode: "pending",
+        lastSessionIndex: nearestVisibleIndexFromClientX(
+          event.clientX,
+          event.currentTarget,
+        ),
         pinch: null,
       };
       if (event.pointerType !== "touch") {
@@ -873,17 +932,24 @@ function PerformanceTimeline({
           gesture.mode = "scroll";
           return;
         }
-        if (classification !== "pan") {
+        if (classification !== "scrub") {
           return;
         }
+        gesture.mode = "scrub";
+        setScrubbing(true);
       } else if (classifyMouseGesture(deltaX, deltaY) === "click") {
         return;
+      } else {
+        gesture.mode = "pan";
       }
-      gesture.mode = "pan";
       capturePointer(event.currentTarget, event.pointerId);
     }
 
     event.preventDefault();
+    if (gesture.mode === "scrub") {
+      scrubAtClientX(event.clientX, event.currentTarget, gesture);
+      return;
+    }
     const plotWidth = Math.max(
       1,
       event.currentTarget.getBoundingClientRect().width *
@@ -919,6 +985,7 @@ function PerformanceTimeline({
       gesture.mode === "pinch" ||
       gesture.maximumTouchCount >= 2
     ) {
+      setScrubbing(false);
       if (activePointersRef.current.size === 0) {
         chartGestureRef.current = null;
       }
@@ -928,21 +995,39 @@ function PerformanceTimeline({
       return;
     }
 
+    const touchGesture =
+      gesture.pointerType === "touch"
+        ? gesture.mode === "scrub"
+          ? "scrub"
+          : gesture.mode === "scroll"
+            ? "scroll"
+            : classifyTouchGesture({
+                maximumTouchCount: gesture.maximumTouchCount,
+                deltaX,
+                deltaY,
+              })
+        : null;
     const opensSession =
-      gesture.mode === "pending" &&
-      (gesture.pointerType === "touch"
-        ? classifyTouchGesture({
-            maximumTouchCount: gesture.maximumTouchCount,
-            deltaX,
-            deltaY,
-          }) === "tap"
-        : classifyMouseGesture(deltaX, deltaY) === "click");
+      gesture.pointerType === "touch"
+        ? touchGesture !== null && touchGestureOpensSession(touchGesture)
+        : gesture.mode === "pending" &&
+          classifyMouseGesture(deltaX, deltaY) === "click";
+    const scrubbedSession =
+      gesture.mode === "scrub"
+        ? scrubAtClientX(event.clientX, event.currentTarget, gesture)
+        : undefined;
     chartGestureRef.current = null;
+    setScrubbing(false);
     if (gesture.pointerType !== "touch") {
       setHovered(event.currentTarget.matches(":hover"));
     }
     if (opensSession) {
-      activateAtClientX(event.clientX, event.currentTarget, true);
+      if (scrubbedSession) {
+        event.currentTarget.focus({ preventScroll: true });
+        onSessionOpen(scrubbedSession.session_key);
+      } else {
+        activateAtClientX(event.clientX, event.currentTarget, true);
+      }
     }
   }
 
@@ -953,6 +1038,7 @@ function PerformanceTimeline({
     if (activePointersRef.current.size === 0) {
       chartGestureRef.current = null;
     }
+    setScrubbing(false);
     if (event.pointerType === "touch") {
       setHovered(false);
     } else {
@@ -968,6 +1054,7 @@ function PerformanceTimeline({
     }
     activePointersRef.current.delete(event.pointerId);
     chartGestureRef.current = null;
+    setScrubbing(false);
   }
 
   function beginNavigatorGesture(
@@ -1020,6 +1107,9 @@ function PerformanceTimeline({
         if (classification === "scroll") {
           gesture.scrolling = true;
           releasePointer(event.currentTarget, event.pointerId);
+          return;
+        }
+        if (classification !== "scrub") {
           return;
         }
       } else if (classifyMouseGesture(deltaX, deltaY) === "click") {
@@ -1145,58 +1235,6 @@ function PerformanceTimeline({
     <section className="min-w-0 overflow-hidden rounded-2xl bg-surface ring-1 ring-border">
       <div className="relative">
         <div
-          aria-label="Graph zoom"
-          className="absolute right-2 top-2 z-20 flex gap-1 rounded-xl bg-surface/95 p-1 shadow-sm ring-1 ring-border backdrop-blur-sm sm:right-3 sm:top-3"
-          role="group"
-        >
-          <button
-            type="button"
-            aria-label="Zoom out"
-            disabled={isFitted}
-            onClick={() => {
-              const current = viewportRef.current;
-              applyViewport(
-                zoomViewport(
-                  current,
-                  1 / ZOOM_STEP,
-                  (current.start + current.end) / 2,
-                ),
-              );
-            }}
-            className="min-h-8 min-w-8 rounded-lg px-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            −
-          </button>
-          <button
-            type="button"
-            aria-label="Fit full range"
-            disabled={isFitted}
-            onClick={() => applyViewport(fitViewport())}
-            className="min-h-8 rounded-lg px-2 text-xs font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Fit
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            disabled={!canZoomIn}
-            onClick={() => {
-              const current = viewportRef.current;
-              applyViewport(
-                zoomViewport(
-                  current,
-                  ZOOM_STEP,
-                  (current.start + current.end) / 2,
-                ),
-              );
-            }}
-            className="min-h-8 min-w-8 rounded-lg px-2 text-sm font-semibold text-text-primary transition hover:bg-surface-muted disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            +
-          </button>
-        </div>
-
-        <div
           ref={graphControlRef}
           aria-describedby={instructionsId}
           aria-label={`${exercise.exercise_name} performance graph`}
@@ -1231,8 +1269,9 @@ function PerformanceTimeline({
         >
         <span id={instructionsId} className="sr-only">
           Use Left and Right arrow keys to move between recorded sessions.
-          Press Enter to open the selected session. Use the zoom buttons or
-          Control or Command plus the mouse wheel to zoom.
+          Press Enter to open the selected session. Use Plus and Minus to zoom,
+          press 0 to fit the full range, or use Control or Command plus the
+          mouse wheel to zoom.
         </span>
 
         <svg
