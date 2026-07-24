@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { unstable_doesMiddlewareMatch } from "next/dist/experimental/testing/server/middleware-testing-utils.js";
 
 import {
   MAX_PROXY_ID,
@@ -24,6 +27,34 @@ const VALID_REMOTE_ENVIRONMENT = {
   FITNESS_BASIC_AUTH_PASSWORD: "private-password",
   FITNESS_PUBLIC_ORIGIN: "https://fitness.example.internal",
 };
+
+const frontendSourceRoot = fileURLToPath(new URL("../", import.meta.url));
+const { registerHooks } = createRequire(import.meta.url)("node:module") as {
+  registerHooks: (hooks: {
+    resolve: (
+      specifier: string,
+      context: unknown,
+      nextResolve: (specifier: string, context: unknown) => unknown,
+    ) => unknown;
+  }) => { deregister: () => void };
+};
+const moduleHooks = registerHooks({
+  resolve(specifier, context, nextResolve) {
+    if (specifier === "next/server") {
+      return nextResolve("next/server.js", context);
+    }
+    if (specifier.startsWith("@/")) {
+      const target = pathToFileURL(
+        path.join(frontendSourceRoot, `${specifier.slice(2)}.ts`),
+      ).href;
+      return nextResolve(target, context);
+    }
+    return nextResolve(specifier, context);
+  },
+});
+const { config: proxyConfig, proxy } = await import("../proxy.ts");
+const { NextRequest } = await import("next/server.js");
+moduleHooks.deregister();
 
 test("localhost mode remains usable without authentication", () => {
   const configuration = readRemoteAccessConfiguration({
@@ -388,16 +419,129 @@ test("every Next API route is covered by the explicit family allowlist", async (
   }
 });
 
-test("the Next boundary issues a Basic challenge and excludes only static assets", async () => {
-  const proxyPath = fileURLToPath(new URL("../proxy.ts", import.meta.url));
-  const source = await readFile(proxyPath, "utf8");
+test("the actual Next matcher protects API and dynamic application routes", () => {
+  for (const pathname of [
+    "/api/personal-foods/7.js",
+    "/api/nutrition-saved-meals/7.png",
+    "/personal-foods/7.js",
+    "/personal-foods/profile.svg",
+    "/coach",
+  ]) {
+    assert.equal(doesProxyMatch(pathname), true, pathname);
+  }
 
-  assert.match(source, /WWW-Authenticate/);
-  assert.match(source, /Basic realm="Fitness"/);
-  assert.match(source, /validateApiProxyRequest/);
-  assert.match(source, /_next\/static/);
-  assert.doesNotMatch(source, /FITNESS_BASIC_AUTH_PASSWORD.*(?:log|warn|error)/);
+  for (const pathname of [
+    "/_next/static/chunks/app.js",
+    "/_next/image",
+    "/exercise-media/free-exercise-db/push-up/start.jpg",
+    "/favicon.ico",
+    "/file.svg",
+    "/globe.svg",
+    "/next.svg",
+    "/vercel.svg",
+    "/window.svg",
+  ]) {
+    assert.equal(doesProxyMatch(pathname), false, pathname);
+  }
+
+  assert.equal(doesProxyMatch("/private/file.svg"), true);
+  assert.equal(doesProxyMatch("/file.svg/details"), true);
+  assert.equal(doesProxyMatch("/api/file.svg"), true);
 });
+
+test("the Proxy challenges remote requests and rejects mutations before dispatch", async () => {
+  const environmentNames = Object.keys(VALID_REMOTE_ENVIRONMENT);
+  const previousEnvironment = Object.fromEntries(
+    environmentNames.map((name) => [name, process.env[name]]),
+  );
+  Object.assign(process.env, VALID_REMOTE_ENVIRONMENT);
+
+  const validAuthorization = `Basic ${Buffer.from(
+    "private-user:private-password",
+  ).toString("base64")}`;
+  const wrongAuthorization = `Basic ${Buffer.from(
+    "private-user:wrong-password",
+  ).toString("base64")}`;
+  let backendDispatches = 0;
+  const dispatch = async (request: InstanceType<typeof NextRequest>) => {
+    const response = await proxy(request);
+    if (response.headers.get("x-middleware-next") === "1") {
+      backendDispatches += 1;
+    }
+    return response;
+  };
+
+  try {
+    const missingCredentials = await dispatch(
+      new NextRequest(
+        "https://fitness.example.internal/api/personal-foods/7.js?user_id=101",
+      ),
+    );
+    assert.equal(missingCredentials.status, 401);
+    assert.equal(
+      missingCredentials.headers.get("WWW-Authenticate"),
+      'Basic realm="Fitness", charset="UTF-8"',
+    );
+
+    const invalidCredentials = await dispatch(
+      new NextRequest(
+        "https://fitness.example.internal/api/personal-foods/7?user_id=101",
+        { headers: { Authorization: wrongAuthorization } },
+      ),
+    );
+    assert.equal(invalidCredentials.status, 401);
+
+    const missingOrigin = await dispatch(
+      new NextRequest(
+        "https://fitness.example.internal/api/personal-foods/7",
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: validAuthorization,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ user_id: 101 }),
+        },
+      ),
+    );
+    assert.equal(missingOrigin.status, 403);
+    assert.equal(backendDispatches, 0);
+
+    const validRequest = await dispatch(
+      new NextRequest(
+        "https://fitness.example.internal/api/personal-foods/7",
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: validAuthorization,
+            "Content-Type": "application/json",
+            Origin: "https://fitness.example.internal",
+          },
+          body: JSON.stringify({ user_id: 101 }),
+        },
+      ),
+    );
+    assert.equal(validRequest.status, 200);
+    assert.equal(validRequest.headers.get("x-middleware-next"), "1");
+    assert.equal(backendDispatches, 1);
+  } finally {
+    for (const name of environmentNames) {
+      const previousValue = previousEnvironment[name];
+      if (previousValue === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = previousValue;
+      }
+    }
+  }
+});
+
+function doesProxyMatch(pathname: string): boolean {
+  return unstable_doesMiddlewareMatch({
+    config: proxyConfig,
+    url: `https://fitness.example.internal${pathname}`,
+  });
+}
 
 async function findRouteFiles(directory: string): Promise<string[]> {
   const entries = await readdir(directory, { withFileTypes: true });

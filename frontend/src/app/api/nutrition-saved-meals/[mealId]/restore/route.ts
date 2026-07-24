@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface RouteContext {
   params: Promise<{ mealId: string }>;
@@ -8,15 +12,31 @@ interface RouteContext {
 
 export async function POST(request: NextRequest, context: RouteContext) {
   const { mealId } = await context.params;
+  const parsedMealId = parsePositiveIntegerId(mealId);
+  if (parsedMealId === null) {
+    return NextResponse.json(
+      { detail: "meal_id must be a positive integer." },
+      { status: 400 },
+    );
+  }
   const payload = (await request.json().catch(() => null)) as
     | { user_id?: number }
     | null;
-  if (!payload?.user_id) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  const userId = parsePositiveIntegerId(payload?.user_id);
+  if (userId === null) {
+    return NextResponse.json(
+      { detail: "user_id must be a positive integer." },
+      { status: 400 },
+    );
   }
   try {
     const response = await fetch(
-      `${getApiBaseUrl()}/nutrition/${payload.user_id}/saved-meals/${mealId}/restore`,
+      buildBackendUrl(getApiBaseUrl(), "nutrition", [
+        userId,
+        "saved-meals",
+        parsedMealId,
+        "restore",
+      ]),
       { method: "POST", cache: "no-store", headers: { Accept: "application/json" } },
     );
     const responsePayload = (await response.json().catch(() => null)) as

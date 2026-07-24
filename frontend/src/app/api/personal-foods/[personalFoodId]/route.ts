@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface RouteContext {
   params: Promise<{ personalFoodId: string }>;
@@ -20,29 +24,53 @@ function backendError(payload: Record<string, unknown> | null, fallback: string)
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { personalFoodId } = await context.params;
-  const userId = request.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  const parsedPersonalFoodId = parsePositiveIntegerId(personalFoodId);
+  const userId = parsePositiveIntegerId(
+    request.nextUrl.searchParams.get("user_id"),
+  );
+  if (parsedPersonalFoodId === null || userId === null) {
+    return NextResponse.json(
+      { detail: "user_id and personal_food_id must be positive integers." },
+      { status: 400 },
+    );
   }
   return forward(
-    `${getApiBaseUrl()}/nutrition/${userId}/personal-foods/${personalFoodId}`,
+    buildBackendUrl(getApiBaseUrl(), "nutrition", [
+      userId,
+      "personal-foods",
+      parsedPersonalFoodId,
+    ]),
     "GET",
   );
 }
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { personalFoodId } = await context.params;
+  const parsedPersonalFoodId = parsePositiveIntegerId(personalFoodId);
+  if (parsedPersonalFoodId === null) {
+    return NextResponse.json(
+      { detail: "personal_food_id must be a positive integer." },
+      { status: 400 },
+    );
+  }
   const payload = (await request.json().catch(() => null)) as
     | Record<string, unknown>
     | null;
-  const userId = payload?.user_id;
-  if (typeof userId !== "number" || userId <= 0) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  const userId = parsePositiveIntegerId(payload?.user_id);
+  if (userId === null) {
+    return NextResponse.json(
+      { detail: "user_id must be a positive integer." },
+      { status: 400 },
+    );
   }
   const backendPayload = { ...payload };
   delete backendPayload.user_id;
   return forward(
-    `${getApiBaseUrl()}/nutrition/${userId}/personal-foods/${personalFoodId}`,
+    buildBackendUrl(getApiBaseUrl(), "nutrition", [
+      userId,
+      "personal-foods",
+      parsedPersonalFoodId,
+    ]),
     "PATCH",
     backendPayload,
   );
@@ -50,12 +78,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const { personalFoodId } = await context.params;
-  const userId = request.nextUrl.searchParams.get("user_id");
-  if (!userId) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  const parsedPersonalFoodId = parsePositiveIntegerId(personalFoodId);
+  const userId = parsePositiveIntegerId(
+    request.nextUrl.searchParams.get("user_id"),
+  );
+  if (parsedPersonalFoodId === null || userId === null) {
+    return NextResponse.json(
+      { detail: "user_id and personal_food_id must be positive integers." },
+      { status: 400 },
+    );
   }
   return forward(
-    `${getApiBaseUrl()}/nutrition/${userId}/personal-foods/${personalFoodId}`,
+    buildBackendUrl(getApiBaseUrl(), "nutrition", [
+      userId,
+      "personal-foods",
+      parsedPersonalFoodId,
+    ]),
     "DELETE",
   );
 }

@@ -51,6 +51,9 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:css|gif|ico|jpeg|jpg|js|png|svg|webp)$).*)",
+    // API requests must always cross the authentication, Origin, and route checks.
+    "/api/:path*",
+    // Only framework assets, exercise media, and exact public root assets are public.
+    "/((?!_next/static(?:/|$)|_next/image(?:/|$)|exercise-media(?:/|$)|(?:favicon\\.ico|file\\.svg|globe\\.svg|next\\.svg|vercel\\.svg|window\\.svg)$).*)",
   ],
 };

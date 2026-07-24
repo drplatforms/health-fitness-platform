@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface RouteContext {
   params: Promise<{ entryId: string }>;
@@ -20,6 +24,13 @@ function backendError(payload: Record<string, unknown> | null, fallback: string)
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { entryId } = await context.params;
+  const parsedEntryId = parsePositiveIntegerId(entryId);
+  if (parsedEntryId === null) {
+    return NextResponse.json(
+      { detail: "entry_id must be a positive integer." },
+      { status: 400 },
+    );
+  }
   const payload = (await request.json().catch(() => null)) as
     | {
         user_id?: number;
@@ -29,10 +40,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         entry_date?: string;
       }
     | null;
-  if (!payload?.user_id) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  const userId = parsePositiveIntegerId(payload?.user_id);
+  if (!payload || userId === null) {
+    return NextResponse.json(
+      { detail: "user_id must be a positive integer." },
+      { status: 400 },
+    );
   }
-  const endpoint = `${getApiBaseUrl()}/nutrition/${payload.user_id}/personal-logs/${entryId}`;
+  const endpoint = buildBackendUrl(getApiBaseUrl(), "nutrition", [
+    userId,
+    "personal-logs",
+    parsedEntryId,
+  ]);
   try {
     const response = await fetch(endpoint, {
       method: "PATCH",
@@ -62,16 +81,24 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const { entryId } = await context.params;
-  const userId = request.nextUrl.searchParams.get("user_id");
+  const parsedEntryId = parsePositiveIntegerId(entryId);
+  const userId = parsePositiveIntegerId(
+    request.nextUrl.searchParams.get("user_id"),
+  );
   const date = request.nextUrl.searchParams.get("date");
-  if (!userId || !date) {
+  if (parsedEntryId === null || userId === null || !date) {
     return NextResponse.json(
-      { detail: "user_id and date are required." },
+      { detail: "user_id, entry_id, and date are required." },
       { status: 400 },
     );
   }
   const params = new URLSearchParams({ date });
-  const endpoint = `${getApiBaseUrl()}/nutrition/${userId}/personal-logs/${entryId}?${params.toString()}`;
+  const endpoint = buildBackendUrl(
+    getApiBaseUrl(),
+    "nutrition",
+    [userId, "personal-logs", parsedEntryId],
+    params,
+  );
   try {
     const response = await fetch(endpoint, {
       method: "DELETE",
