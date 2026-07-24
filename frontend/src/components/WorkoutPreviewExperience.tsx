@@ -835,7 +835,7 @@ function NextTargetBlock({
 
   return (
     <div className="py-2 text-xs text-text-body" aria-label="Next target">
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-text-muted">
+      <p className="type-compact-metadata font-semibold uppercase tracking-[0.14em] text-text-muted">
         Next target
       </p>
       <p className="mt-1 text-sm font-semibold text-text-primary">
@@ -2374,53 +2374,48 @@ export function WorkoutPreviewExperience({
     !isCompletedState
   ) {
     return (
-      <div className="space-y-3">
-        <TemporaryWorkoutLimitationCard
-          key={userId}
-          userId={userId}
-          refreshVersion={limitationConflictRefreshVersion}
-          onChanged={() => setLimitationVersion((version) => version + 1)}
-        />
-        <section className="rounded-2xl bg-surface px-4 py-4 ring-1 ring-border">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-muted">
-          This week
-        </p>
-        <h2 className="mt-1 text-xl font-semibold text-text-strong">Rest day</h2>
-        <p className="mt-1 text-sm text-text-body">
-          No training session is scheduled today.
-        </p>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
-          <button
-            type="button"
-            onClick={handleTrainAnyway}
-            className="rounded-xl bg-action-primary px-4 py-2.5 text-sm font-semibold text-action-primary-foreground hover:bg-action-primary-hover"
-          >
-            Train anyway
-          </button>
-          <Link
-            href={buildWeeklyWorkoutHref(userId, targetDate)}
-            className="rounded-xl bg-surface-muted px-4 py-2.5 text-center text-sm font-semibold text-text-body hover:bg-surface-interactive-hover"
-          >
-            View week
-          </Link>
-        </div>
-        </section>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
-      {isHistoricalReadOnly === false ? (
-        <div className="lg:col-span-2">
+      <section className="rounded-2xl bg-surface p-4 ring-1 ring-border sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p className="type-status-label uppercase tracking-[0.14em] text-text-muted">
+              This week
+            </p>
+            <h2 className="type-section-title mt-1 text-text-strong">
+              Rest day
+            </h2>
+            <p className="type-body mt-1 text-text-body">
+              No training session is scheduled today.
+            </p>
+          </div>
           <TemporaryWorkoutLimitationCard
             key={userId}
+            className="w-full sm:max-w-sm"
             userId={userId}
             refreshVersion={limitationConflictRefreshVersion}
             onChanged={() => setLimitationVersion((version) => version + 1)}
           />
         </div>
-      ) : null}
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:flex">
+          <button
+            type="button"
+            onClick={handleTrainAnyway}
+            className="type-button rounded-xl bg-action-primary px-4 py-2.5 text-action-primary-foreground hover:bg-action-primary-hover"
+          >
+            Train anyway
+          </button>
+          <Link
+            href={buildWeeklyWorkoutHref(userId, targetDate)}
+            className="type-button rounded-xl bg-surface-muted px-4 py-2.5 text-center text-text-body hover:bg-surface-interactive-hover"
+          >
+            View week
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)] lg:gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(360px,1fr)]">
       {weeklyTrainingContext?.has_weekly_plan &&
       (weeklyTrainingContext.session_title || weeklyTrainingContext.is_override) ? (
         <div className="min-w-0 rounded-xl bg-surface-subtle px-3 py-2 text-sm font-semibold text-text-body ring-1 ring-border lg:col-span-2">
@@ -2443,7 +2438,7 @@ export function WorkoutPreviewExperience({
                 type="button"
                 onClick={() => void handleOpenCompletionReview()}
                 disabled={isSubmitting}
-                className="rounded-lg bg-caution-action px-2.5 py-1.5 text-[0.7rem] font-semibold normal-case tracking-normal text-text-inverse transition hover:bg-caution-action-hover disabled:cursor-not-allowed disabled:opacity-60"
+                className="type-compact-metadata rounded-lg bg-caution-action px-2.5 py-1.5 font-semibold normal-case tracking-normal text-text-inverse transition hover:bg-caution-action-hover disabled:cursor-not-allowed disabled:opacity-60"
               >
                 Finish
               </button>
@@ -2458,11 +2453,6 @@ export function WorkoutPreviewExperience({
               style={{ width: `${workoutCompletionPercentage}%` }}
             />
           </div>
-          {errorMessage ? (
-            <div className="mt-2 rounded-xl bg-danger-surface px-3 py-2 text-sm font-medium normal-case tracking-normal text-danger-foreground">
-              {errorMessage}
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -2516,115 +2506,6 @@ export function WorkoutPreviewExperience({
           </div>
         </section>
       ) : null}
-
-      {!canLogWorkout ? (
-        <section className="min-w-0 rounded-2xl bg-surface px-3 py-2.5 ring-1 ring-border md:hidden">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              {summaryStatus !== "selected" ? (
-                <p className="text-sm font-semibold text-text-strong">
-                  {sessionStatusPrimaryLine(
-                    approvedPlan,
-                    preview,
-                    viewMode,
-                    summaryStatus,
-                    plannedVsActualSummary,
-                  )}
-                </p>
-              ) : null}
-              {topMetrics.length ? (
-                <p className="mt-0.5 truncate text-xs text-text-secondary">
-                  {topMetrics.slice(0, 2).join(" · ")}
-                </p>
-              ) : null}
-            </div>
-            <StatusPill
-              label={statusLabel.replaceAll("_", " ")}
-              tone={statusTone}
-            />
-          </div>
-          {isHistoricalReadOnly ? (
-            <p className="mt-2 text-xs font-semibold text-text-secondary">
-              Historical workout · Read only
-            </p>
-          ) : null}
-          {isLoadingPreview ? (
-            <p className="mt-2 text-xs font-medium text-neutral-foreground">
-              Loading workout preview...
-            </p>
-          ) : null}
-          {actionMessage ? (
-            <p className="mt-2 text-xs font-medium text-positive-foreground-strong">
-              {actionMessage}
-            </p>
-          ) : null}
-          {errorMessage ? (
-            <p className="mt-2 text-xs font-medium text-danger-foreground">
-              {errorMessage}
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      <TodayCard
-        title="Session Status"
-        accent="highlight"
-        className="hidden min-w-0 md:block lg:col-span-2 lg:row-start-1"
-      >
-        <div className="space-y-3">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div className="min-w-0">
-              {summaryStatus !== "selected" ? (
-                <p className="text-lg font-semibold text-text-strong">
-                  {sessionStatusPrimaryLine(
-                    approvedPlan,
-                    preview,
-                    viewMode,
-                    summaryStatus,
-                    plannedVsActualSummary,
-                  )}
-                </p>
-              ) : null}
-            </div>
-            <StatusPill
-              label={statusLabel.replaceAll("_", " ")}
-              tone={statusTone}
-            />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {isHistoricalReadOnly ? (
-              <span className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-text-body ring-1 ring-border">
-                Historical workout · Read only
-              </span>
-            ) : null}
-            {topMetrics.map((item) => (
-              <span
-                key={item}
-                className="rounded-full bg-surface px-3 py-1.5 text-xs font-semibold text-text-body ring-1 ring-border"
-              >
-                {item}
-              </span>
-            ))}
-          </div>
-
-          {isLoadingPreview ? (
-            <div className="rounded-2xl bg-neutral-surface px-4 py-3 text-sm font-medium text-neutral-foreground">
-              Loading workout preview...
-            </div>
-          ) : null}
-          {actionMessage ? (
-            <div className="rounded-2xl bg-positive-surface px-4 py-3 text-sm font-medium text-positive-foreground-strong">
-              {actionMessage}
-            </div>
-          ) : null}
-          {errorMessage ? (
-            <div className="rounded-2xl bg-danger-surface px-4 py-3 text-sm font-medium text-danger-foreground">
-              {errorMessage}
-            </div>
-          ) : null}
-        </div>
-      </TodayCard>
 
       {plannedVsActualSummary ? (
         <TodayCard
@@ -2715,57 +2596,137 @@ export function WorkoutPreviewExperience({
       ) : null}
 
       <TodayCard
-        title={canLogWorkout ? "Exercises And Logging" : "Exercises"}
+        title="Exercises"
         className="min-w-0 lg:col-span-2"
       >
         <div className="space-y-4">
-          {isHistoricalReadOnly === false &&
-          !isPersistedState &&
-          !isCompletedState ? (
+          {isHistoricalReadOnly === false ? (
             <div
               className={`rounded-xl bg-surface-subtle px-3 py-3 md:rounded-2xl md:px-4 md:py-4 ${
                 expandedInstructionKey !== null ? "md:hidden" : ""
               }`}
             >
-              <div className="space-y-3">
-                <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
-                  {sizeOptions.map((option) => {
-                    const isActive = option.value === workoutSizePreference;
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => handleSizeChange(option.value)}
-                        className={`rounded-xl px-2 py-2 text-sm font-semibold transition sm:rounded-full sm:px-4 ${
-                          isActive
-                            ? "bg-action-primary text-action-primary-foreground"
-                            : "bg-surface text-text-body ring-1 ring-border hover:bg-surface-highlighted"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-                  <button
-                    type="button"
-                    onClick={handleTryDifferentVersion}
-                    disabled={isLoadingPreview || isSubmitting}
-                    className="rounded-xl bg-surface px-3 py-2.5 text-sm font-semibold text-text-primary ring-1 ring-border transition hover:bg-surface-subtle disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-4 sm:py-3"
-                  >
-                    Try different version
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSelectWorkout()}
-                    disabled={approvedPlan === null || isLoadingPreview || isSubmitting}
-                    className="rounded-xl bg-action-primary px-3 py-2.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl sm:px-4 sm:py-3"
-                  >
-                    Select this workout
-                  </button>
+              <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                {!isPersistedState && !isCompletedState ? (
+                  <div className="flex min-w-0 flex-wrap gap-2">
+                    {sizeOptions.map((option) => {
+                      const isActive = option.value === workoutSizePreference;
+                      return (
+                        <button
+                          key={option.value}
+                          type="button"
+                          aria-pressed={isActive}
+                          onClick={() => handleSizeChange(option.value)}
+                          className={`type-button rounded-xl px-3 py-2 transition sm:rounded-full sm:px-4 ${
+                            isActive
+                              ? "bg-action-primary text-action-primary-foreground"
+                              : "bg-surface text-text-body ring-1 ring-border hover:bg-surface-highlighted"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      onClick={handleTryDifferentVersion}
+                      disabled={isLoadingPreview || isSubmitting}
+                      className="type-button rounded-xl bg-surface px-3 py-2 text-text-primary ring-1 ring-border transition hover:bg-surface-highlighted disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-full sm:px-4"
+                    >
+                      Different Version
+                    </button>
+                  </div>
+                ) : null}
+                <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:ml-auto">
+                  <TemporaryWorkoutLimitationCard
+                    key={userId}
+                    className="w-full sm:min-w-64 sm:max-w-sm"
+                    userId={userId}
+                    refreshVersion={limitationConflictRefreshVersion}
+                    onChanged={() =>
+                      setLimitationVersion((version) => version + 1)
+                    }
+                  />
+                  {!isPersistedState && !isCompletedState ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleSelectWorkout()}
+                      disabled={
+                        approvedPlan === null ||
+                        isLoadingPreview ||
+                        isSubmitting
+                      }
+                      className="type-button shrink-0 rounded-xl bg-action-primary px-4 py-2.5 text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:rounded-2xl"
+                    >
+                      Select
+                    </button>
+                  ) : null}
                 </div>
               </div>
+            </div>
+          ) : null}
+
+          {summaryStatus !== "selected" ||
+          topMetrics.length > 0 ||
+          isHistoricalReadOnly ||
+          isLoadingPreview ||
+          actionMessage ||
+          errorMessage ? (
+            <div className="space-y-2 border-t border-border-subtle pt-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                {summaryStatus !== "selected" ? (
+                  <p className="type-body font-semibold text-text-strong">
+                    {sessionStatusPrimaryLine(
+                      approvedPlan,
+                      preview,
+                      viewMode,
+                      summaryStatus,
+                      plannedVsActualSummary,
+                    )}
+                  </p>
+                ) : (
+                  <span />
+                )}
+                <StatusPill
+                  label={statusLabel.replaceAll("_", " ")}
+                  tone={statusTone}
+                />
+              </div>
+              {isHistoricalReadOnly || topMetrics.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {isHistoricalReadOnly ? (
+                    <span className="type-status-label rounded-full bg-surface px-3 py-1.5 text-text-body ring-1 ring-border">
+                      Historical workout · Read only
+                    </span>
+                  ) : null}
+                  {topMetrics.map((item) => (
+                    <span
+                      key={item}
+                      className="type-status-label rounded-full bg-surface px-3 py-1.5 text-text-body ring-1 ring-border"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              {isLoadingPreview ? (
+                <p className="type-feedback rounded-xl bg-neutral-surface px-3 py-2 font-medium text-neutral-foreground">
+                  Loading workout preview...
+                </p>
+              ) : null}
+              {actionMessage ? (
+                <p className="type-feedback rounded-xl bg-positive-surface px-3 py-2 font-medium text-positive-foreground-strong">
+                  {actionMessage}
+                </p>
+              ) : null}
+              {errorMessage ? (
+                <p
+                  role="alert"
+                  className="type-feedback rounded-xl bg-danger-surface px-3 py-2 font-medium text-danger-foreground"
+                >
+                  {errorMessage}
+                </p>
+              ) : null}
             </div>
           ) : null}
 

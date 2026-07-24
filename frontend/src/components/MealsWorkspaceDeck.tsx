@@ -4,6 +4,7 @@ import { ManualRecipePanel } from "@/components/ManualRecipePanel";
 import { MealIdeasPanel } from "@/components/MealIdeasPanel";
 import { SavedMealsPanel } from "@/components/SavedMealsPanel";
 import { WorkspaceDeck } from "@/components/WorkspaceDeck";
+import { MEALS_WORKSPACE_LABELS } from "@/lib/appUiStandards";
 
 interface MealsWorkspaceDeckProps {
   userId: number;
@@ -20,14 +21,12 @@ export function MealsWorkspaceDeck({
       tabs={[
         {
           key: "ideas",
-          label: "Ideas",
-          hint: "Generate grounded meals",
+          label: MEALS_WORKSPACE_LABELS.ideas,
           content: <MealIdeasPanel userId={userId} targetDate={targetDate} />,
         },
         {
           key: "saved",
-          label: "Saved Recipes",
-          hint: "Reuse and manage",
+          label: MEALS_WORKSPACE_LABELS.saved,
           content: (
             <SavedMealsPanel
               userId={userId}
@@ -37,8 +36,7 @@ export function MealsWorkspaceDeck({
         },
         {
           key: "create",
-          label: "Create Manually",
-          hint: "Build from your foods",
+          label: MEALS_WORKSPACE_LABELS.create,
           content: <ManualRecipePanel userId={userId} />,
         },
       ]}

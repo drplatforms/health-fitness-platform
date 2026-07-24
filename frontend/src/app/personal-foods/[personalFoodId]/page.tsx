@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AppPageShell } from "@/components/AppPageShell";
 import { PersonalFoodForm } from "@/components/PersonalFoodForm";
-import { PrimaryNavigation } from "@/components/PrimaryNavigation";
-import { ThemePreferenceControl } from "@/components/ThemePreferenceControl";
 import { getDefaultUserId } from "@/lib/dailyDriverApi";
+import { formatLongReadableDate } from "@/lib/dateFormatting";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -40,22 +40,20 @@ export default async function EditPersonalFoodPage({
   contextParams.set("view", "library");
 
   return (
-    <main className="min-h-screen bg-canvas px-3 py-3 text-text-strong sm:px-4 sm:py-6">
-      <div className="mx-auto w-full max-w-2xl space-y-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:space-y-4 md:pb-0">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-4 text-sm font-semibold">
-            <Link
-              href={`/food?${contextParams.toString()}`}
-              className="text-accent-text hover:text-accent-text-hover"
-            >
-              Back to Food Library
-            </Link>
-          </div>
-          <ThemePreferenceControl />
-        </div>
-        <PrimaryNavigation userId={userId} date={targetDate} />
-        <section className="rounded-2xl bg-surface px-4 py-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:rounded-[28px] sm:px-6 sm:py-5">
-          <h1 className="mb-4 text-2xl font-semibold tracking-tight sm:mb-5">Edit food</h1>
+    <AppPageShell
+      title="Edit food"
+      dateLabel={formatLongReadableDate(targetDate)}
+      userId={userId}
+      navigationDate={targetDate}
+    >
+      <div className="mx-auto w-full max-w-2xl space-y-3 sm:space-y-4">
+        <Link
+          href={`/food?${contextParams.toString()}`}
+          className="type-button inline-flex text-accent-text hover:text-accent-text-hover"
+        >
+          Back to Food Library
+        </Link>
+        <section className="rounded-2xl bg-surface p-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:p-5">
           <PersonalFoodForm
             mode="edit"
             userId={userId}
@@ -64,6 +62,6 @@ export default async function EditPersonalFoodPage({
           />
         </section>
       </div>
-    </main>
+    </AppPageShell>
   );
 }

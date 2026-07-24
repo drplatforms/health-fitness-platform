@@ -8,6 +8,7 @@ import {
   fetchRecoveryCheckIn,
   saveRecoveryCheckIn,
 } from "@/lib/recoveryCheckinApi";
+import { readinessStatusLabel } from "@/lib/appUiStandards";
 import {
   AFFECTED_REGION_OPTIONS,
   limitationTokenLabel,
@@ -321,34 +322,19 @@ export function RecoveryCheckInCard({
   return (
     <TodayCard title="Recovery Check-In" className="lg:col-start-2 lg:row-start-1">
       <div className="space-y-3 sm:space-y-4">
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-surface-subtle px-3 py-2 sm:hidden">
-          <p className="font-semibold text-text-strong">
-            Readiness {readiness.score ?? "--"}
-          </p>
-          <StatusPill
-            label={readiness.status.replace("_", " ")}
-            tone={readinessToneMap[readiness.status]}
-          />
-        </div>
-        <div className="hidden gap-3 sm:grid sm:grid-cols-[auto_1fr] sm:items-start">
-          <div className="rounded-2xl bg-surface-subtle px-4 py-3">
-            <p className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
+        <div className="flex items-center justify-between gap-3 rounded-2xl bg-surface-subtle px-4 py-3">
+          <div>
+            <p className="type-status-label uppercase tracking-[0.16em] text-text-muted">
               Readiness
             </p>
-            <p className="mt-2 text-3xl font-semibold tracking-tight text-text-strong">
+            <p className="mt-1 text-3xl font-semibold tracking-tight text-text-strong">
               {readiness.score ?? "--"}
             </p>
           </div>
-          <div className="space-y-2">
-            <StatusPill
-              label={readiness.status.replace("_", " ")}
-              tone={readinessToneMap[readiness.status]}
-            />
-            <p className="text-lg font-semibold text-text-strong">
-              {readiness.headline}
-            </p>
-            <p className="text-sm leading-6 text-text-body">{readiness.reason}</p>
-          </div>
+          <StatusPill
+            label={readinessStatusLabel(readiness.status)}
+            tone={readinessToneMap[readiness.status]}
+          />
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:gap-3">

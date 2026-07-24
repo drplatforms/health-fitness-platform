@@ -100,12 +100,7 @@ export function FoodLibraryPanel({
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-text-strong">Food Library</h2>
-          <p className="mt-1 text-sm leading-5 text-text-body">
-            Browse your catalog, preferences, pinned foods, and foods you added.
-          </p>
-        </div>
+        <h2 className="type-card-title text-text-strong">Food Library</h2>
         <button
           type="button"
           onClick={() => setIsBrowseOpen(true)}
@@ -122,14 +117,12 @@ export function FoodLibraryPanel({
       ) : null}
 
       <section className="space-y-2" aria-labelledby="personal-foods-heading">
-        <div>
-          <h3 id="personal-foods-heading" className="text-sm font-semibold text-text-primary">
-            Foods you added
-          </h3>
-          <p className="text-xs text-text-muted">
-            Create, edit, archive, or restore your own food entries.
-          </p>
-        </div>
+        <h3
+          id="personal-foods-heading"
+          className="text-sm font-semibold text-text-primary"
+        >
+          Foods you added
+        </h3>
         <PersonalFoodsList
           userId={userId}
           targetDate={targetDate}

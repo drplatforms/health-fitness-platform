@@ -15,7 +15,10 @@
 
 .tab {
   position: relative;
+  display: flex;
   flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
   min-width: 0;
   min-height: 3rem;
   border: 1px solid var(--theme-border);
@@ -54,22 +57,21 @@
 
 .tabLabel {
   display: block;
-  font-size: clamp(0.72rem, 3.35vw, 0.9rem);
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: -0.015em;
-  line-height: 1.05rem;
+  line-height: 1rem;
   white-space: normal;
 }
 
-.tabHint {
-  display: none;
-  margin-top: 0.15rem;
-  overflow: hidden;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.navigationList {
+  margin-bottom: 0;
+  padding-bottom: 0.55rem;
+}
+
+.navigationTab {
+  flex-basis: calc((100% / var(--workspace-tab-count, 4)) + 0.75rem);
+  text-decoration: none;
 }
 
 .surface {
@@ -79,7 +81,7 @@
   border: 1px solid var(--theme-border-subtle);
   border-radius: 1rem;
   background: var(--theme-surface);
-  padding: 0.75rem;
+  padding: 1rem;
   box-shadow: 0 22px 55px -38px rgb(15 23 42 / 0.55);
 }
 
@@ -105,15 +107,15 @@
     align-items: flex-end;
     gap: 0;
     padding-inline: 1.25rem;
-    margin-bottom: -0.9rem;
+    margin-bottom: -0.75rem;
   }
 
   .tab {
     flex: 0 1 calc((100% / var(--workspace-tab-count, 4)) + 0.75rem);
-    min-height: 4.8rem;
+    min-height: 3.75rem;
     border-radius: 1.5rem 1.5rem 1rem 1rem;
-    padding: 0.9rem 1.35rem 1.35rem;
-    text-align: left;
+    padding: 0.85rem 1.25rem 1.1rem;
+    text-align: center;
   }
 
   .tab + .tab {
@@ -129,10 +131,6 @@
     transform: translateY(0.55rem) scale(0.98);
   }
 
-  .tabHint {
-    display: block;
-  }
-
   .tabLabel {
     overflow: hidden;
     font-size: 1rem;
@@ -142,8 +140,13 @@
   }
 
   .surface {
-    border-radius: 1.75rem;
-    padding: 2.4rem 1.5rem 1.5rem;
+    border-radius: 1rem;
+    padding: 2rem 1.25rem 1.25rem;
+  }
+
+  .navigationList {
+    margin-bottom: 0;
+    padding-bottom: 0.65rem;
   }
 }
 

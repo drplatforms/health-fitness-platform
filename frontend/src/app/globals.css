@@ -198,3 +198,61 @@ a {
 button {
   cursor: pointer;
 }
+
+.type-page-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 2rem;
+}
+
+.type-section-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+}
+
+.type-card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+}
+
+.type-body {
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+}
+
+.type-field-label,
+.type-status-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.type-button {
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+}
+
+.type-compact-metadata {
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+.type-chart-metadata {
+  font-size: 0.65rem;
+  line-height: 1rem;
+}
+
+.type-feedback {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+@media (min-width: 640px) {
+  .type-chart-metadata {
+    font-size: 0.7rem;
+  }
+}

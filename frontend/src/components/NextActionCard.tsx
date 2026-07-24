@@ -15,14 +15,14 @@ export function NextActionCard({
 }: NextActionCardProps) {
   return (
     <section
-      className={`rounded-[32px] border border-border-accent [background:var(--theme-next-action-surface)] p-6 shadow-[0_24px_50px_-30px_rgba(5,150,105,0.65)] ${className}`}
+      className={`rounded-2xl border border-border-accent [background:var(--theme-next-action-surface)] p-4 shadow-[0_24px_50px_-30px_rgba(5,150,105,0.65)] sm:p-5 ${className}`}
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <p className="text-[0.7rem] font-semibold uppercase tracking-[0.18em] text-accent-text">
+          <p className="type-compact-metadata font-semibold uppercase tracking-[0.18em] text-accent-text">
             Next Action
           </p>
-          <h2 className="text-2xl font-semibold tracking-tight text-positive-foreground-strong md:text-[2rem]">
+          <h2 className="type-section-title text-positive-foreground-strong">
             {action.label}
           </h2>
           <p className="max-w-2xl text-sm leading-6 text-positive-foreground md:text-base">

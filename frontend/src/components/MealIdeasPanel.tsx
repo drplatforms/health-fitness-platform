@@ -244,12 +244,7 @@ export function MealIdeasPanel({ userId, targetDate }: MealIdeasPanelProps) {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-          <div>
-            <h3 className="text-base font-semibold text-text-strong">AI Meal Ideas</h3>
-            <p className="mt-0.5 text-xs text-text-muted">
-              Creative concepts, grounded with your food catalog nutrition.
-            </p>
-          </div>
+          <h3 className="type-card-title text-text-strong">AI Meal Ideas</h3>
           {result ? (
             <span className="rounded-full border border-border-subtle bg-surface px-2.5 py-1 text-xs font-semibold text-text-muted">
               Generated with {providerLabel(result.provider)} · {result.model}
@@ -587,7 +582,7 @@ function MealIdeaCard({
           <p className="mt-0.5 text-xs capitalize text-text-muted">{idea.meal_type}</p>
         </div>
         {idea.available_ingredient_count > 0 ? (
-          <span className="shrink-0 rounded-full bg-positive-surface px-2 py-1 text-[0.68rem] font-semibold text-positive-foreground-strong">
+          <span className="type-compact-metadata shrink-0 rounded-full bg-positive-surface px-2 py-1 font-semibold text-positive-foreground-strong">
             {idea.available_ingredient_count} available
           </span>
         ) : null}

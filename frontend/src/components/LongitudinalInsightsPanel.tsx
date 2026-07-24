@@ -35,11 +35,11 @@ export function LongitudinalInsightsPanel({
   return (
     <section
       aria-labelledby="longitudinal-insights-heading"
-      className="overflow-hidden rounded-2xl border border-border-accent bg-surface shadow-[0_18px_40px_-34px_rgba(15,23,42,0.7)] sm:rounded-[28px]"
+      className="overflow-hidden rounded-2xl border border-border-accent bg-surface shadow-[0_18px_40px_-34px_rgba(15,23,42,0.7)]"
     >
       <div className="flex items-end justify-between gap-4 border-b border-border-subtle bg-[linear-gradient(145deg,var(--theme-surface-highlighted),var(--theme-surface))] px-4 py-4 sm:px-5">
         <div>
-          <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-accent-text">
+          <p className="type-compact-metadata font-semibold uppercase tracking-[0.18em] text-accent-text">
             Patterns from your history
           </p>
           <h2
@@ -56,7 +56,7 @@ export function LongitudinalInsightsPanel({
         ) : null}
       </div>
 
-      <div className="p-3 sm:p-4">
+      <div className="p-4 sm:p-5">
         {error ? (
           <div className="rounded-2xl bg-surface-subtle px-4 py-3">
             <p className="text-sm font-semibold text-text-primary">{error.heading}</p>
@@ -91,7 +91,7 @@ function InsightCard({ insight }: { insight: LongitudinalInsight }) {
     <article className="flex min-w-0 flex-col rounded-2xl border border-border bg-surface px-4 py-4">
       <div className="flex flex-wrap items-center gap-2">
         <span
-          className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.12em] ${domainToneClasses[insight.domain]}`}
+          className={`type-compact-metadata rounded-full px-2.5 py-1 font-semibold uppercase tracking-[0.12em] ${domainToneClasses[insight.domain]}`}
         >
           {domainLabels[insight.domain]}
         </span>

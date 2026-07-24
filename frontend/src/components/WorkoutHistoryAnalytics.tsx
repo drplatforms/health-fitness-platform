@@ -1452,7 +1452,7 @@ function PerformanceTimeline({
 
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute left-1 top-3 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-text-secondary sm:left-3 sm:text-xs"
+          className="type-chart-metadata pointer-events-none absolute left-1 top-3 font-semibold uppercase tracking-[0.08em] text-text-secondary sm:left-3"
         >
           {primaryMetric
             ? `${primaryMetric.label} · ${displayUnit(primaryMetric.unit)}`
@@ -1468,7 +1468,7 @@ function PerformanceTimeline({
             <span
               key={tick}
               aria-hidden="true"
-              className="pointer-events-none absolute left-1 -translate-y-1/2 text-[0.62rem] tabular-nums text-text-muted sm:left-3 sm:text-[0.7rem]"
+              className="type-chart-metadata pointer-events-none absolute left-1 -translate-y-1/2 tabular-nums text-text-muted sm:left-3"
               style={{ top: `${(y / CHART_HEIGHT) * 100}%` }}
             >
               {formatHistoryNumber(tick)}
@@ -1478,7 +1478,7 @@ function PerformanceTimeline({
 
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute left-1 text-[0.62rem] font-semibold uppercase tracking-[0.08em] text-text-secondary sm:left-3 sm:text-[0.7rem]"
+          className="type-chart-metadata pointer-events-none absolute left-1 font-semibold uppercase tracking-[0.08em] text-text-secondary sm:left-3"
           style={{ top: `${(EFFORT_TOP / CHART_HEIGHT) * 100}%` }}
         >
           RIR
@@ -1503,7 +1503,7 @@ function PerformanceTimeline({
             <span
               key={tick}
               aria-hidden="true"
-              className="pointer-events-none absolute whitespace-nowrap text-[0.62rem] text-text-secondary sm:text-[0.7rem]"
+              className="type-chart-metadata pointer-events-none absolute whitespace-nowrap text-text-secondary"
               style={{
                 left: `${(x / CHART_WIDTH) * 100}%`,
                 top: `${((EFFORT_BOTTOM + 15) / CHART_HEIGHT) * 100}%`,
@@ -1547,7 +1547,7 @@ function PerformanceTimeline({
             <span
               key={`${phase.code}-${index}`}
               aria-hidden="true"
-              className="pointer-events-none absolute truncate px-2 pt-2 text-[0.65rem] font-semibold text-text-secondary"
+              className="type-chart-metadata pointer-events-none absolute truncate px-2 pt-2 font-semibold text-text-secondary"
               style={{
                 left: `${(left / CHART_WIDTH) * 100}%`,
                 top: `${(PLOT_TOP / CHART_HEIGHT) * 100}%`,
@@ -2015,7 +2015,7 @@ function DetailFact({
 }) {
   return (
     <div>
-      <p className="text-[0.68rem] font-semibold uppercase tracking-[0.1em] text-text-muted">
+      <p className="type-compact-metadata font-semibold uppercase tracking-[0.1em] text-text-muted">
         {label}
       </p>
       <p className="mt-1 text-sm font-semibold text-text-primary">{value}</p>
