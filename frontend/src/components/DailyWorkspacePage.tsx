@@ -126,6 +126,7 @@ export async function DailyWorkspacePage({
         {data && workspace === "recovery" ? (
           <div className="space-y-3 sm:space-y-4">
             <RecoveryCheckInCard
+              key={`${userId}:${data.target_date}`}
               userId={userId}
               targetDate={data.target_date}
               readiness={data.readiness}

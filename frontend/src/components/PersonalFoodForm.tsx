@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import {
@@ -52,6 +52,7 @@ export function PersonalFoodForm({
   targetDate,
 }: PersonalFoodFormProps) {
   const router = useRouter();
+  const identityKey = `${userId}:${mode}:${personalFoodId ?? "new"}`;
   const [displayName, setDisplayName] = useState("");
   const [brandName, setBrandName] = useState("");
   const [inputBasis, setInputBasis] =
@@ -59,20 +60,48 @@ export function PersonalFoodForm({
   const [servingName, setServingName] = useState("");
   const [servingGrams, setServingGrams] = useState("");
   const [nutrients, setNutrients] = useState<NutrientState>(emptyNutrients);
+  const [initializedIdentityKey, setInitializedIdentityKey] = useState<
+    string | null
+  >(mode === "create" ? identityKey : null);
   const [isLoading, setIsLoading] = useState(mode === "edit");
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [basisMessage, setBasisMessage] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
+  const saveAbortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const requestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = requestGeneration;
+    const loadAbortController = new AbortController();
+
+    saveAbortControllerRef.current?.abort();
+    saveAbortControllerRef.current = null;
+
+    const invalidateRequests = () => {
+      loadAbortController.abort();
+      saveAbortControllerRef.current?.abort();
+      saveAbortControllerRef.current = null;
+      if (requestGenerationRef.current === requestGeneration) {
+        requestGenerationRef.current += 1;
+      }
+    };
+
     if (mode !== "edit" || personalFoodId === undefined) {
-      return;
+      return invalidateRequests;
     }
-    let isActive = true;
-    void fetchPersonalFood(userId, personalFoodId)
+
+    void fetchPersonalFood(
+      userId,
+      personalFoodId,
+      loadAbortController.signal,
+    )
       .then((response) => {
-        if (!isActive) {
+        if (
+          loadAbortController.signal.aborted ||
+          requestGenerationRef.current !== requestGeneration
+        ) {
           return;
         }
         const food = response.personal_food;
@@ -102,27 +131,42 @@ export function PersonalFoodForm({
               ? ""
               : String(revision.entered_fat_g),
         });
+        setInitializedIdentityKey(identityKey);
       })
       .catch((loadError) => {
-        if (isActive) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load this personal food.",
-          );
+        if (
+          loadAbortController.signal.aborted ||
+          requestGenerationRef.current !== requestGeneration
+        ) {
+          return;
         }
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load this personal food.",
+        );
+        setInitializedIdentityKey(identityKey);
       })
       .finally(() => {
-        if (isActive) {
+        if (
+          !loadAbortController.signal.aborted &&
+          requestGenerationRef.current === requestGeneration
+        ) {
           setIsLoading(false);
         }
       });
-    return () => {
-      isActive = false;
-    };
-  }, [mode, personalFoodId, userId]);
+    return invalidateRequests;
+  }, [identityKey, mode, personalFoodId, userId]);
 
   async function submit() {
+    if (
+      initializedIdentityKey !== identityKey ||
+      isLoading ||
+      isSaving
+    ) {
+      return;
+    }
+
     setError(null);
     setSuccess(null);
     if (!displayName.trim()) {
@@ -145,8 +189,11 @@ export function PersonalFoodForm({
       return;
     }
 
+    const requestUserId = userId;
+    const requestPersonalFoodId = personalFoodId;
+    const requestGeneration = requestGenerationRef.current;
     const payload: PersonalFoodUpsertRequest = {
-      user_id: userId,
+      user_id: requestUserId,
       display_name: displayName.trim(),
       brand_name: brandName.trim(),
       input_basis: inputBasis,
@@ -160,10 +207,22 @@ export function PersonalFoodForm({
     };
 
     setIsSaving(true);
+    saveAbortControllerRef.current?.abort();
+    const saveAbortController = new AbortController();
+    saveAbortControllerRef.current = saveAbortController;
+
+    const requestIsCurrent = () =>
+      !saveAbortController.signal.aborted &&
+      requestGenerationRef.current === requestGeneration &&
+      initializedIdentityKey === identityKey;
+
     try {
       if (mode === "create") {
-        await createPersonalFood(payload);
-        const params = new URLSearchParams({ user_id: String(userId) });
+        await createPersonalFood(payload, saveAbortController.signal);
+        if (!requestIsCurrent()) {
+          return;
+        }
+        const params = new URLSearchParams({ user_id: String(requestUserId) });
         if (targetDate) {
           params.set("date", targetDate);
         }
@@ -171,24 +230,39 @@ export function PersonalFoodForm({
         router.push(`/food?${params.toString()}`);
         return;
       }
-      if (personalFoodId === undefined) {
+      if (requestPersonalFoodId === undefined) {
         throw new Error("Personal food ID is unavailable.");
       }
-      await updatePersonalFood(personalFoodId, payload);
+      await updatePersonalFood(
+        requestPersonalFoodId,
+        payload,
+        saveAbortController.signal,
+      );
+      if (!requestIsCurrent()) {
+        return;
+      }
       setSuccess("Food updated for future logs.");
       router.refresh();
     } catch (saveError) {
+      if (!requestIsCurrent()) {
+        return;
+      }
       setError(
         saveError instanceof Error
           ? saveError.message
           : "Unable to save this personal food.",
       );
     } finally {
-      setIsSaving(false);
+      if (requestIsCurrent()) {
+        setIsSaving(false);
+      }
+      if (saveAbortControllerRef.current === saveAbortController) {
+        saveAbortControllerRef.current = null;
+      }
     }
   }
 
-  if (isLoading) {
+  if (isLoading || initializedIdentityKey !== identityKey) {
     return (
       <p className="rounded-2xl bg-neutral-surface px-4 py-3 text-sm text-neutral-foreground">
         Loading food...
@@ -336,7 +410,11 @@ export function PersonalFoodForm({
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={isSaving}
+        disabled={
+          isSaving ||
+          isLoading ||
+          initializedIdentityKey !== identityKey
+        }
         className="inline-flex w-full items-center justify-center rounded-2xl bg-action-primary px-4 py-2.5 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:opacity-60 sm:w-auto"
       >
         {isSaving ? "Saving..." : mode === "create" ? "Add food" : "Save changes"}

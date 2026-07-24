@@ -432,6 +432,7 @@ export default async function Home({
                 className="hidden scroll-mt-3 sm:scroll-mt-6 md:block"
               >
                 <RecoveryCheckInCard
+                  key={`${todayQuery.userId ?? data.user_id}:${data.target_date}`}
                   userId={todayQuery.userId ?? data.user_id}
                   targetDate={data.target_date}
                   readiness={data.readiness}

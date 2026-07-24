@@ -25,7 +25,7 @@ export default async function WorkoutPage({
     >
       <LiveDayRolloverBoundary requestedDate={todayQuery.date} />
       <WorkoutPreviewExperience
-        key={todayQuery.date ?? "live"}
+        key={`${userId}:${todayQuery.date ?? "live"}`}
         userId={userId}
         requestedDate={todayQuery.date}
       />

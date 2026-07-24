@@ -27,11 +27,13 @@ function buildRecoveryCheckInQuery(userId: number, targetDate?: string): string 
 export async function fetchRecoveryCheckIn(
   userId: number,
   targetDate?: string,
+  signal?: AbortSignal,
 ): Promise<RecoveryCheckInResponse> {
   const response = await fetch(
     `/api/recovery-checkin?${buildRecoveryCheckInQuery(userId, targetDate)}`,
     {
       cache: "no-store",
+      signal,
       headers: {
         Accept: "application/json",
       },
@@ -54,9 +56,11 @@ export async function fetchRecoveryCheckIn(
 
 export async function saveRecoveryCheckIn(
   payload: SaveRecoveryCheckInPayload,
+  signal?: AbortSignal,
 ): Promise<SaveRecoveryCheckInResponse> {
   const response = await fetch("/api/recovery-checkin", {
     method: "POST",
+    signal,
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",

@@ -45,6 +45,7 @@ export default async function NewPersonalFoodPage({
         </Link>
         <section className="rounded-2xl bg-surface p-4 shadow-[0_20px_45px_-32px_rgba(15,23,42,0.45)] sm:p-5">
           <PersonalFoodForm
+            key={`${userId}:new`}
             mode="create"
             userId={userId}
             targetDate={targetDate}

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
 import { PrimaryNavigation } from "@/components/PrimaryNavigation";
 import { UserSwitcher } from "@/components/UserSwitcher";
@@ -45,7 +45,7 @@ export function AppPageShell({
 
         <PrimaryNavigation userId={userId} date={navigationDate} />
 
-        {children}
+        <Fragment key={`user:${userId}`}>{children}</Fragment>
       </div>
     </main>
   );

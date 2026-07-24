@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { StatusPill } from "@/components/StatusPill";
 import { TodayCard } from "@/components/TodayCard";
@@ -188,13 +188,19 @@ export function RecoveryCheckInCard({
   targetDate,
   readiness,
 }: RecoveryCheckInCardProps) {
+  const identityKey = `${userId}:${targetDate}`;
   const [formState, setFormState] = useState<RecoveryFormState>(DEFAULT_FORM_STATE);
   const [savedCheckIn, setSavedCheckIn] = useState<RecoveryCheckInRecord | null>(null);
   const [recentCheckIns, setRecentCheckIns] = useState<RecoveryCheckInRecord[]>([]);
+  const [initializedIdentityKey, setInitializedIdentityKey] = useState<
+    string | null
+  >(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const requestGenerationRef = useRef(0);
+  const saveAbortControllerRef = useRef<AbortController | null>(null);
 
   function updateFormState(
     updater: (current: RecoveryFormState) => RecoveryFormState,
@@ -219,15 +225,24 @@ export function RecoveryCheckInCard({
   }
 
   useEffect(() => {
-    let isActive = true;
+    const requestGeneration = requestGenerationRef.current + 1;
+    requestGenerationRef.current = requestGeneration;
+    const loadAbortController = new AbortController();
 
     async function loadCheckIn() {
       setIsLoading(true);
       setErrorMessage(null);
 
       try {
-        const response = await fetchRecoveryCheckIn(userId, targetDate);
-        if (!isActive) {
+        const response = await fetchRecoveryCheckIn(
+          userId,
+          targetDate,
+          loadAbortController.signal,
+        );
+        if (
+          loadAbortController.signal.aborted ||
+          requestGenerationRef.current !== requestGeneration
+        ) {
           return;
         }
 
@@ -236,18 +251,29 @@ export function RecoveryCheckInCard({
         setFormState(
           response.checkin ? toFormState(response.checkin) : { ...DEFAULT_FORM_STATE },
         );
+        setInitializedIdentityKey(identityKey);
       } catch (error) {
-        if (!isActive) {
+        if (
+          loadAbortController.signal.aborted ||
+          requestGenerationRef.current !== requestGeneration
+        ) {
           return;
         }
 
+        setFormState({ ...DEFAULT_FORM_STATE });
+        setSavedCheckIn(null);
+        setRecentCheckIns([]);
         setErrorMessage(
           error instanceof Error
             ? error.message
             : "Unable to load today's recovery check-in.",
         );
+        setInitializedIdentityKey(identityKey);
       } finally {
-        if (isActive) {
+        if (
+          !loadAbortController.signal.aborted &&
+          requestGenerationRef.current === requestGeneration
+        ) {
           setIsLoading(false);
         }
       }
@@ -256,15 +282,32 @@ export function RecoveryCheckInCard({
     void loadCheckIn();
 
     return () => {
-      isActive = false;
+      loadAbortController.abort();
+      saveAbortControllerRef.current?.abort();
+      saveAbortControllerRef.current = null;
+      if (requestGenerationRef.current === requestGeneration) {
+        requestGenerationRef.current += 1;
+      }
     };
-  }, [targetDate, userId]);
+  }, [identityKey, targetDate, userId]);
 
   async function handleSave() {
-    const bodyWeightInput = formState.bodyWeight.trim();
+    if (
+      initializedIdentityKey !== identityKey ||
+      isLoading ||
+      isSaving
+    ) {
+      return;
+    }
+
+    const formSnapshot = formState;
+    const requestUserId = userId;
+    const requestTargetDate = targetDate;
+    const requestGeneration = requestGenerationRef.current;
+    const bodyWeightInput = formSnapshot.bodyWeight.trim();
     const bodyWeight =
       bodyWeightInput.length > 0 ? Number.parseFloat(bodyWeightInput) : null;
-    const sleepHours = Number.parseFloat(formState.sleepHours);
+    const sleepHours = Number.parseFloat(formSnapshot.sleepHours);
 
     if (bodyWeightInput.length > 0 && !Number.isFinite(bodyWeight)) {
       setErrorMessage("Enter a valid body weight before saving.");
@@ -279,28 +322,47 @@ export function RecoveryCheckInCard({
     setIsSaving(true);
     setErrorMessage(null);
     setActionMessage(null);
+    saveAbortControllerRef.current?.abort();
+    const saveAbortController = new AbortController();
+    saveAbortControllerRef.current = saveAbortController;
+
+    const requestIsCurrent = () =>
+      !saveAbortController.signal.aborted &&
+      requestGenerationRef.current === requestGeneration &&
+      initializedIdentityKey === identityKey;
 
     try {
       const saveResponse = await saveRecoveryCheckIn({
-        user_id: userId,
-        target_date: targetDate,
+        user_id: requestUserId,
+        target_date: requestTargetDate,
         body_weight: bodyWeight,
         sleep_hours: sleepHours,
-        sleep_quality: formState.sleepQuality,
-        energy_level: formState.energyLevel,
-        soreness_level: formState.sorenessLevel,
-        stress_level: formState.stressLevel,
-        training_motivation: formState.trainingMotivation,
-        pain_concern: formState.painConcern,
+        sleep_quality: formSnapshot.sleepQuality,
+        energy_level: formSnapshot.energyLevel,
+        soreness_level: formSnapshot.sorenessLevel,
+        stress_level: formSnapshot.stressLevel,
+        training_motivation: formSnapshot.trainingMotivation,
+        pain_concern: formSnapshot.painConcern,
         pain_area:
-          formState.painConcern === "mild" ||
-          formState.painConcern === "significant"
-            ? formState.painArea
+          formSnapshot.painConcern === "mild" ||
+          formSnapshot.painConcern === "significant"
+            ? formSnapshot.painArea
             : null,
-        mood: formState.mood,
-        notes: serializeNotes(formState),
-      });
-      const currentResponse = await fetchRecoveryCheckIn(userId, targetDate);
+        mood: formSnapshot.mood,
+        notes: serializeNotes(formSnapshot),
+      }, saveAbortController.signal);
+      if (!requestIsCurrent()) {
+        return;
+      }
+
+      const currentResponse = await fetchRecoveryCheckIn(
+        requestUserId,
+        requestTargetDate,
+        saveAbortController.signal,
+      );
+      if (!requestIsCurrent()) {
+        return;
+      }
 
       setSavedCheckIn(currentResponse.checkin);
       setRecentCheckIns(currentResponse.recent_checkins ?? []);
@@ -309,13 +371,21 @@ export function RecoveryCheckInCard({
       }
       setActionMessage(saveResponse.message || "Check-in saved.");
     } catch (error) {
+      if (!requestIsCurrent()) {
+        return;
+      }
       setErrorMessage(
         error instanceof Error
           ? error.message
           : "Unable to save today's recovery check-in.",
       );
     } finally {
-      setIsSaving(false);
+      if (requestIsCurrent()) {
+        setIsSaving(false);
+      }
+      if (saveAbortControllerRef.current === saveAbortController) {
+        saveAbortControllerRef.current = null;
+      }
     }
   }
 
@@ -731,7 +801,11 @@ export function RecoveryCheckInCard({
         <button
           type="button"
           onClick={() => void handleSave()}
-          disabled={isLoading || isSaving}
+          disabled={
+            isLoading ||
+            isSaving ||
+            initializedIdentityKey !== identityKey
+          }
           className="inline-flex w-full items-center justify-center rounded-xl bg-action-primary px-4 py-3 text-sm font-semibold text-action-primary-foreground transition hover:bg-action-primary-hover disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto sm:rounded-2xl"
         >
           {isSaving ? "Saving..." : "Save check-in"}
