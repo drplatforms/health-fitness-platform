@@ -12,6 +12,9 @@ export const SWITCHABLE_USERS: SwitchableUser[] = [
   { id: 103, label: "QA 103", kind: "qa" },
   { id: 104, label: "QA 104", kind: "qa" },
   { id: 105, label: "QA 105", kind: "qa" },
+  { id: 106, label: "QA106 — Consistent Strength", kind: "qa" },
+  { id: 107, label: "QA107 — Interrupted Progress", kind: "qa" },
+  { id: 108, label: "QA108 — Mixed Modality", kind: "qa" },
 ];
 
 export function getSwitchableUserLabel(userId: number): string {
