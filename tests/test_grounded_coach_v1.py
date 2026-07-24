@@ -43,8 +43,6 @@ from services.exercise_knowledge_retrieval_service import retrieve_exercise_know
 from services.grounded_coach_service import (
     COACH_OPENAI_MAX_OUTPUT_TOKENS,
     MAX_ANSWER_CHARS,
-    MAX_FAILED_OUTPUT_PREVIEW_CHARS,
-    MAX_REFERENCE_DIAGNOSTIC_CHARS,
     CoachProviderError,
     ask_grounded_coach,
     build_coach_response_schema,
@@ -111,6 +109,8 @@ def _barbell_row_history() -> WorkoutExerciseHistoryAnalytics:
     exercise = ExerciseHistoryAnalyticsSummary(
         catalog_exercise_id=42,
         exercise_name="Barbell Row",
+        measurement_type="reps",
+        modality="externally_weighted",
         completed_session_count=4,
         last_performed_at="2026-07-20",
         latest_completed_session_summary="3 of 3 planned sets completed at 100 lb.",
@@ -133,24 +133,49 @@ def _barbell_row_history() -> WorkoutExerciseHistoryAnalytics:
         ),
         recent_sessions=[
             ExerciseHistoryRecentSession(
+                session_key="1:42:2026-07-20",
                 performed_at="2026-07-20",
                 completed_set_count=3,
                 planned_set_count=3,
                 summary="3 completed sets",
+                measurement_type="reps",
+                modality="externally_weighted",
                 comparable_working_weight=100,
                 average_actual_rir=1,
+                performance_metric=None,
+                relative_position=None,
+                previous_comparison=None,
+                phase=None,
+                milestones=[],
+                has_set_details=False,
+                recorded_sets=[],
                 completed_sets=[],
             ),
             ExerciseHistoryRecentSession(
+                session_key="1:42:2026-07-06",
                 performed_at="2026-07-06",
                 completed_set_count=3,
                 planned_set_count=3,
                 summary="3 completed sets",
+                measurement_type="reps",
+                modality="externally_weighted",
                 comparable_working_weight=100,
                 average_actual_rir=3,
+                performance_metric=None,
+                relative_position=None,
+                previous_comparison=None,
+                phase=None,
+                milestones=[],
+                has_set_details=False,
+                recorded_sets=[],
                 completed_sets=[],
             ),
         ],
+        then_vs_now=None,
+        performance_phase=None,
+        current_trend=None,
+        historical_phase_segments=[],
+        milestones=[],
     )
     return WorkoutExerciseHistoryAnalytics(
         overview=ExerciseHistoryAnalyticsOverview(
@@ -1202,27 +1227,16 @@ def test_injected_unknown_alias_still_fails_with_bounded_diagnostics():
 
     assert error.value.validation_reasons == ("evidence_reference_mismatch",)
     diagnostics = error.value.provider_diagnostics
-    assert diagnostics["response_id"] == "resp_reference_mismatch"
-    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
-    assert diagnostics["status"] == "completed"
-    assert diagnostics["usage"] == {
-        "input_tokens": 800,
-        "cached_input_tokens": 200,
-        "output_tokens": 80,
-        "reasoning_tokens": 50,
-        "total_tokens": 880,
-    }
-    assert diagnostics["allowed_evidence_aliases"] == [
-        "personal_evidence:training:comparisons:1"
-    ]
-    assert diagnostics["returned_evidence_references"] == [
-        unknown_alias[:MAX_REFERENCE_DIAGNOSTIC_CHARS]
-    ]
-    assert diagnostics["unresolved_evidence_references"] == [
-        unknown_alias[:MAX_REFERENCE_DIAGNOSTIC_CHARS]
-    ]
+    assert diagnostics["provider_status"] == "completed"
+    assert diagnostics["incomplete_reason"] is None
+    assert diagnostics["allowed_evidence_alias_count"] == 1
+    assert diagnostics["returned_evidence_reference_count"] == 1
+    assert diagnostics["unresolved_evidence_reference_count"] == 1
     assert diagnostics["reference_diagnostics_truncated"] is True
-    assert "raw_output_preview" not in diagnostics
+    assert unknown_alias not in json.dumps(diagnostics)
+    assert "response_id" not in diagnostics
+    assert "actual_model" not in diagnostics
+    assert "usage" not in diagnostics
 
 
 def test_structured_progression_action_is_validated_and_exposed():
@@ -1470,19 +1484,11 @@ def test_openai_incomplete_max_tokens_is_distinct_provider_output_failure(
     assert error.value.code == "provider_output_rejected"
     assert error.value.validation_reasons == ("provider_response_incomplete",)
     diagnostics = error.value.provider_diagnostics
-    assert diagnostics["response_id"] == "resp_incomplete"
-    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
-    assert diagnostics["status"] == "incomplete"
+    assert diagnostics["provider_status"] == "incomplete"
     assert diagnostics["incomplete_reason"] == "max_output_tokens"
-    assert diagnostics["max_output_tokens"] == COACH_OPENAI_MAX_OUTPUT_TOKENS
-    assert diagnostics["usage"] == {
-        "input_tokens": 2_100,
-        "cached_input_tokens": 500,
-        "output_tokens": 2_400,
-        "reasoning_tokens": 2_250,
-        "total_tokens": 4_500,
-    }
-    assert "raw_output_preview" not in diagnostics
+    assert "response_id" not in diagnostics
+    assert "actual_model" not in diagnostics
+    assert "usage" not in diagnostics
 
 
 def test_openai_completed_non_json_output_remains_invalid_response_json(monkeypatch):
@@ -1522,12 +1528,16 @@ def test_openai_completed_non_json_output_remains_invalid_response_json(monkeypa
         )
 
     assert error.value.validation_reasons == ("invalid_response_json",)
-    assert error.value.provider_diagnostics["status"] == "completed"
-    assert error.value.provider_diagnostics["raw_output_preview"] == "not-json"
+    assert error.value.provider_diagnostics == {
+        "provider_status": "completed",
+        "incomplete_reason": None,
+        "raw_output_length": len("not-json"),
+    }
 
 
-def test_openai_failure_diagnostics_bound_raw_output_preview():
-    raw_output = "x" * (MAX_FAILED_OUTPUT_PREVIEW_CHARS + 75)
+def test_openai_failure_diagnostics_never_retain_raw_output():
+    private_sentinel = "PRIVATE_PROVIDER_OUTPUT_SENTINEL"
+    raw_output = private_sentinel + ("x" * 575)
 
     def generate(model, prompt, timeout, schema):
         del prompt, timeout, schema
@@ -1557,10 +1567,11 @@ def test_openai_failure_diagnostics_bound_raw_output_preview():
 
     diagnostics = error.value.provider_diagnostics
     assert diagnostics["raw_output_length"] == len(raw_output)
-    assert len(diagnostics["raw_output_preview"]) == MAX_FAILED_OUTPUT_PREVIEW_CHARS
-    assert diagnostics["raw_output_preview_truncated"] is True
-    assert diagnostics["actual_model"] == "gpt-5.6-sol-2026-07-15"
-    assert diagnostics["usage"]["reasoning_tokens"] == 80
+    assert diagnostics["provider_status"] == "completed"
+    assert private_sentinel not in json.dumps(diagnostics)
+    assert "raw_output_preview" not in diagnostics
+    assert "actual_model" not in diagnostics
+    assert "usage" not in diagnostics
 
 
 def test_provider_selection_changes_synthesis_only_not_grounding():
@@ -1801,12 +1812,21 @@ def test_coach_api_returns_controlled_provider_failure(tmp_path, monkeypatch):
         )
 
     assert response.status_code == 502
-    assert response.json()["detail"]["code"] == "local_provider_failed"
+    payload = response.json()
+    assert payload["success"] is False
+    assert payload["error"]["code"] == "local_provider_failed"
+    assert payload["error"]["retryable"] is True
+    assert len(payload["error"]["correlation_id"]) == 32
 
 
-def test_coach_api_exposes_objective_contract_diagnostics(tmp_path, monkeypatch):
+def test_coach_api_never_exposes_rejected_provider_text_or_diagnostics(
+    tmp_path,
+    monkeypatch,
+    caplog,
+):
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "coach_api_contract.db")
     database.initialize_database()
+    private_sentinel = "PRIVATE_PROVIDER_OUTPUT_SENTINEL"
 
     def fail(**kwargs):
         del kwargs
@@ -1818,13 +1838,15 @@ def test_coach_api_exposes_objective_contract_diagnostics(tmp_path, monkeypatch)
                 "suggested_action_conflict",
             ),
             provider_diagnostics={
-                "actual_model": "gpt-5.6-sol-2026-07-15",
-                "status": "completed",
-                "raw_output_preview": "bounded preview",
+                "actual_model": f"model-{private_sentinel}",
+                "response_id": f"response-{private_sentinel}",
+                "usage": {"input_tokens": 500},
+                "raw_output_preview": private_sentinel,
             },
         )
 
     monkeypatch.setattr(coach_route, "ask_grounded_coach", fail)
+    caplog.set_level("WARNING", logger="api.routes.coach")
     with TestClient(app) as client:
         response = client.post(
             "/coach/ask",
@@ -1837,12 +1859,30 @@ def test_coach_api_exposes_objective_contract_diagnostics(tmp_path, monkeypatch)
         )
 
     assert response.status_code == 502
-    assert response.json()["detail"]["validation_reasons"] == [
-        "invalid_response_contract",
-        "suggested_action_conflict",
-    ]
-    assert response.json()["detail"]["provider_diagnostics"] == {
-        "actual_model": "gpt-5.6-sol-2026-07-15",
-        "status": "completed",
-        "raw_output_preview": "bounded preview",
+    payload = response.json()
+    assert set(payload) == {"success", "error"}
+    assert payload["success"] is False
+    assert set(payload["error"]) == {
+        "code",
+        "message",
+        "correlation_id",
+        "retryable",
     }
+    assert payload["error"]["code"] == "provider_output_rejected"
+    assert payload["error"]["retryable"] is True
+    assert len(payload["error"]["correlation_id"]) == 32
+    serialized = json.dumps(payload)
+    assert private_sentinel not in serialized
+    assert private_sentinel not in caplog.text
+    for forbidden in (
+        "actual_model",
+        "conversation",
+        "evidence",
+        "prompt",
+        "provider_diagnostics",
+        "raw_output_preview",
+        "response_id",
+        "usage",
+        "validation_reasons",
+    ):
+        assert forbidden not in serialized

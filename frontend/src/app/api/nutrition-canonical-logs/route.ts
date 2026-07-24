@@ -1,21 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
-  const userId = searchParams.get("user_id");
+  const userId = parsePositiveIntegerId(searchParams.get("user_id"));
   const date = searchParams.get("date");
 
-  if (!userId || !date) {
+  if (userId === null || !date) {
     return NextResponse.json(
-      { detail: "user_id and date are required." },
+      { detail: "user_id must be a positive integer and date is required." },
       { status: 400 },
     );
   }
 
   const params = new URLSearchParams({ date });
-  const endpoint = `${getApiBaseUrl()}/nutrition/${userId}/canonical-logs?${params.toString()}`;
+  const endpoint = buildBackendUrl(
+    getApiBaseUrl(),
+    "nutrition",
+    [userId, "canonical-logs"],
+    params,
+  );
 
   try {
     const response = await fetch(endpoint, {

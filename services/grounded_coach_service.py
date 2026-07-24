@@ -50,7 +50,6 @@ MAX_ANSWER_CHARS = 2400
 MAX_UNCERTAINTY_CHARS = 500
 MAX_RETURNED_EVIDENCE_REFERENCES = 8
 MAX_RETURNED_KNOWLEDGE_REFERENCES = 4
-MAX_FAILED_OUTPUT_PREVIEW_CHARS = 500
 MAX_REFERENCE_DIAGNOSTIC_ITEMS = 64
 MAX_REFERENCE_DIAGNOSTIC_CHARS = 200
 
@@ -627,30 +626,14 @@ def _provider_failure_diagnostics(
     if isinstance(provider_result, AIProviderTextResult):
         diagnostics.update(
             {
-                "response_id": provider_result.response_id,
-                "actual_model": provider_result.model,
-                "status": provider_result.status,
-                "incomplete_reason": provider_result.incomplete_reason,
-                "usage": {
-                    "input_tokens": provider_result.input_tokens,
-                    "cached_input_tokens": provider_result.cached_input_tokens,
-                    "output_tokens": provider_result.output_tokens,
-                    "reasoning_tokens": provider_result.reasoning_tokens,
-                    "total_tokens": provider_result.total_tokens,
-                },
-                "max_output_tokens": provider_result.max_output_tokens,
-            }
-        )
-    if raw_output is not None:
-        diagnostics.update(
-            {
-                "raw_output_length": len(raw_output),
-                "raw_output_preview": raw_output[:MAX_FAILED_OUTPUT_PREVIEW_CHARS],
-                "raw_output_preview_truncated": (
-                    len(raw_output) > MAX_FAILED_OUTPUT_PREVIEW_CHARS
+                "provider_status": _safe_diagnostic_category(provider_result.status),
+                "incomplete_reason": _safe_diagnostic_category(
+                    provider_result.incomplete_reason
                 ),
             }
         )
+    if raw_output is not None:
+        diagnostics["raw_output_length"] = len(raw_output)
     return diagnostics
 
 
@@ -661,18 +644,9 @@ def _reference_mismatch_diagnostics(
     unresolved_references: Sequence[str],
 ) -> dict[str, Any]:
     return {
-        "returned_evidence_references": _bounded_reference_values(
-            returned_references,
-            max_items=MAX_RETURNED_EVIDENCE_REFERENCES,
-        ),
-        "allowed_evidence_aliases": _bounded_reference_values(
-            allowed_aliases,
-            max_items=MAX_REFERENCE_DIAGNOSTIC_ITEMS,
-        ),
-        "unresolved_evidence_references": _bounded_reference_values(
-            unresolved_references,
-            max_items=MAX_RETURNED_EVIDENCE_REFERENCES,
-        ),
+        "returned_evidence_reference_count": len(returned_references),
+        "allowed_evidence_alias_count": len(allowed_aliases),
+        "unresolved_evidence_reference_count": len(unresolved_references),
         "reference_diagnostics_truncated": (
             len(allowed_aliases) > MAX_REFERENCE_DIAGNOSTIC_ITEMS
             or any(
@@ -687,12 +661,18 @@ def _reference_mismatch_diagnostics(
     }
 
 
-def _bounded_reference_values(
-    values: Sequence[str],
-    *,
-    max_items: int,
-) -> list[str]:
-    return [value[:MAX_REFERENCE_DIAGNOSTIC_CHARS] for value in values[:max_items]]
+def _safe_diagnostic_category(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().lower()
+    if not normalized:
+        return None
+    if len(normalized) > 64 or any(
+        character not in "abcdefghijklmnopqrstuvwxyz0123456789_-"
+        for character in normalized
+    ):
+        return "other"
+    return normalized
 
 
 def _rejected_output(

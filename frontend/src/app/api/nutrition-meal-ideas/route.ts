@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 export async function POST(request: NextRequest) {
-  const userId = request.nextUrl.searchParams.get("user_id");
+  const userId = parsePositiveIntegerId(
+    request.nextUrl.searchParams.get("user_id"),
+  );
   const targetDate = request.nextUrl.searchParams.get("target_date");
-  if (!userId || !targetDate) {
+  if (userId === null || !targetDate) {
     return NextResponse.json(
-      { detail: "user_id and target_date are required." },
+      {
+        detail: "user_id must be a positive integer and target_date is required.",
+      },
       { status: 400 },
     );
   }
@@ -18,8 +26,14 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const backendParams = new URLSearchParams({ target_date: targetDate });
     const response = await fetch(
-      `${getApiBaseUrl()}/nutrition/${userId}/meal-ideas?target_date=${encodeURIComponent(targetDate)}`,
+      buildBackendUrl(
+        getApiBaseUrl(),
+        "nutrition",
+        [userId, "meal-ideas"],
+        backendParams,
+      ),
       {
         method: "POST",
         cache: "no-store",

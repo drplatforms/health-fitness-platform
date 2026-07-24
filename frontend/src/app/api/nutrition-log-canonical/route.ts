@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface CanonicalNutritionLogRequestPayload {
   user_id?: number;
@@ -16,11 +20,13 @@ export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => null)) as
     | CanonicalNutritionLogRequestPayload
     | null;
+  const userId = parsePositiveIntegerId(payload?.user_id);
+  const canonicalFoodId = parsePositiveIntegerId(payload?.canonical_food_id);
 
-  if (!payload?.user_id || !payload.canonical_food_id) {
+  if (!payload || userId === null || canonicalFoodId === null) {
     return NextResponse.json(
       {
-        detail: "user_id and canonical_food_id are required.",
+        detail: "user_id and canonical_food_id must be positive integers.",
       },
       { status: 400 },
     );
@@ -60,9 +66,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const endpoint = `${getApiBaseUrl()}/nutrition/${payload.user_id}/log-canonical`;
+  const endpoint = buildBackendUrl(getApiBaseUrl(), "nutrition", [
+    userId,
+    "log-canonical",
+  ]);
   const backendPayload = {
-    canonical_food_id: payload.canonical_food_id,
+    canonical_food_id: canonicalFoodId,
     entry_date: payload.entry_date,
     meal_type: payload.meal_type,
     ...(hasGrams

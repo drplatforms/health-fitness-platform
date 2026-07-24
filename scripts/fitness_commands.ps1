@@ -16,6 +16,76 @@ function Assert-FitnessRepo {
     }
 }
 
+function Assert-FitnessRemoteAccessConfiguration {
+    param([switch]$RequireEnabled)
+
+    $enabledValue = if ($env:FITNESS_REMOTE_ACCESS_ENABLED) {
+        $env:FITNESS_REMOTE_ACCESS_ENABLED.Trim().ToLowerInvariant()
+    } else {
+        ""
+    }
+    if (-not $enabledValue -or $enabledValue -eq "false") {
+        if ($RequireEnabled) {
+            throw "Shared mode requires FITNESS_REMOTE_ACCESS_ENABLED=true and complete access-control configuration."
+        }
+        return $false
+    }
+    if ($enabledValue -ne "true") {
+        throw "FITNESS_REMOTE_ACCESS_ENABLED must be true or false."
+    }
+
+    $username = if ($null -ne $env:FITNESS_BASIC_AUTH_USER) { $env:FITNESS_BASIC_AUTH_USER } else { "" }
+    $password = if ($null -ne $env:FITNESS_BASIC_AUTH_PASSWORD) { $env:FITNESS_BASIC_AUTH_PASSWORD } else { "" }
+    $originValue = if ($env:FITNESS_PUBLIC_ORIGIN) { $env:FITNESS_PUBLIC_ORIGIN.Trim() } else { "" }
+    if (
+        -not $username -or
+        $username -ne $username.Trim() -or
+        $username.Contains(":") -or
+        -not $password -or
+        -not $originValue
+    ) {
+        throw "Remote access configuration is incomplete. Set the required FITNESS_* values before starting."
+    }
+
+    try {
+        $origin = [System.Uri]::new($originValue, [System.UriKind]::Absolute)
+    } catch {
+        throw "FITNESS_PUBLIC_ORIGIN must be a valid HTTPS origin."
+    }
+    if (
+        $origin.Scheme -ne "https" -or
+        $origin.UserInfo -or
+        $origin.PathAndQuery -ne "/" -or
+        $origin.Fragment
+    ) {
+        throw "FITNESS_PUBLIC_ORIGIN must be an HTTPS origin without a path, query, fragment, or credentials."
+    }
+    return $true
+}
+
+function Resolve-FitnessFrontendBindAddress {
+    param([switch]$Shared)
+
+    Assert-FitnessRemoteAccessConfiguration -RequireEnabled:$Shared | Out-Null
+    if ($Shared) { return "0.0.0.0" }
+    return "127.0.0.1"
+}
+
+function Write-FitnessFrontendSecurityBanner {
+    param(
+        [Parameter(Mandatory = $true)][string]$BindAddress,
+        [Parameter(Mandatory = $true)][int]$Port,
+        [Parameter(Mandatory = $true)][string]$Label
+    )
+
+    Write-Host "$Label bind resolved to http://${BindAddress}:$Port"
+    if ($BindAddress -ne "127.0.0.1") {
+        Write-Warning "SHARED MODE: the frontend is listening beyond loopback. Private single-user access control is enabled; do not expose this as a public or multi-user service."
+    } elseif ($env:FITNESS_REMOTE_ACCESS_ENABLED -and $env:FITNESS_REMOTE_ACCESS_ENABLED.Trim().ToLowerInvariant() -eq "true") {
+        Write-Warning "PRIVATE REMOTE ACCESS ENABLED: keep FastAPI on loopback and point same-host Caddy only to 127.0.0.1:$Port."
+    }
+}
+
 function Get-FitnessWindowsPython {
     $venvPython = Join-Path $script:FitnessWindowsRepo ".venv\Scripts\python.exe"
     if (Test-Path -LiteralPath $venvPython) { return $venvPython }
@@ -131,6 +201,8 @@ Primary Windows runtime
   fstart / app     Start FastAPI and the existing production frontend build
   frestart         Stop scoped product processes, then start them again
   fnext / fnextfg  Optional Next.js development server on port 3000
+  Add -Shared only for an explicit non-loopback frontend bind after configuring
+  FITNESS_REMOTE_ACCESS_ENABLED, Basic auth credentials, and FITNESS_PUBLIC_ORIGIN.
   fopen            Open the canonical product URL
   fports           Inspect product and Ollama ports
   wstatus / wstop  Inspect or stop repo-scoped Windows product processes
@@ -166,7 +238,7 @@ function fapi {
     Assert-FitnessPortAvailable -Port $script:FitnessApiPort -Label "FastAPI"
     $python = Get-FitnessWindowsPython
     Start-Process -FilePath $python -ArgumentList @("-m", "uvicorn", "api.main:app", "--host", "127.0.0.1", "--port", "$script:FitnessApiPort") -WorkingDirectory $script:FitnessWindowsRepo -WindowStyle Hidden
-    Write-Host "FastAPI starting on http://127.0.0.1:$script:FitnessApiPort"
+    Write-Host "FastAPI bind resolved to http://127.0.0.1:$script:FitnessApiPort"
 }
 
 function fkillapi {
@@ -174,26 +246,33 @@ function fkillapi {
 }
 
 function ffront {
+    param([switch]$Shared)
+
     Assert-FitnessRepo
     Assert-FitnessPortAvailable -Port $script:FitnessFrontendPort -Label "Production Next.js"
     if (-not (Test-Path -LiteralPath (Join-Path $script:FitnessFrontendDir ".next"))) {
         throw "No production frontend build found. Run ffrontbuild first."
     }
-    $command = "Set-Location -LiteralPath '$($script:FitnessFrontendDir.Replace("'", "''"))'; `$env:FITNESS_API_BASE_URL='http://127.0.0.1:$script:FitnessApiPort'; npm run start -- --hostname 0.0.0.0 --port $script:FitnessFrontendPort"
+    $bindAddress = Resolve-FitnessFrontendBindAddress -Shared:$Shared
+    $npmCommand = if ($Shared) { "npm run start:shared" } else { "npm run start" }
+    $command = "Set-Location -LiteralPath '$($script:FitnessFrontendDir.Replace("'", "''"))'; `$env:FITNESS_API_BASE_URL='http://127.0.0.1:$script:FitnessApiPort'; $npmCommand -- --port $script:FitnessFrontendPort"
     Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-Command", $command) -WindowStyle Hidden
-    Write-Host "Production Next.js frontend starting on http://127.0.0.1:$script:FitnessFrontendPort"
+    Write-FitnessFrontendSecurityBanner -BindAddress $bindAddress -Port $script:FitnessFrontendPort -Label "Production Next.js"
 }
 
 function ffrontbuild {
+    param([switch]$Shared)
+
     Assert-FitnessRepo
     fkillfront
+    Assert-FitnessRemoteAccessConfiguration -RequireEnabled:$Shared | Out-Null
     Push-Location $script:FitnessFrontendDir
     try {
         $env:FITNESS_API_BASE_URL = "http://127.0.0.1:$script:FitnessApiPort"
         npm run build
         if ($LASTEXITCODE -ne 0) { throw "Frontend production build failed." }
     } finally { Pop-Location }
-    ffront
+    ffront -Shared:$Shared
 }
 
 function fvalidatefront {
@@ -231,20 +310,32 @@ function fkillfront {
 }
 
 function fnext {
+    param([switch]$Shared)
+
     Assert-FitnessRepo
     Assert-FitnessPortAvailable -Port $script:FitnessNextDevPort -Label "Development Next.js"
-    $command = "Set-Location -LiteralPath '$($script:FitnessFrontendDir.Replace("'", "''"))'; `$env:FITNESS_API_BASE_URL='http://127.0.0.1:$script:FitnessApiPort'; npm run dev -- --hostname 0.0.0.0 --port $script:FitnessNextDevPort"
+    $bindAddress = Resolve-FitnessFrontendBindAddress -Shared:$Shared
+    $npmCommand = if ($Shared) { "npm run dev:shared" } else { "npm run dev" }
+    $command = "Set-Location -LiteralPath '$($script:FitnessFrontendDir.Replace("'", "''"))'; `$env:FITNESS_API_BASE_URL='http://127.0.0.1:$script:FitnessApiPort'; $npmCommand -- --port $script:FitnessNextDevPort"
     Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-Command", $command) -WindowStyle Hidden
-    Write-Host "Optional Next.js development server starting on http://127.0.0.1:$script:FitnessNextDevPort"
+    Write-FitnessFrontendSecurityBanner -BindAddress $bindAddress -Port $script:FitnessNextDevPort -Label "Optional Next.js development server"
 }
 
 function fnextfg {
+    param([switch]$Shared)
+
     Assert-FitnessRepo
     Assert-FitnessPortAvailable -Port $script:FitnessNextDevPort -Label "Development Next.js"
+    $bindAddress = Resolve-FitnessFrontendBindAddress -Shared:$Shared
     Push-Location $script:FitnessFrontendDir
     try {
         $env:FITNESS_API_BASE_URL = "http://127.0.0.1:$script:FitnessApiPort"
-        npm run dev -- --hostname 0.0.0.0 --port $script:FitnessNextDevPort
+        Write-FitnessFrontendSecurityBanner -BindAddress $bindAddress -Port $script:FitnessNextDevPort -Label "Optional Next.js development server"
+        if ($Shared) {
+            npm run dev:shared -- --port $script:FitnessNextDevPort
+        } else {
+            npm run dev -- --port $script:FitnessNextDevPort
+        }
     } finally { Pop-Location }
 }
 
@@ -252,13 +343,27 @@ function fkillnext {
     Stop-FitnessOwnedListener -Port $script:FitnessNextDevPort -ExpectedCommandPattern "next(?:\.exe)?\s+dev|npm(?:\.cmd)?\s+run\s+dev" -Label "development Next.js"
 }
 
-function fstart { fapi; ffront }
-function app { fstart }
-function wapp { Write-Warning "wapp is retained for compatibility; use fstart or app."; fstart }
+function fstart {
+    param([switch]$Shared)
+    fapi
+    ffront -Shared:$Shared
+}
+
+function app {
+    param([switch]$Shared)
+    fstart -Shared:$Shared
+}
+
+function wapp {
+    param([switch]$Shared)
+    Write-Warning "wapp is retained for compatibility; use fstart or app."
+    fstart -Shared:$Shared
+}
 
 function frestart {
+    param([switch]$Shared)
     wstop
-    fstart
+    fstart -Shared:$Shared
 }
 
 function fopen { Start-Process "http://127.0.0.1:$script:FitnessFrontendPort" }
