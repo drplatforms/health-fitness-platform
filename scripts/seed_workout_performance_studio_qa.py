@@ -45,29 +45,29 @@ _SESSION_DAY_OFFSETS = (
 )
 _BENCH_LOADS = (
     40.0,
-    42.5,
     45.0,
-    47.5,
+    45.0,
     50.0,
-    52.5,
-    52.5,
-    52.5,
-    52.5,
-    52.5,
-    45.0,
-    45.0,
-    52.5,
+    50.0,
     55.0,
-    57.5,
+    55.0,
+    55.0,
+    55.0,
+    55.0,
+    45.0,
+    45.0,
+    55.0,
+    55.0,
     60.0,
     60.0,
     60.0,
     60.0,
     60.0,
-    52.5,
-    52.5,
     60.0,
-    62.5,
+    50.0,
+    50.0,
+    60.0,
+    65.0,
 )
 _BENCH_RIRS = (
     3,
@@ -514,14 +514,14 @@ def _rotating_conditioning_log(session_index: int) -> _ExerciseLog:
             target_distance_meters=None,
             equipment=("bodyweight", "exercise_mat"),
             actual_reps=(None, None, None),
-            actual_durations=(duration, duration + 3, duration),
+            actual_durations=(duration, duration + 5, duration),
             actual_distances=(None, None, None),
             actual_weights=(None, None, None),
             actual_rirs=(None, None, None),
         )
     if variant == 2:
         distance = 20.0 + occurrence * 5.0
-        weight = 40.0 + occurrence * 2.5
+        weight = 40.0 + occurrence * 5.0
         return _ExerciseLog(
             name="Farmer Carry",
             measurement_type="distance",
@@ -538,7 +538,7 @@ def _rotating_conditioning_log(session_index: int) -> _ExerciseLog:
             actual_rirs=(None, None, None),
         )
 
-    distance = 800.0 + occurrence * 120.0
+    distance = 800.0 + occurrence * 100.0
     return _ExerciseLog(
         name="Treadmill Walk",
         measurement_type="distance",

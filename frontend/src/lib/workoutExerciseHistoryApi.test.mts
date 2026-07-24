@@ -218,26 +218,44 @@ test("builds bounded, ordered calendar ticks with stable endpoints", () => {
   );
 });
 
-test("builds a finite nice metric scale and positions values safely", () => {
+test("builds a zero-origin rounded metric scale and positions values safely", () => {
   const scale = buildPerformanceMetricScale([40, 50, 60]);
   assert.ok(scale);
   assert.deepEqual(scale, {
-    minimum: 40,
+    minimum: 0,
     maximum: 60,
-    ticks: [40, 50, 60],
+    ticks: [0, 20, 40, 60],
   });
-  assert.equal(performanceMetricPosition(40, scale), 0);
-  assert.equal(performanceMetricPosition(50, scale), 0.5);
+  assert.equal(performanceMetricPosition(40, scale), 2 / 3);
+  assert.equal(performanceMetricPosition(50, scale), 5 / 6);
   assert.equal(performanceMetricPosition(60, scale), 1);
-  assert.equal(performanceMetricPosition(20, scale), 0);
+  assert.equal(performanceMetricPosition(20, scale), 1 / 3);
   assert.equal(performanceMetricPosition(80, scale), 1);
   assert.equal(performanceMetricPosition(Number.NaN, scale), 0.5);
 
+  const onePoundChange = buildPerformanceMetricScale([56, 57]);
+  assert.deepEqual(onePoundChange, {
+    minimum: 0,
+    maximum: 60,
+    ticks: [0, 20, 40, 60],
+  });
+  assert.ok(
+    Math.abs(
+      performanceMetricPosition(57, onePoundChange) -
+        performanceMetricPosition(56, onePoundChange) -
+        1 / 60,
+    ) < 1e-12,
+  );
+
   const constantScale = buildPerformanceMetricScale([50, 50, 50]);
   assert.ok(constantScale);
-  assert.ok(constantScale.minimum < 50);
-  assert.ok(constantScale.maximum > 50);
-  assert.equal(performanceMetricPosition(50, constantScale), 0.5);
+  assert.equal(constantScale.minimum, 0);
+  assert.ok(constantScale.maximum >= 50);
+  assert.deepEqual(buildPerformanceMetricScale([0, 0]), {
+    minimum: 0,
+    maximum: 1,
+    ticks: [0, 0.5, 1],
+  });
   assert.equal(buildPerformanceMetricScale([Number.NaN]), null);
 });
 

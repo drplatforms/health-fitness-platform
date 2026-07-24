@@ -75,6 +75,46 @@ def test_performance_studio_seed_is_isolated_idempotent_and_analytics_ready(
     assert marker_plan_count == 24
     assert untouched_plan_count == 1
 
+    conn = database.get_connection()
+    human_entered_rows = conn.execute(
+        """
+        SELECT
+            actual_reps,
+            actual_duration_seconds,
+            actual_distance_meters,
+            actual_weight
+        FROM workout_execution_set_actuals AS actuals
+        JOIN workout_execution_sessions AS executions
+          ON executions.id = actuals.workout_execution_session_id
+        JOIN workout_plan_instances AS plans
+          ON plans.id = executions.workout_plan_instance_id
+        WHERE plans.user_id = ? AND plans.scenario = ?
+        """,
+        (PERFORMANCE_STUDIO_USER_ID, PERFORMANCE_STUDIO_SCENARIO),
+    ).fetchall()
+    conn.close()
+    weights = [
+        float(row["actual_weight"])
+        for row in human_entered_rows
+        if row["actual_weight"] is not None
+    ]
+    durations = [
+        int(row["actual_duration_seconds"])
+        for row in human_entered_rows
+        if row["actual_duration_seconds"] is not None
+    ]
+    distances = [
+        float(row["actual_distance_meters"])
+        for row in human_entered_rows
+        if row["actual_distance_meters"] is not None
+    ]
+    assert weights
+    assert all(weight % 5 == 0 for weight in weights)
+    assert durations
+    assert all(duration % 5 == 0 for duration in durations)
+    assert distances
+    assert all(distance % 5 == 0 for distance in distances)
+
     analytics = build_workout_exercise_history_analytics(
         user_id=PERFORMANCE_STUDIO_USER_ID,
         lookback_days=365,
@@ -119,6 +159,16 @@ def test_performance_studio_seed_is_isolated_idempotent_and_analytics_ready(
     assert all(not session.has_set_details for session in bench.recent_sessions)
     assert all(not session.recorded_sets for session in bench.recent_sessions)
     assert all(not session.completed_sets for session in bench.recent_sessions)
+    bench_loads = [
+        session.performance_metric.value
+        for session in reversed(bench.recent_sessions)
+        if session.performance_metric is not None
+    ]
+    adjacent_bench_loads = list(zip(bench_loads, bench_loads[1:], strict=False))
+    assert all(load % 5 == 0 for load in bench_loads)
+    assert any(current == previous for previous, current in adjacent_bench_loads)
+    assert any(current < previous for previous, current in adjacent_bench_loads)
+    assert any(current > previous for previous, current in adjacent_bench_loads)
 
     phase_codes = {phase.code for phase in bench.historical_phase_segments}
     assert {"progression", "plateau", "deload", "rebound"} <= phase_codes

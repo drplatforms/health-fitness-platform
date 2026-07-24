@@ -20,7 +20,9 @@ import {
   pinchZoomViewport,
   resizeNavigatorViewport,
   revealOuterPosition,
+  sessionTraversalIndices,
   spreadCoincidentSessionPositions,
+  touchGestureOpensSession,
   type PerformanceViewport,
   visibleSessionIndexRange,
   viewportPositionToIsoDate,
@@ -270,7 +272,7 @@ test("classifies mouse clicks separately from drags", () => {
   assert.equal(classifyMouseGesture(0, 9), "drag");
 });
 
-test("classifies taps, horizontal pans, page scrolls, and pinches", () => {
+test("classifies taps, horizontal scrubs, page scrolls, and pinches", () => {
   assert.equal(
     classifyTouchGesture({
       maximumTouchCount: 1,
@@ -285,7 +287,7 @@ test("classifies taps, horizontal pans, page scrolls, and pinches", () => {
       deltaX: 20,
       deltaY: 3,
     }),
-    "pan",
+    "scrub",
   );
   assert.equal(
     classifyTouchGesture({
@@ -305,7 +307,22 @@ test("classifies taps, horizontal pans, page scrolls, and pinches", () => {
   );
 });
 
-test("keeps active indicators visible while session detail navigates", () => {
+test("opens taps and deliberate scrubs but never scrolls or pinches", () => {
+  assert.equal(touchGestureOpensSession("tap"), true);
+  assert.equal(touchGestureOpensSession("scrub"), true);
+  assert.equal(touchGestureOpensSession("scroll"), false);
+  assert.equal(touchGestureOpensSession("pinch"), false);
+});
+
+test("traverses every adjacent session in either scrub direction", () => {
+  assert.deepEqual(sessionTraversalIndices(2, 6, 10), [2, 3, 4, 5, 6]);
+  assert.deepEqual(sessionTraversalIndices(6, 2, 10), [6, 5, 4, 3, 2]);
+  assert.deepEqual(sessionTraversalIndices(4, 4, 10), [4]);
+  assert.deepEqual(sessionTraversalIndices(-4, 99, 4), [0, 1, 2, 3]);
+  assert.deepEqual(sessionTraversalIndices(0, 1, 0), []);
+});
+
+test("keeps active indicators visible while scrubbing or detail navigates", () => {
   assert.equal(
     activeSelectionIndicatorsVisible(false, false, false),
     false,
@@ -316,6 +333,10 @@ test("keeps active indicators visible while session detail navigates", () => {
   );
   assert.equal(
     activeSelectionIndicatorsVisible(true, false, false),
+    true,
+  );
+  assert.equal(
+    activeSelectionIndicatorsVisible(false, false, false, true),
     true,
   );
 });
