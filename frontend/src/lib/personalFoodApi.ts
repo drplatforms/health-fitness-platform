@@ -66,20 +66,23 @@ export async function searchPersonalFoods(
 export async function fetchPersonalFood(
   userId: number,
   personalFoodId: number,
+  signal?: AbortSignal,
 ): Promise<PersonalFoodResponse> {
   const params = new URLSearchParams({ user_id: String(userId) });
   const response = await fetch(
     `/api/personal-foods/${personalFoodId}?${params.toString()}`,
-    { cache: "no-store", headers: { Accept: "application/json" } },
+    { cache: "no-store", signal, headers: { Accept: "application/json" } },
   );
   return requireJson(response, "Unable to load this personal food.");
 }
 
 export async function createPersonalFood(
   payload: PersonalFoodUpsertRequest,
+  signal?: AbortSignal,
 ): Promise<PersonalFoodResponse> {
   const response = await fetch("/api/personal-foods", {
     method: "POST",
+    signal,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
@@ -89,9 +92,11 @@ export async function createPersonalFood(
 export async function updatePersonalFood(
   personalFoodId: number,
   payload: PersonalFoodUpsertRequest,
+  signal?: AbortSignal,
 ): Promise<PersonalFoodResponse> {
   const response = await fetch(`/api/personal-foods/${personalFoodId}`, {
     method: "PATCH",
+    signal,
     headers: { Accept: "application/json", "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
