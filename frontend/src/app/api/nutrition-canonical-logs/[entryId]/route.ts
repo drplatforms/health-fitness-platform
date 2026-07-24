@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface RouteContext {
   params: Promise<{
@@ -37,18 +41,30 @@ function backendErrorPayload(
 
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { entryId } = await context.params;
+  const parsedEntryId = parsePositiveIntegerId(entryId);
+  if (parsedEntryId === null) {
+    return NextResponse.json(
+      { detail: "entry_id must be a positive integer." },
+      { status: 400 },
+    );
+  }
   const payload = (await request.json().catch(() => null)) as
     | CanonicalNutritionLogUpdatePayload
     | null;
 
-  if (!payload?.user_id) {
+  const userId = parsePositiveIntegerId(payload?.user_id);
+  if (!payload || userId === null) {
     return NextResponse.json(
-      { detail: "user_id is required." },
+      { detail: "user_id must be a positive integer." },
       { status: 400 },
     );
   }
 
-  const endpoint = `${getApiBaseUrl()}/nutrition/${payload.user_id}/canonical-logs/${entryId}`;
+  const endpoint = buildBackendUrl(getApiBaseUrl(), "nutrition", [
+    userId,
+    "canonical-logs",
+    parsedEntryId,
+  ]);
   const backendPayload = {
     grams: payload.grams,
     serving_unit_id: payload.serving_unit_id,
@@ -86,19 +102,25 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
   const { entryId } = await context.params;
+  const parsedEntryId = parsePositiveIntegerId(entryId);
   const searchParams = request.nextUrl.searchParams;
-  const userId = searchParams.get("user_id");
+  const userId = parsePositiveIntegerId(searchParams.get("user_id"));
   const date = searchParams.get("date");
 
-  if (!userId || !date) {
+  if (parsedEntryId === null || userId === null || !date) {
     return NextResponse.json(
-      { detail: "user_id and date are required." },
+      { detail: "user_id, entry_id, and date are required." },
       { status: 400 },
     );
   }
 
   const params = new URLSearchParams({ date });
-  const endpoint = `${getApiBaseUrl()}/nutrition/${userId}/canonical-logs/${entryId}?${params.toString()}`;
+  const endpoint = buildBackendUrl(
+    getApiBaseUrl(),
+    "nutrition",
+    [userId, "canonical-logs", parsedEntryId],
+    params,
+  );
 
   try {
     const response = await fetch(endpoint, {

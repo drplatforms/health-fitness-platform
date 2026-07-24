@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 async function backendJson(response: Response) {
   return (await response.json().catch(() => null)) as
@@ -17,18 +21,23 @@ function backendError(payload: Record<string, unknown> | null, fallback: string)
 function requestIdentity(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   return {
-    userId: params.get("user_id"),
+    userId: parsePositiveIntegerId(params.get("user_id")),
     foodType: params.get("food_type"),
-    foodId: params.get("food_id"),
+    foodId: parsePositiveIntegerId(params.get("food_id")),
   };
 }
 
 export async function GET(request: NextRequest) {
   const { userId } = requestIdentity(request);
-  if (!userId) {
-    return NextResponse.json({ detail: "user_id is required." }, { status: 400 });
+  if (userId === null) {
+    return NextResponse.json(
+      { detail: "user_id must be a positive integer." },
+      { status: 400 },
+    );
   }
-  return proxyPinnedFoods(`${getApiBaseUrl()}/nutrition/${userId}/pinned-foods`);
+  return proxyPinnedFoods(
+    buildBackendUrl(getApiBaseUrl(), "nutrition", [userId, "pinned-foods"]),
+  );
 }
 
 export async function PUT(request: NextRequest) {
@@ -41,14 +50,27 @@ export async function DELETE(request: NextRequest) {
 
 async function mutatePinnedFood(request: NextRequest, method: "PUT" | "DELETE") {
   const { userId, foodType, foodId } = requestIdentity(request);
-  if (!userId || !foodType || !foodId) {
+  if (
+    userId === null ||
+    foodId === null ||
+    !foodType ||
+    !["canonical", "personal"].includes(foodType)
+  ) {
     return NextResponse.json(
-      { detail: "user_id, food_type, and food_id are required." },
+      {
+        detail:
+          "user_id and food_id must be positive integers and food_type must be canonical or personal.",
+      },
       { status: 400 },
     );
   }
   return proxyPinnedFoods(
-    `${getApiBaseUrl()}/nutrition/${userId}/pinned-foods/${foodType}/${foodId}`,
+    buildBackendUrl(getApiBaseUrl(), "nutrition", [
+      userId,
+      "pinned-foods",
+      foodType,
+      foodId,
+    ]),
     method,
   );
 }

@@ -3,12 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "predev": "node scripts/validate-remote-access.mjs",
+    "dev": "next dev --hostname 127.0.0.1",
+    "predev:shared": "node scripts/validate-remote-access.mjs --require-remote",
+    "dev:shared": "next dev --hostname 0.0.0.0",
+    "prebuild": "node scripts/validate-remote-access.mjs",
     "build": "next build",
-    "start": "next start",
+    "prestart": "node scripts/validate-remote-access.mjs",
+    "start": "next start --hostname 127.0.0.1",
+    "prestart:shared": "node scripts/validate-remote-access.mjs --require-remote",
+    "start:shared": "next start --hostname 0.0.0.0",
     "lint": "eslint"
   },
   "dependencies": {
+    "@next/env": "16.2.10",
     "@zxing/browser": "^0.2.1",
     "next": "16.2.10",
     "react": "19.2.4",

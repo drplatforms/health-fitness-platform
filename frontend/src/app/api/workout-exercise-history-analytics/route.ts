@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 export async function GET(request: NextRequest) {
-  const userId = Number(request.nextUrl.searchParams.get("user_id"));
-  if (!Number.isInteger(userId) || userId <= 0) {
+  const userId = parsePositiveIntegerId(
+    request.nextUrl.searchParams.get("user_id"),
+  );
+  if (userId === null) {
     return NextResponse.json(
       { detail: "A valid user_id is required." },
       { status: 400 },
@@ -23,7 +29,6 @@ export async function GET(request: NextRequest) {
       backendParams.set(name, value);
     }
   }
-  const query = backendParams.toString();
   const sessionKey = request.nextUrl.searchParams.get("session_key");
   if (sessionKey !== null && !/^[a-f0-9]{20}$/.test(sessionKey)) {
     return NextResponse.json(
@@ -31,9 +36,19 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
-  const endpoint = sessionKey
-    ? `${getApiBaseUrl()}/workout-plans/${userId}/exercise-history-analytics/sessions/${sessionKey}${query ? `?${query}` : ""}`
-    : `${getApiBaseUrl()}/workout-plans/${userId}/exercise-history-analytics${query ? `?${query}` : ""}`;
+  const endpoint = buildBackendUrl(
+    getApiBaseUrl(),
+    "workout-plans",
+    sessionKey
+      ? [
+          userId,
+          "exercise-history-analytics",
+          "sessions",
+          sessionKey,
+        ]
+      : [userId, "exercise-history-analytics"],
+    backendParams,
+  );
 
   try {
     const response = await fetch(endpoint, {

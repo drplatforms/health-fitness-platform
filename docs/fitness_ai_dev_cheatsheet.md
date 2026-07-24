@@ -389,13 +389,13 @@ cd C:\projects\fitness_ai
 ### Start FastAPI
 
 ```powershell
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
 ### Start Streamlit
 
 ```powershell
-streamlit run ui\streamlit_app.py --server.address 0.0.0.0 --server.port 8501
+streamlit run ui\streamlit_app.py --server.address 127.0.0.1 --server.port 8501
 ```
 
 ### Kill FastAPI / Streamlit
@@ -453,7 +453,7 @@ POST_WORKOUT_REVIEW_PROVIDER=deterministic \
 RECOMMENDATION_CANDIDATE_PROVIDER=deterministic \
 HEALTH_REPORT_PROVIDER=deterministic \
 NUTRITION_EXPLANATION_PROVIDER=deterministic \
-uvicorn api.main:app --host 0.0.0.0 --port 8000"
+uvicorn api.main:app --host 127.0.0.1 --port 8000"
 ```
 
 ### Start Streamlit
@@ -465,7 +465,7 @@ source .venv/bin/activate
 tmux kill-session -t fitness-ui 2>/dev/null || true
 
 tmux new -d -s fitness-ui "cd ~/projects/fitness-ai-platform && source .venv/bin/activate && \
-streamlit run ui/streamlit_app.py --server.address 0.0.0.0 --server.port 8501"
+streamlit run ui/streamlit_app.py --server.address 127.0.0.1 --server.port 8501"
 ```
 
 ### Verify services

@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface RouteContext {
   params: Promise<{
@@ -27,22 +31,18 @@ function boundedBackendDetail(
 
 export async function GET(_request: Request, context: RouteContext) {
   const { catalogExerciseId } = await context.params;
-  if (!/^[1-9]\d*$/.test(catalogExerciseId)) {
+  const parsedCatalogExerciseId = parsePositiveIntegerId(catalogExerciseId);
+  if (parsedCatalogExerciseId === null) {
     return NextResponse.json(
       { detail: "catalogExerciseId must be a positive integer." },
       { status: 400 },
     );
   }
 
-  const parsedCatalogExerciseId = Number(catalogExerciseId);
-  if (!Number.isSafeInteger(parsedCatalogExerciseId)) {
-    return NextResponse.json(
-      { detail: "catalogExerciseId must be a positive integer." },
-      { status: 400 },
-    );
-  }
-
-  const endpoint = `${getApiBaseUrl()}/exercise-catalog/${parsedCatalogExerciseId}/instruction`;
+  const endpoint = buildBackendUrl(getApiBaseUrl(), "exercise-catalog", [
+    parsedCatalogExerciseId,
+    "instruction",
+  ]);
 
   try {
     const response = await fetch(endpoint, {

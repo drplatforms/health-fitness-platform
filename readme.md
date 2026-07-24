@@ -228,9 +228,37 @@ http://127.0.0.1:3100
 
 Port `3100` is the standard local production-mode frontend acceptance port for this project.
 
-For LAN development, bind deliberately to an appropriate network interface instead of `127.0.0.1`. Do not expose local development ports directly to the public internet.
+Both application servers bind to `127.0.0.1` by default. The repository command
+menu permits a non-loopback Next.js bind only through the explicit `-Shared`
+switch, and shared mode refuses to start without complete remote-access
+configuration. FastAPI remains loopback-only.
 
-Private remote access and HTTPS termination are deployment concerns and are intentionally kept outside the repository.
+### Private single-user remote access
+
+For private Caddy/Meshnet access, copy `frontend/.env.local.example` to
+`frontend/.env.local` and set:
+
+```text
+FITNESS_REMOTE_ACCESS_ENABLED=true
+FITNESS_BASIC_AUTH_USER=<private username>
+FITNESS_BASIC_AUTH_PASSWORD=<strong private password>
+FITNESS_PUBLIC_ORIGIN=https://fitness.example.internal
+```
+
+Remote mode fails closed during build, startup, and requests when any value is
+missing or invalid. It applies HTTP Basic authentication to pages and Next.js
+API routes and enforces the configured origin for mutations. Keep Caddy on the
+same host and proxy only to the loopback Next.js listener:
+
+```caddyfile
+fitness.example.internal {
+    reverse_proxy 127.0.0.1:3100
+}
+```
+
+Do not proxy port `8000`; FastAPI is an internal loopback dependency. This is
+private single-user containment for a trusted network, not public-Internet or
+multi-user SaaS authentication.
 
 ## Validation
 

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getApiBaseUrl } from "@/lib/dailyDriverApi";
+import {
+  buildBackendUrl,
+  parsePositiveIntegerId,
+} from "@/lib/securityBoundary";
 
 interface ServingUnitsRouteContext {
   params: Promise<{
@@ -13,16 +17,20 @@ export async function GET(
   context: ServingUnitsRouteContext,
 ) {
   const { canonicalFoodId } = await context.params;
-  const parsedCanonicalFoodId = Number.parseInt(canonicalFoodId, 10);
+  const parsedCanonicalFoodId = parsePositiveIntegerId(canonicalFoodId);
 
-  if (!Number.isFinite(parsedCanonicalFoodId) || parsedCanonicalFoodId <= 0) {
+  if (parsedCanonicalFoodId === null) {
     return NextResponse.json(
       { detail: "canonical_food_id must be a positive integer." },
       { status: 400 },
     );
   }
 
-  const endpoint = `${getApiBaseUrl()}/foods/canonical/${parsedCanonicalFoodId}/serving-units`;
+  const endpoint = buildBackendUrl(getApiBaseUrl(), "foods", [
+    "canonical",
+    parsedCanonicalFoodId,
+    "serving-units",
+  ]);
 
   try {
     const response = await fetch(endpoint, {
